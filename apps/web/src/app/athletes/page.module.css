@@ -1,0 +1,155 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.searchInput {
+  width: 260px;
+  background: var(--surface) !important;
+}
+
+.filterRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.filterChip {
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filterChip:hover {
+  border-color: var(--accent);
+  color: var(--text-secondary);
+}
+
+.filterChipActive {
+  background: #FFFFFF;
+  border-color: #FFFFFF;
+  color: #0A0A0A;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.playerCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.playerCard:hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #F0F0F0;
+  flex-shrink: 0;
+}
+
+.playerName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.playerMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.positionsRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cardStats {
+  display: flex;
+  gap: 16px;
+}
+
+.cardStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cardStatValue {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cardStatLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rankings {
+  display: flex;
+  gap: 8px;
+}
+
+.ranking {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.empty {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text-muted);
+}

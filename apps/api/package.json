@@ -1,0 +1,47 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node -r tsconfig-paths/register src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
+    "test": "ts-node --project test/tsconfig.test.json test/api.test.ts",
+    "test:unit": "ts-node --project test/tsconfig.test.json test/unit.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1028.0",
+    "@aws-sdk/s3-request-presigner": "^3.1028.0",
+    "@nestjs/common": "^11.1.18",
+    "@nestjs/config": "^4.0.3",
+    "@nestjs/core": "^11.1.18",
+    "@nestjs/platform-express": "^11.1.18",
+    "@nestjs/swagger": "^11.2.6",
+    "@prisma/client": "5.22.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "multer": "^2.1.1",
+    "papaparse": "^5.5.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.17",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.5.2",
+    "@types/papaparse": "^5.5.2",
+    "@types/uuid": "^10.0.0",
+    "prisma": "5.22.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.2"
+  }
+}

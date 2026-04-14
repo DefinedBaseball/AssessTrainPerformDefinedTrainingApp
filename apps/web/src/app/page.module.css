@@ -1,0 +1,361 @@
+/* ── Coach Dashboard ──
+   Uses the Summer Pro Assessment design system.
+*/
+
+/* Hero */
+.heroOuter {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+.hero {
+  padding: 32px 0 28px;
+}
+
+.heroEyebrow {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.heroTitle {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.heroSub {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.heroActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  white-space: nowrap;
+}
+.actionPrimary {
+  background: #FFFFFF;
+  color: #0A0A0A;
+}
+.actionPrimary:hover { filter: brightness(1.12); }
+.actionOutline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.actionOutline:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+
+/* Content wrap */
+.content {
+  max-width: 1200px;
+  padding: 28px 0 48px;
+}
+
+/* Stat KPIs */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.statCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  transition: border-color 0.15s;
+}
+.statCard:hover { border-color: var(--accent); }
+
+.statValue {
+  font-size: 30px;
+  font-weight: 700;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: -0.02em;
+  color: var(--accent-light);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Section cards */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionBadge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-dim);
+  color: var(--accent-light);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.sectionAction {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+.sectionAction:hover { color: var(--accent-light); }
+
+/* Athletes Table */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 20px;
+  text-align: left;
+  font-weight: 500;
+}
+
+.table td {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+}
+
+.table tr:hover td {
+  background: var(--surface2);
+}
+
+.playerCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #F0F0F0;
+  flex-shrink: 0;
+}
+
+.playerName {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.playerSub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.positionsRow {
+  display: flex;
+  gap: 4px;
+}
+
+.viewBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.viewBtn:hover {
+  background: var(--accent-dim);
+  color: var(--accent-light);
+}
+
+/* Quick Access Grid */
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  padding: 20px 24px;
+}
+
+.quickCard {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.quickCard:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.quickIcon {
+  font-size: 22px;
+}
+
+.quickLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.quickDesc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Empty state */
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.emptyHint {
+  display: block;
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 4px;
+}
+
+/* Upload History */
+.uploadList {
+  padding: 0;
+}
+
+.uploadItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.uploadItem:first-child { border-top: none; }
+
+.uploadMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.uploadSource {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.uploadDate {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.uploadStatus {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.statusSuccess {
+  background: var(--green-dim);
+  color: var(--green);
+}
+.statusPending {
+  background: var(--gold-dim);
+  color: var(--gold);
+}
+.statusFailed {
+  background: var(--red-dim);
+  color: var(--red);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .heroTitle { font-size: 26px; }
+  .heroActions { flex-wrap: wrap; }
+  .quickGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .statsGrid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .statCard { padding: 14px; }
+  .statValue { font-size: 24px; }
+}

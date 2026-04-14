@@ -1,0 +1,261 @@
+/* ── Education Hub ── */
+.page { max-width: 1140px; }
+
+/* ── Breadcrumb ── */
+.breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+.bcLink { color: var(--text-muted); background: none; border: none; padding: 0; font-size: 13px; cursor: pointer; transition: color .15s; font-family: inherit; }
+.bcLink:hover { color: var(--text); }
+.bcSep { color: var(--faint); }
+.bcCurrent { color: var(--text); font-weight: 600; }
+
+/* ── Landing ── */
+.landingEyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 8px; }
+.landingTitle { font-size: 32px; font-weight: 700; line-height: 1.2; margin-bottom: 10px; }
+.landingSub { font-size: 15px; color: var(--text-muted); max-width: 520px; margin-bottom: 40px; }
+
+.hubGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.hubCard {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: 28px; cursor: pointer; transition: all .2s; position: relative; overflow: hidden;
+}
+.hubCard:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.3); }
+.hubIcon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 18px; }
+.hubCardTitle { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.hubCardDesc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.hubCardCount { margin-top: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.hubCardArrow { margin-left: auto; color: var(--faint); font-size: 18px; transition: transform .2s; }
+.hubCard:hover .hubCardArrow { transform: translateX(4px); }
+
+/* ── Section Header ── */
+.sectionHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.sectionTitle { font-size: 24px; font-weight: 700; }
+.sectionSub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.addBtn {
+  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+  background: #FFFFFF; color: #0A0A0A; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s;
+}
+.addBtn:hover { background: #E0E0E0; }
+
+/* ── Sport Tabs ── */
+.sportTabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 24px; overflow-x: auto; }
+.sportTab {
+  padding: 8px 18px; border-radius: 7px; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); background: none; border: none; white-space: nowrap;
+  cursor: pointer; transition: all .15s;
+}
+.sportTab:hover { color: var(--text); }
+.sportTabActive { color: #FFFFFF !important; background: #333333; }
+
+/* ── Filter Pills ── */
+.filterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.pill {
+  padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--text-muted); background: none;
+  cursor: pointer; transition: all .15s;
+}
+.pill:hover { color: var(--text); }
+.pillActive { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-light); }
+
+/* ── Classes ── */
+.levelBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: .05em; }
+.levelBeginner { background: var(--green-dim); color: var(--green); border: 1px solid rgba(109,170,69,.3); }
+.levelIntermediate { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(232,175,52,.3); }
+.levelAdvanced { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(253,171,67,.3); }
+.levelExpert { background: var(--red-dim); color: var(--red); border: 1px solid rgba(221,105,116,.3); }
+
+.classGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.classCard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; gap: 14px; transition: all .15s; }
+.classCard:hover { border-color: #3a4560; transform: translateY(-1px); }
+.classThumb { width: 64px; height: 64px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.classBody { flex: 1; min-width: 0; }
+.className { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.classMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.classDesc { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.classLessons { font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 4px; }
+.classActions { display: flex; gap: 4px; margin-top: 8px; }
+
+/* ── Drills ── */
+.catGroup { margin-bottom: 32px; }
+.catHeader { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.catLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+.catLine { flex: 1; height: 1px; background: var(--border); }
+.catCount { font-size: 11px; color: var(--faint); }
+
+.drillCard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; margin-bottom: 8px; transition: border-color .15s; position: relative; }
+.drillCard:hover { border-color: #3a4560; }
+.drillCard:hover .cardActions { opacity: 1; }
+.colorBar { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 36px; }
+.cardBody { flex: 1; min-width: 0; }
+.cardName { font-size: 14px; font-weight: 600; }
+.cardDesc { font-size: 13px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cardMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.metaItem { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--faint); }
+.tag { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 20px; padding: 2px 8px; }
+.cardActions { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.cardBtn { width: 28px; height: 28px; border-radius: 7px; border: none; background: transparent; color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; font-size: 14px; }
+.cardBtn:hover { background: var(--surface2); color: var(--text); }
+.cardBtnDel:hover { background: var(--red-dim); color: var(--red); }
+
+/* ── MLB Video ── */
+.mlbFilters { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.mlbFilterGroup { display: flex; flex-direction: column; gap: 6px; }
+.mlbFilterLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.mlbFilterPills { display: flex; gap: 5px; flex-wrap: wrap; }
+.mlbDivider { width: 1px; height: 40px; background: var(--border); align-self: center; }
+
+.playerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.playerCard { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; cursor: pointer; transition: all .2s; }
+.playerCard:hover { border-color: #3a4560; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.3); }
+.playerThumb { height: 100px; display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; }
+.playerPosBadge { position: absolute; bottom: 8px; right: 8px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
+.playerInfo { padding: 14px; }
+.playerName { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.playerTags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.playerTag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; border: 1px solid; }
+.videoCount { font-size: 11px; color: var(--faint); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+
+/* ── Player Detail ── */
+.playerDetailHead { display: flex; align-items: center; gap: 20px; margin-bottom: 28px; padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.playerAvatar { width: 72px; height: 72px; border-radius: 50%; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; border: 2px solid var(--border); }
+.playerDetailName { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.playerDetailMeta { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.videoCard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer; transition: all .15s; }
+.videoCard:hover { border-color: #3a4560; }
+.videoThumb { height: 120px; background: var(--surface2); display: flex; align-items: center; justify-content: center; position: relative; }
+.playBtn { width: 44px; height: 44px; background: rgba(60,60,60,.85); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; transition: transform .15s; }
+.videoCard:hover .playBtn { transform: scale(1.1); }
+.videoInfo { padding: 12px 14px; }
+.videoTitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.videoMeta { font-size: 11px; color: var(--text-muted); }
+.videoNotes { font-size: 11px; color: var(--faint); margin-top: 4px; font-style: italic; }
+.videoActions { display: flex; gap: 4px; margin-top: 6px; }
+
+/* ── Shared ── */
+.empty { text-align: center; padding: 60px 20px; color: var(--faint); font-size: 14px; }
+.searchWrap { position: relative; margin-bottom: 20px; }
+.searchInput { width: 100%; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px 8px 12px; font-size: 13px; color: var(--text); outline: none; transition: border-color .15s; }
+.searchInput:focus { border-color: var(--accent); }
+.searchInput::placeholder { color: var(--faint); }
+
+/* ── Modal (reuse from training) ── */
+.modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.modalTitle { font-size: 16px; font-weight: 700; }
+.modalClose { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 18px; border-radius: 6px; }
+.modalClose:hover { background: var(--surface2); color: var(--text); }
+.modalBody { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.fieldLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+.fieldInput { padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+.fieldInput:focus { border-color: var(--accent); outline: none; }
+.fieldRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modalFooter { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.btnCancel { padding: 8px 16px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; }
+.btnSave { padding: 8px 20px; font-size: 12px; font-weight: 600; background: #FFFFFF; border: none; border-radius: 6px; color: #0A0A0A; cursor: pointer; }
+.btnSave:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Drill Card extras ── */
+.cardNameRow { display: flex; align-items: center; gap: 8px; }
+.cardVideoIcon { color: var(--accent-light); font-size: 11px; flex-shrink: 0; }
+
+/* ── File Upload ── */
+.fileUpload { display: block; cursor: pointer; }
+.fileUploadBtn {
+  display: block;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  transition: all 0.15s;
+}
+.fileUploadBtn:hover { border-color: var(--accent); color: var(--text); }
+.fileUploadMeta { font-size: 11px; color: var(--faint); margin-top: 4px; display: block; }
+
+/* ── Video Player Modal ── */
+.videoModal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 720px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.videoContainer {
+  width: 100%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.videoPlayer {
+  width: 100%;
+  max-height: 60vh;
+  display: block;
+}
+
+.noVideo {
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.videoDesc {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.videoDescLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.videoDescText {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.videoMeta {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+}
+
+.videoMetaTag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  background: var(--surface2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--text-muted);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hubGrid { grid-template-columns: 1fr; }
+  .playerGrid { grid-template-columns: repeat(2, 1fr); }
+  .videoGrid { grid-template-columns: 1fr; }
+  .classGrid { grid-template-columns: 1fr; }
+  .mlbDivider { display: none; }
+}

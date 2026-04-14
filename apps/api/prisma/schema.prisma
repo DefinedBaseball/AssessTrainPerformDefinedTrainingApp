@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users & Auth ────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // hashed — will swap to Cognito in production
+  role      String   @default("PLAYER") // "COACH" | "PLAYER"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  player Player?
+  createdReports Report[] @relation("ReportCreatedBy")
+}
+
+// ─── Player Profile ──────────────────────────────────────────────
+
+model Player {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  firstName     String
+  lastName      String
+  profilePhoto  String?  // S3 URL
+  positions     String   // comma-separated: "INF,OF"
+  heightInches  Int?
+  weightLbs     Int?
+  gradYear      Int?
+  bats          String?  // R, L, S
+  throws        String?  // R, L
+  birthDate     String?  // ISO date string
+  highSchool    String?
+  clubTeam      String?
+  collegeCommit String?
+  pbrNational   Int?
+  pbrState      Int?
+  pbrPosition   Int?
+  pgScore       Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  metrics            Metric[]
+  videos             Video[]
+  reports            Report[]
+  gameReports        GameReport[]
+  trainingPrograms   TrainingProgram[]
+  leaderboardEntries LeaderboardEntry[]
+  scheduledDrills    ScheduledDrill[]
+
+  uploadedVideos Video[]  @relation("UploadedBy")
+}
+
+// ─── Metrics (Normalized from all vendors) ───────────────────────
+
+model Metric {
+  id         String   @id @default(uuid())
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id])
+  source     String   // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX" | "MANUAL"
+  metricType String   // e.g., 'max_exit_velo', 'fb_max_velo', 'pop_time'
+  value      Float
+  unit       String   // e.g., 'mph', 'degrees', 'seconds'
+  recordedAt DateTime
+  rawData    String?  // JSON string of original vendor data
+  uploadId   String?  // links metric to its CsvUpload batch
+  createdAt  DateTime @default(now())
+
+  @@index([playerId, source, recordedAt])
+  @@index([metricType, value])
+  @@index([playerId, metricType, recordedAt])
+  @@index([uploadId])
+}
+
+// ─── Videos ──────────────────────────────────────────────────────
+
+model Video {
+  id           String   @id @default(uuid())
+  playerId     String
+  player       Player   @relation(fields: [playerId], references: [id])
+  uploadedById String?
+  uploadedBy   Player?  @relation("UploadedBy", fields: [uploadedById], references: [id])
+  title        String
+  category     String   // "HITTING" | "PITCHING" | "FIELDING" | "CATCHING" | "GAME" | "WORKOUT_DEMO"
+  originalUrl  String?  // S3 raw upload
+  hlsUrl       String?  // S3 processed HLS
+  thumbnailUrl String?
+  durationSec  Int?
+  status       String   @default("UPLOADING") // "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
+  createdAt    DateTime @default(now())
+
+  annotations Annotation[]
+  voiceOvers  VoiceOver[]
+}
+
+// ─── Video Annotations (Drawing on video) ────────────────────────
+
+model Annotation {
+  id             String   @id @default(uuid())
+  videoId        String
+  video          Video    @relation(fields: [videoId], references: [id])
+  createdById    String
+  frameTimestamp Float    // seconds into video
+  strokeData     String   // serialized drawing paths (JSON or base64)
+  color          String
+  strokeWidth    Float
+  createdAt      DateTime @default(now())
+
+  @@index([videoId, frameTimestamp])
+}
+
+// ─── Voice Overs ─────────────────────────────────────────────────
+
+model VoiceOver {
+  id             String   @id @default(uuid())
+  videoId        String
+  video          Video    @relation(fields: [videoId], references: [id])
+  createdById    String
+  audioUrl       String   // S3 URL
+  startTimestamp Float    // seconds into video where audio starts
+  durationSec    Float
+  createdAt      DateTime @default(now())
+}
+
+// ─── Player Reports ──────────────────────────────────────────────
+
+model Report {
+  id          String   @id @default(uuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id])
+  createdById String
+  createdBy   User     @relation("ReportCreatedBy", fields: [createdById], references: [id])
+  reportType  String   // "HITTING" | "INFIELD" | "OUTFIELD" | "PITCHING" | "CATCHING"
+  title       String?  // user-assigned report name
+  content     String   // JSON — structured report data
+  notes       String?  // coach's written notes
+  videoIds    String?  // comma-separated video IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── Drill Library (Master list of all drills) ──────────────────
+
+model Drill {
+  id          String   @id @default(uuid())
+  name        String
+  tab         String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  category    String   // "Movement Prep" | "Drills" | "Exercises" | "Batting Practice" | "Machine" | "Bullpen" | "Live" | "Post-Throw" | "Cool Down" | "Vizual Edge"
+  description String?
+  videoUrl    String?  // demo video URL
+  duration    Int?     // default duration in minutes
+  tags        String?  // comma-separated tags
+  createdAt   DateTime @default(now())
+
+  scheduledDrills ScheduledDrill[]
+
+  @@index([tab])
+  @@index([name])
+}
+
+// ─── Education: Classes ──────────────────────────────────────────
+
+model EduClass {
+  id        String   @id @default(uuid())
+  sport     String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  level     String   // "beginner" | "intermediate" | "advanced" | "expert"
+  name      String
+  desc      String?
+  lessons   Int      @default(1)
+  duration  Int      @default(30) // minutes per lesson
+  emoji     String   @default("📚")
+  createdAt DateTime @default(now())
+
+  @@index([sport, level])
+}
+
+// ─── Education: MLB Video Library ────────────────────────────────
+
+model MlbPlayer {
+  id        String     @id @default(uuid())
+  name      String
+  positions String     // comma-separated: "Hitter,Outfield"
+  bats      String?    // "RHH" | "LHH" | "Switch"
+  throws    String?    // "RHP" | "LHP"
+  team      String?
+  emoji     String     @default("⚾")
+  createdAt DateTime   @default(now())
+
+  videos MlbVideo[]
+
+  @@index([name])
+}
+
+model MlbVideo {
+  id        String    @id @default(uuid())
+  playerId  String
+  player    MlbPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  title     String
+  category  String    // "Swing" | "At-Bat" | "Mechanics" | "Pitching" | "Defense" | "Highlight"
+  url       String?
+  notes     String?
+  createdAt DateTime  @default(now())
+
+  @@index([playerId, category])
+}
+
+// ─── Scheduled Drills (Calendar entries per player) ─────────────
+
+model ScheduledDrill {
+  id        String   @id @default(uuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  drillId   String?
+  drill     Drill?   @relation(fields: [drillId], references: [id])
+  tab       String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  category  String
+  name      String
+  date      String   // "YYYY-MM-DD"
+  time      String   // "HH:MM"
+  duration  Int      // minutes
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([playerId, tab, date])
+  @@index([playerId, date])
+}
+
+// ─── Training Programs (legacy — kept for backward compat) ──────
+
+model TrainingProgram {
+  id        String   @id @default(uuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+
+  days TrainingDay[]
+}
+
+model TrainingDay {
+  id        String          @id @default(uuid())
+  programId String
+  program   TrainingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  date      DateTime
+  createdAt DateTime        @default(now())
+
+  exercises TrainingExercise[]
+}
+
+model TrainingExercise {
+  id           String      @id @default(uuid())
+  dayId        String
+  day          TrainingDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  category     String      // "HITTING" | "DEFENSIVE" | "PITCHING" | "WEIGHTROOM"
+  name         String
+  description  String?
+  demoVideoUrl String?     // link to demo video
+  sortOrder    Int         @default(0)
+  createdAt    DateTime    @default(now())
+}
+
+// ─── Game Reports ────────────────────────────────────────────────
+
+model GameReport {
+  id        String   @id @default(uuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id])
+  gameDate  DateTime
+  opponent  String?
+  stats     String?  // JSON — batting line, pitch count, etc.
+  journal   String?  // free-form notes
+  videoIds  String?  // comma-separated video IDs
+  season    String?  // e.g., '2026-spring'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Leaderboards (Pre-computed) ─────────────────────────────────
+
+model LeaderboardEntry {
+  id         String   @id @default(uuid())
+  gradYear   Int
+  metricType String
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id])
+  value      Float
+  rank       Int
+  computedAt DateTime @default(now())
+
+  @@unique([gradYear, metricType, playerId])
+  @@index([gradYear, metricType, rank])
+}
+
+// ─── CSV Upload Tracking ─────────────────────────────────────────
+
+model CsvUpload {
+  id           String   @id @default(uuid())
+  uploadedById String
+  source       String   // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX"
+  fileUrl      String   // S3 raw CSV
+  status       String   @default("PENDING") // "PENDING" | "PROCESSING" | "COMPLETED" | "PARTIAL_FAILURE" | "FAILED"
+  totalRows    Int?
+  successRows  Int?
+  errorDetails String?  // JSON error info
+  createdAt    DateTime @default(now())
+}

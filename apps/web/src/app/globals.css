@@ -1,0 +1,224 @@
+/* ── Global Reset & Design System ──
+   Matches the Summer Pro Assessment design language.
+   All pages + components reference these tokens.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* ── Backgrounds ── */
+  --bg:           #0A0A0A;
+  --surface:      #111111;
+  --surface2:     #1A1A1A;
+  --surface-light:#222222;
+  --card:         #111111;
+  --card-hover:   #1A1A1A;
+
+  /* ── Text ── */
+  --text:          #F0F0F0;
+  --text-secondary:#B0B0B0;
+  --text-muted:    #787878;
+  --faint:         #484848;
+
+  /* ── Accent (white/silver) ── */
+  --accent:        #FFFFFF;
+  --accent-light:  #FFFFFF;
+  --accent-dim:    rgba(255,255,255,0.08);
+
+  /* ── Semantic ── */
+  --green:         #6DAA45;
+  --green-dim:     rgba(109,170,69,0.13);
+  --gold:          #E8AF34;
+  --gold-dim:      rgba(232,175,52,0.13);
+  --red:           #DD6974;
+  --red-dim:       rgba(221,105,116,0.13);
+  --orange:        #FDAB43;
+  --orange-dim:    rgba(253,171,67,0.13);
+
+  /* Legacy aliases (for existing components that haven't migrated) */
+  --success:       var(--green);
+  --warning:       var(--orange);
+  --error:         var(--red);
+
+  /* ── Borders ── */
+  --border:        #2A2A2A;
+  --border-light:  #383838;
+
+  /* ── Radii ── */
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     16px;
+  --radius-full:   999px;
+}
+
+html { scroll-behavior: smooth; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--text-secondary); text-decoration: none; }
+a:hover { color: var(--text); opacity: 0.85; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: border-color 0.15s;
+}
+.card:hover { border-color: var(--accent); }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent-dim);
+  color: var(--accent-light);
+}
+.badge-high  { background: var(--green-dim); color: var(--green); }
+.badge-mid   { background: var(--gold-dim);  color: var(--gold); }
+.badge-low   { background: var(--red-dim);   color: var(--red); }
+.badge-teal  { background: var(--accent-dim); color: var(--accent-light); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, background 0.15s;
+}
+.btn:hover { opacity: 0.9; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #0A0A0A; }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent-light); }
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--red-dim);
+  color: var(--red);
+}
+
+/* ── Chips ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  font-size: 12px;
+}
+.chipGreen {
+  background: var(--green-dim);
+  border-color: rgba(109,170,69,0.3);
+  color: var(--green);
+}
+.chipAccent {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent-light);
+  font-weight: 600;
+}
+.chipGold {
+  background: var(--gold-dim);
+  border-color: rgba(232,175,52,0.3);
+  color: var(--gold);
+}
+
+/* ── Forms ── */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+select,
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 10px 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+::placeholder { color: var(--text-muted); }
+
+/* ── Tables ── */
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+tr:hover td { background: var(--surface2); }
+
+/* ── Monospace values ── */
+.mono {
+  font-family: 'DM Mono', monospace;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ── Responsive main content ── */
+.app-main {
+  padding: 24px;
+}
+@media (max-width: 768px) {
+  .app-main {
+    padding: 16px 12px;
+  }
+}
+@media (max-width: 480px) {
+  .app-main {
+    padding: 12px 8px;
+  }
+}

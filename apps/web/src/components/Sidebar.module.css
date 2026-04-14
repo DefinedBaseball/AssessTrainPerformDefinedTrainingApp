@@ -1,0 +1,217 @@
+.sidebar {
+  width: 240px;
+  height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.logoIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.logoText {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.navItem:hover {
+  background: var(--surface-light);
+  color: var(--text);
+}
+
+.active {
+  background: rgba(255,255,255,0.08);
+  color: #FFFFFF;
+}
+
+.navIcon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.footer {
+  padding: 16px 12px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  margin-bottom: 12px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #333333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #F0F0F0;
+  flex-shrink: 0;
+}
+
+.userMeta {
+  overflow: hidden;
+}
+
+.userEmail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userRole {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+
+.logoutBtn {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+  border-radius: 8px;
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.logoutBtn:hover {
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+/* ── Responsive: Tablet ── */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+  }
+}
+
+/* ── Responsive: Small tablet / large phone ── */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 60px;
+    padding: 12px 0;
+  }
+  .logo {
+    justify-content: center;
+    padding: 0 8px 16px;
+    gap: 0;
+  }
+  .logoText {
+    display: none;
+  }
+  .nav {
+    padding: 0 4px;
+  }
+  .navItem {
+    justify-content: center;
+    padding: 10px 8px;
+    gap: 0;
+    font-size: 0;
+  }
+  .navIcon {
+    font-size: 20px;
+    width: auto;
+  }
+  .footer {
+    padding: 12px 4px 0;
+  }
+  .userInfo {
+    justify-content: center;
+    padding: 0;
+  }
+  .userMeta {
+    display: none;
+  }
+  .logoutBtn {
+    font-size: 0;
+    padding: 8px 4px;
+  }
+  .logoutBtn::before {
+    content: '↩';
+    font-size: 16px;
+  }
+}
+
+/* ── Responsive: Phone ── */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 48px;
+    padding: 8px 0;
+  }
+  .logo {
+    padding: 0 4px 12px;
+  }
+  .logoIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+  .navItem {
+    padding: 8px 6px;
+  }
+  .navIcon {
+    font-size: 18px;
+  }
+}

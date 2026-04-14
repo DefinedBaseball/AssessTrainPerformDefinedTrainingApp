@@ -1,0 +1,882 @@
+/* ═══════════════════════════════════════════
+   VIDEOS PAGE — Layout & Header
+   ═══════════════════════════════════════════ */
+
+.pageWrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.headerRow {
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.videoCount {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════
+   ATHLETE DROPDOWN
+   ═══════════════════════════════════════════ */
+
+.athleteDropdown {
+  position: relative;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.athleteDropdownBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-align: left;
+}
+
+.athleteDropdownBtn:hover {
+  border-color: var(--accent);
+}
+
+.athleteDropdownBtnOpen {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.athleteDropdownIcon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.athleteDropdownLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.athleteDropdownArrow {
+  font-size: 9px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.athleteDropdownArrowOpen {
+  transform: rotate(180deg);
+}
+
+.athleteDropdownPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: dropIn 0.15s ease;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.athleteDropdownSearch {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.athleteDropdownInput {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.athleteDropdownInput:focus {
+  border-color: var(--accent);
+}
+
+.athleteDropdownInput::placeholder {
+  color: var(--text-muted);
+}
+
+.athleteDropdownList {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.athleteDropdownList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.athleteDropdownList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.athleteDropdownList::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.athleteDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: left;
+}
+
+.athleteDropdownItem:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.athleteDropdownItemActive {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-light, var(--accent));
+}
+
+.athleteDropdownItemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.athleteDropdownItemInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.athleteDropdownItemName {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.athleteDropdownItemMeta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.athleteDropdownCheck {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.athleteDropdownEmpty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════
+   FILTERS ROW
+   ═══════════════════════════════════════════ */
+
+.filtersRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+}
+
+.filterGroup {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filterLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* ── Category chips ── */
+
+.catRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.catChip {
+  padding: 5px 12px;
+  border-radius: var(--radius-full, 100px);
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.catChip:hover {
+  border-color: var(--accent);
+  color: var(--text-secondary, var(--text));
+}
+
+.catChipActive {
+  background: #FFFFFF;
+  border-color: #FFFFFF;
+  color: #0A0A0A;
+}
+
+/* ── Grad Year Multi-Select ── */
+
+.gradYearFilter {
+  position: relative;
+  min-width: 160px;
+}
+
+.gradYearBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.gradYearBtn:hover {
+  border-color: var(--accent);
+}
+
+.gradYearBtnText {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gradYearPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 260px;
+  z-index: 50;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 12px;
+  animation: dropIn 0.15s ease;
+}
+
+.gradYearClear {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 8px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+
+.gradYearClear:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.gradYearGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.gradYearChip {
+  padding: 6px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s;
+}
+
+.gradYearChip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.gradYearChipActive {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-light, var(--accent));
+}
+
+/* ── Date Range Filter ── */
+
+.dateRange {
+  min-width: 200px;
+}
+
+.dateInputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dateInput {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 140px;
+  color-scheme: dark;
+}
+
+.dateInput:focus {
+  border-color: var(--accent);
+}
+
+.dateSep {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.dateClear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+  flex-shrink: 0;
+}
+
+.dateClear:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* ═══════════════════════════════════════════
+   ACTIVE FILTER PILLS
+   ═══════════════════════════════════════════ */
+
+.activeFilters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 12px;
+  border-radius: var(--radius-full, 100px);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-light, var(--accent));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.filterPillX {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.7;
+  transition: opacity 0.12s;
+}
+
+.filterPillX:hover {
+  opacity: 1;
+}
+
+.clearAllBtn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+
+.clearAllBtn:hover {
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════
+   LOADING & EMPTY STATES
+   ═══════════════════════════════════════════ */
+
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 0;
+  color: var(--text-muted);
+  gap: 16px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty {
+  text-align: center;
+  padding: 64px 0;
+  color: var(--text-muted);
+}
+
+.emptyIcon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.emptyHint {
+  font-size: 13px;
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════
+   VIDEO GRID
+   ═══════════════════════════════════════════ */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ═══════════════════════════════════════════
+   VIDEO CARD
+   ═══════════════════════════════════════════ */
+
+.videoCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+
+.videoCard:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.videoThumb {
+  height: 160px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.videoThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.videoCard:hover .playOverlay {
+  opacity: 1;
+}
+
+.playBtn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #fff;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.videoCard:hover .playBtn {
+  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.catBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0A0A0A;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.videoBody {
+  padding: 12px 16px;
+}
+
+.videoTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.videoPlayerName {
+  font-size: 12px;
+  color: var(--text-secondary, #ccc);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.videoPlayerPos {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.videoFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.videoDate {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.downloadBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.downloadBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* ═══════════════════════════════════════════
+   VIDEO PLAYER MODAL
+   ═══════════════════════════════════════════ */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  padding: 24px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal {
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideUp 0.25s ease;
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+
+.modalHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modalMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modalHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.modalDownloadBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #1a1a2e);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modalDownloadBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.modalCloseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.modalCloseBtn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.modalVideoWrap {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalVideo {
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .pageWrap {
+    padding: 20px 16px 48px;
+  }
+
+  .filtersRow {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .filterGroup {
+    min-width: 0;
+  }
+
+  .dateInputs {
+    flex-wrap: wrap;
+  }
+
+  .dateInput {
+    width: 120px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 8px;
+  }
+
+  .gradYearGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

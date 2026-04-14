@@ -1,0 +1,26 @@
+# ─── Copy this file to terraform.tfvars and fill in real values ──────────
+
+# General
+project_name = "playerdev"
+environment  = "dev"
+aws_region   = "us-east-1"
+
+# Database
+db_name     = "playerdev"
+db_username = "playerdev"
+db_password = "CHANGE_ME_TO_SECURE_PASSWORD"
+
+# Redis
+redis_node_type = "cache.t4g.micro"
+
+# ECS — API
+api_image         = "123456789012.dkr.ecr.us-east-1.amazonaws.com/playerdev-api:latest"
+api_cpu           = 256
+api_memory        = 512
+api_desired_count = 1
+
+# ECS — Web
+web_image         = "123456789012.dkr.ecr.us-east-1.amazonaws.com/playerdev-web:latest"
+web_cpu           = 256
+web_memory        = 512
+web_desired_count = 1

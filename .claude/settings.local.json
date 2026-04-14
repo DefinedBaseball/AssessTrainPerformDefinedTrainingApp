@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node -e ':*)",
+      "Bash(npm ls:*)",
+      "Bash(npx -y xlsx-cli \"C:\\\\Users\\\\colso\\\\Downloads\\\\SIngle Player Trackman CSV.xlsx\")",
+      "Bash(npm install:*)",
+      "Bash(curl -s -X POST \"http://localhost:3001/api/uploads/csv?uploadedById=test-coach&source=TRACKMAN&playerId=d2aa3a64-eca0-4de3-9249-77f04fadc49c\" -F \"file=@/c/Users/colso/Downloads/SIngle Player Trackman CSV.xlsx\" -H \"Authorization: Bearer $\\(cat apps/web/.next/server/app/api || echo ''\\)\")",
+      "Bash(curl -s -X POST 'http://localhost:3001/api/uploads/csv?uploadedById=12e0e98f-c923-4b09-8661-1d4843cb9490&source=TRACKMAN&playerId=d2aa3a64-eca0-4de3-9249-77f04fadc49c' -F 'file=@/c/Users/colso/Downloads/SIngle Player Trackman CSV.xlsx' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMmUwZTk4Zi1jOTIzLTRiMDktODY2MS0xZDQ4NDNjYjk0OTAiLCJlbWFpbCI6ImNvYWNoQHBsYXllcmRldi5jb20iLCJyb2xlIjoiQ09BQ0giLCJwbGF5ZXJJZCI6ImZjMDEzM2ZjLWNhYjItNDk2Yy04Y2NlLTQxNmMyMDhkZmE1YyIsImlhdCI6MTc3NTk1NjkwNiwiZXhwIjoxNzc2NTYxNzA2fQ.tb_FEWWKQnQzkDwBybYjebKy9TkNq1bVxglQP0Dn7Zw')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('message',''\\)[-500:]\\)\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{try{const j=JSON.parse\\(d\\);console.log\\(j.message.slice\\(-600\\)\\)}catch\\(e\\){console.log\\(d.slice\\(-600\\)\\)}}\\)\")",
+      "Bash(npx --yes prisma studio --schema apps/api/prisma/schema.prisma)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx prisma:*)",
+      "Bash(curl -s -X POST http://localhost:3001/api/reports -H 'Content-Type: application/json' -d '{\"playerId\":\"d2aa3a64-eca0-4de3-9249-77f04fadc49c\",\"createdById\":\"12e0e98f-c923-4b09-8661-1d4843cb9490\",\"reportType\":\"PITCHING\",\"content\":\"{}\"}')",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"coach@playerdev.com\",\"password\":\"password123\"}')",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"coach@playerdev.com\",\"password\":\"coach123\"}')",
+      "Bash(curl -s -X POST http://localhost:3001/api/reports -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMmUwZTk4Zi1jOTIzLTRiMDktODY2MS0xZDQ4NDNjYjk0OTAiLCJlbWFpbCI6ImNvYWNoQHBsYXllcmRldi5jb20iLCJyb2xlIjoiQ09BQ0giLCJwbGF5ZXJJZCI6ImZjMDEzM2ZjLWNhYjItNDk2Yy04Y2NlLTQxNmMyMDhkZmE1YyIsImlhdCI6MTc3NTk3MzIxOSwiZXhwIjoxNzc2NTc4MDE5fQ.2wE6hyatUuj6zPbv_UO72keQSOpByrmc9UXlO6r7QJw' -d '{\"playerId\":\"d2aa3a64-eca0-4de3-9249-77f04fadc49c\",\"createdById\":\"12e0e98f-c923-4b09-8661-1d4843cb9490\",\"reportType\":\"PITCHING\",\"content\":\"{}\"}')",
+      "Bash(wc -l \"/c/Users/colso/OneDrive/Desktop/Claude Code Apps/Player Development App/apps/web/src/app/athletes/[id]/tabs/\"*.tsx)",
+      "Bash(npx next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl -s -X POST \"http://localhost:3001/api/videos/upload?playerId=d2aa3a64-eca0-4de3-9249-77f04fadc49c&title=Test+Video&category=HITTING\" -F \"file=@test_video.mp4\" -H \"Authorization: Bearer test\")",
+      "Bash(curl -s -X POST \"http://localhost:3001/api/videos/upload?playerId=d2aa3a64-eca0-4de3-9249-77f04fadc49c&title=Test+Video&category=HITTING\" -F \"file=@test_video.mp4\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMmUwZTk4Zi1jOTIzLTRiMDktODY2MS0xZDQ4NDNjYjk0OTAiLCJlbWFpbCI6ImNvYWNoQHBsYXllcmRldi5jb20iLCJyb2xlIjoiQ09BQ0giLCJwbGF5ZXJJZCI6ImZjMDEzM2ZjLWNhYjItNDk2Yy04Y2NlLTQxNmMyMDhkZmE1YyIsImlhdCI6MTc3NTk3NjYxNCwiZXhwIjoxNzc2NTgxNDE0fQ.dhVpE_6LSOG4Xlegd8gcrA2QraDaZ_KKB6A0POiYz3A\")",
+      "Bash(curl -s http://localhost:3001/api/auth/me -H \"Authorization: Bearer test\" -o /dev/null -w \"%{http_code}\")",
+      "Bash(node -e \"process.stdin.on\\('data', d => console.log\\(JSON.stringify\\(JSON.parse\\(d\\), null, 2\\)\\)\\)\")",
+      "Bash(npx -y xlsx-cli \"C:\\\\Users\\\\colso\\\\Downloads\\\\Single Player Blast CSV.xlsx\")"
+    ]
+  }
+}

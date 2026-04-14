@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # ─── PostgreSQL (production-like DB) ──────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: playerdev
+      POSTGRES_USER: playerdev
+      POSTGRES_PASSWORD: localdevpassword
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U playerdev']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── NestJS API ───────────────────────────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      DATABASE_URL: postgresql://playerdev:localdevpassword@db:5432/playerdev?schema=public
+      PORT: '3001'
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - video_uploads:/app/uploads/videos
+
+  # ─── Next.js Web App ─────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  video_uploads:

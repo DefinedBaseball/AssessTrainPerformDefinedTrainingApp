@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "API Server (NestJS)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/api"],
+      "port": 3001
+    },
+    {
+      "name": "Mobile App (Expo)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "--prefix", "apps/mobile"],
+      "port": 8081
+    },
+    {
+      "name": "Web App (Next.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/web"],
+      "port": 3000,
+      "autoPort": false
+    }
+  ]
+}
