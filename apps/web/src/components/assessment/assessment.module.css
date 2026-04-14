@@ -15,7 +15,7 @@
 .sectionIcon {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -55,9 +55,9 @@
 }
 
 .kpi {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   padding: 16px;
   transition: border-color 0.15s;
 }
@@ -91,7 +91,7 @@
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 20px;
+  border-radius: 24px;
 }
 .badgeHigh { background: var(--green-dim); color: var(--green); }
 .badgeMid  { background: var(--gold-dim);  color: var(--gold); }
@@ -122,7 +122,7 @@
 .fillHigh { background: var(--green); }
 .fillMid  { background: var(--gold); }
 .fillLow  { background: var(--red); }
-.fillTeal { background: #B0B0B0; }
+.fillTeal { background: #919ba1; }
 
 /* ── 20-80 SCALE PIPS ── */
 .scale80 {
@@ -144,9 +144,9 @@
 
 /* ── NOTES BOX ── */
 .notesBox {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   padding: 18px 20px;
 }
 
@@ -230,7 +230,7 @@
 .videoPlaceholder {
   background: var(--surface2);
   border: 2px dashed var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -257,7 +257,7 @@
   position: absolute;
   top: 10px;
   right: 10px;
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
   font-size: 10px;
   letter-spacing: 0.06em;
@@ -282,7 +282,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #333333;
+  background: rgba(255,255,255,0.03);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -294,7 +294,7 @@
 .videoReady {
   border-style: solid;
   border-color: var(--border);
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   color: var(--text-muted);
 }
 .videoReady:hover {
@@ -311,9 +311,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px dashed var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   padding: 12px 18px;
   margin-bottom: 32px;
   gap: 16px;
@@ -376,7 +376,7 @@
 .sprayWrap {
   background: var(--surface2);
   border: 2px dashed var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   height: 240px;
   display: flex;
   flex-direction: column;
@@ -395,9 +395,9 @@
 }
 
 .abCard {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -441,9 +441,9 @@
 }
 
 .profileCard {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   padding: 14px 16px;
 }
 .profileCard .label {
@@ -463,8 +463,8 @@
 .dataTable {
   width: 100%;
   border-collapse: collapse;
-  background: var(--surface);
-  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
+  border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--border);
   font-size: 14px;
@@ -539,9 +539,9 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
@@ -639,14 +639,14 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--accent);
   border-top: none;
-  border-bottom-left-radius: 10px;
-  border-bottom-right-radius: 10px;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
   max-height: 320px;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.3);
 }
 
 .reportSelectorItem {
@@ -738,9 +738,9 @@
   justify-content: center;
   gap: 8px;
   padding: 12px 20px;
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
@@ -760,9 +760,9 @@
 
 .reportHistoryPanel {
   margin-top: 12px;
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -886,7 +886,7 @@
   background: var(--accent-dim, rgba(74, 144, 217, 0.12));
   border: 1px solid var(--accent, #4A90D9);
   color: var(--accent-light, #5BA3EC);
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;

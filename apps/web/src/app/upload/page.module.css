@@ -35,9 +35,9 @@
 }
 
 .sourceChipActive {
-  background: #FFFFFF;
-  border-color: #FFFFFF;
-  color: #0A0A0A;
+  background: rgba(255,255,255,0.08);
+  color: #f1f4f6;
+  border-color: rgba(255,255,255,0.14);
 }
 
 .dropZone {
@@ -52,7 +52,7 @@
 .dropZone:hover,
 .dropZoneActive {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  background: rgba(255,255,255,0.05);
 }
 
 .dropIcon {
@@ -99,6 +99,7 @@
   font-size: 13px;
   margin-top: 8px;
 }
+
 
 .results {
   background: var(--card);
@@ -166,7 +167,7 @@
   font-weight: 600;
   padding: 3px 10px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--success) 15%, transparent);
+  background: rgba(255,255,255,0.15);
   color: var(--success);
 }
 
@@ -175,7 +176,7 @@
   font-weight: 600;
   padding: 3px 10px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  background: rgba(255,255,255,0.15);
   color: var(--warning);
 }
 
@@ -222,8 +223,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #333333;
-  color: #F0F0F0;
+  background: rgba(255,255,255,0.03);
+  color: #f1f4f6;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -236,7 +237,7 @@
   margin-top: 32px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 20px;
 }
 

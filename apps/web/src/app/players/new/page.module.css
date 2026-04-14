@@ -85,7 +85,7 @@
 
 .chip {
   padding: 8px 18px;
-  border-radius: 8px;
+  border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text-secondary);
@@ -120,9 +120,9 @@
 }
 
 .chipActive {
-  background: #FFFFFF;
-  border-color: #FFFFFF;
-  color: #0A0A0A;
+  background: rgba(255,255,255,0.08);
+  color: #f1f4f6;
+  border-color: rgba(255,255,255,0.14);
 }
 
 /* ── Height Input ── */
@@ -148,7 +148,7 @@
   font-size: 14px;
   padding: 8px 12px;
   background: rgba(255, 59, 48, 0.1);
-  border-radius: 8px;
+  border-radius: 14px;
 }
 
 /* ── Submit Row ── */

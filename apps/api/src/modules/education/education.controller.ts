@@ -17,9 +17,15 @@ export class EducationController {
     return this.svc.getClasses(sport, level);
   }
 
+  @Get('classes/:id')
+  @ApiOperation({ summary: 'Get a single class by ID' })
+  getClass(@Param('id') id: string) {
+    return this.svc.getClass(id);
+  }
+
   @Post('classes')
   @Roles('COACH')
-  createClass(@Body() dto: { sport: string; level: string; name: string; desc?: string; lessons?: number; duration?: number; emoji?: string }) {
+  createClass(@Body() dto: { sport: string; level: string; name: string; desc?: string; description?: string; videoUrl?: string; lessons?: number; duration?: number; emoji?: string }) {
     return this.svc.createClass(dto);
   }
 

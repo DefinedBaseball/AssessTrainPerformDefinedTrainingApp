@@ -58,7 +58,7 @@
   flex: 1;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   padding: 16px 24px;
   display: flex;
   flex-direction: column;
@@ -130,7 +130,7 @@
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 600;
-  color: #F0F0F0;
+  color: #f1f4f6;
   background: rgba(255,255,255,0.08);
   border: 1px solid #444444;
   border-radius: 6px;
@@ -140,8 +140,8 @@
   font-family: inherit;
 }
 .newReportBtn:hover {
-  background: #FFFFFF;
-  color: #0A0A0A;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+  color: #010101;
 }
 
 /* ── Report Modal ── */
@@ -185,7 +185,7 @@
 .modalClose {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 14px;
   color: var(--text-muted);
   font-size: 16px;
   width: 32px;
@@ -241,7 +241,7 @@
   text-align: center;
   background: var(--surface);
   border: 1px dashed var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   line-height: 1.6;
 }
 
@@ -255,7 +255,7 @@
 /* upload feedback toast */
 .uploadFeedback {
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: 14px;
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 16px;

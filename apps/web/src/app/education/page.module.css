@@ -15,11 +15,11 @@
 
 .hubGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .hubCard {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
   padding: 28px; cursor: pointer; transition: all .2s; position: relative; overflow: hidden;
 }
 .hubCard:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.3); }
-.hubIcon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 18px; }
+.hubIcon { width: 48px; height: 48px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 18px; }
 .hubCardTitle { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
 .hubCardDesc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
 .hubCardCount { margin-top: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
@@ -32,25 +32,25 @@
 .sectionSub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .addBtn {
   display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-  background: #FFFFFF; color: #0A0A0A; border: none; border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85)); color: #010101; border: none; border-radius: 14px;
   font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s;
 }
-.addBtn:hover { background: #E0E0E0; }
+.addBtn:hover { background: rgba(255,255,255,0.85); }
 
 /* ── Sport Tabs ── */
-.sportTabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 24px; overflow-x: auto; }
+.sportTabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 4px; margin-bottom: 24px; overflow-x: auto; }
 .sportTab {
   padding: 8px 18px; border-radius: 7px; font-size: 13px; font-weight: 600;
   color: var(--text-muted); background: none; border: none; white-space: nowrap;
   cursor: pointer; transition: all .15s;
 }
 .sportTab:hover { color: var(--text); }
-.sportTabActive { color: #FFFFFF !important; background: #333333; }
+.sportTabActive { color: #f1f4f6 !important; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
 
 /* ── Filter Pills ── */
 .filterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .pill {
-  padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+  padding: 5px 14px; border-radius: 24px; border: 1px solid var(--border);
   font-size: 12px; font-weight: 600; color: var(--text-muted); background: none;
   cursor: pointer; transition: all .15s;
 }
@@ -58,22 +58,24 @@
 .pillActive { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-light); }
 
 /* ── Classes ── */
-.levelBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: .05em; }
+.levelBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 24px; text-transform: uppercase; letter-spacing: .05em; }
 .levelBeginner { background: var(--green-dim); color: var(--green); border: 1px solid rgba(109,170,69,.3); }
 .levelIntermediate { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(232,175,52,.3); }
 .levelAdvanced { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(253,171,67,.3); }
 .levelExpert { background: var(--red-dim); color: var(--red); border: 1px solid rgba(221,105,116,.3); }
 
 .classGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-.classCard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; gap: 14px; transition: all .15s; }
+.classCard { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; display: flex; gap: 14px; transition: all .15s; }
 .classCard:hover { border-color: #3a4560; transform: translateY(-1px); }
-.classThumb { width: 64px; height: 64px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.classThumb { width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; }
 .classBody { flex: 1; min-width: 0; }
 .className { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .classMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .classDesc { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .classLessons { font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 4px; }
 .classActions { display: flex; gap: 4px; margin-top: 8px; }
+.classCardActions { display: flex; gap: 4px; margin-left: auto; opacity: 0; transition: opacity .15s; }
+.classCard:hover .classCardActions { opacity: 1; }
 
 /* ── Drills ── */
 .catGroup { margin-bottom: 32px; }
@@ -82,7 +84,7 @@
 .catLine { flex: 1; height: 1px; background: var(--border); }
 .catCount { font-size: 11px; color: var(--faint); }
 
-.drillCard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; margin-bottom: 8px; transition: border-color .15s; position: relative; }
+.drillCard { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 14px 16px; display: flex; gap: 12px; margin-bottom: 8px; transition: border-color .15s; position: relative; }
 .drillCard:hover { border-color: #3a4560; }
 .drillCard:hover .cardActions { opacity: 1; }
 .colorBar { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 36px; }
@@ -91,14 +93,15 @@
 .cardDesc { font-size: 13px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cardMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .metaItem { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--faint); }
-.tag { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 20px; padding: 2px 8px; }
+.tag { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 24px; padding: 2px 8px; }
 .cardActions { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
 .cardBtn { width: 28px; height: 28px; border-radius: 7px; border: none; background: transparent; color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; font-size: 14px; }
 .cardBtn:hover { background: var(--surface2); color: var(--text); }
+.cardBtnEdit:hover { background: var(--accent-dim); color: var(--accent-light); }
 .cardBtnDel:hover { background: var(--red-dim); color: var(--red); }
 
 /* ── MLB Video ── */
-.mlbFilters { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.mlbFilters { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; }
 .mlbFilterGroup { display: flex; flex-direction: column; gap: 6px; }
 .mlbFilterLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
 .mlbFilterPills { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -108,11 +111,11 @@
 .playerCard { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; cursor: pointer; transition: all .2s; }
 .playerCard:hover { border-color: #3a4560; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.3); }
 .playerThumb { height: 100px; display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; }
-.playerPosBadge { position: absolute; bottom: 8px; right: 8px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
+.playerPosBadge { position: absolute; bottom: 8px; right: 8px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 24px; text-transform: uppercase; letter-spacing: .04em; }
 .playerInfo { padding: 14px; }
 .playerName { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
 .playerTags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.playerTag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; border: 1px solid; }
+.playerTag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 24px; border: 1px solid; }
 .videoCount { font-size: 11px; color: var(--faint); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
 
 /* ── Player Detail ── */
@@ -122,7 +125,7 @@
 .playerDetailMeta { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.videoCard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer; transition: all .15s; }
+.videoCard { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; cursor: pointer; transition: all .15s; }
 .videoCard:hover { border-color: #3a4560; }
 .videoThumb { height: 120px; background: var(--surface2); display: flex; align-items: center; justify-content: center; position: relative; }
 .playBtn { width: 44px; height: 44px; background: rgba(60,60,60,.85); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; transition: transform .15s; }
@@ -136,13 +139,13 @@
 /* ── Shared ── */
 .empty { text-align: center; padding: 60px 20px; color: var(--faint); font-size: 14px; }
 .searchWrap { position: relative; margin-bottom: 20px; }
-.searchInput { width: 100%; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px 8px 12px; font-size: 13px; color: var(--text); outline: none; transition: border-color .15s; }
+.searchInput { width: 100%; max-width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 8px 12px 8px 12px; font-size: 13px; color: var(--text); outline: none; transition: border-color .15s; }
 .searchInput:focus { border-color: var(--accent); }
 .searchInput::placeholder { color: var(--faint); }
 
 /* ── Modal (reuse from training) ── */
 .modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
 .modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .modalTitle { font-size: 16px; font-weight: 700; }
 .modalClose { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 18px; border-radius: 6px; }
@@ -155,7 +158,7 @@
 .fieldRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .modalFooter { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
 .btnCancel { padding: 8px 16px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; }
-.btnSave { padding: 8px 20px; font-size: 12px; font-weight: 600; background: #FFFFFF; border: none; border-radius: 6px; color: #0A0A0A; cursor: pointer; }
+.btnSave { padding: 8px 20px; font-size: 12px; font-weight: 600; background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85)); border: none; border-radius: 6px; color: #010101; cursor: pointer; }
 .btnSave:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Drill Card extras ── */
@@ -182,7 +185,7 @@
 .videoModal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   width: 720px;
   max-width: 95vw;
   max-height: 90vh;
@@ -252,10 +255,151 @@
 }
 
 /* ── Responsive ── */
+/* ══════════════════════════════════════════════
+   CLASS DETAIL VIEW
+   ══════════════════════════════════════════════ */
+
+.classDetailPage {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.classDetailHeader {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.classDetailEmoji {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.classDetailInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.classDetailName {
+  font-family: 'Clash Grotesk', 'Satoshi', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.classDetailTags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.classDetailSport {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid;
+}
+
+.classDetailMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.classDetailSummary {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Video Player ── */
+
+.classDetailVideo {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000;
+  aspect-ratio: 16 / 9;
+}
+
+.classDetailIframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.classDetailVideoPlayer {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ── Description Body ── */
+
+.classDetailBody {
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.classDetailBodyLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.classDetailBodyText {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.classDetailEmpty {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--text-muted);
+  font-size: 15px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════ */
+
 @media (max-width: 768px) {
   .hubGrid { grid-template-columns: 1fr; }
   .playerGrid { grid-template-columns: repeat(2, 1fr); }
   .videoGrid { grid-template-columns: 1fr; }
   .classGrid { grid-template-columns: 1fr; }
   .mlbDivider { display: none; }
+  .classDetailHeader { flex-direction: column; padding: 20px; }
+  .classDetailEmoji { width: 56px; height: 56px; font-size: 28px; }
+  .classDetailName { font-size: 22px; }
+  .classDetailBody { padding: 20px; }
 }

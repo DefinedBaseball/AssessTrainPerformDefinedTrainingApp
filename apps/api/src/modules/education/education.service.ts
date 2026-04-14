@@ -17,11 +17,17 @@ export class EducationService {
     });
   }
 
-  async createClass(data: { sport: string; level: string; name: string; desc?: string; lessons?: number; duration?: number; emoji?: string }) {
+  async getClass(id: string) {
+    const cls = await this.prisma.eduClass.findUnique({ where: { id } });
+    if (!cls) throw new NotFoundException('Class not found');
+    return cls;
+  }
+
+  async createClass(data: { sport: string; level: string; name: string; desc?: string; description?: string; videoUrl?: string; lessons?: number; duration?: number; emoji?: string }) {
     return this.prisma.eduClass.create({ data });
   }
 
-  async updateClass(id: string, data: { sport?: string; level?: string; name?: string; desc?: string; lessons?: number; duration?: number; emoji?: string }) {
+  async updateClass(id: string, data: { sport?: string; level?: string; name?: string; desc?: string; description?: string; videoUrl?: string; lessons?: number; duration?: number; emoji?: string }) {
     return this.prisma.eduClass.update({ where: { id }, data });
   }
 

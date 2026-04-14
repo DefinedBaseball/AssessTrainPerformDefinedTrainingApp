@@ -17,9 +17,9 @@
 }
 
 .modal {
-  background: var(--surface, #1a1a2e);
-  border: 1px solid var(--border, #2a2a3e);
-  border-radius: 14px;
+  background: var(--surface, #040405);
+  border: 1px solid var(--border, #08090b);
+  border-radius: 18px;
   overflow: hidden;
   width: 100%;
   max-width: 900px;
@@ -39,13 +39,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--border, #2a2a3e);
+  border-bottom: 1px solid var(--border, #08090b);
 }
 
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text, #e0e0e0);
+  color: var(--text, #919ba1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -54,10 +54,10 @@
 .closeBtn {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--border, #2a2a3e);
+  border-radius: 14px;
+  border: 1px solid var(--border, #08090b);
   background: transparent;
-  color: var(--text-muted, #888);
+  color: var(--text-muted, #626b71);
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
@@ -68,8 +68,8 @@
   flex-shrink: 0;
 }
 .closeBtn:hover {
-  background: var(--surface2, #222);
-  color: var(--text, #e0e0e0);
+  background: var(--surface2, #08090b);
+  color: var(--text, #919ba1);
   border-color: var(--accent, #20808d);
 }
 

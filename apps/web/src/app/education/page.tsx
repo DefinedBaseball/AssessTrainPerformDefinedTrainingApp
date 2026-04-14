@@ -31,7 +31,7 @@ const DRILL_CATS: Record<string, { id: string; label: string }[]> = {
 
 const POSITIONS = ['Hitter', 'Pitcher', 'Catcher', 'Infield', 'Outfield'];
 
-type Page = 'landing' | 'classes' | 'drills' | 'mlb' | 'player';
+type Page = 'landing' | 'classes' | 'classDetail' | 'drills' | 'mlb' | 'player';
 
 export default function EducationPage() {
   const { user, isCoach } = useAuth();
@@ -43,6 +43,7 @@ export default function EducationPage() {
   const [drills, setDrills] = useState<Drill[]>([]);
   const [mlbPlayers, setMlbPlayers] = useState<MlbPlayer[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<MlbPlayer | null>(null);
+  const [currentClass, setCurrentClass] = useState<EduClass | null>(null);
 
   // Filters
   const [classSport, setClassSport] = useState('hitting');
@@ -68,11 +69,14 @@ export default function EducationPage() {
     api.getMlbPlayers().then(setMlbPlayers).catch(() => {});
   }, [user]);
 
-  const goTo = (p: Page, playerId?: string) => {
+  const goTo = (p: Page, id?: string) => {
     setPage(p);
     setSearch('');
-    if (p === 'player' && playerId) {
-      api.getMlbPlayer(playerId).then(setCurrentPlayer).catch(() => {});
+    if (p === 'player' && id) {
+      api.getMlbPlayer(id).then(setCurrentPlayer).catch(() => {});
+    }
+    if (p === 'classDetail' && id) {
+      api.getClassById(id).then(setCurrentClass).catch(() => {});
     }
   };
 
@@ -90,6 +94,12 @@ export default function EducationPage() {
               <button className={styles.bcLink} onClick={() => goTo('mlb')}>Major League Video</button>
               <span className={styles.bcSep}>/</span>
               <span className={styles.bcCurrent}>{currentPlayer?.name || 'Player'}</span>
+            </>
+          ) : page === 'classDetail' ? (
+            <>
+              <button className={styles.bcLink} onClick={() => goTo('classes')}>Classes</button>
+              <span className={styles.bcSep}>/</span>
+              <span className={styles.bcCurrent}>{currentClass?.name || 'Class'}</span>
             </>
           ) : (
             <span className={styles.bcCurrent}>
@@ -121,7 +131,11 @@ export default function EducationPage() {
           isCoach={isCoach}
           showModal={showClassModal}
           setShowModal={setShowClassModal}
+          goToClass={(id: string) => goTo('classDetail', id)}
         />
+      )}
+      {page === 'classDetail' && currentClass && (
+        <ClassDetailView cls={currentClass} />
       )}
       {page === 'drills' && (
         <DrillsView
@@ -205,7 +219,8 @@ function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount
 
 /* ══════════ CLASSES ══════════ */
 
-function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, search, setSearch, isCoach, showModal, setShowModal }: any) {
+function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, search, setSearch, isCoach, showModal, setShowModal, goToClass }: any) {
+  const [editingClass, setEditingClass] = useState<EduClass | null>(null);
   const sportObj = SPORTS.find(s => s.id === sport)!;
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -220,6 +235,11 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
   const handleDelete = async (id: string) => {
     await api.deleteClass(id);
     setClasses((prev: EduClass[]) => prev.filter(c => c.id !== id));
+  };
+
+  const handleClassUpdated = (updated: EduClass) => {
+    setClasses((prev: EduClass[]) => prev.map(c => c.id === updated.id ? updated : c));
+    setEditingClass(null);
   };
 
   return (
@@ -255,7 +275,7 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
           {filtered.map((c: EduClass) => {
             const lv = LEVELS.find(l => l.id === c.level)!;
             return (
-              <div key={c.id} className={styles.classCard}>
+              <div key={c.id} className={styles.classCard} onClick={() => goToClass(c.id)} style={{ cursor: 'pointer' }}>
                 <div className={styles.classThumb} style={{ background: sportObj.color + '22' }}>{c.emoji}</div>
                 <div className={styles.classBody}>
                   <div className={styles.className}>{c.name}</div>
@@ -264,7 +284,12 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
                   <div className={styles.cardMeta} style={{ marginTop: 8 }}>
                     <span className={styles.metaItem}>{c.lessons} lesson{c.lessons !== 1 ? 's' : ''}</span>
                     <span className={styles.metaItem}>{c.duration} min/lesson</span>
-                    {isCoach && <button className={`${styles.cardBtn} ${styles.cardBtnDel}`} style={{ marginLeft: 'auto', opacity: 1 }} onClick={() => handleDelete(c.id)}>×</button>}
+                    {isCoach && (
+                      <span className={styles.classCardActions}>
+                        <button className={`${styles.cardBtn} ${styles.cardBtnEdit}`} onClick={(e) => { e.stopPropagation(); setEditingClass(c); }} title="Edit class">&#9998;</button>
+                        <button className={`${styles.cardBtn} ${styles.cardBtnDel}`} onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} title="Delete class">×</button>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -273,6 +298,7 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
         </div>
       )}
       {showModal && <ClassModal sport={sport} onClose={() => setShowModal(false)} onSaved={(c: EduClass) => { setClasses((prev: EduClass[]) => [...prev, c]); setShowModal(false); }} />}
+      {editingClass && <EditClassModal cls={editingClass} onClose={() => setEditingClass(null)} onSaved={handleClassUpdated} />}
     </>
   );
 }
@@ -280,6 +306,8 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
 function ClassModal({ sport, onClose, onSaved }: { sport: string; onClose: () => void; onSaved: (c: EduClass) => void }) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const [description, setDescription] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
   const [sp, setSp] = useState(sport);
   const [level, setLevel] = useState('beginner');
   const [lessons, setLessons] = useState(1);
@@ -290,7 +318,7 @@ function ClassModal({ sport, onClose, onSaved }: { sport: string; onClose: () =>
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    const result = await api.createClass({ sport: sp, level, name, desc, lessons, duration, emoji });
+    const result = await api.createClass({ sport: sp, level, name, desc, description: description || undefined, videoUrl: videoUrl || undefined, lessons, duration, emoji });
     onSaved(result);
   };
 
@@ -304,7 +332,9 @@ function ClassModal({ sport, onClose, onSaved }: { sport: string; onClose: () =>
             <div className={styles.field}><label className={styles.fieldLabel}>Level</label><select className={styles.fieldInput} value={level} onChange={e => setLevel(e.target.value)}>{LEVELS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></div>
           </div>
           <div className={styles.field}><label className={styles.fieldLabel}>Class Name</label><input className={styles.fieldInput} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Hitting Fundamentals 101" /></div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="What will athletes learn?" style={{ resize: 'vertical' }} /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Short Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Brief summary shown on the card" style={{ resize: 'vertical' }} /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Full Description</label><textarea className={styles.fieldInput} value={description} onChange={e => setDescription(e.target.value)} rows={5} placeholder="Detailed explanation athletes will read when they open the class..." style={{ resize: 'vertical' }} /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://youtube.com/... or direct video link" /></div>
           <div className={styles.fieldRow}>
             <div className={styles.field}><label className={styles.fieldLabel}>Lessons</label><input className={styles.fieldInput} type="number" value={lessons} min={1} onChange={e => setLessons(parseInt(e.target.value) || 1)} /></div>
             <div className={styles.field}><label className={styles.fieldLabel}>Duration (min)</label><input className={styles.fieldInput} type="number" value={duration} min={1} onChange={e => setDuration(parseInt(e.target.value) || 30)} /></div>
@@ -320,10 +350,158 @@ function ClassModal({ sport, onClose, onSaved }: { sport: string; onClose: () =>
   );
 }
 
+/* ══════════ EDIT CLASS MODAL ══════════ */
+
+function EditClassModal({ cls, onClose, onSaved }: { cls: EduClass; onClose: () => void; onSaved: (c: EduClass) => void }) {
+  const [name, setName] = useState(cls.name);
+  const [desc, setDesc] = useState(cls.desc || '');
+  const [description, setDescription] = useState(cls.description || '');
+  const [videoUrl, setVideoUrl] = useState(cls.videoUrl || '');
+  const [sp, setSp] = useState(cls.sport);
+  const [level, setLevel] = useState(cls.level);
+  const [lessons, setLessons] = useState(cls.lessons);
+  const [duration, setDuration] = useState(cls.duration);
+  const [emoji, setEmoji] = useState(cls.emoji);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const result = await api.updateClass(cls.id, {
+        sport: sp,
+        level,
+        name,
+        desc: desc || undefined,
+        description: description || undefined,
+        videoUrl: videoUrl || undefined,
+        lessons,
+        duration,
+        emoji,
+      });
+      onSaved(result);
+    } catch (err) {
+      console.error('Failed to update class:', err);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+        <div className={styles.modalHeader}><span className={styles.modalTitle}>Edit Class</span><button className={styles.modalClose} onClick={onClose}>×</button></div>
+        <div className={styles.modalBody}>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label className={styles.fieldLabel}>Sport</label><select className={styles.fieldInput} value={sp} onChange={e => setSp(e.target.value)}>{SPORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+            <div className={styles.field}><label className={styles.fieldLabel}>Level</label><select className={styles.fieldInput} value={level} onChange={e => setLevel(e.target.value)}>{LEVELS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></div>
+          </div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Class Name</label><input className={styles.fieldInput} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Hitting Fundamentals 101" /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Short Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Brief summary shown on the card" style={{ resize: 'vertical' }} /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Full Description</label><textarea className={styles.fieldInput} value={description} onChange={e => setDescription(e.target.value)} rows={5} placeholder="Detailed explanation athletes will read when they open the class..." style={{ resize: 'vertical' }} /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://youtube.com/... or direct video link" /></div>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label className={styles.fieldLabel}>Lessons</label><input className={styles.fieldInput} type="number" value={lessons} min={1} onChange={e => setLessons(parseInt(e.target.value) || 1)} /></div>
+            <div className={styles.field}><label className={styles.fieldLabel}>Duration (min)</label><input className={styles.fieldInput} type="number" value={duration} min={1} onChange={e => setDuration(parseInt(e.target.value) || 30)} /></div>
+          </div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Emoji</label><input className={styles.fieldInput} value={emoji} onChange={e => setEmoji(e.target.value)} maxLength={2} style={{ width: 60 }} /></div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
+          <button className={styles.btnSave} onClick={save} disabled={saving || !name.trim()}>{saving ? 'Saving...' : 'Save Changes'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════ CLASS DETAIL ══════════ */
+
+function ClassDetailView({ cls }: { cls: EduClass }) {
+  const sportObj = SPORTS.find(s => s.id === cls.sport);
+  const lv = LEVELS.find(l => l.id === cls.level);
+  const sportColor = sportObj?.color || '#3B82D2';
+
+  /* Try to extract YouTube embed from various URL formats */
+  const embedUrl = (() => {
+    if (!cls.videoUrl) return null;
+    const url = cls.videoUrl;
+    // YouTube watch URL
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    // Already an embed URL
+    if (url.includes('youtube.com/embed/')) return url;
+    // Direct video URL (mp4, etc.)
+    return null;
+  })();
+
+  const isDirectVideo = cls.videoUrl && !embedUrl;
+
+  return (
+    <div className={styles.classDetailPage}>
+      {/* ── Header ── */}
+      <div className={styles.classDetailHeader}>
+        <div className={styles.classDetailEmoji} style={{ background: sportColor + '18' }}>
+          {cls.emoji}
+        </div>
+        <div className={styles.classDetailInfo}>
+          <div className={styles.classDetailName}>{cls.name}</div>
+          <div className={styles.classDetailTags}>
+            <span className={styles.classDetailSport} style={{ background: sportColor + '22', color: sportColor, borderColor: sportColor + '44' }}>
+              {sportObj?.label}
+            </span>
+            {lv && <span className={`${styles.levelBadge} ${lv.cls}`}>{lv.label}</span>}
+            <span className={styles.classDetailMeta}>{cls.lessons} lesson{cls.lessons !== 1 ? 's' : ''}</span>
+            <span className={styles.classDetailMeta}>{cls.duration} min/lesson</span>
+          </div>
+          {cls.desc && <div className={styles.classDetailSummary}>{cls.desc}</div>}
+        </div>
+      </div>
+
+      {/* ── Video Player ── */}
+      {cls.videoUrl && (
+        <div className={styles.classDetailVideo}>
+          {embedUrl ? (
+            <iframe
+              className={styles.classDetailIframe}
+              src={embedUrl}
+              title={cls.name}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : isDirectVideo ? (
+            <video
+              className={styles.classDetailVideoPlayer}
+              src={cls.videoUrl}
+              controls
+              playsInline
+            />
+          ) : null}
+        </div>
+      )}
+
+      {/* ── Full Description ── */}
+      {cls.description && (
+        <div className={styles.classDetailBody}>
+          <div className={styles.classDetailBodyLabel}>About This Class</div>
+          <div className={styles.classDetailBodyText}>{cls.description}</div>
+        </div>
+      )}
+
+      {/* ── Empty state if no video and no description ── */}
+      {!cls.videoUrl && !cls.description && (
+        <div className={styles.classDetailEmpty}>
+          This class doesn't have detailed content yet. Check back soon!
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ══════════ DRILLS ══════════ */
 
 function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, setSearch, isCoach, showModal, setShowModal }: any) {
   const [viewingDrill, setViewingDrill] = useState<Drill | null>(null);
+  const [editingDrill, setEditingDrill] = useState<Drill | null>(null);
   const sportObj = SPORTS.find(s => s.id === sport)!;
   const cats = DRILL_CATS[sport] || [];
 
@@ -342,8 +520,13 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
   }, [filtered, cats, cat]);
 
   const handleDelete = async (id: string) => {
-    await api.deleteScheduledDrill(id); // We don't have deleteDrill in api yet, but drills are shared with training
+    await api.deleteDrill(id);
     setDrills((prev: Drill[]) => prev.filter(d => d.id !== id));
+  };
+
+  const handleDrillUpdated = (updated: Drill) => {
+    setDrills((prev: Drill[]) => prev.map(d => d.id === updated.id ? updated : d));
+    setEditingDrill(null);
   };
 
   return (
@@ -393,6 +576,12 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
                   {d.description && <div className={styles.cardDesc}>{d.description}</div>}
                   <div className={styles.cardMeta}>
                     <span className={styles.metaItem}>{d.category}</span>
+                    {isCoach && (
+                      <span className={styles.cardActions}>
+                        <button className={`${styles.cardBtn} ${styles.cardBtnEdit}`} onClick={(e) => { e.stopPropagation(); setEditingDrill(d); }} title="Edit drill">&#9998;</button>
+                        <button className={`${styles.cardBtn} ${styles.cardBtnDel}`} onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete drill">×</button>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -402,6 +591,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
       )}
       {showModal && <DrillModal sport={sport} onClose={() => setShowModal(false)} onSaved={(d: Drill) => { setDrills((prev: Drill[]) => [...prev, d]); setShowModal(false); }} />}
       {viewingDrill && <DrillVideoModal drill={viewingDrill} onClose={() => setViewingDrill(null)} />}
+      {editingDrill && <EditDrillModal drill={editingDrill} onClose={() => setEditingDrill(null)} onSaved={handleDrillUpdated} />}
     </>
   );
 }
@@ -494,6 +684,71 @@ function DrillVideoModal({ drill, onClose }: { drill: Drill; onClose: () => void
         <div className={styles.videoMeta}>
           <span className={styles.videoMetaTag}>{drill.tab}</span>
           <span className={styles.videoMetaTag}>{drill.category}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════ EDIT DRILL MODAL ══════════ */
+
+function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: () => void; onSaved: (d: Drill) => void }) {
+  const [name, setName] = useState(drill.name);
+  const [desc, setDesc] = useState(drill.description || '');
+  const [sp, setSp] = useState(drill.tab);
+  const [category, setCategory] = useState(drill.category);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const cats = DRILL_CATS[sp] || [];
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      let result = await api.updateDrill(drill.id, {
+        name,
+        tab: sp,
+        category,
+        description: desc || undefined,
+      });
+      // If a new video was chosen, upload it
+      if (videoFile) {
+        result = await api.uploadDrillVideo(result.id, videoFile);
+      }
+      onSaved(result);
+    } catch (err) {
+      console.error('Failed to update drill:', err);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+        <div className={styles.modalHeader}><span className={styles.modalTitle}>Edit Drill</span><button className={styles.modalClose} onClick={onClose}>×</button></div>
+        <div className={styles.modalBody}>
+          <div className={styles.fieldRow}>
+            <div className={styles.field}><label className={styles.fieldLabel}>Sport Tab</label><select className={styles.fieldInput} value={sp} onChange={e => { setSp(e.target.value); setCategory((DRILL_CATS[e.target.value] || [])[0]?.id || 'Drills'); }}>{SPORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+            <div className={styles.field}><label className={styles.fieldLabel}>Category</label><select className={styles.fieldInput} value={category} onChange={e => setCategory(e.target.value)}>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></div>
+          </div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Drill Name</label><input className={styles.fieldInput} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Tee Work — Inside/Out" /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="Coaching cues, setup, keys..." style={{ resize: 'vertical' }} /></div>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>Replace Video</label>
+            {drill.videoUrl && !videoFile && (
+              <span className={styles.fileUploadMeta}>Current video attached ✓</span>
+            )}
+            <label className={styles.fileUpload}>
+              <input type="file" accept="video/*" onChange={e => setVideoFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+              <span className={styles.fileUploadBtn}>{videoFile ? videoFile.name : 'Choose New Video File...'}</span>
+            </label>
+            {videoFile && <span className={styles.fileUploadMeta}>{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</span>}
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
+          <button className={styles.btnSave} onClick={save} disabled={saving || !name.trim()}>{saving ? (videoFile ? 'Uploading...' : 'Saving...') : 'Save Changes'}</button>
         </div>
       </div>
     </div>

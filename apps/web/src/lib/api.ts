@@ -504,6 +504,14 @@ export async function uploadDrillVideo(drillId: string, file: File): Promise<Dri
   return res.json();
 }
 
+export async function updateDrill(id: string, data: { name?: string; tab?: string; category?: string; description?: string; videoUrl?: string }) {
+  return request<Drill>(`/training/drills/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteDrill(id: string) {
+  return request<void>(`/training/drills/${id}`, { method: 'DELETE' });
+}
+
 // ---- Scheduled Drills ----
 
 export interface ScheduledDrill {
@@ -575,6 +583,8 @@ export interface EduClass {
   level: string;
   name: string;
   desc: string | null;
+  description: string | null;
+  videoUrl: string | null;
   lessons: number;
   duration: number;
   emoji: string;
@@ -586,6 +596,10 @@ export async function getClasses(sport?: string, level?: string) {
   if (level) params.set('level', level);
   const qs = params.toString() ? `?${params}` : '';
   return request<EduClass[]>(`/education/classes${qs}`);
+}
+
+export async function getClassById(id: string) {
+  return request<EduClass>(`/education/classes/${id}`);
 }
 
 export async function createClass(data: Partial<EduClass>) {
@@ -670,4 +684,51 @@ export async function createGameReport(data: {
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// ─── Posts / Announcements ────────────────────────────────────────
+export interface PostItem {
+  id: string;
+  type: 'FACILITY_ANNOUNCEMENT' | 'ATHLETE_HIGHLIGHT' | 'PROGRAM_ANNOUNCEMENT' | 'COLLEGE_COMMITMENT' | 'PRO_SIGNING';
+  title: string;
+  body: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  linkUrl: string | null;
+  urgency: 'NORMAL' | 'IMPORTANT';
+  taggedPlayerId: string | null;
+  taggedPlayer: { id: string; firstName: string; lastName: string; positions: string; profilePhoto: string | null } | null;
+  collegeName: string | null;
+  position: string | null;
+  organizationName: string | null;
+  level: string | null;
+  authorId: string;
+  author: { id: string; email: string; role: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getPosts(limit = 50, offset = 0): Promise<PostItem[]> {
+  return request(`/posts?limit=${limit}&offset=${offset}`);
+}
+
+export async function createPost(data: {
+  type: string;
+  title: string;
+  body?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  linkUrl?: string;
+  urgency?: string;
+  taggedPlayerId?: string;
+  collegeName?: string;
+  position?: string;
+  organizationName?: string;
+  level?: string;
+}): Promise<PostItem> {
+  return request('/posts', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deletePost(id: string): Promise<void> {
+  return request(`/posts/${id}`, { method: 'DELETE' });
 }

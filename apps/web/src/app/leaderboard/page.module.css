@@ -37,7 +37,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md, 14px);
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
@@ -86,7 +86,7 @@
 .tab {
   padding: 8px 20px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md, 14px);
   background: var(--card);
   color: var(--text-muted);
   font-size: 14px;
@@ -101,9 +101,9 @@
 }
 
 .tabActive {
-  background: #FFFFFF;
-  border-color: #FFFFFF;
-  color: #0A0A0A;
+  background: rgba(255,255,255,0.08);
+  color: #f1f4f6;
+  border-color: rgba(255,255,255,0.14);
 }
 
 .noYears {
@@ -149,7 +149,7 @@
 .tableWrap {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 12px);
+  border-radius: var(--radius-lg, 18px);
   overflow: hidden;
 }
 
@@ -279,7 +279,7 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--text-muted);
-  background: var(--surface, #1a1a2e);
+  background: var(--surface, #040405);
 }
 
 .rank1 {
@@ -323,13 +323,13 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #333;
+  background: rgba(255,255,255,0.03);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 12px;
-  color: #f0f0f0;
+  color: #f1f4f6;
   flex-shrink: 0;
   overflow: hidden;
   border: 2px solid transparent;

@@ -19,6 +19,7 @@ model User {
 
   player Player?
   createdReports Report[] @relation("ReportCreatedBy")
+  posts          Post[]   @relation("PostAuthor")
 }
 
 // ─── Player Profile ──────────────────────────────────────────────
@@ -56,6 +57,7 @@ model Player {
   scheduledDrills    ScheduledDrill[]
 
   uploadedVideos Video[]  @relation("UploadedBy")
+  posts              Post[]
 }
 
 // ─── Metrics (Normalized from all vendors) ───────────────────────
@@ -168,15 +170,17 @@ model Drill {
 // ─── Education: Classes ──────────────────────────────────────────
 
 model EduClass {
-  id        String   @id @default(uuid())
-  sport     String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
-  level     String   // "beginner" | "intermediate" | "advanced" | "expert"
-  name      String
-  desc      String?
-  lessons   Int      @default(1)
-  duration  Int      @default(30) // minutes per lesson
-  emoji     String   @default("📚")
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  sport       String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  level       String   // "beginner" | "intermediate" | "advanced" | "expert"
+  name        String
+  desc        String?  // short summary shown on card
+  description String?  // full detailed description shown on detail page
+  videoUrl    String?  // explanation video URL
+  lessons     Int      @default(1)
+  duration    Int      @default(30) // minutes per lesson
+  emoji       String   @default("📚")
+  createdAt   DateTime @default(now())
 
   @@index([sport, level])
 }
@@ -312,4 +316,31 @@ model CsvUpload {
   successRows  Int?
   errorDetails String?  // JSON error info
   createdAt    DateTime @default(now())
+}
+
+// ─── Posts / Announcements Feed ─────────────────────────────────
+
+model Post {
+  id               String   @id @default(uuid())
+  type             String   // "FACILITY_ANNOUNCEMENT" | "ATHLETE_HIGHLIGHT" | "PROGRAM_ANNOUNCEMENT" | "COLLEGE_COMMITMENT" | "PRO_SIGNING"
+  title            String
+  body             String?
+  imageUrl         String?
+  videoUrl         String?
+  linkUrl          String?
+  urgency          String   @default("NORMAL") // "NORMAL" | "IMPORTANT"
+  taggedPlayerId   String?
+  taggedPlayer     Player?  @relation(fields: [taggedPlayerId], references: [id])
+  collegeName      String?  // for COLLEGE_COMMITMENT
+  position         String?  // for COLLEGE_COMMITMENT
+  organizationName String?  // for PRO_SIGNING
+  level            String?  // for PRO_SIGNING: "MLB" | "MiLB" | "Independent"
+  authorId         String
+  author           User     @relation("PostAuthor", fields: [authorId], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([taggedPlayerId])
 }

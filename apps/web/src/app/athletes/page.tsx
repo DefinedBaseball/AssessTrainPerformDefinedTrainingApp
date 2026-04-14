@@ -81,60 +81,49 @@ export default function AthletesPage() {
           <p>No athletes found</p>
         </div>
       ) : (
-        <div className={styles.grid}>
-          {filtered.map(p => (
-            <Link key={p.id} href={`/athletes/${p.id}`} className={styles.playerCard}>
-              <div className={styles.cardHeader}>
-                <div className={styles.avatar}>
-                  {p.firstName[0]}{p.lastName[0]}
-                </div>
-                <div>
-                  <div className={styles.playerName}>{p.firstName} {p.lastName}</div>
-                  <div className={styles.playerMeta}>
-                    {p.gradYear && <span>Class of {p.gradYear}</span>}
-                  </div>
-                </div>
-              </div>
+        <div className={styles.listWrap}>
+          <div className={styles.listHeader}>
+            <span className={styles.colName}>Name</span>
+            <span className={styles.colAge}>Age</span>
+            <span className={styles.colGrad}>Grad</span>
+            <span className={styles.colPos}>Position</span>
+            <span className={styles.colHt}>Height</span>
+            <span className={styles.colWt}>Weight</span>
+            <span className={styles.colPbr}>PBR St.</span>
+            <span className={styles.colPg}>PG</span>
+          </div>
+          {filtered.map(p => {
+            const age = p.birthDate
+              ? Math.floor((Date.now() - new Date(p.birthDate).getTime()) / 31557600000)
+              : null;
+            const ht = p.heightInches
+              ? `${Math.floor(p.heightInches / 12)}'${p.heightInches % 12}"`
+              : '—';
 
-              <div className={styles.positionsRow}>
-                {p.positions.split(',').map(pos => (
-                  <span key={pos.trim()} className="badge">{pos.trim()}</span>
-                ))}
-              </div>
-
-              <div className={styles.cardStats}>
-                {p.heightInches && (
-                  <div className={styles.cardStat}>
-                    <span className={styles.cardStatValue}>
-                      {Math.floor(p.heightInches / 12)}'{p.heightInches % 12}"
-                    </span>
-                    <span className={styles.cardStatLabel}>Height</span>
-                  </div>
-                )}
-                {p.weightLbs && (
-                  <div className={styles.cardStat}>
-                    <span className={styles.cardStatValue}>{p.weightLbs}</span>
-                    <span className={styles.cardStatLabel}>Weight</span>
-                  </div>
-                )}
-                {p.collegeCommit && (
-                  <div className={styles.cardStat}>
-                    <span className={styles.cardStatValue} style={{ color: 'var(--success)', fontSize: 13 }}>
-                      {p.collegeCommit}
-                    </span>
-                    <span className={styles.cardStatLabel}>Commit</span>
-                  </div>
-                )}
-              </div>
-
-              {(p.pbrNational || p.pgScore) && (
-                <div className={styles.rankings}>
-                  {p.pbrNational && <span className={styles.ranking}>PBR #{p.pbrNational}</span>}
-                  {p.pgScore && <span className={styles.ranking}>PG {p.pgScore}</span>}
-                </div>
-              )}
-            </Link>
-          ))}
+            return (
+              <Link key={p.id} href={`/athletes/${p.id}`} className={styles.listRow}>
+                <span className={styles.colName}>
+                  <span className={styles.avatar}>
+                    {p.firstName[0]}{p.lastName[0]}
+                  </span>
+                  <span className={styles.playerName}>{p.firstName} {p.lastName}</span>
+                </span>
+                <span className={styles.colAge}>{age ?? '—'}</span>
+                <span className={styles.colGrad}>{p.gradYear ?? '—'}</span>
+                <span className={styles.colPos}>
+                  <span className={styles.positionsRow}>
+                    {p.positions.split(',').map(pos => (
+                      <span key={pos.trim()} className="badge">{pos.trim()}</span>
+                    ))}
+                  </span>
+                </span>
+                <span className={styles.colHt}>{ht}</span>
+                <span className={styles.colWt}>{p.weightLbs ?? '—'}</span>
+                <span className={styles.colPbr}>{p.pbrState ?? '—'}</span>
+                <span className={styles.colPg}>{p.pgScore ?? '—'}</span>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

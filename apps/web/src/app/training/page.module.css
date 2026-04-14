@@ -139,7 +139,7 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.todayBtn:hover { background: #FFFFFF; color: #0A0A0A; }
+.todayBtn:hover { background: rgba(255,255,255,0.08); color: #f1f4f6; border-color: rgba(255,255,255,0.14); }
 
 .viewSwitcher {
   display: flex;
@@ -165,8 +165,9 @@
 .viewBtn:last-child { border-right: none; }
 .viewBtn:hover { background: var(--surface2); color: var(--text); }
 .viewBtnActive {
-  background: #FFFFFF;
-  color: #0A0A0A;
+  background: rgba(255,255,255,0.08);
+  color: #f1f4f6;
+  border-color: rgba(255,255,255,0.14);
 }
 
 /* ── Legend Bar ── */
@@ -202,7 +203,7 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -247,8 +248,8 @@
 }
 
 .dayNumToday {
-  background: #FFFFFF;
-  color: #0A0A0A;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+  color: #010101;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -282,7 +283,7 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -352,7 +353,7 @@
 /* ── Day View ── */
 .dayView {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -478,7 +479,7 @@
 .videoModal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   width: 720px;
   max-width: 95vw;
   max-height: 90vh;
@@ -608,9 +609,9 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #FFFFFF;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
   border: none;
-  color: #0A0A0A;
+  color: #010101;
   font-size: 24px;
   display: flex;
   align-items: center;
@@ -620,7 +621,7 @@
   transition: all 0.15s;
   z-index: 100;
 }
-.fab:hover { transform: scale(1.1); background: #E0E0E0; }
+.fab:hover { transform: scale(1.1); background: rgba(255,255,255,0.85); }
 
 /* ── Modal Overlay ── */
 .modalOverlay {
@@ -637,7 +638,7 @@
 .modal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   width: 440px;
   max-width: 95vw;
   max-height: 90vh;
@@ -754,7 +755,7 @@
   right: 0;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 14px;
   max-height: 220px;
   display: flex;
   flex-direction: column;
@@ -892,13 +893,13 @@
   padding: 8px 20px;
   font-size: 12px;
   font-weight: 600;
-  background: #FFFFFF;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
   border: none;
   border-radius: 6px;
-  color: #0A0A0A;
+  color: #010101;
   cursor: pointer;
 }
-.btnSave:hover { background: #E0E0E0; }
+.btnSave:hover { background: rgba(255,255,255,0.85); }
 .btnSave:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Empty & Loading ── */
@@ -929,7 +930,7 @@
 .dashModal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   width: 620px;
   max-width: 95vw;
   max-height: 90vh;
@@ -1051,8 +1052,9 @@
   transition: all 0.15s;
 }
 .dayActionBtnAccent:hover {
-  background: #FFFFFF;
-  color: #0A0A0A;
+  background: rgba(255,255,255,0.08);
+  color: #f1f4f6;
+  border-color: rgba(255,255,255,0.14);
 }
 
 /* ── Animations ── */

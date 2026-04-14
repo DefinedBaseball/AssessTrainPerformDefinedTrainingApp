@@ -1,3 +1,5 @@
+/* ── Athletes List ── */
+
 .header {
   display: flex;
   justify-content: space-between;
@@ -6,8 +8,10 @@
 }
 
 .title {
+  font-family: 'Clash Grotesk', 'Satoshi', system-ui, sans-serif;
   font-size: 28px;
   font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .actions {
@@ -20,136 +24,193 @@
   background: var(--surface) !important;
 }
 
+/* ── Filter Chips ── */
+
 .filterRow {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .filterChip {
   padding: 6px 16px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
-  background: var(--card);
+  background: rgba(255,255,255,0.015);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition);
+  font-family: inherit;
 }
 
 .filterChip:hover {
-  border-color: var(--accent);
+  border-color: rgba(255,255,255,0.18);
   color: var(--text-secondary);
 }
 
 .filterChipActive {
-  background: #FFFFFF;
-  border-color: #FFFFFF;
-  color: #0A0A0A;
+  background: rgba(255,255,255,0.08);
+  color: #f1f4f6;
+  border-color: rgba(255,255,255,0.14);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
+/* ══════════════════════════════════════════════
+   LIST TABLE
+   ══════════════════════════════════════════════ */
 
-.playerCard {
-  background: var(--card);
+.listWrap {
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 20px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.listHeader {
+  display: grid;
+  grid-template-columns: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr 0.6fr;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(255,255,255,0.025);
+  border-bottom: 1px solid var(--border);
+}
+
+.listHeader > span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.listRow {
+  display: grid;
+  grid-template-columns: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr 0.6fr;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
   text-decoration: none;
-  transition: background 0.15s, border-color 0.15s;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  color: var(--text);
+  transition: background var(--transition);
+  cursor: pointer;
 }
 
-.playerCard:hover {
-  background: var(--card-hover);
-  border-color: var(--accent);
+.listRow:last-child {
+  border-bottom: none;
 }
 
-.cardHeader {
+.listRow:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+/* ── Columns ── */
+
+.colName {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
+.colAge,
+.colGrad,
+.colHt,
+.colWt,
+.colPbr,
+.colPg {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.colPos {
+  min-width: 0;
+}
+
+/* ── Avatar ── */
+
 .avatar {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #333333;
+  background: linear-gradient(180deg, #36342f, #1d1c1a);
+  border: 1px solid rgba(255,255,255,0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
-  color: #F0F0F0;
+  font-size: 12px;
+  color: var(--text);
   flex-shrink: 0;
 }
 
 .playerName {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
-}
-
-.playerMeta {
-  font-size: 12px;
-  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .positionsRow {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
-.cardStats {
-  display: flex;
-  gap: 16px;
-}
-
-.cardStat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.cardStatValue {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.cardStatLabel {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.rankings {
-  display: flex;
-  gap: 8px;
-}
-
-.ranking {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-}
+/* ── Empty state ── */
 
 .empty {
   text-align: center;
   padding: 64px 0;
   color: var(--text-muted);
+}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  .listHeader,
+  .listRow {
+    grid-template-columns: 2fr 0.6fr 0.7fr 1fr 0.7fr 0.7fr;
+  }
+  /* Hide PBR and PG on smaller screens */
+  .colPbr,
+  .colPg {
+    display: none;
+  }
+  .listHeader > span:nth-child(7),
+  .listHeader > span:nth-child(8) {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .listHeader,
+  .listRow {
+    grid-template-columns: 2fr 0.7fr 1fr;
+  }
+  /* Show only Name, Grad, Position on mobile */
+  .colAge,
+  .colHt,
+  .colWt,
+  .colPbr,
+  .colPg {
+    display: none;
+  }
+  .listHeader > span:nth-child(2),
+  .listHeader > span:nth-child(5),
+  .listHeader > span:nth-child(6),
+  .listHeader > span:nth-child(7),
+  .listHeader > span:nth-child(8) {
+    display: none;
+  }
+  .header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .searchInput { width: 100%; }
+  .filterRow { flex-wrap: wrap; }
 }
