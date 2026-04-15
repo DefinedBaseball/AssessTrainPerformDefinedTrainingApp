@@ -310,19 +310,33 @@
   color: var(--text-muted);
 }
 
+.postActions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.postCard:hover .postActions {
+  opacity: 1;
+}
+.postEditBtn,
 .postDeleteBtn {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
   transition: all var(--transition);
-  opacity: 0;
 }
-.postCard:hover .postDeleteBtn {
-  opacity: 1;
+.postEditBtn:hover {
+  color: var(--accent-light);
+  background: var(--accent-dim);
 }
 .postDeleteBtn:hover {
   color: var(--red);

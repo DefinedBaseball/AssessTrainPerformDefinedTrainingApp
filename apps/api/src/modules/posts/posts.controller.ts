@@ -1,11 +1,8 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request } from '@nestjs/common';
 import { PostsService } from './posts.service';
-import { JwtAuthGuard } from '../auth/jwt.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../auth/jwt.guard';
 
 @Controller('posts')
-@UseGuards(JwtAuthGuard)
 export class PostsController {
   constructor(private postsService: PostsService) {}
 
@@ -21,14 +18,18 @@ export class PostsController {
   }
 
   @Post()
-  @UseGuards(RolesGuard)
   @Roles('COACH')
   async create(@Request() req: any, @Body() body: any) {
     return this.postsService.create(req.user.sub, body);
   }
 
+  @Put(':id')
+  @Roles('COACH')
+  async update(@Param('id') id: string, @Body() body: any) {
+    return this.postsService.update(id, body);
+  }
+
   @Delete(':id')
-  @UseGuards(RolesGuard)
   @Roles('COACH')
   async delete(@Param('id') id: string) {
     return this.postsService.delete(id);

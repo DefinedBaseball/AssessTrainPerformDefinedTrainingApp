@@ -729,6 +729,23 @@ export async function createPost(data: {
   return request('/posts', { method: 'POST', body: JSON.stringify(data) });
 }
 
+export async function updatePost(id: string, data: {
+  type?: string;
+  title?: string;
+  body?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  linkUrl?: string;
+  urgency?: string;
+  taggedPlayerId?: string;
+  collegeName?: string;
+  position?: string;
+  organizationName?: string;
+  level?: string;
+}): Promise<PostItem> {
+  return request(`/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
 export async function deletePost(id: string): Promise<void> {
   return request(`/posts/${id}`, { method: 'DELETE' });
 }

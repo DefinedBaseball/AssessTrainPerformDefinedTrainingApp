@@ -54,6 +54,30 @@ export class PostsService {
     return post;
   }
 
+  async update(postId: string, data: {
+    type?: string;
+    title?: string;
+    body?: string;
+    imageUrl?: string;
+    videoUrl?: string;
+    linkUrl?: string;
+    urgency?: string;
+    taggedPlayerId?: string;
+    collegeName?: string;
+    position?: string;
+    organizationName?: string;
+    level?: string;
+  }) {
+    return this.prisma.post.update({
+      where: { id: postId },
+      data,
+      include: {
+        author: { select: { id: true, email: true, role: true } },
+        taggedPlayer: { select: { id: true, firstName: true, lastName: true, positions: true, profilePhoto: true } },
+      },
+    });
+  }
+
   async delete(postId: string) {
     return this.prisma.post.delete({ where: { id: postId } });
   }

@@ -207,6 +207,13 @@ export default function DashboardPage() {
     } catch { /* silent */ }
   }, []);
 
+  /* ── Edit post ── */
+  const [editingPost, setEditingPost] = useState<PostItem | null>(null);
+  const handlePostUpdated = useCallback((updated: PostItem) => {
+    setPosts(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setEditingPost(null);
+  }, []);
+
   if (isLoading || !user) return null;
 
   /* ── Player view: show their own profile ── */
@@ -224,6 +231,7 @@ export default function DashboardPage() {
             posts={posts}
             isCoach={false}
             onDelete={handleDeletePost}
+            onEdit={() => {}}
           />
         </div>
 
@@ -288,6 +296,7 @@ export default function DashboardPage() {
           posts={posts}
           isCoach={isCoach}
           onDelete={handleDeletePost}
+          onEdit={setEditingPost}
         />
       </div>
 
@@ -326,6 +335,16 @@ export default function DashboardPage() {
           submitError={submitError}
           onSubmit={handleCreatePost}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* ── Edit Post Modal ── */}
+      {editingPost && (
+        <EditPostModal
+          post={editingPost}
+          players={players}
+          onClose={() => setEditingPost(null)}
+          onSaved={handlePostUpdated}
         />
       )}
     </div>
@@ -380,10 +399,12 @@ function AnnouncementFeed({
   posts,
   isCoach,
   onDelete,
+  onEdit,
 }: {
   posts: PostItem[];
   isCoach: boolean;
   onDelete: (id: string) => void;
+  onEdit: (post: PostItem) => void;
 }) {
   if (posts.length === 0) {
     return (
@@ -432,13 +453,22 @@ function AnnouncementFeed({
                   <span className={styles.postDate}>{timeAgo(post.createdAt)}</span>
                 </div>
                 {isCoach && (
-                  <button
-                    className={styles.postDeleteBtn}
-                    onClick={() => onDelete(post.id)}
-                    title="Delete post"
-                  >
-                    ×
-                  </button>
+                  <div className={styles.postActions}>
+                    <button
+                      className={styles.postEditBtn}
+                      onClick={() => onEdit(post)}
+                      title="Edit post"
+                    >
+                      &#9998;
+                    </button>
+                    <button
+                      className={styles.postDeleteBtn}
+                      onClick={() => onDelete(post.id)}
+                      title="Delete post"
+                    >
+                      ×
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -701,6 +731,237 @@ function CreatePostModal({
             onClick={onSubmit}
           >
             {submitting ? 'Creating...' : 'Create Post'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   EDIT POST MODAL
+   ══════════════════════════════════════════════ */
+function EditPostModal({
+  post,
+  players,
+  onClose,
+  onSaved,
+}: {
+  post: PostItem;
+  players: Player[];
+  onClose: () => void;
+  onSaved: (p: PostItem) => void;
+}) {
+  const [postType, setPostType] = useState(post.type);
+  const [title, setTitle] = useState(post.title);
+  const [body, setBody] = useState(post.body || '');
+  const [urgency, setUrgency] = useState(post.urgency === 'IMPORTANT');
+  const [taggedPlayerId, setTaggedPlayerId] = useState(post.taggedPlayerId || '');
+  const [collegeName, setCollegeName] = useState(post.collegeName || '');
+  const [position, setPosition] = useState(post.position || '');
+  const [orgName, setOrgName] = useState(post.organizationName || '');
+  const [level, setLevel] = useState(post.level || '');
+  const [videoUrl, setVideoUrl] = useState(post.videoUrl || '');
+  const [imageUrl, setImageUrl] = useState(post.imageUrl || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const needsPlayer = ['ATHLETE_HIGHLIGHT', 'COLLEGE_COMMITMENT', 'PRO_SIGNING'].includes(postType);
+  const isCommitment = postType === 'COLLEGE_COMMITMENT';
+  const isProSigning = postType === 'PRO_SIGNING';
+
+  const save = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await api.updatePost(post.id, {
+        type: postType,
+        title: title.trim(),
+        body: body.trim() || undefined,
+        urgency: urgency ? 'IMPORTANT' : 'NORMAL',
+        taggedPlayerId: taggedPlayerId || undefined,
+        collegeName: collegeName || undefined,
+        position: position || undefined,
+        organizationName: orgName || undefined,
+        level: level || undefined,
+        videoUrl: videoUrl || undefined,
+        imageUrl: imageUrl || undefined,
+      });
+      onSaved(updated);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update post');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={styles.modalOverlay} onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
+      <div className={styles.modal}>
+        <div className={styles.modalHeader}>
+          <span className={styles.modalTitle}>Edit Post</span>
+          <button className={styles.modalClose} onClick={onClose}>×</button>
+        </div>
+
+        <div className={styles.modalBody}>
+          {/* ── Type Selector ── */}
+          <div className={styles.typeSelector}>
+            {POST_TYPES.map(t => (
+              <button
+                key={t.value}
+                className={`${styles.typeBtn} ${postType === t.value ? styles.typeBtnActive : ''}`}
+                onClick={() => setPostType(t.value)}
+              >
+                <span className={styles.typeIcon}>{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Title ── */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Title</label>
+            <input
+              type="text"
+              className={styles.fieldInput}
+              placeholder="Post title..."
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+            />
+          </div>
+
+          {/* ── Body ── */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Body (optional)</label>
+            <textarea
+              className={`${styles.fieldInput} ${styles.fieldTextarea}`}
+              placeholder="Write your announcement..."
+              value={body}
+              onChange={e => setBody(e.target.value)}
+            />
+          </div>
+
+          {/* ── Tagged Player ── */}
+          {needsPlayer && (
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Tagged Athlete</label>
+              <select
+                className={`${styles.fieldInput} ${styles.fieldSelect}`}
+                value={taggedPlayerId}
+                onChange={e => setTaggedPlayerId(e.target.value)}
+              >
+                <option value="">Select athlete...</option>
+                {players.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.firstName} {p.lastName} {p.gradYear ? `(${p.gradYear})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* ── College Commitment fields ── */}
+          {isCommitment && (
+            <>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>College / University</label>
+                <input
+                  type="text"
+                  className={styles.fieldInput}
+                  placeholder="e.g. University of Texas"
+                  value={collegeName}
+                  onChange={e => setCollegeName(e.target.value)}
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Position</label>
+                <input
+                  type="text"
+                  className={styles.fieldInput}
+                  placeholder="e.g. RHP, SS, OF"
+                  value={position}
+                  onChange={e => setPosition(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── Pro Signing fields ── */}
+          {isProSigning && (
+            <>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Organization</label>
+                <input
+                  type="text"
+                  className={styles.fieldInput}
+                  placeholder="e.g. Houston Astros"
+                  value={orgName}
+                  onChange={e => setOrgName(e.target.value)}
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Level</label>
+                <select
+                  className={`${styles.fieldInput} ${styles.fieldSelect}`}
+                  value={level}
+                  onChange={e => setLevel(e.target.value)}
+                >
+                  <option value="">Select level...</option>
+                  <option value="MLB">MLB</option>
+                  <option value="MiLB">MiLB</option>
+                  <option value="Independent">Independent</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* ── Video / Image URL ── */}
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Video URL (optional)</label>
+            <input
+              type="text"
+              className={styles.fieldInput}
+              placeholder="https://..."
+              value={videoUrl}
+              onChange={e => setVideoUrl(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Image URL (optional)</label>
+            <input
+              type="text"
+              className={styles.fieldInput}
+              placeholder="https://..."
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+            />
+          </div>
+
+          {/* ── Urgency ── */}
+          <div className={styles.urgencyToggle}>
+            <input
+              type="checkbox"
+              id="editUrgency"
+              className={styles.urgencyCheckbox}
+              checked={urgency}
+              onChange={e => setUrgency(e.target.checked)}
+            />
+            <label htmlFor="editUrgency" className={styles.urgencyLabel}>
+              Mark as Important
+            </label>
+          </div>
+
+          {/* ── Submit ── */}
+          {error && <div className={styles.errorMsg}>{error}</div>}
+          <button
+            className={styles.submitBtn}
+            disabled={saving || !title.trim()}
+            onClick={save}
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>

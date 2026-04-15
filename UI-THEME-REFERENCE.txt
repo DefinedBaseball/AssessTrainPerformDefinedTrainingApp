@@ -1,0 +1,259 @@
+===============================================================================
+PLAYER DEVELOPMENT APP — COMPLETE UI / THEME REFERENCE
+===============================================================================
+
+This is a baseball player development platform (web + mobile). Below is the
+full design system, component styles, and layout patterns. The current theme
+is called "Premium Graphite" — a dark, layered-black, monochrome look with
+muted color accents. I'd like you to suggest 2-3 alternative visual
+directions while keeping the same layout structure and component patterns.
+
+App type: Baseball player development (coaches + athletes)
+Framework: Next.js (React), CSS Modules
+Fonts: Satoshi (body), Clash Grotesk (headings), DM Mono (numbers)
+
+===============================================================================
+1. DESIGN TOKENS (globals.css)
+===============================================================================
+
+/* Premium Graphite theme — quiet, monochrome, layered black. */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=clash-grotesk@500,600,700&display=swap');
+
+:root {
+  /* Backgrounds */
+  --bg:           #010101;
+  --surface:      #040405;
+  --surface2:     #08090b;
+  --surface-light:#0d0f12;
+  --card:         rgba(255,255,255,0.015);
+  --card-hover:   rgba(255,255,255,0.03);
+  --card-gradient: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+
+  /* Text */
+  --text:          #f1f4f6;
+  --text-secondary:#919ba1;
+  --text-muted:    #626b71;
+  --faint:         #3a3f45;
+
+  /* Accent (white/silver) */
+  --accent:        #FFFFFF;
+  --accent-light:  #FFFFFF;
+  --accent-dim:    rgba(255,255,255,0.06);
+
+  /* Graphite accent */
+  --graphite:      #686c72;
+  --graphite-dim:  rgba(104,108,114,0.07);
+  --graphite-line: rgba(104,108,114,0.18);
+
+  /* Semantic colors (muted) */
+  --green:         #6DAA45;
+  --green-dim:     rgba(109,170,69,0.13);
+  --gold:          #E8AF34;
+  --gold-dim:      rgba(232,175,52,0.13);
+  --red:           #DD6974;
+  --red-dim:       rgba(221,105,116,0.13);
+  --orange:        #FDAB43;
+  --orange-dim:    rgba(253,171,67,0.13);
+
+  /* Borders */
+  --border:        rgba(255,255,255,0.08);
+  --border-light:  rgba(255,255,255,0.12);
+
+  /* Radii (premium / rounded) */
+  --radius-sm:     10px;
+  --radius-md:     16px;
+  --radius-lg:     24px;
+  --radius-xl:     30px;
+  --radius-full:   999px;
+
+  /* Shadows */
+  --shadow-card:   0 18px 40px rgba(0,0,0,0.3);
+  --shadow-lg:     0 32px 80px rgba(0,0,0,0.58);
+
+  /* Transitions */
+  --transition:    200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Satoshi', 'DM Sans', -apple-system, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+===============================================================================
+2. COMPONENT PATTERNS
+===============================================================================
+
+--- CARDS ---
+Background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015))
+Border: 1px solid rgba(255,255,255,0.08)
+Border-radius: 24px (large) or 16px (medium)
+Hover: border-color brightens to rgba(255,255,255,0.14)
+
+--- BUTTONS ---
+Primary: white gradient background, black text
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))
+  color: #010101
+Outline: transparent bg, subtle border
+  background: rgba(255,255,255,0.018)
+  border: 1px solid var(--border)
+  color: var(--text-secondary)
+Danger: red-tinted
+  background: linear-gradient(180deg, rgba(225,143,151,0.1), rgba(225,143,151,0.03))
+
+--- BADGES / TAGS ---
+Pill-shaped (border-radius: 999px)
+Semantic coloring: green-dim/green, gold-dim/gold, red-dim/red
+Font: 10-11px, uppercase, letter-spacing 0.08em, weight 700
+
+--- INPUTS / FORMS ---
+Background: var(--surface) (#040405)
+Border: 1px solid rgba(255,255,255,0.08)
+Focus: border-color rgba(255,255,255,0.18)
+Labels: 11px uppercase, letter-spacing 0.1em, --text-muted color
+
+--- MODALS ---
+Overlay: rgba(0,0,0,0.7) + backdrop-filter: blur(8px)
+Modal bg: linear-gradient(180deg, #0d0f12 0%, #060708 100%)
+Border: rgba(255,255,255,0.1), radius 30px
+Shadow: 0 32px 80px rgba(0,0,0,0.65)
+
+--- HOVER-REVEAL ACTIONS ---
+Edit (pencil) + Delete (x) buttons hidden (opacity:0), revealed on card hover
+Edit hover: accent-dim bg, accent-light color (teal/white)
+Delete hover: red-dim bg, red color
+
+--- FAB (Floating Action Button) ---
+Fixed bottom-right, 56px circle, white gradient, black text
+Shadow: 0 12px 32px rgba(0,0,0,0.5)
+Hover: scale(1.08)
+
+===============================================================================
+3. DASHBOARD LAYOUT (Coach View)
+===============================================================================
+
+┌─────────────────────────────────────────┐
+│  COACH DASHBOARD (eyebrow, 11px upper)  │
+│  Assess, Train, Perform (Clash Grotesk) │
+│  Subtitle text (14px, muted)            │
+├─────────────────────────────────────────┤
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐   │
+│  │  11  │ │  3   │ │  0   │ │  0   │   │
+│  │Total │ │Grad  │ │Commit│ │Pro   │   │
+│  │Athle.│ │Years │ │ted   │ │Sign. │   │
+│  └──────┘ └──────┘ └──────┘ └──────┘   │
+│  (4-col stat grid, DM Mono numbers)     │
+├─────────────────────────────────────────┤
+│  Announcements & Spotlights  [3]        │
+│  ┌─────────────────────────────────┐    │
+│  │ [PROGRAM ANNOUNCEMENT] 3h ago   │    │
+│  │ Summer Training Program...      │    │
+│  │ Body text...                ✎ × │    │
+│  │ by coach@playerdev.com          │    │
+│  └─────────────────────────────────┘    │
+│  (more post cards...)                   │
+│                                    [+]  │  ← FAB
+└─────────────────────────────────────────┘
+
+===============================================================================
+4. DASHBOARD LAYOUT (Player View)
+===============================================================================
+
+┌─────────────────────────────────────────┐
+│  ┌───┬───┬───┬───┬───┬───┬───┐         │
+│  │Mon│TUE│Wed│Thu│Fri│Sat│Sun│         │
+│  │ 13│ 14│ 15│ 16│ 17│ 18│ 19│         │
+│  │ ●●│●●●│ ●●│   │ ●●│   │   │         │
+│  │   │TOD│   │   │   │   │   │         │
+│  └───┴───┴───┴───┴───┴───┴───┘         │
+│  (weekly schedule strip, colored dots)  │
+├─────────────────────────────────────────┤
+│  Announcements & Spotlights  [3]        │
+│  (post cards — NO edit/delete/FAB)      │
+├─────────────────────────────────────────┤
+│  Player Profile (embedded below)        │
+└─────────────────────────────────────────┘
+
+===============================================================================
+5. ATHLETES LIST TABLE
+===============================================================================
+
+┌─────────────────────────────────────────┐
+│ Athletes              [search] [filter] │
+├─────────────────────────────────────────┤
+│ NAME      AGE GRAD POS    HT  WT PBR PG│
+│ ┌──┐                                   │
+│ │MB│ Mason Brown  18  2026  SS  5'11 175│
+│ └──┘                                   │
+│ (clickable rows → player profile)       │
+└─────────────────────────────────────────┘
+
+Grid: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr 0.6fr
+Avatar: 36px circle, gradient bg (#36342f → #1d1c1a)
+Row hover: rgba(255,255,255,0.03)
+Responsive: hides PBR/PG at 900px, shows only Name/Grad/Pos at 640px
+
+===============================================================================
+6. EDUCATION HUB
+===============================================================================
+
+Landing page with 3 hub cards:
+- Classes (gold accent, 🎓)
+- Drills (teal accent, ⚾)
+- MLB Video (red accent, 🎬)
+
+Hub cards: 18px radius, padding 28px, hover translateY(-2px) + shadow
+
+--- Classes Section ---
+Sport tabs (Hitting/Pitching/Defense/S&C/Vision) — colored active states
+Level filter pills (Beginner=green, Intermediate=gold, Advanced=orange, Expert=red)
+Class cards: emoji thumb + name + level badge + description + meta
+Clickable → detail page with embedded video (YouTube iframe or <video>)
+
+--- Drills Section ---
+Grouped by category with divider lines
+Drill cards: color bar (3px, sport color) + name + description + meta
+Hover-reveal edit/delete (coach only)
+Click → video player modal
+
+--- MLB Video ---
+Player cards with emoji avatar, position badge, video count
+Filterable by position/bats/throws
+
+===============================================================================
+7. POST TYPE COLOR CODING
+===============================================================================
+
+FACILITY_ANNOUNCEMENT: accent-dim bg, white text
+ATHLETE_HIGHLIGHT:     green-dim bg, green text
+PROGRAM_ANNOUNCEMENT:  rgba(91,163,217,0.13) bg, #5BA3D9 text
+COLLEGE_COMMITMENT:    gold-dim bg, gold text
+PRO_SIGNING:           red-dim bg, red text
+
+===============================================================================
+8. KEY VISUAL CHARACTERISTICS
+===============================================================================
+
+- Near-black backgrounds (#010101) with extremely subtle white overlays
+- All color accents are heavily desaturated/muted (13% opacity dims)
+- White-on-black primary buttons (inverted from typical dark themes)
+- Generous border-radius (16-30px) for a premium/soft feel
+- Very subtle card gradients (4% → 1.5% white overlay)
+- Hover states: border brightens, slight translateY lift, shadow deepens
+- Typography: tight letter-spacing on headings (-0.03em), wide on labels (0.1em)
+- Numbers in DM Mono for tabular alignment
+- All actions coach-only are hidden from player DOM entirely (not just opacity)
+- Smooth 200ms cubic-bezier transitions everywhere
+
+===============================================================================
+END OF REFERENCE
+===============================================================================
