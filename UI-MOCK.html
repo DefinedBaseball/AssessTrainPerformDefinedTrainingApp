@@ -602,6 +602,383 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
   .listHeader span:nth-child(n+4), .listRow > *:nth-child(n+4) { display: none; }
   .weekStrip { grid-template-columns: repeat(7, 80px); overflow-x: auto; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ATHLETE PROFILE
+   ═══════════════════════════════════════════════════════════════════════ */
+.backBtn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-secondary); padding: 8px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit; margin-bottom: 20px;
+  transition: all var(--transition);
+}
+.backBtn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+.profileHead {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 28px; align-items: center;
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  margin-bottom: 24px;
+}
+.profileAvatar {
+  width: 120px; height: 120px; border-radius: 50%;
+  background: linear-gradient(180deg, #36342f, #1d1c1a);
+  border: 2px solid rgba(255,255,255,0.1);
+  display: grid; place-items: center;
+  font-family: 'Clash Grotesk'; font-size: 40px; font-weight: 700;
+}
+.profileName { font-family: 'Clash Grotesk'; font-size: 36px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+.profileBio { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.profileBio .chip { padding: 4px 12px; }
+.profileCommit {
+  padding: 12px 20px; border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  text-align: center;
+}
+.profileCommit .label { font-size: 10px; letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase; }
+.profileCommit .value { font-family: 'Clash Grotesk'; font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.metricCard {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px; text-align: center;
+}
+.metricCard:hover { border-color: rgba(255,255,255,0.14); }
+.metricVal { font-family: 'DM Mono'; font-size: 28px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
+.metricUnit { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.metricLabel { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-top: 8px; }
+
+.sourcesGrid {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 14px; margin-bottom: 28px;
+}
+.sourceCircle {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 14px 8px; cursor: pointer;
+}
+.sourceCircle > div:first-child {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: 'Clash Grotesk'; font-weight: 700; font-size: 18px;
+  border: 2px solid;
+  transition: transform var(--transition);
+}
+.sourceCircle:hover > div:first-child { transform: scale(1.05); }
+.src-fs { border-color: #DD6974; color: #DD6974; }
+.src-bm { border-color: #E8AF34; color: #E8AF34; }
+.src-ht { border-color: #6DAA45; color: #6DAA45; }
+.src-vp { border-color: #B583D5; color: #B583D5; }
+.src-tm { border-color: #5BA3D9; color: #5BA3D9; }
+.src-dm { border-color: #4FC3A1; color: #4FC3A1; }
+.sourceCircle .srcLabel { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+
+.rankings {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 14px; margin-bottom: 28px;
+}
+.rankCard {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 22px; text-align: center;
+}
+.rankVal { font-family: 'DM Mono'; font-size: 30px; font-weight: 600; color: var(--text); }
+.rankValHash { color: var(--gold); }
+.rankLabel { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-top: 6px; }
+
+.progressCard {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 22px; margin-bottom: 20px;
+}
+.progressHead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+.progressTitle { font-family: 'Clash Grotesk'; font-size: 17px; font-weight: 700; }
+.progressStat { display: flex; gap: 16px; font-size: 12px; }
+.progressStat span { color: var(--text-muted); }
+.progressStat b { color: var(--text); font-family: 'DM Mono'; font-size: 16px; margin-left: 4px; }
+.progressStat .up { color: var(--green); }
+.progressStat .down { color: var(--red); }
+.chartBox {
+  height: 160px; position: relative;
+  background: rgba(255,255,255,0.015);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+}
+.chartSvg { width: 100%; height: 100%; overflow: visible; }
+.chartLine { fill: none; stroke: var(--orange); stroke-width: 2.5; }
+.chartDot { fill: var(--orange); }
+.chartGrid { stroke: var(--border); stroke-dasharray: 2 4; }
+.chartAxis { fill: var(--text-muted); font-size: 10px; font-family: 'DM Mono'; }
+
+@media (max-width: 1024px) {
+  .profileHead { grid-template-columns: 80px 1fr; gap: 16px; padding: 20px; }
+  .profileHead > :nth-child(3) { grid-column: 1 / -1; }
+  .profileAvatar { width: 80px; height: 80px; font-size: 26px; }
+  .profileName { font-size: 26px; }
+  .metricsGrid { grid-template-columns: repeat(2, 1fr); }
+  .sourcesGrid { grid-template-columns: repeat(3, 1fr); }
+  .rankings { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TRAINING / CALENDAR
+   ═══════════════════════════════════════════════════════════════════════ */
+.calHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+.calNav { display: flex; gap: 8px; align-items: center; }
+.calTitle { font-family: 'Clash Grotesk'; font-size: 22px; font-weight: 700; min-width: 180px; text-align: center; }
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+}
+.calDay {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  min-height: 130px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color var(--transition);
+}
+.calDay:hover { border-color: rgba(255,255,255,0.14); }
+.calDay.today { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.04); }
+.calDate { font-family: 'DM Mono'; font-weight: 600; font-size: 16px; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+.calDate small { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-muted); text-transform: uppercase; }
+.calEvent {
+  font-size: 10px; font-weight: 600;
+  padding: 4px 6px; border-radius: 6px;
+  background: var(--accent-dim); color: var(--text);
+  border-left: 2px solid var(--accent-light);
+  line-height: 1.25;
+}
+.calEvent.green { border-left-color: var(--green); background: var(--green-dim); color: var(--green); }
+.calEvent.gold  { border-left-color: var(--gold);  background: var(--gold-dim);  color: var(--gold); }
+.calEvent.red   { border-left-color: var(--red);   background: var(--red-dim);   color: var(--red); }
+.calEvent.orange{ border-left-color: var(--orange);background: var(--orange-dim);color: var(--orange); }
+
+@media (max-width: 768px) {
+  .calGrid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LEADERBOARDS
+   ═══════════════════════════════════════════════════════════════════════ */
+.lbTabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.lbRow {
+  display: grid;
+  grid-template-columns: 60px 2fr 0.8fr 1fr 0.8fr;
+  gap: 12px; padding: 14px 20px; align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background var(--transition);
+  cursor: pointer;
+}
+.lbRow:hover { background: rgba(255,255,255,0.02); }
+.lbRank {
+  font-family: 'Clash Grotesk'; font-size: 22px; font-weight: 700;
+  color: var(--text-muted);
+}
+.lbRank.top { color: var(--gold); }
+.lbName { display: flex; align-items: center; gap: 10px; }
+.lbVal { font-family: 'DM Mono'; font-weight: 600; color: var(--text); }
+.lbTrend { font-size: 12px; font-weight: 600; }
+.lbTrend.up { color: var(--green); }
+.lbTrend.down { color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VIDEOS LIBRARY
+   ═══════════════════════════════════════════════════════════════════════ */
+.videoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.videoCard {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.videoCard:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.18); box-shadow: var(--shadow-card); }
+.videoThumb {
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, rgba(104,108,114,0.22), rgba(0,0,0,0.6));
+  position: relative;
+  display: grid; place-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.videoThumb::after {
+  content: '▶';
+  width: 56px; height: 56px; border-radius: 50%;
+  background: rgba(0,0,0,0.65); color: #fff;
+  display: grid; place-items: center;
+  font-size: 18px; padding-left: 3px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.videoDur {
+  position: absolute; bottom: 8px; right: 8px;
+  background: rgba(0,0,0,0.7);
+  padding: 2px 8px; border-radius: 4px;
+  font-family: 'DM Mono'; font-size: 11px; color: #fff;
+}
+.videoMeta { padding: 14px 16px; }
+.videoTitle { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.videoSub { font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; }
+
+@media (max-width: 1024px) { .videoGrid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .videoGrid { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SETTINGS
+   ═══════════════════════════════════════════════════════════════════════ */
+.settingsCard {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.settingsTitle { font-family: 'Clash Grotesk'; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+.formRow { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.formLabel { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+.formRow input, .formRow select, .formRow textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px; font-family: inherit;
+  padding: 10px 14px; outline: none; width: 100%;
+}
+.formRow input:focus, .formRow select:focus { border-color: rgba(255,255,255,0.18); }
+.formToggleRow { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.formToggleRow:last-child { border-bottom: none; }
+.formToggleRow .label { font-weight: 600; color: var(--text); }
+.formToggleRow .sub { font-size: 12px; color: var(--text-muted); }
+.toggle {
+  width: 40px; height: 22px; border-radius: 999px;
+  background: rgba(255,255,255,0.1); position: relative;
+  cursor: pointer; transition: background var(--transition);
+}
+.toggle::after {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; border-radius: 50%;
+  top: 3px; left: 3px; background: #fff;
+  transition: left var(--transition);
+}
+.toggle.on { background: var(--accent-light); }
+.toggle.on::after { left: 21px; background: #010101; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODALS
+   ═══════════════════════════════════════════════════════════════════════ */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: grid; place-items: center;
+  padding: 20px;
+}
+.modal {
+  background: linear-gradient(180deg, #0d0f12 0%, #060708 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 28px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modalHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modalTitle { font-family: 'Clash Grotesk'; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.modalClose {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; font-size: 18px;
+  display: grid; place-items: center;
+  transition: all var(--transition);
+}
+.modalClose:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+.modalFoot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.typeGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+.typeChoice {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--radius-sm);
+  padding: 10px 6px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+.typeChoice:hover { border-color: rgba(255,255,255,0.18); color: var(--text); }
+.typeChoice.active { background: var(--accent-dim); border-color: rgba(255,255,255,0.18); color: var(--text); }
+.typeEmoji { font-size: 22px; display: block; margin-bottom: 4px; }
+
+/* Drill / class detail */
+.detailHero {
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  margin-bottom: 20px;
+  display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center;
+}
+.detailVideo {
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, rgba(104,108,114,0.2), rgba(0,0,0,0.7));
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  position: relative;
+  display: grid; place-items: center;
+  margin-bottom: 20px;
+}
+.detailVideo::after {
+  content: '▶';
+  width: 80px; height: 80px; border-radius: 50%;
+  background: rgba(0,0,0,0.7); color: #fff;
+  display: grid; place-items: center;
+  font-size: 28px; padding-left: 4px;
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.stepList { display: flex; flex-direction: column; gap: 10px; }
+.stepItem {
+  display: flex; gap: 14px; padding: 16px 20px;
+  background: var(--card-gradient);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.stepNum {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--text); font-weight: 700;
+  display: grid; place-items: center; flex-shrink: 0;
+  font-family: 'DM Mono'; font-size: 14px;
+}
+
+@media (max-width: 1024px) {
+  .detailHero { grid-template-columns: 1fr; }
+  .sourcesGrid { grid-template-columns: repeat(3, 1fr); }
+  .typeGrid { grid-template-columns: repeat(3, 1fr); }
+}
 </style>
 </head>
 <body>
@@ -622,7 +999,11 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
     <button data-view="login" onclick="setView('login')">Login</button>
     <button data-view="dashboard" class="active" onclick="setView('dashboard')">Dashboard</button>
     <button data-view="athletes" onclick="setView('athletes')">Athletes</button>
+    <button data-view="training" onclick="setView('training')">Training</button>
     <button data-view="education" onclick="setView('education')">Education</button>
+    <button data-view="leaderboards" onclick="setView('leaderboards')">Leaderboards</button>
+    <button data-view="videos" onclick="setView('videos')">Videos</button>
+    <button data-view="settings" onclick="setView('settings')">Settings</button>
   </div>
 </div>
 
@@ -681,7 +1062,7 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
       </span>
     </div>
 
-    <div class="navItem" data-nav="training">
+    <div class="navItem" data-nav="training" onclick="setView('training')">
       <span class="navIcon">▤</span>
       <span class="navMeta">
         <span>Training</span>
@@ -697,7 +1078,7 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
       </span>
     </div>
 
-    <div class="navItem" data-nav="leaderboards">
+    <div class="navItem" data-nav="leaderboards" onclick="setView('leaderboards')">
       <span class="navIcon">♞</span>
       <span class="navMeta">
         <span>Leaderboards</span>
@@ -705,7 +1086,7 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
       </span>
     </div>
 
-    <div class="navItem" data-nav="videos">
+    <div class="navItem" data-nav="videos" onclick="setView('videos')">
       <span class="navIcon">▷</span>
       <span class="navMeta">
         <span>Videos</span>
@@ -722,8 +1103,8 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
         </div>
       </div>
       <div class="userBtns">
-        <button class="btn btn-outline">Settings</button>
-        <button class="btn btn-danger">Sign Out</button>
+        <button class="btn btn-outline" onclick="setView('settings')">Settings</button>
+        <button class="btn btn-danger" onclick="setView('login')">Sign Out</button>
       </div>
     </div>
   </aside>
@@ -785,7 +1166,7 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
         <h1 class="pageTitle" style="margin:0">Athletes</h1>
         <div class="listSearchRow">
           <input class="searchInput" placeholder="Search athletes..." />
-          <button class="btn btn-primary">+ Add Athlete</button>
+          <button class="btn btn-primary" onclick="openModal('athlete')">+ Add Athlete</button>
         </div>
       </div>
 
@@ -853,10 +1234,352 @@ h1, h2, h3, .display { font-family: 'Clash Grotesk', 'Satoshi', sans-serif; lett
       </div>
     </section>
 
+    <!-- ─────────── ATHLETE PROFILE ─────────── -->
+    <section id="view-athleteProfile" class="hidden">
+      <button class="backBtn" onclick="setView('athletes')">← Back to Athletes</button>
+
+      <div class="profileHead">
+        <div class="profileAvatar" id="profileAvatar">JS</div>
+        <div>
+          <div class="eyebrow">Summer Pro Assessment</div>
+          <h1 class="profileName" id="profileName">John Smith</h1>
+          <div class="profileBio" id="profileBio">
+            <!-- filled by JS -->
+          </div>
+        </div>
+        <div class="profileCommit">
+          <div class="label">College Commitment</div>
+          <div class="value" id="profileCommit">Uncommitted</div>
+        </div>
+      </div>
+
+      <div class="sectionTitle">Top Metrics</div>
+      <div class="metricsGrid">
+        <div class="metricCard"><div class="metricVal">94.49</div><div class="metricUnit">mph</div><div class="metricLabel">Max Exit Velo</div></div>
+        <div class="metricCard"><div class="metricVal">90.2</div><div class="metricUnit">mph</div><div class="metricLabel">Avg Exit Velo</div></div>
+        <div class="metricCard"><div class="metricVal">69.1</div><div class="metricUnit">mph</div><div class="metricLabel">Max Bat Speed</div></div>
+        <div class="metricCard"><div class="metricVal">59.33</div><div class="metricUnit">%</div><div class="metricLabel">Squared Up</div></div>
+        <div class="metricCard"><div class="metricVal">17.5</div><div class="metricUnit">deg</div><div class="metricLabel">Attack Angle</div></div>
+        <div class="metricCard"><div class="metricVal">33.3</div><div class="metricUnit">deg</div><div class="metricLabel">Plane Angle</div></div>
+        <div class="metricCard"><div class="metricVal">79.8</div><div class="metricUnit">mph</div><div class="metricLabel">Infield Velo</div></div>
+        <div class="metricCard"><div class="metricVal">90.3</div><div class="metricUnit">mph</div><div class="metricLabel">Outfield Velo</div></div>
+      </div>
+
+      <div class="sectionTitle">Data Sources</div>
+      <p class="pageSub" style="margin-top:-8px;margin-bottom:18px;font-size:13px">Tap a logo to view detailed reports</p>
+      <div class="sourcesGrid">
+        <div class="sourceCircle"><div class="src-fs">FS</div><span class="srcLabel">Full Swing</span></div>
+        <div class="sourceCircle"><div class="src-bm">BM</div><span class="srcLabel">Blast</span></div>
+        <div class="sourceCircle"><div class="src-ht">HT</div><span class="srcLabel">HitTrax</span></div>
+        <div class="sourceCircle"><div class="src-vp">VP</div><span class="srcLabel">VALD</span></div>
+        <div class="sourceCircle"><div class="src-tm">TM</div><span class="srcLabel">Trackman</span></div>
+        <div class="sourceCircle"><div class="src-dm">DM</div><span class="srcLabel">Defense</span></div>
+      </div>
+
+      <div class="sectionTitle">Rankings</div>
+      <div class="rankings">
+        <div class="rankCard"><div class="rankVal rankValHash">#156</div><div class="rankLabel">PBR National</div></div>
+        <div class="rankCard"><div class="rankVal rankValHash">#45</div><div class="rankLabel">PBR State</div></div>
+        <div class="rankCard"><div class="rankVal">7.5</div><div class="rankLabel">PG Score</div></div>
+      </div>
+
+      <div class="sectionTitle">Progress</div>
+      <div class="progressCard">
+        <div class="progressHead">
+          <div class="progressTitle">Infield Velo <small style="color:var(--text-muted);font-family:'DM Mono';margin-left:6px">mph</small></div>
+          <div class="progressStat">
+            <span>Latest<b>79.8</b></span>
+            <span>Best<b>84.6</b></span>
+            <span class="down">Change<b>-4.4</b></span>
+          </div>
+        </div>
+        <div class="chartBox">
+          <svg class="chartSvg" viewBox="0 0 500 130" preserveAspectRatio="none">
+            <line class="chartGrid" x1="0" y1="20"  x2="500" y2="20"/>
+            <line class="chartGrid" x1="0" y1="65"  x2="500" y2="65"/>
+            <line class="chartGrid" x1="0" y1="110" x2="500" y2="110"/>
+            <polyline class="chartLine" points="20,40 90,80 160,100 230,65 300,70 370,30 440,45 490,60"/>
+            <circle class="chartDot" cx="20"  cy="40"  r="3.5"/>
+            <circle class="chartDot" cx="90"  cy="80"  r="3.5"/>
+            <circle class="chartDot" cx="160" cy="100" r="3.5"/>
+            <circle class="chartDot" cx="230" cy="65"  r="3.5"/>
+            <circle class="chartDot" cx="300" cy="70"  r="3.5"/>
+            <circle class="chartDot" cx="370" cy="30"  r="3.5"/>
+            <circle class="chartDot" cx="440" cy="45"  r="3.5"/>
+            <circle class="chartDot" cx="490" cy="60"  r="3.5"/>
+            <text class="chartAxis" x="0" y="15">85.7</text>
+            <text class="chartAxis" x="0" y="70">81.0</text>
+            <text class="chartAxis" x="0" y="125">76.3</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TRAINING ─────────── -->
+    <section id="view-training" class="hidden">
+      <div class="eyebrow">Training</div>
+      <h1 class="pageTitle">Weekly Calendar</h1>
+      <p class="pageSub">Scheduled workouts and assessments.</p>
+
+      <div class="calHead">
+        <div class="calNav">
+          <button class="btn btn-outline">‹ Prev</button>
+          <div class="calTitle">Apr 13 — Apr 19, 2026</div>
+          <button class="btn btn-outline">Next ›</button>
+        </div>
+        <button class="btn btn-primary coachOnly">+ Add Workout</button>
+      </div>
+
+      <div class="calGrid">
+        <div class="calDay"><div class="calDate">13<small>Mon</small></div>
+          <div class="calEvent green">7am · Strength</div>
+          <div class="calEvent gold">4pm · Hitting</div>
+        </div>
+        <div class="calDay"><div class="calDate">14<small>Tue</small></div>
+          <div class="calEvent orange">6am · Velocity</div>
+          <div class="calEvent green">10am · Mobility</div>
+          <div class="calEvent gold">4pm · Bullpen</div>
+        </div>
+        <div class="calDay"><div class="calDate">15<small>Wed</small></div>
+          <div class="calEvent green">7am · Recovery</div>
+          <div class="calEvent gold">4pm · Hitting</div>
+        </div>
+        <div class="calDay today"><div class="calDate">16<small>Thu · Today</small></div>
+          <div class="calEvent orange">6am · Velocity</div>
+          <div class="calEvent red">3pm · Assessment</div>
+        </div>
+        <div class="calDay"><div class="calDate">17<small>Fri</small></div>
+          <div class="calEvent green">7am · Strength</div>
+          <div class="calEvent gold">4pm · Live Reps</div>
+        </div>
+        <div class="calDay"><div class="calDate">18<small>Sat</small></div>
+          <div class="calEvent gold">10am · Scrimmage</div>
+        </div>
+        <div class="calDay"><div class="calDate">19<small>Sun</small></div>
+          <div style="color:var(--text-muted);font-size:11px;margin-top:auto;text-align:center">Rest day</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── LEADERBOARDS ─────────── -->
+    <section id="view-leaderboards" class="hidden">
+      <div class="eyebrow">Age Ranks</div>
+      <h1 class="pageTitle">Leaderboards</h1>
+      <p class="pageSub">Ranked by category within your academy.</p>
+
+      <div class="lbTabs">
+        <button class="filterChip active" onclick="setLbMetric(this,'Exit Velo')">Exit Velo</button>
+        <button class="filterChip" onclick="setLbMetric(this,'Bat Speed')">Bat Speed</button>
+        <button class="filterChip" onclick="setLbMetric(this,'Infield Velo')">Infield Velo</button>
+        <button class="filterChip" onclick="setLbMetric(this,'Outfield Velo')">Outfield Velo</button>
+        <button class="filterChip" onclick="setLbMetric(this,'PG Score')">PG Score</button>
+      </div>
+      <div class="listContainer">
+        <div class="listHeader" style="grid-template-columns: 60px 2fr 0.8fr 1fr 0.8fr;">
+          <span>Rank</span><span>Athlete</span><span>Grad</span><span id="lbMetricLabel">Exit Velo</span><span>Trend</span>
+        </div>
+        <div id="leaderboardRows"></div>
+      </div>
+    </section>
+
+    <!-- ─────────── VIDEOS LIBRARY ─────────── -->
+    <section id="view-videos" class="hidden">
+      <div class="eyebrow">Video Library</div>
+      <h1 class="pageTitle">Videos</h1>
+      <p class="pageSub">Uploaded swings, bullpens, and drills.</p>
+      <div class="filterChipsRow">
+        <button class="filterChip active">All</button>
+        <button class="filterChip">Hitting</button>
+        <button class="filterChip">Pitching</button>
+        <button class="filterChip">Defense</button>
+        <button class="filterChip">Speed</button>
+      </div>
+      <div class="videoGrid" id="videoGrid"></div>
+    </section>
+
+    <!-- ─────────── SETTINGS ─────────── -->
+    <section id="view-settings" class="hidden">
+      <div class="eyebrow">Account</div>
+      <h1 class="pageTitle">Settings</h1>
+      <p class="pageSub">Manage your account, preferences, and notifications.</p>
+
+      <div class="settingsCard">
+        <div class="settingsTitle">Profile</div>
+        <div class="formRow"><span class="formLabel">Full Name</span><input type="text" value="Coach Staff" /></div>
+        <div class="formRow"><span class="formLabel">Email</span><input type="email" value="coach@playerdev.com" /></div>
+        <div class="formRow"><span class="formLabel">Role</span><input type="text" value="Head Coach" /></div>
+      </div>
+
+      <div class="settingsCard">
+        <div class="settingsTitle">Notifications</div>
+        <div class="formToggleRow">
+          <div><div class="label">New post alerts</div><div class="sub">Get notified when new content is published</div></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="formToggleRow">
+          <div><div class="label">Weekly digest</div><div class="sub">Summary of training activity every Monday</div></div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <div class="formToggleRow">
+          <div><div class="label">Player milestones</div><div class="sub">Alerts when athletes hit personal bests</div></div>
+          <div class="toggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </div>
+
+      <div class="settingsCard">
+        <div class="settingsTitle">Display</div>
+        <div class="formToggleRow">
+          <div><div class="label">Dark mode</div><div class="sub">Always on for this app</div></div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="formToggleRow">
+          <div><div class="label">Compact density</div><div class="sub">Tighter spacing in tables</div></div>
+          <div class="toggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn btn-primary">Save Changes</button>
+        <button class="btn btn-outline">Cancel</button>
+      </div>
+    </section>
+
+    <!-- ─────────── EDUCATION: CLASS DETAIL ─────────── -->
+    <section id="view-classDetail" class="hidden">
+      <button class="backBtn" onclick="showEduSub('classes')">← Back to Classes</button>
+      <div class="detailHero">
+        <div>
+          <div class="eyebrow" id="classDetailEyebrow">Class</div>
+          <h1 class="pageTitle" id="classDetailTitle" style="margin-bottom:12px">Hitting Mechanics 101</h1>
+          <p class="pageSub" id="classDetailDesc" style="margin-bottom:14px">Intro to swing load, timing, and contact point.</p>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="levelBadge lvl-beginner" id="classDetailLevel">Beginner</span>
+            <span style="color:var(--text-muted);font-size:13px">· 6 lessons · ~1h 20m</span>
+          </div>
+        </div>
+        <div style="font-size:80px;line-height:1" id="classDetailEmoji">🥎</div>
+      </div>
+
+      <div class="sectionTitle">Lessons <span class="sectionCount">6</span></div>
+      <div id="lessonList" style="display:flex;flex-direction:column;gap:10px"></div>
+    </section>
+
+    <!-- ─────────── EDUCATION: DRILL DETAIL ─────────── -->
+    <section id="view-drillDetail" class="hidden">
+      <button class="backBtn" onclick="showEduSub('drills')">← Back to Drills</button>
+      <div class="eyebrow" id="drillDetailCategory">Hitting · Tee Work</div>
+      <h1 class="pageTitle" id="drillDetailTitle">Inside-Out Tee Drill</h1>
+      <p class="pageSub" id="drillDetailDesc">Build backside contact and drive the ball opposite field. Emphasizes keeping hands inside the baseball.</p>
+      <div class="detailVideo"></div>
+      <div class="sectionTitle">Steps</div>
+      <div class="stepList" id="drillSteps"></div>
+    </section>
+
+    <!-- ─────────── EDUCATION: MLB PLAYER DETAIL ─────────── -->
+    <section id="view-mlbPlayer" class="hidden">
+      <button class="backBtn" onclick="showEduSub('mlb')">← Back to MLB Players</button>
+      <div class="profileHead">
+        <div class="profileAvatar" style="background:linear-gradient(180deg,#1a2a3a,#0a1220);color:#5BA3D9" id="mlbAvatar">MT</div>
+        <div>
+          <div class="eyebrow" id="mlbSub">Center Field · LHH</div>
+          <h1 class="profileName" id="mlbName">Mike Trout</h1>
+          <div class="profileBio">
+            <span class="chip">.296 BA</span>
+            <span class="chip">LAA</span>
+            <span class="chip">Age 34</span>
+          </div>
+        </div>
+        <div class="profileCommit">
+          <div class="label">Video Clips</div>
+          <div class="value" id="mlbClipCount">24</div>
+        </div>
+      </div>
+      <div class="sectionTitle">Study Library</div>
+      <div class="videoGrid" id="mlbVideos"></div>
+    </section>
+
   </main>
 
   <!-- Floating Action Button (coach only) -->
-  <button class="fab coachOnly" title="Create">+</button>
+  <button class="fab coachOnly" title="Create" onclick="handleFab()">+</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MODALS
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="modal-post" class="overlay hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modalHead">
+      <div class="modalTitle">Create Post</div>
+      <button class="modalClose" onclick="closeModal()">×</button>
+    </div>
+    <div class="formRow"><span class="formLabel">Type</span>
+      <div class="typeGrid">
+        <div class="typeChoice active"><span class="typeEmoji">🏟️</span>Facility</div>
+        <div class="typeChoice"><span class="typeEmoji">⭐</span>Highlight</div>
+        <div class="typeChoice"><span class="typeEmoji">📋</span>Program</div>
+        <div class="typeChoice"><span class="typeEmoji">🎓</span>Commitment</div>
+        <div class="typeChoice"><span class="typeEmoji">✍️</span>Pro</div>
+      </div>
+    </div>
+    <div class="formRow"><span class="formLabel">Title</span><input type="text" placeholder="Post title" /></div>
+    <div class="formRow"><span class="formLabel">Body</span><textarea rows="4" placeholder="Write your announcement..."></textarea></div>
+    <div class="formRow"><span class="formLabel">Video URL (optional)</span><input type="text" placeholder="https://..." /></div>
+    <div class="formToggleRow" style="border:none;padding:8px 0 0">
+      <div><div class="label">Mark as Important</div></div>
+      <div class="toggle" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal()">Publish</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-athlete" class="overlay hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modalHead">
+      <div class="modalTitle">Add Athlete</div>
+      <button class="modalClose" onclick="closeModal()">×</button>
+    </div>
+    <div class="formRow"><span class="formLabel">First Name</span><input type="text" placeholder="First" /></div>
+    <div class="formRow"><span class="formLabel">Last Name</span><input type="text" placeholder="Last" /></div>
+    <div class="formRow"><span class="formLabel">Graduation Year</span>
+      <select><option>2026</option><option>2027</option><option>2028</option><option>2029</option></select>
+    </div>
+    <div class="formRow"><span class="formLabel">Position</span>
+      <select><option>C</option><option>INF</option><option>OF</option><option>P</option><option>UTIL</option></select>
+    </div>
+    <div class="formRow" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><span class="formLabel">Height</span><input type="text" placeholder="6&#039;1&quot;" /></div>
+      <div><span class="formLabel">Weight</span><input type="number" placeholder="185" /></div>
+    </div>
+    <div class="modalFoot">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal()">Add Athlete</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-class" class="overlay hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modalHead">
+      <div class="modalTitle">Add Class</div>
+      <button class="modalClose" onclick="closeModal()">×</button>
+    </div>
+    <div class="formRow"><span class="formLabel">Name</span><input type="text" placeholder="Class title" /></div>
+    <div class="formRow"><span class="formLabel">Sport</span>
+      <select><option>Hitting</option><option>Pitching</option><option>Defense</option><option>S&amp;C</option><option>Vision</option></select>
+    </div>
+    <div class="formRow"><span class="formLabel">Level</span>
+      <select><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>Expert</option></select>
+    </div>
+    <div class="formRow"><span class="formLabel">Description</span><textarea rows="4" placeholder="What will students learn?"></textarea></div>
+    <div class="modalFoot">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal()">Create Class</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -920,8 +1643,8 @@ function renderFeed(containerId, showCoachActions) {
 
 function renderAthletes() {
   const el = document.getElementById('athleteRows');
-  el.innerHTML = ATHLETES.map(a => `
-    <div class="listRow">
+  el.innerHTML = ATHLETES.map((a,i) => `
+    <div class="listRow" onclick="openAthleteProfile(${i})">
       <div class="athleteName">
         <div class="listAvatar">${a.initials}</div>
         <span>${a.name}</span>
@@ -936,6 +1659,253 @@ function renderAthletes() {
     </div>
   `).join('');
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EXTRA MOCK DATA
+   ═══════════════════════════════════════════════════════════════════════ */
+const DRILLS = [
+  { emoji:'🎯', category:'Hitting · Tee Work', name:'Inside-Out Tee Drill', desc:'Build backside contact and drive the ball opposite field. Emphasizes keeping hands inside the baseball.',
+    steps:['Set tee at middle-away location','Start hands tight to body','Focus on contact through middle of ball','Drive the ball to opposite field gap','Repeat 15 reps, 3 sets'] },
+  { emoji:'⚡', category:'Hitting · Soft Toss', name:'High Tee Launch Drill', desc:'Develop attack angle and under-ball contact for elevated line drives.',
+    steps:['Raise tee to top of strike zone','Load hands slightly higher','Swing up through the ball','Finish high with balanced follow-through','Track ball flight for feedback'] },
+  { emoji:'🥎', category:'Pitching · Bullpen', name:'Command Ladder', desc:'Build in-zone command progressively. Hit each zone before advancing.',
+    steps:['Start with arm side low','Hit 3 of 5 to advance','Progress: glove side low','Then glove side high','Finish with arm side high'] },
+  { emoji:'🛡️', category:'Defense · Infield', name:'Short Hop Reaction', desc:'Improve glove work and reaction time on short-hop groundballs.',
+    steps:['Partner rolls short hops','Set up athletic base, hands out front','Soft hands, absorb ball','Replace quickly, make clean transfer','60 reps, alternating sides'] },
+  { emoji:'🏃', category:'S&C · Speed', name:'10-5-10 Change of Direction', desc:'Agility drill for lateral explosiveness and deceleration control.',
+    steps:['Sprint 10 yards','Stop and change direction','Sprint 5 yards back','Change direction again','Finish with 10 yard burst'] },
+];
+
+const MLB_PLAYERS = [
+  { initials:'MT', name:'Mike Trout',     sub:'Center Field · RHH',  clips:24, clr:'#5BA3D9' },
+  { initials:'AJ', name:'Aaron Judge',    sub:'Right Field · RHH',   clips:18, clr:'#DD6974' },
+  { initials:'SO', name:'Shohei Ohtani',  sub:'DH / Pitcher · LHH',  clips:32, clr:'#E8AF34' },
+  { initials:'JS', name:'Juan Soto',      sub:'Right Field · LHH',   clips:16, clr:'#6DAA45' },
+  { initials:'MB', name:'Mookie Betts',   sub:'2B / Outfield · RHH', clips:14, clr:'#B583D5' },
+  { initials:'FL', name:'Francisco Lindor',sub:'Shortstop · Switch',  clips:12, clr:'#4FC3A1' },
+  { initials:'YA', name:'Yordan Alvarez', sub:'LF / DH · LHH',       clips:9,  clr:'#FDAB43' },
+  { initials:'JR', name:'Julio Rodriguez',sub:'Center Field · RHH',  clips:11, clr:'#5BA3D9' },
+];
+
+const VIDEOS = [
+  { title:'Mason Brown — Batting Practice', sub:'Hitting · 2 days ago', dur:'3:42' },
+  { title:'Cole Anderson — Live Bullpen',   sub:'Pitching · 3 days ago', dur:'5:18' },
+  { title:'Tyler Davis — Mound Session',    sub:'Pitching · 5 days ago', dur:'4:51' },
+  { title:'Luke Garcia — Infield Work',     sub:'Defense · 1 week ago', dur:'2:28' },
+  { title:'Ryan Martinez — Catching Pops',  sub:'Defense · 1 week ago', dur:'1:45' },
+  { title:'Ethan Taylor — Sprint Work',     sub:'Speed · 1 week ago', dur:'2:10' },
+  { title:'Connor Olson — Cage Reps',       sub:'Hitting · 2 weeks ago', dur:'6:02' },
+  { title:'Jake Williams — OF Reads',       sub:'Defense · 2 weeks ago', dur:'3:37' },
+  { title:'John Smith — VBP Session',       sub:'Hitting · 2 weeks ago', dur:'4:12' },
+];
+
+const LEADER_METRICS = {
+  'Exit Velo':      { unit: 'mph', values: [94.5, 92.8, 91.4, 90.1, 89.7, 88.3, 87.0, 86.4, 85.1, 83.9] },
+  'Bat Speed':      { unit: 'mph', values: [74.2, 72.1, 71.5, 70.8, 69.9, 69.1, 68.4, 67.8, 66.3, 65.7] },
+  'Infield Velo':   { unit: 'mph', values: [86.3, 84.1, 82.8, 81.5, 80.9, 79.8, 78.2, 77.1, 76.0, 74.5] },
+  'Outfield Velo':  { unit: 'mph', values: [94.2, 92.1, 91.0, 90.3, 89.5, 88.1, 87.2, 86.5, 85.0, 83.7] },
+  'PG Score':       { unit: '',    values: [10.0, 9.6, 9.0, 8.9, 8.7, 8.4, 7.7, 7.5, 7.5, 7.1] }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ATHLETE PROFILE
+   ═══════════════════════════════════════════════════════════════════════ */
+function openAthleteProfile(i) {
+  const a = ATHLETES[i];
+  document.getElementById('profileAvatar').textContent = a.initials;
+  document.getElementById('profileName').textContent   = a.name;
+  document.getElementById('profileCommit').textContent = a.grad === 2026 ? 'Uncommitted' : 'Uncommitted';
+  document.getElementById('profileBio').innerHTML = `
+    ${a.pos.map(p => `<span class="chip">${p}</span>`).join('')}
+    <span class="chip">${a.ht}</span>
+    <span class="chip">${a.wt} lbs</span>
+    <span class="chip">Class of ${a.grad}</span>
+  `;
+  setView('athleteProfile');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   EDUCATION DETAILS
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderDrillList() {
+  const el = document.getElementById('classRows');
+  if (currentEduSub === 'drills') {
+    el.innerHTML = DRILLS.map((d,i) => `
+      <div class="classCard" onclick="openDrill(${i})" style="cursor:pointer">
+        <div class="classEmoji">${d.emoji}</div>
+        <div class="classMeta">
+          <div class="className">${d.name}</div>
+          <div class="classDesc">${d.category}</div>
+        </div>
+        <div style="color:var(--text-muted);font-size:18px">→</div>
+        <div class="postActions coachOnly" style="position: static; opacity: 1; margin-left: 8px;">
+          <button class="cardBtn cardBtnEdit" title="Edit" onclick="event.stopPropagation()">✎</button>
+          <button class="cardBtn cardBtnDel"  title="Delete" onclick="event.stopPropagation()">×</button>
+        </div>
+      </div>
+    `).join('');
+    applyRole(currentRole);
+  } else if (currentEduSub === 'mlb') {
+    el.innerHTML = MLB_PLAYERS.map((p,i) => `
+      <div class="classCard" onclick="openMlbPlayer(${i})" style="cursor:pointer">
+        <div class="classEmoji" style="background:rgba(91,163,217,0.12);color:${p.clr};border-color:${p.clr}44">${p.initials}</div>
+        <div class="classMeta">
+          <div class="className">${p.name}</div>
+          <div class="classDesc">${p.sub} · ${p.clips} clips</div>
+        </div>
+        <div style="color:var(--text-muted);font-size:18px">→</div>
+      </div>
+    `).join('');
+  } else {
+    el.innerHTML = CLASSES.map((c,i) => `
+      <div class="classCard" onclick="openClass(${i})" style="cursor:pointer">
+        <div class="classEmoji">${c.emoji}</div>
+        <div class="classMeta">
+          <div class="className">${c.name}</div>
+          <div class="classDesc">${c.desc}</div>
+        </div>
+        <span class="levelBadge lvl-${c.level}">${c.level}</span>
+        <div class="postActions coachOnly" style="position: static; opacity: 1; margin-left: 8px;">
+          <button class="cardBtn cardBtnEdit" title="Edit" onclick="event.stopPropagation()">✎</button>
+          <button class="cardBtn cardBtnDel"  title="Delete" onclick="event.stopPropagation()">×</button>
+        </div>
+      </div>
+    `).join('');
+    applyRole(currentRole);
+  }
+}
+
+function openClass(i) {
+  const c = CLASSES[i];
+  document.getElementById('classDetailTitle').textContent = c.name;
+  document.getElementById('classDetailDesc').textContent  = c.desc;
+  document.getElementById('classDetailEmoji').textContent = c.emoji;
+  const lvl = document.getElementById('classDetailLevel');
+  lvl.className = `levelBadge lvl-${c.level}`;
+  lvl.textContent = c.level;
+  const lessons = [
+    { title: 'Introduction & Overview', dur: '8:12' },
+    { title: 'Fundamental Concepts',    dur: '14:30' },
+    { title: 'Drill Breakdown #1',      dur: '11:45' },
+    { title: 'Drill Breakdown #2',      dur: '10:18' },
+    { title: 'Putting It Together',     dur: '16:24' },
+    { title: 'Common Mistakes & Fixes', dur: '12:51' },
+  ];
+  document.getElementById('lessonList').innerHTML = lessons.map((l,i) => `
+    <div class="classCard">
+      <div class="classEmoji" style="font-family:'DM Mono';font-size:18px;color:var(--text-muted)">${String(i+1).padStart(2,'0')}</div>
+      <div class="classMeta">
+        <div class="className">${l.title}</div>
+        <div class="classDesc">Lesson ${i+1} · ${l.dur}</div>
+      </div>
+      <div style="color:var(--text-muted);font-size:16px">▷</div>
+    </div>
+  `).join('');
+  setView('classDetail');
+}
+
+function openDrill(i) {
+  const d = DRILLS[i];
+  document.getElementById('drillDetailTitle').textContent    = d.name;
+  document.getElementById('drillDetailDesc').textContent     = d.desc;
+  document.getElementById('drillDetailCategory').textContent = d.category;
+  document.getElementById('drillSteps').innerHTML = d.steps.map((s,n) => `
+    <div class="stepItem">
+      <div class="stepNum">${n+1}</div>
+      <div style="flex:1;color:var(--text);font-size:14px;line-height:1.5">${s}</div>
+    </div>
+  `).join('');
+  setView('drillDetail');
+}
+
+function openMlbPlayer(i) {
+  const p = MLB_PLAYERS[i];
+  document.getElementById('mlbName').textContent   = p.name;
+  document.getElementById('mlbSub').textContent    = p.sub;
+  document.getElementById('mlbAvatar').textContent = p.initials;
+  document.getElementById('mlbAvatar').style.color = p.clr;
+  document.getElementById('mlbClipCount').textContent = p.clips;
+  const clips = Array.from({length: Math.min(p.clips, 9)}, (_,n) => ({
+    title: `${p.name} — Clip ${n+1}`,
+    sub:   ['vs RHP','vs LHP','Home Run','Double','Single'][n % 5],
+    dur:   `0:${(20 + n*3).toString().padStart(2,'0')}`,
+  }));
+  document.getElementById('mlbVideos').innerHTML = clips.map(v => videoCardHtml(v)).join('');
+  setView('mlbPlayer');
+}
+
+function videoCardHtml(v) {
+  return `
+    <div class="videoCard">
+      <div class="videoThumb"><span class="videoDur">${v.dur}</span></div>
+      <div class="videoMeta">
+        <div class="videoTitle">${v.title}</div>
+        <div class="videoSub">${v.sub}</div>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VIDEOS, LEADERBOARDS
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderVideos() {
+  document.getElementById('videoGrid').innerHTML = VIDEOS.map(videoCardHtml).join('');
+}
+
+function renderLeaderboard(metric = 'Exit Velo') {
+  const m = LEADER_METRICS[metric];
+  const names = ATHLETES.slice(0, 10);
+  document.getElementById('lbMetricLabel').textContent = metric;
+  document.getElementById('leaderboardRows').innerHTML = names.map((a,i) => {
+    const trend = (i % 3 === 0) ? 'up' : (i % 5 === 0 ? 'down' : 'up');
+    const trendVal = trend === 'up' ? '+' + (Math.random()*3+0.5).toFixed(1) : '-' + (Math.random()*2+0.3).toFixed(1);
+    return `
+      <div class="lbRow" onclick="openAthleteProfile(${i})">
+        <div class="lbRank ${i<3?'top':''}">${i+1}</div>
+        <div class="lbName">
+          <div class="listAvatar">${a.initials}</div>
+          <span style="color:var(--text);font-weight:600">${a.name}</span>
+        </div>
+        <div class="numCell">${a.grad}</div>
+        <div class="lbVal">${m.values[i]}${m.unit ? ' ' + m.unit : ''}</div>
+        <div class="lbTrend ${trend}">${trendVal}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setLbMetric(btn, metric) {
+  document.querySelectorAll('#view-leaderboards .filterChip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLeaderboard(metric);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODALS
+   ═══════════════════════════════════════════════════════════════════════ */
+function openModal(kind) {
+  document.getElementById(`modal-${kind}`).classList.remove('hidden');
+}
+function closeModal() {
+  document.querySelectorAll('.overlay').forEach(o => o.classList.add('hidden'));
+}
+function handleFab() {
+  // Contextual FAB — opens modal that matches the current view
+  if (currentView === 'athletes')             openModal('athlete');
+  else if (currentView === 'education' && currentEduSub === 'classes') openModal('class');
+  else                                        openModal('post');
+}
+
+// Type choice picker inside create-post modal
+document.querySelectorAll('#modal-post .typeChoice').forEach(c => {
+  c.addEventListener('click', () => {
+    c.parentElement.querySelectorAll('.typeChoice').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+  });
+});
+
+// Escape to close modal
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 function renderClasses() {
   const el = document.getElementById('classRows');
@@ -961,6 +1931,7 @@ function renderClasses() {
    ═══════════════════════════════════════════════════════════════════════ */
 let currentRole = 'coach';
 let currentView = 'dashboard';
+let currentEduSub = null;
 
 function applyRole(role) {
   currentRole = role;
@@ -1010,20 +1981,59 @@ function setView(view) {
   document.querySelectorAll('.demoBar [data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
 
   // swap main sections
-  document.getElementById('view-dashboard-coach').classList.toggle('hidden', !(view === 'dashboard' && currentRole === 'coach'));
-  document.getElementById('view-dashboard-player').classList.toggle('hidden', !(view === 'dashboard' && currentRole === 'player'));
-  document.getElementById('view-athletes').classList.toggle('hidden', view !== 'athletes');
-  document.getElementById('view-education').classList.toggle('hidden', view !== 'education');
+  const allViews = [
+    'view-dashboard-coach','view-dashboard-player','view-athletes','view-athleteProfile',
+    'view-education','view-classDetail','view-drillDetail','view-mlbPlayer',
+    'view-training','view-leaderboards','view-videos','view-settings'
+  ];
+  allViews.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+
+  if (view === 'dashboard' && currentRole === 'coach')  document.getElementById('view-dashboard-coach').classList.remove('hidden');
+  else if (view === 'dashboard' && currentRole === 'player') document.getElementById('view-dashboard-player').classList.remove('hidden');
+  else if (view === 'athletes')         document.getElementById('view-athletes').classList.remove('hidden');
+  else if (view === 'athleteProfile')   document.getElementById('view-athleteProfile').classList.remove('hidden');
+  else if (view === 'education')        document.getElementById('view-education').classList.remove('hidden');
+  else if (view === 'classDetail')      document.getElementById('view-classDetail').classList.remove('hidden');
+  else if (view === 'drillDetail')      document.getElementById('view-drillDetail').classList.remove('hidden');
+  else if (view === 'mlbPlayer')        document.getElementById('view-mlbPlayer').classList.remove('hidden');
+  else if (view === 'training')         { document.getElementById('view-training').classList.remove('hidden'); }
+  else if (view === 'leaderboards')     { document.getElementById('view-leaderboards').classList.remove('hidden'); renderLeaderboard(); }
+  else if (view === 'videos')           { document.getElementById('view-videos').classList.remove('hidden'); renderVideos(); }
+  else if (view === 'settings')         document.getElementById('view-settings').classList.remove('hidden');
+
+  // scroll to top on view change
+  window.scrollTo(0, 0);
 
   if (view === 'education') hideEduSub();
 }
 
 function showEduSub(kind) {
+  setView('education');
   document.getElementById('educationHome').classList.add('hidden');
   document.getElementById('educationSub').classList.remove('hidden');
   const titles = { classes: 'Classes', drills: 'Drills', mlb: 'Major League Video' };
   document.getElementById('eduSubTitle').textContent = titles[kind] || 'Classes';
-  renderClasses();
+  currentEduSub = kind;
+  // Swap filter chip row for mlb (by position)
+  const chips = document.querySelectorAll('#view-education #educationSub .filterChip');
+  if (kind === 'mlb') {
+    chips[0].textContent = 'All';  chips[1].textContent = 'LHH'; chips[2].textContent = 'RHH';
+    chips[3].textContent = 'LHP';  chips[4].textContent = 'RHP';
+  } else if (kind === 'drills') {
+    chips[0].textContent = 'Hitting'; chips[1].textContent = 'Pitching'; chips[2].textContent = 'Defense';
+    chips[3].textContent = 'S&C';     chips[4].textContent = 'Vision';
+  } else {
+    chips[0].textContent = 'Hitting'; chips[1].textContent = 'Pitching'; chips[2].textContent = 'Defense';
+    chips[3].textContent = 'S&C';     chips[4].textContent = 'Vision';
+  }
+  // Swap the "+ Add" button label
+  const addBtn = document.querySelector('#view-education #educationSub .btn-primary');
+  if (addBtn) {
+    if (kind === 'classes')      { addBtn.textContent = '+ Add Class';  addBtn.onclick = () => openModal('class'); }
+    else if (kind === 'drills')  { addBtn.textContent = '+ Add Drill';  addBtn.onclick = () => openModal('class'); }
+    else if (kind === 'mlb')     { addBtn.textContent = '+ Add Player'; addBtn.onclick = () => openModal('class'); }
+  }
+  renderDrillList();
 }
 function hideEduSub() {
   document.getElementById('educationHome').classList.remove('hidden');
