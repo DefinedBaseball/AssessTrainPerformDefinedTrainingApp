@@ -18,7 +18,8 @@ information architecture.
 1. [THEME](#1-theme) — Tokens, colors, typography, spacing, motion
 2. [UI](#2-ui-components) — Cards, badges, chips, inputs, modals, lists, tables, hover states
 3. [BUTTON / APP LAYOUT](#3-button--app-layout) — Button variants, page layouts, navigation, responsive rules
-4. [Prompt-Ready Remix Brief](#4-prompt-ready-remix-brief) — Copy/paste into Claude or Perplexity
+4. [CODE ARCHITECTURE](#4-code-architecture) — Stack, folder structure, how styles cascade, how to change things
+5. [Prompt-Ready Remix Brief](#5-prompt-ready-remix-brief) — Copy/paste into Claude or Perplexity
 
 ---
 
@@ -483,7 +484,190 @@ Table-specific:
 
 ---
 
-# 4. PROMPT-READY REMIX BRIEF
+# 4. CODE ARCHITECTURE
+
+> This section tells a designer/AI *where* each visual lives in code, so any remix
+> they propose can be mapped back to concrete files.
+
+## 4.1 Tech Stack
+
+| Layer        | Tech                                                   |
+|--------------|--------------------------------------------------------|
+| Monorepo     | pnpm + Turborepo workspaces                            |
+| Web          | Next.js 14 App Router (React Server + Client components) |
+| Mobile       | Expo SDK 55 + React Native + Expo Router (planned)     |
+| Styling      | CSS Modules (`*.module.css`) + global tokens in `globals.css` |
+| State        | Zustand (client) + React Query (server)                |
+| API          | NestJS (TypeScript) with REST controllers              |
+| Database     | PostgreSQL + Prisma ORM (SQLite locally for dev)       |
+| Auth         | JWT — role on `req.user.sub` / `req.user.role`         |
+
+**No Tailwind, no styled-components, no CSS-in-JS.** All styling is plain CSS Modules
+referencing custom properties declared in a single `globals.css`.
+
+## 4.2 Monorepo Layout
+
+```
+player-development-app/
+├── apps/
+│   ├── web/              ← Next.js (this is the primary surface today)
+│   ├── mobile/           ← Expo React Native (planned)
+│   └── api/              ← NestJS backend
+├── packages/             ← shared types, chart configs, API client
+└── DESIGN-SYSTEM-DOC.md  ← you are here
+```
+
+## 4.3 Web App Structure (`apps/web/src`)
+
+```
+apps/web/src/
+├── app/                          ← Next.js App Router
+│   ├── globals.css               ← ★ ALL DESIGN TOKENS live here
+│   ├── layout.tsx                ← root layout, mounts <Sidebar />
+│   ├── page.tsx                  ← dashboard (coach + player branching)
+│   ├── page.module.css           ← dashboard styles + post feed + modals
+│   ├── login/
+│   ├── athletes/
+│   │   ├── page.tsx              ← athletes list table
+│   │   ├── page.module.css
+│   │   └── [id]/                 ← athlete profile (dynamic route)
+│   ├── education/
+│   │   ├── page.tsx              ← Classes / Drills / MLB Video hub
+│   │   └── page.module.css
+│   ├── training/
+│   ├── leaderboard/
+│   ├── players/
+│   ├── videos/
+│   └── upload/
+├── components/
+│   ├── Sidebar.tsx + .module.css ← top/side nav
+│   ├── MetricChart.tsx + .module.css
+│   └── assessment/
+└── lib/
+    ├── api.ts                    ← typed fetch client (updatePost, updateDrill, etc.)
+    ├── auth-context.tsx          ← isCoach / isPlayer helpers, JWT state
+    ├── theme.ts                  ← color constants for charts
+    ├── atbat-parser.ts
+    └── mock-data.ts
+```
+
+## 4.4 Style Cascade — How Changes Propagate
+
+```
+apps/web/src/app/globals.css        ← change design tokens HERE
+                │
+                │   :root { --bg, --text, --accent, --radius-*, ... }
+                ▼
+   ┌────────────┴────────────┐
+   │                         │
+.card (global class)    page.module.css, athletes/page.module.css,
+                        education/page.module.css, ...
+                        (each file references var(--token))
+```
+
+**Rule of thumb for remixes:**
+- To re-theme the app, 95% of work happens in `globals.css` `:root` tokens.
+- Local `*.module.css` files should *never* hardcode colors — they should always
+  reference `var(--*)` tokens. A few legacy spots still hardcode `rgba(...)`; those
+  would need to be migrated to tokens during a remix.
+- Adding a new semantic color means adding a `--mycolor` + `--mycolor-dim` pair.
+
+## 4.5 API Structure (`apps/api/src/modules`)
+
+```
+apps/api/src/modules/
+├── auth/          ← JwtAuthGuard, Roles decorator — import from here
+├── players/
+├── metrics/
+├── posts/         ← controller has Get/Post/Put/Delete, @Roles('COACH') on mutations
+├── education/     ← classes + drills
+├── videos/
+├── uploads/
+├── training/
+├── games/
+├── reports/
+├── leaderboards/
+└── health/
+```
+
+**Controller convention (seen across posts, education, etc.):**
+
+```ts
+import { Roles } from '../auth/jwt.guard';   // ← project-local pattern
+
+@Controller('posts')
+export class PostsController {
+  @Get()                                      async findAll() { ... }
+  @Post()   @Roles('COACH')                   async create(@Request() req, @Body() body) { ... }
+  @Put(':id')  @Roles('COACH')                async update(@Param('id') id, @Body() body) { ... }
+  @Delete(':id') @Roles('COACH')              async delete(@Param('id') id) { ... }
+}
+```
+
+Mutations always gate with `@Roles('COACH')`. The user identity comes off
+`req.user.sub` (NOT `.id` — that's a common footgun).
+
+## 4.6 Role-Based Rendering Pattern (Frontend)
+
+```tsx
+const { isCoach } = useAuth();
+
+return (
+  <div className={styles.card}>
+    <h3>{item.title}</h3>
+    <p>{item.body}</p>
+
+    {/* Coach-only actions — completely absent from player DOM */}
+    {isCoach && (
+      <div className={styles.actions}>
+        <button onClick={() => setEditing(item)}>&#9998;</button>
+        <button onClick={() => handleDelete(item.id)}>×</button>
+      </div>
+    )}
+  </div>
+);
+
+{/* FAB also coach-gated */}
+{isCoach && <button className={styles.fab} onClick={openCreate}>+</button>}
+```
+
+## 4.7 Modal Pattern
+
+All modals follow an identical shape: a portal-less inline overlay + content div,
+rendered conditionally via a `const [editing, setEditing] = useState<T | null>(null)`.
+Edit modals pre-fill fields via `useState(existingValue)` initializers on each input.
+
+```tsx
+{editingPost && (
+  <EditPostModal
+    post={editingPost}
+    onClose={() => setEditingPost(null)}
+    onSaved={handlePostUpdated}
+  />
+)}
+```
+
+## 4.8 What a Theme Remix Would Actually Touch
+
+| If you want to change…                  | Edit this file                                   |
+|-----------------------------------------|--------------------------------------------------|
+| Base background / text colors           | `apps/web/src/app/globals.css` (`:root`)         |
+| Accent / semantic colors                | `apps/web/src/app/globals.css` (`:root`)         |
+| Typography (fonts)                      | `globals.css` `@import` + `body { font-family }` |
+| Button styles                           | `globals.css` `.btn`, `.btn-primary`, etc.       |
+| Card background / border / radius       | `globals.css` `.card` (+ local `--card-gradient`)|
+| Post feed layout                        | `apps/web/src/app/page.tsx` + `page.module.css`  |
+| Athletes table columns                  | `apps/web/src/app/athletes/page.module.css`      |
+| Education hub look                      | `apps/web/src/app/education/page.module.css`     |
+| Chart colors                            | `apps/web/src/lib/theme.ts`                      |
+
+**Bottom line for the AI you're briefing:** a full theme remix is mostly a
+replacement of the `:root { ... }` block in `globals.css` plus a typography swap.
+Structural changes to layout/spacing live in each route's `page.module.css`.
+
+---
+
+# 5. PROMPT-READY REMIX BRIEF
 
 > Copy/paste the block below into Claude or Perplexity to get alternative directions.
 
@@ -520,6 +704,7 @@ structure, component patterns, and information hierarchy.
 4. **Three signature moves** — what makes this theme distinctive (e.g. "chalk-texture
    dividers", "amber glow on active state", "uppercase display numbers with ligatures")
 5. **A one-paragraph sample** of how the Coach Dashboard would feel in this direction
+6. **Ready-to-paste `:root { ... }` block** — so I can drop it into `apps/web/src/app/globals.css`
 
 **Goals:**
 - Each direction should feel meaningfully different (not just "change the hex codes")
