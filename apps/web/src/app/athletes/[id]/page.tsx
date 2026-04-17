@@ -134,11 +134,79 @@ export default function PlayerProfilePage() {
       <div className={styles.heroOuter}>
         <div className={styles.heroEyebrow}>SUMMER PRO ASSESSMENT</div>
 
-        {/* Top row: Name + College Commitment — same size, same line */}
+        {/* Hero layout: left column (name + stats + info row) | right column (commitment) */}
         <div className={styles.heroTopRow}>
-          <div className={styles.nameBox}>
+
+          {/* Left: single big player card */}
+          <div className={styles.playerCard}>
+            {/* Name */}
             <h1 className={styles.heroName}>{player.firstName} {player.lastName}</h1>
+
+            {/* Divider */}
+            <div className={styles.cardDivider} />
+
+            {/* Row 1: Position, Height, Weight, Bats, Throws */}
+            <div className={styles.cardStatRow}>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Position</span>
+                <span className={styles.cardStatValue}>{player.positions || '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Height</span>
+                <span className={styles.cardStatValue}>{formatHeight(player.heightInches)}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Weight</span>
+                <span className={styles.cardStatValue}>{player.weightLbs ? `${player.weightLbs}` : '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Bats</span>
+                <span className={styles.cardStatValue}>{player.bats || '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Throws</span>
+                <span className={styles.cardStatValue}>{player.throws || '—'}</span>
+              </div>
+            </div>
+
+            {/* Row 2: Grad Year, Age, High School, Club Team, PBR National, PBR State, PBR Position, PG Score */}
+            <div className={styles.cardStatRow}>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Grad Year</span>
+                <span className={styles.cardStatValue}>{player.gradYear || '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Age</span>
+                <span className={styles.cardStatValue}>{getAge(player.birthDate, player.gradYear)}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>High School</span>
+                <span className={styles.cardStatValue}>{player.highSchool || '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>Club Team</span>
+                <span className={styles.cardStatValue}>{player.clubTeam || '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>PBR National</span>
+                <span className={styles.cardStatValue}>{player.pbrNational ? `#${player.pbrNational}` : '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>PBR State</span>
+                <span className={styles.cardStatValue}>{player.pbrState ? `#${player.pbrState}` : '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>PBR Position</span>
+                <span className={styles.cardStatValue}>{player.pbrPosition ? `#${player.pbrPosition}` : '—'}</span>
+              </div>
+              <div className={styles.cardStat}>
+                <span className={styles.cardStatLabel}>PG Score</span>
+                <span className={styles.cardStatValue}>{player.pgScore || '—'}</span>
+              </div>
+            </div>
           </div>
+
+          {/* Right: college commitment */}
           <div className={styles.commitBox}>
             <div className={styles.commitLabel}>COLLEGE COMMITMENT</div>
             {player.collegeCommit ? (
@@ -147,6 +215,7 @@ export default function PlayerProfilePage() {
               <div className={styles.commitNone}>Uncommitted</div>
             )}
           </div>
+
         </div>
 
         {isCoach && (

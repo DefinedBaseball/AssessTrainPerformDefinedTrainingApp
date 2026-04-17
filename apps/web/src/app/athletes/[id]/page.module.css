@@ -38,6 +38,62 @@
   margin-bottom: 14px;
 }
 
+/* Big player card — left side of hero */
+.playerCard {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cardDivider {
+  height: 1px;
+  background: var(--border);
+}
+
+/* A row of stat cells inside the player card */
+.cardStatRow {
+  display: flex;
+  gap: 0;
+}
+
+/* Individual stat cell */
+.cardStat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+  padding: 0 4px;
+  border-right: 1px solid var(--border);
+}
+
+.cardStat:last-child {
+  border-right: none;
+}
+
+.cardStatLabel {
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.cardStatValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  line-height: 1.2;
+}
+
 .nameBox {
   flex: 1;
   padding: 16px 0;
@@ -51,6 +107,44 @@
   letter-spacing: -0.02em;
   line-height: 1;
   color: var(--text);
+}
+
+/* Stat group — wraps Position/Height/Weight/Bats/Throws between name and commitment */
+.heroStatGroup {
+  display: flex;
+  gap: 5px;
+  align-items: stretch;
+}
+
+/* Position Box — sits between name and commitment */
+.positionBox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.positionLabel {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.positionValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  line-height: 1.2;
 }
 
 /* College Commitment Box — matches name box height */
@@ -97,12 +191,16 @@
 }
 
 .infoItem {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 4px 12px;
+  padding: 6px 12px;
 }
 
 .infoLabel {

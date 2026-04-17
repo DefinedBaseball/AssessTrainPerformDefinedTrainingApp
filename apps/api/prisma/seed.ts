@@ -30,6 +30,7 @@ async function main() {
   await prisma.report.deleteMany();
   await prisma.metric.deleteMany();
   await prisma.csvUpload.deleteMany();
+  await prisma.post.deleteMany();
   await prisma.player.deleteMany();
   await prisma.user.deleteMany();
 

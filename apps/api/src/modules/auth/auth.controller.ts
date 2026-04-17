@@ -38,6 +38,6 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the current authenticated user from token' })
   me(@Req() req: AuthenticatedRequest) {
-    return req.user;
+    return this.authService.getMe(req.user!.sub);
   }
 }
