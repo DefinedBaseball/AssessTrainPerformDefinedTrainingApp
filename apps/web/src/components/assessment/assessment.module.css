@@ -187,36 +187,81 @@
   position: sticky;
   top: 0;
   z-index: 90;
-  background: var(--bg);
+  background: linear-gradient(180deg, var(--bg) 70%, rgba(1,1,1,0.92) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
   margin-bottom: 0;
 }
 
 .tabBar {
   display: flex;
-  gap: 0;
+  gap: 2px;
   overflow-x: auto;
   scrollbar-width: none;
+  padding-top: 6px;
 }
 .tabBar::-webkit-scrollbar { display: none; }
 
 .tabBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 14px;
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  font-size: 13px;
   font-weight: 500;
-  padding: 14px 20px;
+  letter-spacing: 0.01em;
+  padding: 14px 18px 13px;
   cursor: pointer;
-  transition: all 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  transition: color var(--transition);
   white-space: nowrap;
 }
-.tabBtn:hover { color: var(--text); }
+
+/* subtle bottom rail */
+.tabBtn::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+
+.tabBtn:hover { color: var(--text-secondary); }
+.tabBtn:hover .tabIcon { opacity: 0.85; }
+
 .tabActive {
-  color: var(--accent-light);
-  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+.tabActive::after {
+  background: linear-gradient(90deg, transparent, #ffffff 50%, transparent);
+  box-shadow: 0 0 12px rgba(255,255,255,0.5);
+}
+.tabActive .tabIcon {
+  color: var(--text);
+  opacity: 1;
+}
+
+.tabIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  transition: color var(--transition), opacity var(--transition);
+}
+
+.tabLabel {
+  line-height: 1;
 }
 
 .tabPanel {

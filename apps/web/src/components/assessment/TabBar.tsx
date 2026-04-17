@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import type { ReactNode } from 'react';
 import styles from './assessment.module.css';
 
 export interface Tab {
   key: string;
   label: string;
+  icon?: ReactNode;
 }
 
 interface TabBarProps {
@@ -25,7 +26,8 @@ export function TabBar({ tabs, activeKey, onTabChange }: TabBarProps) {
             onClick={() => onTabChange(tab.key)}
             type="button"
           >
-            {tab.label}
+            {tab.icon ? <span className={styles.tabIcon} aria-hidden="true">{tab.icon}</span> : null}
+            <span className={styles.tabLabel}>{tab.label}</span>
           </button>
         ))}
       </div>

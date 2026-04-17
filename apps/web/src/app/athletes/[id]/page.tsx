@@ -23,14 +23,45 @@ import { ReportModal } from './ReportModal';
 import { formatHeight, getAge } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
+/* ── Tab icons (inline SVG, stroke-based) ── */
+const iconProps = {
+  width: 16,
+  height: 16,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+};
+
+const IconSummary = (
+  <svg {...iconProps}><path d="M4 19V5M4 19h16M8 15V9M12 15V6M16 15v-4M20 15v-7" /></svg>
+);
+const IconHitting = (
+  <svg {...iconProps}><path d="M3 21l4-4" /><path d="M7 17l10-10a3 3 0 114 4L11 21l-4 0 0-4z" /><circle cx="4.5" cy="19.5" r="1.2" /></svg>
+);
+const IconDefense = (
+  <svg {...iconProps}><path d="M6 6c0-1.5 1-3 3-3h6c2 0 3 1.5 3 3v6c0 4-3 8-6 9-3-1-6-5-6-9V6z" /><path d="M9 10v3M12 10v4M15 10v3" /></svg>
+);
+const IconPitching = (
+  <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M7.5 6.5c2 3 5 6 10 8.5M16.5 6.5c-2 3-5 6-10 8.5" /></svg>
+);
+const IconVision = (
+  <svg {...iconProps}><path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z" /><circle cx="12" cy="12" r="3" /></svg>
+);
+const IconStrength = (
+  <svg {...iconProps}><path d="M3 9v6M6 6v12M10 4v16M14 4v16M18 6v12M21 9v6" /></svg>
+);
+
 /* ── Tab definitions ── */
 const TABS: Tab[] = [
-  { key: 'summary', label: 'Player Summary' },
-  { key: 'hitting', label: 'Hitting' },
-  { key: 'defense', label: 'Defense' },
-  { key: 'pitching', label: 'Pitching' },
-  { key: 'vision', label: 'Vision' },
-  { key: 'strength', label: 'Strength & Conditioning' },
+  { key: 'summary', label: 'Player Summary', icon: IconSummary },
+  { key: 'hitting', label: 'Hitting', icon: IconHitting },
+  { key: 'defense', label: 'Defense', icon: IconDefense },
+  { key: 'pitching', label: 'Pitching', icon: IconPitching },
+  { key: 'vision', label: 'Vision', icon: IconVision },
+  { key: 'strength', label: 'Strength & Conditioning', icon: IconStrength },
 ];
 
 /* ── Progress metrics to fetch ── */
@@ -139,14 +170,17 @@ export default function PlayerProfilePage() {
 
           {/* Left: single big player card */}
           <div className={styles.playerCard}>
-            {/* Name */}
-            <h1 className={styles.heroName}>{player.firstName} {player.lastName}</h1>
+            {/* Name row with accent bar */}
+            <div className={styles.nameRow}>
+              <div className={styles.nameAccent} aria-hidden="true" />
+              <h1 className={styles.heroName}>{player.firstName} {player.lastName}</h1>
+            </div>
 
             {/* Divider */}
             <div className={styles.cardDivider} />
 
             {/* Row 1: Position, Height, Weight, Bats, Throws */}
-            <div className={styles.cardStatRow}>
+            <div className={`${styles.cardStatRow} ${styles.cardStatRowPhysical}`}>
               <div className={styles.cardStat}>
                 <span className={styles.cardStatLabel}>Position</span>
                 <span className={styles.cardStatValue}>{player.positions || '—'}</span>
@@ -170,7 +204,7 @@ export default function PlayerProfilePage() {
             </div>
 
             {/* Row 2: Grad Year, Age, High School, Club Team, PBR National, PBR State, PBR Position, PG Score */}
-            <div className={styles.cardStatRow}>
+            <div className={`${styles.cardStatRow} ${styles.cardStatRowProfile}`}>
               <div className={styles.cardStat}>
                 <span className={styles.cardStatLabel}>Grad Year</span>
                 <span className={styles.cardStatValue}>{player.gradYear || '—'}</span>
@@ -208,6 +242,22 @@ export default function PlayerProfilePage() {
 
           {/* Right: college commitment */}
           <div className={`${styles.commitBox}${player.collegeCommit ? ` ${styles.commitBoxCommitted}` : ''}`}>
+            <svg
+              className={styles.commitIcon}
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 10L12 4 2 10l10 6 10-6z" />
+              <path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5" />
+              <path d="M22 10v6" />
+            </svg>
             <div className={styles.commitLabel}>College Commitment</div>
             {player.collegeCommit ? (
               <div className={styles.commitName}>{player.collegeCommit}</div>
@@ -224,7 +274,10 @@ export default function PlayerProfilePage() {
             className={styles.newReportBtn}
             onClick={() => setShowReportModal(true)}
           >
-            + New Report
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New Report
           </button>
         )}
       </div>
