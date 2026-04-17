@@ -22,55 +22,89 @@
 }
 
 .heroEyebrow {
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--accent);
-  font-weight: 500;
-  margin-bottom: 10px;
-}
-
-/* Top row: Name + Commit side by side, same height */
-.heroTopRow {
-  display: flex;
-  gap: 16px;
-  align-items: stretch;
+  color: var(--text-muted);
+  font-weight: 700;
   margin-bottom: 14px;
 }
 
-/* Big player card — left side of hero */
+.heroEyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  background: var(--text-muted);
+  opacity: 0.5;
+}
+
+/* Top row: player card + commitment box */
+.heroTopRow {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* ── Player Card ── */
 .playerCard {
   flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px 24px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  padding: 22px 26px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.heroName {
+  font-family: 'Clash Grotesk', 'Satoshi', 'DM Sans', sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--text);
+  padding-bottom: 18px;
 }
 
 .cardDivider {
   height: 1px;
-  background: var(--border);
+  background: rgba(255,255,255,0.07);
+  margin: 0 -2px;
 }
 
-/* A row of stat cells inside the player card */
+/* Stat row — both rows share this */
 .cardStatRow {
   display: flex;
   gap: 0;
 }
 
-/* Individual stat cell */
+.cardStatRow:first-of-type .cardStat {
+  padding-top: 14px;
+  padding-bottom: 12px;
+}
+
+.cardStatRow:last-of-type .cardStat {
+  padding-top: 12px;
+  padding-bottom: 4px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Stat cell */
 .cardStat {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 3px;
-  padding: 0 4px;
-  border-right: 1px solid var(--border);
+  gap: 5px;
+  padding: 0 6px;
+  border-right: 1px solid rgba(255,255,255,0.06);
 }
 
 .cardStat:last-child {
@@ -79,145 +113,85 @@
 
 .cardStatLabel {
   font-size: 8px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--text-muted);
-  line-height: 1.2;
-}
-
-.cardStatValue {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-  font-family: 'DM Mono', monospace;
-  line-height: 1.2;
-}
-
-.nameBox {
-  flex: 1;
-  padding: 16px 0;
-  display: flex;
-  align-items: center;
-}
-
-.heroName {
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
   line-height: 1;
-  color: var(--text);
-}
-
-/* Stat group — wraps Position/Height/Weight/Bats/Throws between name and commitment */
-.heroStatGroup {
-  display: flex;
-  gap: 5px;
-  align-items: stretch;
-}
-
-/* Position Box — sits between name and commitment */
-.positionBox {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 4px;
   white-space: nowrap;
 }
 
-.positionLabel {
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-}
-
-.positionValue {
-  font-size: 20px;
+/* Row 1 values — physical stats, slightly more prominent */
+.cardStatRow:first-of-type .cardStatValue {
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
   font-family: 'DM Mono', monospace;
-  line-height: 1.2;
+  line-height: 1;
 }
 
-/* College Commitment Box — matches name box height */
+/* Row 2 values — profile stats, slightly quieter */
+.cardStatRow:last-of-type .cardStatValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: 'DM Mono', monospace;
+  line-height: 1;
+}
+
+/* fallback for any .cardStatValue not in a typed row */
+.cardStatValue {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  line-height: 1;
+}
+
+/* ── Commitment Box ── */
 .commitBox {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 16px 24px;
+  flex: 0 0 200px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  padding: 20px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 4px;
+  gap: 8px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.commitBoxCommitted {
+  border-color: rgba(109,170,69,0.35);
+  background: linear-gradient(160deg, rgba(109,170,69,0.08) 0%, rgba(109,170,69,0.03) 100%);
+  box-shadow: 0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(109,170,69,0.15);
 }
 
 .commitLabel {
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 8px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.15em;
   color: var(--text-muted);
+  line-height: 1;
 }
 
 .commitName {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--green);
-  line-height: 1.2;
+  line-height: 1.3;
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
 }
 
 .commitNone {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--faint);
-}
-
-/* Info rows — compact bubbles */
-.infoRow {
-  display: flex;
-  gap: 5px;
-  margin-bottom: 6px;
-}
-
-.infoItem {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 12px;
-}
-
-.infoLabel {
-  font-size: 8px;
+  font-size: 14px;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  line-height: 1.3;
-}
-
-.infoValue {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  font-family: 'DM Mono', monospace;
-  line-height: 1.3;
+  color: var(--faint);
+  font-style: italic;
 }
 
 .newReportBtn {
@@ -400,8 +374,9 @@
 /* Responsive */
 @media (max-width: 768px) {
   .heroTopRow { flex-direction: column; }
-  .heroName { font-size: 24px; }
-  .infoRow { flex-wrap: wrap; }
+  .commitBox { flex: 1; }
+  .heroName { font-size: 26px; }
+  .cardStatRow { flex-wrap: wrap; }
   .chartsGrid { grid-template-columns: 1fr; }
   .gradeRow { grid-template-columns: 1fr 60px 60px 90px; gap: 8px; font-size: 13px; }
 }

@@ -207,8 +207,8 @@ export default function PlayerProfilePage() {
           </div>
 
           {/* Right: college commitment */}
-          <div className={styles.commitBox}>
-            <div className={styles.commitLabel}>COLLEGE COMMITMENT</div>
+          <div className={`${styles.commitBox}${player.collegeCommit ? ` ${styles.commitBoxCommitted}` : ''}`}>
+            <div className={styles.commitLabel}>College Commitment</div>
             {player.collegeCommit ? (
               <div className={styles.commitName}>{player.collegeCommit}</div>
             ) : (
