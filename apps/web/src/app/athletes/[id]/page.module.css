@@ -43,6 +43,16 @@
   z-index: 0;
 }
 
+.heroEyebrowRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
 .heroEyebrow {
   position: relative;
   z-index: 1;
@@ -55,7 +65,6 @@
   text-transform: uppercase;
   color: var(--text-secondary);
   font-weight: 500;
-  margin-bottom: 16px;
 }
 
 .heroEyebrow::before {
@@ -94,7 +103,7 @@
     linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: var(--radius-md);
-  padding: 24px 28px 18px;
+  padding: 22px 28px 20px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -104,6 +113,41 @@
     0 24px 48px rgba(0,0,0,0.45),
     0 2px 6px rgba(0,0,0,0.4);
   overflow: hidden;
+}
+
+/* Compact variant (non-summary tabs) — just name, no stats */
+.playerCardCompact {
+  padding: 10px 22px;
+  justify-content: center;
+}
+.playerCardCompact .nameRow {
+  padding-bottom: 0;
+}
+.playerCardCompact .heroName {
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+/* Shrink score + commit boxes to match compact name bubble */
+.heroTopRowCompact .scoreBox,
+.heroTopRowCompact .commitBox {
+  padding: 10px 16px;
+  gap: 4px;
+}
+.heroTopRowCompact .scoreIcon,
+.heroTopRowCompact .commitIcon {
+  width: 16px;
+  height: 16px;
+}
+.heroTopRowCompact .scoreValue {
+  font-size: 22px;
+}
+.heroTopRowCompact .scoreSub,
+.heroTopRowCompact .commitNone {
+  display: none;
+}
+.heroTopRowCompact .commitName {
+  font-size: 13px;
 }
 
 /* top hairline shine */
@@ -125,13 +169,51 @@
   pointer-events: none;
 }
 
-/* Name row with accent bar */
+/* Name row with accent bar — name flush-bottom with inline stat values */
 .nameRow {
   position: relative;
   display: flex;
-  align-items: baseline;
-  gap: 14px;
-  padding-bottom: 20px;
+  align-items: flex-end;
+  gap: 16px;
+  padding-bottom: 18px;
+}
+
+/* Inline stats to the right of the player name (Position / Height / Weight) */
+.nameStats {
+  display: flex;
+  align-items: flex-end;
+  gap: 32px;
+  margin-left: auto;
+  padding-left: 20px;
+  padding-bottom: 4px;
+}
+
+.nameStat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1;
+}
+
+.nameStatLabel {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.nameStatValue {
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .nameAccent {
@@ -169,35 +251,30 @@
 .cardDivider {
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.09) 20%, rgba(255,255,255,0.09) 80%, transparent);
-  margin: 0 -4px;
+  margin: 0 -6px;
 }
 
-/* Stat row — both rows share this */
+/* Stat row — shared base */
 .cardStatRow {
   position: relative;
   display: flex;
   gap: 0;
 }
 
-.cardStatRowPhysical .cardStat {
-  padding-top: 16px;
-  padding-bottom: 14px;
-}
-
 .cardStatRowProfile .cardStat {
-  padding-top: 14px;
-  padding-bottom: 4px;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 18px;
+  padding-bottom: 10px;
 }
 
 /* Stat cell */
 .cardStat {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 7px;
+  gap: 8px;
   padding: 0 8px;
   border-right: 1px solid rgba(255,255,255,0.05);
   transition: background var(--transition);
@@ -213,32 +290,22 @@
 
 .cardStatLabel {
   font-family: 'DM Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   color: var(--text-muted);
   line-height: 1;
   white-space: nowrap;
 }
 
-/* Row 1 values — physical stats, premium prominence */
-.cardStatRowPhysical .cardStatValue {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  line-height: 1;
-}
-
-/* Row 2 values — profile stats */
+/* Profile-row values (Bats / Throws / Grad Year / Age / High School / Club Team) */
 .cardStatRowProfile .cardStatValue {
   font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  color: var(--text-secondary);
+  color: var(--text);
   line-height: 1.15;
 }
 
@@ -252,11 +319,82 @@
 }
 
 /* ── Commitment Box ── */
+/* ── Player Score Box ── */
+.scoreBox {
+  position: relative;
+  flex: 0 0 210px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
+    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: var(--radius-md);
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 24px 48px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.scoreBox::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+}
+.scoreIcon {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+.scoreLabel {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.scoreValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.scoreValue {
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  font-size: 52px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-bright);
+  line-height: 1;
+}
+.scoreMax {
+  font-family: 'DM Mono', monospace;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+.scoreSub {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--faint);
+}
+
 .commitBox {
   position: relative;
   flex: 0 0 220px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
+    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: var(--radius-md);
   padding: 22px 20px;
@@ -293,6 +431,35 @@
 
 .commitBoxCommitted::before {
   background: linear-gradient(90deg, transparent, rgba(109,170,69,0.6), transparent);
+}
+
+/* Club-team fallback (no college yet) — subtle slate accent */
+.commitBoxClub {
+  border-color: rgba(150,170,200,0.22);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(150,170,200,0.12) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(150,170,200,0.05) 0%, rgba(150,170,200,0.01) 100%);
+  box-shadow:
+    0 1px 0 rgba(200,215,235,0.18) inset,
+    0 24px 48px rgba(0,0,0,0.45);
+}
+
+.commitBoxClub::before {
+  background: linear-gradient(90deg, transparent, rgba(200,215,235,0.45), transparent);
+}
+
+.commitBoxClub .commitIcon {
+  color: rgba(200,215,235,0.85);
+  opacity: 1;
+}
+
+.commitBoxClub .commitLabel {
+  color: rgba(200,215,235,0.7);
+}
+
+.commitBoxClub .commitName {
+  color: var(--text);
+  text-shadow: none;
 }
 
 .commitIcon {
@@ -345,7 +512,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 14px;
   padding: 9px 18px 9px 14px;
   font-family: 'DM Mono', monospace;
   font-size: 11px;

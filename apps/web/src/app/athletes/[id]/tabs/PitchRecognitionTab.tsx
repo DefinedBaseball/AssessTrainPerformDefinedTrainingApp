@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, NotesBox, VideoPlaceholder,
-  ReportSelector,
+  ReportSelector, TabBarActions,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -316,16 +316,18 @@ export function PitchRecognitionTab({
 
   return (
     <>
-      {/* ── Report Selector ── */}
-      <ReportSelector
-        reports={atBatReports}
-        reportTypes={[]}
-        label="At-Bat Results"
-        isCoach={isCoach}
-        selectedId={selectedReport?.id ?? null}
-        onSelect={setSelectedReport}
-        onDeleted={onRefresh}
-      />
+      {/* ── Report Selector (portaled into TabBar) ── */}
+      <TabBarActions>
+        <ReportSelector
+          reports={atBatReports}
+          reportTypes={[]}
+          label="At-Bat Results"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+        />
+      </TabBarActions>
 
       {/* ── At-Bat Assessment Metrics ── */}
       <Section>

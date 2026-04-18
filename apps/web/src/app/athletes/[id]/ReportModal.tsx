@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
@@ -22,6 +23,28 @@ const REPORT_TYPES = [
 ];
 
 const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'];
+
+/* Inline button styles used by the Club Team / College inline "add new" panels. */
+const quickBtnPrimary: React.CSSProperties = {
+  background: 'var(--accent)',
+  color: '#000',
+  border: 'none',
+  borderRadius: 6,
+  padding: '7px 12px',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+const quickBtnSecondary: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.06)',
+  color: 'var(--text)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: '7px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
 
 function buildHeightOptions(): string[] {
   const opts: string[] = [];
@@ -174,6 +197,66 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
     update({ positions: next });
   };
 
+  // Club Teams + Colleges sourced from the coach Settings page.
+  const [clubTeams, setClubTeams] = useState<api.ClubTeam[]>([]);
+  const [colleges, setColleges] = useState<api.College[]>([]);
+  const [clubSaving, setClubSaving] = useState(false);
+  const [collegeSaving, setCollegeSaving] = useState(false);
+  const [clubDraft, setClubDraft] = useState<{ name: string; logoUrl: string; websiteUrl: string } | null>(null);
+  const [collegeDraft, setCollegeDraft] = useState<{ name: string; logoUrl: string; websiteUrl: string } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [ct, co] = await Promise.all([api.getClubTeams(), api.getColleges()]);
+        setClubTeams(ct);
+        setColleges(co);
+      } catch {
+        /* list is non-critical — form still works with the current text value */
+      }
+    })();
+  }, []);
+
+  const SELECT_ADD_NEW = '__add_new__';
+
+  async function createClub() {
+    if (!clubDraft || !clubDraft.name.trim()) return;
+    setClubSaving(true);
+    try {
+      const created = await api.createClubTeam({
+        name: clubDraft.name.trim(),
+        logoUrl: clubDraft.logoUrl.trim() || null,
+        websiteUrl: clubDraft.websiteUrl.trim() || null,
+      });
+      setClubTeams((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      update({ clubTeam: created.name });
+      setClubDraft(null);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add club team');
+    } finally {
+      setClubSaving(false);
+    }
+  }
+
+  async function createCollege() {
+    if (!collegeDraft || !collegeDraft.name.trim()) return;
+    setCollegeSaving(true);
+    try {
+      const created = await api.createCollege({
+        name: collegeDraft.name.trim(),
+        logoUrl: collegeDraft.logoUrl.trim() || null,
+        websiteUrl: collegeDraft.websiteUrl.trim() || null,
+      });
+      setColleges((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      update({ collegeCommit: created.name });
+      setCollegeDraft(null);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add college');
+    } finally {
+      setCollegeSaving(false);
+    }
+  }
+
   return (
     <div className={rs.summaryForm}>
       <div className={rs.section}>
@@ -240,7 +323,65 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
           </div>
           <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>Club Team</label>
-            <input type="text" className={rs.summaryInput} value={data.clubTeam} onChange={e => update({ clubTeam: e.target.value })} placeholder="Club team name" />
+            <select
+              className={rs.summarySelect}
+              value={data.clubTeam && clubTeams.some(c => c.name === data.clubTeam) ? data.clubTeam : (data.clubTeam ? '' : '')}
+              onChange={(e) => {
+                if (e.target.value === SELECT_ADD_NEW) {
+                  setClubDraft({ name: '', logoUrl: '', websiteUrl: '' });
+                } else {
+                  update({ clubTeam: e.target.value });
+                }
+              }}
+            >
+              <option value="">None</option>
+              {clubTeams.map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+              <option value={SELECT_ADD_NEW}>+ Add new club team…</option>
+            </select>
+            {data.clubTeam && !clubTeams.some(c => c.name === data.clubTeam) && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Legacy value "{data.clubTeam}" — pick from the list to normalize.
+              </div>
+            )}
+            {clubDraft && (
+              <div
+                style={{
+                  marginTop: 8, padding: 10,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  display: 'grid', gap: 6,
+                }}
+              >
+                <input
+                  className={rs.summaryInput}
+                  placeholder="Club team name"
+                  value={clubDraft.name}
+                  onChange={(e) => setClubDraft({ ...clubDraft, name: e.target.value })}
+                  autoFocus
+                />
+                <input
+                  className={rs.summaryInput}
+                  placeholder="Logo URL (optional)"
+                  value={clubDraft.logoUrl}
+                  onChange={(e) => setClubDraft({ ...clubDraft, logoUrl: e.target.value })}
+                />
+                <input
+                  className={rs.summaryInput}
+                  placeholder="Website URL (optional)"
+                  value={clubDraft.websiteUrl}
+                  onChange={(e) => setClubDraft({ ...clubDraft, websiteUrl: e.target.value })}
+                />
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setClubDraft(null)} disabled={clubSaving} style={quickBtnSecondary}>Cancel</button>
+                  <button type="button" onClick={createClub} disabled={clubSaving || !clubDraft.name.trim()} style={quickBtnPrimary}>
+                    {clubSaving ? 'Saving…' : 'Add Team'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -258,9 +399,70 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
       <div className={rs.section}>
         <div className={rs.sectionHeader}><span className={rs.sectionIcon}>🎓</span><span className={rs.sectionTitle}>College Commitment</span></div>
         <div className={rs.summaryGrid}>
-          <div className={rs.summaryField}><label className={rs.summaryLabel}>Committed To</label><input type="text" className={rs.summaryInput} value={data.collegeCommit} onChange={e => update({ collegeCommit: e.target.value })} placeholder="University name" /></div>
           <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>Logo</label>
+            <label className={rs.summaryLabel}>Committed To</label>
+            <select
+              className={rs.summarySelect}
+              value={data.collegeCommit && colleges.some(c => c.name === data.collegeCommit) ? data.collegeCommit : (data.collegeCommit ? '' : '')}
+              onChange={(e) => {
+                if (e.target.value === SELECT_ADD_NEW) {
+                  setCollegeDraft({ name: '', logoUrl: '', websiteUrl: '' });
+                } else {
+                  update({ collegeCommit: e.target.value });
+                }
+              }}
+            >
+              <option value="">Uncommitted</option>
+              {colleges.map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+              <option value={SELECT_ADD_NEW}>+ Add new college…</option>
+            </select>
+            {data.collegeCommit && !colleges.some(c => c.name === data.collegeCommit) && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Legacy value "{data.collegeCommit}" — pick from the list to normalize.
+              </div>
+            )}
+            {collegeDraft && (
+              <div
+                style={{
+                  marginTop: 8, padding: 10,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  display: 'grid', gap: 6,
+                }}
+              >
+                <input
+                  className={rs.summaryInput}
+                  placeholder="College name"
+                  value={collegeDraft.name}
+                  onChange={(e) => setCollegeDraft({ ...collegeDraft, name: e.target.value })}
+                  autoFocus
+                />
+                <input
+                  className={rs.summaryInput}
+                  placeholder="Logo URL (optional)"
+                  value={collegeDraft.logoUrl}
+                  onChange={(e) => setCollegeDraft({ ...collegeDraft, logoUrl: e.target.value })}
+                />
+                <input
+                  className={rs.summaryInput}
+                  placeholder="Website URL (optional)"
+                  value={collegeDraft.websiteUrl}
+                  onChange={(e) => setCollegeDraft({ ...collegeDraft, websiteUrl: e.target.value })}
+                />
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setCollegeDraft(null)} disabled={collegeSaving} style={quickBtnSecondary}>Cancel</button>
+                  <button type="button" onClick={createCollege} disabled={collegeSaving || !collegeDraft.name.trim()} style={quickBtnPrimary}>
+                    {collegeSaving ? 'Saving…' : 'Add College'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>One-off Logo (optional)</label>
             <div className={rs.logoUpload} onClick={() => logoInputRef.current?.click()}>
               {data.logoFile ? (
                 <div className={rs.logoFileInfo}><span>🖼️</span><span className={rs.logoFileName}>{data.logoFile.name}</span>

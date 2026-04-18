@@ -13,6 +13,9 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { HealthModule } from './modules/health/health.module';
 import { EducationModule } from './modules/education/education.module';
 import { PostsModule } from './modules/posts/posts.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { ClubTeamsModule } from './modules/club-teams/club-teams.module';
+import { CollegesModule } from './modules/colleges/colleges.module';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { PostsModule } from './modules/posts/posts.module';
     UploadsModule,
     EducationModule,
     PostsModule,
+    AnalyticsModule,
+    ClubTeamsModule,
+    CollegesModule,
   ],
 })
 export class AppModule {}

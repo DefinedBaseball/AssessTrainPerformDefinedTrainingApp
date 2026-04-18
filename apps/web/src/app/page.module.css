@@ -5,7 +5,7 @@
    ══════════════════════════════════════════════ */
 
 .heroOuter {
-  background: var(--bg);
+  background: transparent;
   border-bottom: 1px solid var(--border);
   margin-bottom: 0;
 }
@@ -92,8 +92,10 @@
 }
 
 .statCard {
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
-  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
+    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
+  border: 1px solid rgba(255,255,255,0.09);
   border-radius: var(--radius-md);
   padding: 18px;
   text-align: center;
@@ -128,8 +130,10 @@
   gap: 8px;
   margin-bottom: 24px;
   padding: 16px 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
-  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
+    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
+  border: 1px solid rgba(255,255,255,0.09);
   border-radius: var(--radius-lg);
 }
 
@@ -247,8 +251,10 @@
 /* ── Post Card ── */
 
 .postCard {
-  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012));
-  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
+    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
+  border: 1px solid rgba(255,255,255,0.09);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   transition: border-color var(--transition);

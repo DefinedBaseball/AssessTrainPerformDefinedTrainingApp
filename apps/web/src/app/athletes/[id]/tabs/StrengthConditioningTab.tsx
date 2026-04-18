@@ -17,6 +17,8 @@ import {
 } from '../helpers';
 import * as api from '@/lib/api';
 import { generateStrengthPdf } from '@/lib/pdf';
+import { CustomCharts } from '@/components/CustomCharts';
+import { TabBarActions } from '@/components/assessment';
 
 const REPORT_TYPES = ['STRENGTH'];
 
@@ -67,8 +69,8 @@ export function StrengthConditioningTab({
 
   return (
     <>
-      {/* ── Report Selector + Download ── */}
-      <div className={aStyles.reportSelectorRow}>
+      {/* ── Report Selector + Download (portaled into TabBar) ── */}
+      <TabBarActions>
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}
@@ -82,7 +84,7 @@ export function StrengthConditioningTab({
           label="Download PDF"
           onDownload={() => generateStrengthPdf(player, reports, topMetrics)}
         />
-      </div>
+      </TabBarActions>
 
       {/* ── Athletic Testing ── */}
       <Section>
@@ -231,6 +233,8 @@ export function StrengthConditioningTab({
           </Section>
         );
       })()}
+
+      <CustomCharts section="STRENGTH" playerId={player.id} />
 
     </>
   );

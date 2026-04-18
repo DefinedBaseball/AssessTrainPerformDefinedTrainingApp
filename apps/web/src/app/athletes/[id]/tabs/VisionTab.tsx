@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, NotesBox, ReportSelector, DownloadPdfButton,
+  TabBarActions,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -54,8 +55,8 @@ export function VisionTab({
 
   return (
     <>
-      {/* ── Report Selector + Download ── */}
-      <div className={aStyles.reportSelectorRow}>
+      {/* ── Report Selector + Download (portaled into TabBar) ── */}
+      <TabBarActions>
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}
@@ -69,7 +70,7 @@ export function VisionTab({
           label="Download PDF"
           onDownload={() => generateVisionPdf(player, reports, topMetrics)}
         />
-      </div>
+      </TabBarActions>
 
       {/* ── Vision Scores ── */}
       <Section>

@@ -18,13 +18,19 @@ class UpdatePlayerDto {
   lastName?: string;
   positions?: string;
   profilePhoto?: string;
-  heightInches?: number;
-  weightLbs?: number;
-  gradYear?: number;
-  collegeCommit?: string;
-  pbrNational?: number;
-  pbrState?: number;
-  pgScore?: number;
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  gradYear?: number | null;
+  bats?: string | null;
+  throws?: string | null;
+  birthDate?: string | null;
+  highSchool?: string | null;
+  clubTeam?: string | null;
+  collegeCommit?: string | null;
+  pbrNational?: number | null;
+  pbrState?: number | null;
+  pbrPosition?: number | null;
+  pgScore?: number | null;
 }
 
 @ApiTags('players')

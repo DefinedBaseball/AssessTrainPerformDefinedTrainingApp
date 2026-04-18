@@ -749,3 +749,179 @@ export async function updatePost(id: string, data: {
 export async function deletePost(id: string): Promise<void> {
   return request(`/posts/${id}`, { method: 'DELETE' });
 }
+
+// ---- Analytics / Chart Configs ----
+
+export interface AnalyticsColumn {
+  source: string;
+  metricType: string;
+  unit: string;
+}
+
+export interface ChartDataSource {
+  source: string;
+  metricType: string;
+  label?: string;
+  color?: string;
+}
+
+export interface ChartConfig {
+  id: string;
+  createdById: string;
+  scope: 'PRIVATE' | 'GLOBAL';
+  section: string;
+  chartType: string;
+  title: string;
+  dataSources: string; // JSON string
+  dateMode: 'ALL_TIME' | 'RANGE' | 'LAST_N_DAYS';
+  dateFrom: string | null;
+  dateTo: string | null;
+  lastNDays: number | null;
+  playerScope: 'ALL' | 'INDIVIDUAL' | string;
+  playerIds: string | null; // JSON string[] or null
+  dataMode: 'DATE_RANGE' | 'REPORTS';
+  reportIds: string | null; // JSON string[] or null
+  sortOrder: number;
+  rollingWindow?: number | null;
+  rollingMode?: 'SMA' | 'EMA' | null;
+  targetMin?: number | null;
+  targetMax?: number | null;
+  pbDirection?: 'MAX' | 'MIN' | null;
+  zoneGrid?: '3x3' | '5x5' | null;
+  zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChartConfigInput {
+  scope?: 'PRIVATE' | 'GLOBAL';
+  section: string;
+  chartType: string;
+  title: string;
+  dataSources: ChartDataSource[];
+  dateMode?: 'ALL_TIME' | 'RANGE' | 'LAST_N_DAYS';
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  lastNDays?: number | null;
+  playerScope?: 'ALL' | 'INDIVIDUAL' | string;
+  playerIds?: string[] | null;
+  dataMode?: 'DATE_RANGE' | 'REPORTS';
+  reportIds?: string[] | null;
+  sortOrder?: number;
+  rollingWindow?: number | null;
+  rollingMode?: 'SMA' | 'EMA' | null;
+  targetMin?: number | null;
+  targetMax?: number | null;
+  pbDirection?: 'MAX' | 'MIN' | null;
+  zoneGrid?: '3x3' | '5x5' | null;
+  zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
+}
+
+export async function getAnalyticsColumns(): Promise<AnalyticsColumn[]> {
+  return request('/analytics/columns');
+}
+
+export async function getChartConfigs(section?: string): Promise<ChartConfig[]> {
+  const q = section ? `?section=${encodeURIComponent(section)}` : '';
+  return request(`/analytics/configs${q}`);
+}
+
+export async function createChartConfig(data: ChartConfigInput): Promise<ChartConfig> {
+  return request('/analytics/configs', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateChartConfig(id: string, data: Partial<ChartConfigInput>): Promise<ChartConfig> {
+  return request(`/analytics/configs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteChartConfig(id: string): Promise<void> {
+  return request(`/analytics/configs/${id}`, { method: 'DELETE' });
+}
+
+export interface ChartEvaluation {
+  config: ChartConfig;
+  series: Array<{
+    source: string;
+    metricType: string;
+    label: string;
+    points: Array<{ date: string; value: number }>;
+  }>;
+}
+
+export async function evaluateChartConfig(id: string, playerId: string): Promise<ChartEvaluation> {
+  return request(`/analytics/configs/${id}/evaluate/${playerId}`);
+}
+
+export async function previewChartConfig(playerId: string, data: ChartConfigInput): Promise<ChartEvaluation> {
+  return request(`/analytics/preview/${playerId}`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+// ──────────────────────────────────────────────────────────────
+// Club Teams
+// ──────────────────────────────────────────────────────────────
+
+export interface ClubTeam {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  websiteUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClubTeamInput {
+  name: string;
+  logoUrl?: string | null;
+  websiteUrl?: string | null;
+}
+
+export async function getClubTeams(): Promise<ClubTeam[]> {
+  return request('/club-teams');
+}
+
+export async function createClubTeam(data: ClubTeamInput): Promise<ClubTeam> {
+  return request('/club-teams', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateClubTeam(id: string, data: Partial<ClubTeamInput>): Promise<ClubTeam> {
+  return request(`/club-teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteClubTeam(id: string): Promise<void> {
+  return request(`/club-teams/${id}`, { method: 'DELETE' });
+}
+
+// ──────────────────────────────────────────────────────────────
+// Colleges
+// ──────────────────────────────────────────────────────────────
+
+export interface College {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  websiteUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollegeInput {
+  name: string;
+  logoUrl?: string | null;
+  websiteUrl?: string | null;
+}
+
+export async function getColleges(): Promise<College[]> {
+  return request('/colleges');
+}
+
+export async function createCollege(data: CollegeInput): Promise<College> {
+  return request('/colleges', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateCollege(id: string, data: Partial<CollegeInput>): Promise<College> {
+  return request(`/colleges/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteCollege(id: string): Promise<void> {
+  return request(`/colleges/${id}`, { method: 'DELETE' });
+}

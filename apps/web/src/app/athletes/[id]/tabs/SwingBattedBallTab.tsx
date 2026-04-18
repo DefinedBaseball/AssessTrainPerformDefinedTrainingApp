@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, ScalePips,
-  VideoPlaceholder, NotesBox, ReportSelector,
+  VideoPlaceholder, NotesBox, ReportSelector, TabBarActions,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -17,6 +17,7 @@ import {
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
+import { CustomCharts } from '@/components/CustomCharts';
 
 /* ═══════════════════════════════════════════
    SPRAY CHART COMPONENT (SVG)
@@ -437,16 +438,18 @@ export function SwingBattedBallTab({
 
   return (
     <>
-      {/* ── Report Selector ── */}
-      <ReportSelector
-        reports={reports}
-        reportTypes={REPORT_TYPES}
-        label="Swing / Batted Ball"
-        isCoach={isCoach}
-        selectedId={selectedReport?.id ?? null}
-        onSelect={setSelectedReport}
-        onDeleted={onRefresh}
-      />
+      {/* ── Report Selector (portaled into TabBar) ── */}
+      <TabBarActions>
+        <ReportSelector
+          reports={reports}
+          reportTypes={REPORT_TYPES}
+          label="Swing / Batted Ball"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+        />
+      </TabBarActions>
 
       {/* ═══ COMBINED Batted Ball Data + Spray Chart ═══ */}
       <Section>
@@ -842,6 +845,8 @@ export function SwingBattedBallTab({
           </Section>
         );
       })()}
+
+      <CustomCharts section="HITTING" playerId={player.id} />
 
     </>
   );

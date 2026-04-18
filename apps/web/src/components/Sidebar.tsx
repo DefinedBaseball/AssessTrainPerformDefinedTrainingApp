@@ -22,13 +22,25 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Dashboard',
     sub: 'Overview + analytics',
     coachLabel: 'Dashboard',
-    playerLabel: 'Profile',
+    playerLabel: 'Dashboard',
     icon: (
       <svg viewBox="0 0 24 24">
         <path d="M4 13.5h6.5V20H4z" />
         <path d="M13.5 4H20v16h-6.5z" />
         <path d="M4 4h6.5v6.5H4z" />
         <path d="M13.5 13.5H20V20h-6.5z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/profile',
+    label: 'Profile',
+    sub: 'Your athlete profile',
+    playerOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="3.5" />
+        <path d="M4.5 20c.8-3.6 4-5.5 7.5-5.5s6.7 1.9 7.5 5.5" />
       </svg>
     ),
   },
@@ -102,6 +114,21 @@ const NAV_ITEMS: NavItem[] = [
         <path d="m16 10 4-2.5v9L16 14" />
         <path d="M7 9h6" />
         <path d="M7 12h4" />
+      </svg>
+    ),
+  },
+  {
+    href: '/analytics',
+    label: 'Data Analytics',
+    sub: 'Custom charts \u00b7 Previews',
+    coachOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M4 20V8" />
+        <path d="M10 20V4" />
+        <path d="M16 20v-8" />
+        <path d="M22 20V10" />
+        <path d="M3 20h19" />
       </svg>
     ),
   },
@@ -179,7 +206,7 @@ export function Sidebar() {
             </div>
           </div>
           <div className={styles.accountActions}>
-            <button className={styles.settingsBtn}>Settings</button>
+            <Link href="/settings" className={styles.settingsBtn}>Settings</Link>
             <button className={styles.logoutBtn} onClick={logout}>
               Sign Out
             </button>

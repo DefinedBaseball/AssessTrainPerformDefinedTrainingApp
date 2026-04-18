@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, ScalePips, NotesBox, VideoPlaceholder,
-  ReportSelector, DownloadPdfButton,
+  ReportSelector, DownloadPdfButton, TabBarActions,
 } from '@/components/assessment';
 import { generateDefensePdf } from '@/lib/pdf';
 import aStyles from '@/components/assessment/assessment.module.css';
@@ -16,17 +16,19 @@ import {
   getReportVideoIds, getReportContentVideos,
   type ReportSummary,
 } from '../helpers';
+import { CustomCharts } from '@/components/CustomCharts';
 
 /* ═══════════════════════════════════════════
    SUB-TAB DEFINITIONS
    ═══════════════════════════════════════════ */
 
-type DefenseSubTab = 'catching' | 'infield' | 'outfield';
+type DefenseSubTab = 'catching' | 'infield' | 'outfield' | 'utility';
 
-const SUB_TABS: { key: DefenseSubTab; label: string }[] = [
-  { key: 'catching', label: 'Catching' },
-  { key: 'infield', label: 'Infield' },
-  { key: 'outfield', label: 'Outfield' },
+const ALL_SUB_TABS: { key: DefenseSubTab; label: string; positionCode: string }[] = [
+  { key: 'catching', label: 'Catching', positionCode: 'C' },
+  { key: 'infield', label: 'Infield', positionCode: 'INF' },
+  { key: 'outfield', label: 'Outfield', positionCode: 'OF' },
+  { key: 'utility', label: 'Utility', positionCode: 'UTIL' },
 ];
 
 /* ═══════════════════════════════════════════
@@ -698,15 +700,17 @@ function CatchingSubTab({
 
   return (
     <>
-      <ReportSelector
-        reports={reports}
-        reportTypes={['CATCHING']}
-        label="Catching"
-        isCoach={isCoach}
-        selectedId={selectedReport?.id ?? null}
-        onSelect={setSelectedReport}
-        onDeleted={onRefresh}
-      />
+      <TabBarActions>
+        <ReportSelector
+          reports={reports}
+          reportTypes={['CATCHING']}
+          label="Catching"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+        />
+      </TabBarActions>
 
       {!catchingAssessment ? (
         <Section>
@@ -893,15 +897,17 @@ function InfieldSubTab({
 
   return (
     <>
-      <ReportSelector
-        reports={reports}
-        reportTypes={['INFIELD']}
-        label="Infield"
-        isCoach={isCoach}
-        selectedId={selectedReport?.id ?? null}
-        onSelect={setSelectedReport}
-        onDeleted={onRefresh}
-      />
+      <TabBarActions>
+        <ReportSelector
+          reports={reports}
+          reportTypes={['INFIELD']}
+          label="Infield"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+        />
+      </TabBarActions>
 
       {infieldAssessment ? (
         <>
@@ -1145,15 +1151,17 @@ function OutfieldSubTab({
 
   return (
     <>
-      <ReportSelector
-        reports={reports}
-        reportTypes={['OUTFIELD']}
-        label="Outfield"
-        isCoach={isCoach}
-        selectedId={selectedReport?.id ?? null}
-        onSelect={setSelectedReport}
-        onDeleted={onRefresh}
-      />
+      <TabBarActions>
+        <ReportSelector
+          reports={reports}
+          reportTypes={['OUTFIELD']}
+          label="Outfield"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+        />
+      </TabBarActions>
 
       {outfieldAssessment ? (
         <>
@@ -1377,18 +1385,45 @@ function OutfieldSubTab({
    ═══════════════════════════════════════════ */
 
 export function DefenseTab(props: TabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<DefenseSubTab>('catching');
+  // Filter sub-tabs to only those matching the player's selected positions.
+  // C → Catching, INF → Infield, OF → Outfield, UTIL → Utility.
+  const visibleSubTabs = useMemo(() => {
+    const positions = (props.player.positions || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return ALL_SUB_TABS.filter((st) => positions.includes(st.positionCode));
+  }, [props.player.positions]);
+
+  const [activeSubTab, setActiveSubTab] = useState<DefenseSubTab>(
+    () => (visibleSubTabs[0]?.key ?? 'catching') as DefenseSubTab,
+  );
+
+  // Auto-correct activeSubTab if the filter list changes (e.g. position edited)
+  useEffect(() => {
+    if (visibleSubTabs.length === 0) return;
+    if (!visibleSubTabs.some((st) => st.key === activeSubTab)) {
+      setActiveSubTab(visibleSubTabs[0].key);
+    }
+  }, [visibleSubTabs, activeSubTab]);
 
   return (
     <>
-      {/* ── Download Button ── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+      {/* ── Download Button (portaled into TabBar) ── */}
+      <TabBarActions>
         <DownloadPdfButton
           label="Download PDF"
           onDownload={() => generateDefensePdf(props.player, props.reports)}
         />
-      </div>
+      </TabBarActions>
 
+      {visibleSubTabs.length === 0 ? (
+        <div className={styles.emptyMsg} style={{ padding: 48, textAlign: 'center' }}>
+          No defensive positions selected for this athlete. Add a position (C, INF, OF, UTIL) in
+          the player profile to see defensive assessments.
+        </div>
+      ) : (
+      <>
       {/* ── Sub-Tab Bar ── */}
       <div style={{
         display: 'flex',
@@ -1397,7 +1432,7 @@ export function DefenseTab(props: TabProps) {
         marginBottom: 20,
         marginTop: 4,
       }}>
-        {SUB_TABS.map(({ key, label }) => (
+        {visibleSubTabs.map(({ key, label }) => (
           <button
             key={key}
             type="button"
@@ -1428,6 +1463,38 @@ export function DefenseTab(props: TabProps) {
       {activeSubTab === 'catching' && <CatchingSubTab {...props} />}
       {activeSubTab === 'infield' && <InfieldSubTab {...props} />}
       {activeSubTab === 'outfield' && <OutfieldSubTab {...props} />}
+      {activeSubTab === 'utility' && <UtilitySubTab {...props} />}
+
+      <CustomCharts section="DEFENSE" playerId={props.player.id} />
+      </>
+      )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   UTILITY SUB-TAB (multi-position athletes)
+   ═══════════════════════════════════════════ */
+
+function UtilitySubTab(props: TabProps) {
+  return (
+    <>
+      <SectionHeader
+        icon="🛠️"
+        iconColor="gold"
+        title="Utility Profile"
+        subtitle="Multi-position flexibility & cross-position grades"
+      />
+      <div className={styles.emptyMsg} style={{ padding: 32, textAlign: 'center' }}>
+        Utility assessment UI coming soon. This section will summarize cross-position metrics and
+        flexibility grades for athletes listed as UTIL in their profile.
+      </div>
+      <NotesBox
+        label="Coach Notes — Utility"
+        notes={[
+          { text: 'Versatility observations across multiple defensive positions.', placeholder: true },
+        ]}
+      />
     </>
   );
 }

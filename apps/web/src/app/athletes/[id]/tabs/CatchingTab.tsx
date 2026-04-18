@@ -2,13 +2,14 @@
 
 import { useState, useMemo } from 'react';
 import {
-  SectionHeader, Section, NotesBox, VideoPlaceholder, ReportSelector,
+  SectionHeader, Section, NotesBox, VideoPlaceholder, ReportSelector, TabBarActions,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import {
   TabProps, getReportVideoIds, getReportContentVideos, type ReportSummary,
 } from '../helpers';
+import { CustomCharts } from '@/components/CustomCharts';
 
 /* ── Types ── */
 
@@ -381,16 +382,18 @@ export function CatchingTab({
 
   return (
     <>
-      {/* ── Report Selector ── */}
-      <ReportSelector
-        reports={reports}
-        reportTypes={REPORT_TYPES}
-        label="Catching"
-        isCoach={isCoach}
-        selectedId={selectedReport?.id ?? null}
-        onSelect={setSelectedReport}
-        onDeleted={onRefresh}
-      />
+      {/* ── Report Selector (portaled into TabBar) ── */}
+      <TabBarActions>
+        <ReportSelector
+          reports={reports}
+          reportTypes={REPORT_TYPES}
+          label="Catching"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+        />
+      </TabBarActions>
 
       {!catchingAssessment ? (
         /* ── Empty State ── */
@@ -551,6 +554,8 @@ export function CatchingTab({
           </Section>
         );
       })()}
+
+      <CustomCharts section="CATCHING" playerId={player.id} />
     </>
   );
 }

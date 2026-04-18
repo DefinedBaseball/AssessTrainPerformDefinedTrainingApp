@@ -332,3 +332,333 @@ export const CHART_COLORS: Record<string, string> = {
   bat_speed: '#E8AF34',
   smash_factor: '#AF52DE',
 };
+
+/* ─────────────────────────────────────────────
+   AGGREGATE SCORE MODEL (20-80 scouting grade)
+   Each section contains exactly 3 aggregate bars;
+   each bar is itself an average over its underlying
+   sub-metrics. The hero score is the average of
+   every visible bar across every visible section.
+   Scoring logic from reports/CSVs is added later —
+   today this returns nulls so the UI shows "—".
+   ───────────────────────────────────────────── */
+
+export interface AggregateSubMetric {
+  key: string;
+  label: string;
+  /** Optional raw numeric value pulled from metrics/reports when available. */
+  value?: number;
+  unit?: string;
+  /** Optional scouting grade (20-80) derived from the raw value. */
+  grade?: number;
+}
+
+export interface AggregateBar {
+  key: string;
+  label: string;
+  /** Aggregate 20-80 score, or null if not enough data yet. */
+  score: number | null;
+  subMetrics: AggregateSubMetric[];
+}
+
+export interface AggregateSection {
+  key: 'hitting' | 'pitching' | 'defense' | 'vision' | 'strength';
+  label: string;
+  color: string;
+  bars: AggregateBar[];
+}
+
+export interface AggregateScores {
+  sections: AggregateSection[];
+  /** Average of every visible bar score, rounded, or null if no scores yet. */
+  overall: number | null;
+}
+
+/* 20-80 band-based color scale — shared by every UI that surfaces
+   a score (hero bubble, per-section summary headers, bar fills).
+     20-40 → shades of red
+     40-60 → shades of blue
+     60-80 → shades of green
+   Within each band the shade deepens (higher saturation + lower
+   lightness) as the score moves away from the midpoint 50, so a 20
+   is noticeably more intense than a 40, an 80 is noticeably deeper
+   than a 60, etc. */
+export function scoreColor(score: number): string {
+  const clamped = Math.max(20, Math.min(80, score));
+
+  let hue: number;
+  let t: number; // 0 = band-midpoint (lightest), 1 = band extreme (darkest)
+
+  if (clamped < 40) {
+    hue = 0;                          // red
+    t = (40 - clamped) / 20;          // 0 at 40, 1 at 20
+  } else if (clamped < 60) {
+    hue = 220;                        // blue
+    t = Math.abs(clamped - 50) / 10;  // 0 at 50, 1 at 40 or 60
+  } else {
+    hue = 142;                        // green
+    t = (clamped - 60) / 20;          // 0 at 60, 1 at 80
+  }
+
+  const lightness = 62 - t * 22;      // 62% lightest, 40% deepest
+  const saturation = 70 + t * 20;     // 70% → 90%
+  return `hsl(${hue}, ${saturation.toFixed(1)}%, ${lightness.toFixed(1)}%)`;
+}
+
+export function computeAggregateScores(
+  player: { positions: string | null; firstName?: string | null; lastName?: string | null },
+  _reports: ReportSummary[],
+  _topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
+): AggregateScores {
+  const positions = (player.positions || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const hasNonPitcher = positions.some((p) => ['C', 'INF', 'OF', 'UTIL'].includes(p));
+  const isPitcher = positions.includes('P');
+  const isCatcher = positions.includes('C');
+  const isInfielder = positions.includes('INF');
+  const isOutfielder = positions.includes('OF');
+
+  const sections: AggregateSection[] = [];
+
+  // Hitting — any position other than pitcher-only
+  if (hasNonPitcher) {
+    sections.push({
+      key: 'hitting',
+      label: 'Hitting',
+      color: '#4ADE80',
+      bars: [
+        {
+          key: 'hit_mechanics',
+          label: 'Mechanics',
+          score: null,
+          subMetrics: [
+            { key: 'connection', label: 'Connection' },
+            { key: 'path', label: 'Path' },
+            { key: 'lower_half', label: 'Lower Half' },
+            { key: 'breaks', label: 'Breaks' },
+          ],
+        },
+        {
+          key: 'hit_consistency',
+          label: 'Consistency',
+          score: null,
+          subMetrics: [
+            { key: 'barrel_pct', label: 'Barrel %' },
+            { key: 'squared_up_pct', label: 'Squared Up %' },
+            { key: 'avg_to_max_ev', label: 'Avg to Max EV' },
+            { key: 'whiff_pct', label: 'Whiff %' },
+          ],
+        },
+        {
+          key: 'hit_swing_decision',
+          label: 'Swing Decision',
+          score: null,
+          subMetrics: [
+            { key: 'chase_pct', label: 'Chase %' },
+            { key: 'barrel_pct', label: 'Barrel %' },
+            { key: 'whiff_pct', label: 'Whiff %' },
+            { key: 'in_zone_swing_pct', label: 'In-Zone Swing %' },
+          ],
+        },
+      ],
+    });
+  }
+
+  // Pitching — any P in positions
+  if (isPitcher) {
+    sections.push({
+      key: 'pitching',
+      label: 'Pitching',
+      color: '#60A5FA',
+      bars: [
+        { key: 'pit_mechanics', label: 'Mechanics', score: null, subMetrics: [] },
+        { key: 'pit_movement', label: 'Movement', score: null, subMetrics: [] },
+        { key: 'pit_execution', label: 'Execution', score: null, subMetrics: [] },
+      ],
+    });
+  }
+
+  // Defense — position-aware content. Catchers get receiving/blocking/throwing,
+  // INF/OF get range/routes/hands. If both flags are present (rare), catcher
+  // wins because it's the more specialized role.
+  if (isCatcher) {
+    sections.push({
+      key: 'defense',
+      label: 'Defense',
+      color: '#F59E0B',
+      bars: [
+        {
+          key: 'def_receiving',
+          label: 'Receiving',
+          score: null,
+          subMetrics: [
+            { key: 'recv_path', label: 'Path' },
+            { key: 'recv_turn', label: 'Turn' },
+            { key: 'recv_accuracy', label: 'Accuracy' },
+            { key: 'recv_speed', label: 'Speed' },
+          ],
+        },
+        {
+          key: 'def_blocking',
+          label: 'Blocking',
+          score: null,
+          subMetrics: [
+            { key: 'blk_range', label: 'Range' },
+            { key: 'blk_accuracy', label: 'Accuracy' },
+            { key: 'blk_decision', label: 'Decision Making' },
+          ],
+        },
+        {
+          key: 'def_throwing',
+          label: 'Throwing',
+          score: null,
+          subMetrics: [
+            { key: 'thr_transfer', label: 'Transfer' },
+            { key: 'thr_footwork', label: 'Footwork' },
+            { key: 'thr_arm', label: 'Arm Strength' },
+            { key: 'thr_accuracy', label: 'Accuracy' },
+          ],
+        },
+      ],
+    });
+  } else if (isInfielder || isOutfielder) {
+    sections.push({
+      key: 'defense',
+      label: 'Defense',
+      color: '#F59E0B',
+      bars: [
+        { key: 'def_range', label: 'Range', score: null, subMetrics: [] },
+        { key: 'def_routes', label: 'Routes', score: null, subMetrics: [] },
+        { key: 'def_hands', label: 'Hands', score: null, subMetrics: [] },
+      ],
+    });
+  }
+
+  // Vision — same trigger as hitting
+  if (hasNonPitcher) {
+    sections.push({
+      key: 'vision',
+      label: 'Vision',
+      color: '#A78BFA',
+      bars: [
+        { key: 'vis_reaction', label: 'Reaction Time', score: null, subMetrics: [] },
+        { key: 'vis_tracking', label: 'Tracking', score: null, subMetrics: [] },
+        { key: 'vis_decision', label: 'Decision Making', score: null, subMetrics: [] },
+      ],
+    });
+  }
+
+  // S&C — always
+  sections.push({
+    key: 'strength',
+    label: 'S & C',
+    color: '#14B8A6',
+    bars: [
+      { key: 'sc_speed', label: 'Speed', score: null, subMetrics: [] },
+      { key: 'sc_power', label: 'Power', score: null, subMetrics: [] },
+      { key: 'sc_endurance', label: 'Endurance', score: null, subMetrics: [] },
+    ],
+  });
+
+  // Demo overlay — populate Cole Anderson / Mason Brown with realistic
+  // fake scores so the bar chart visually renders before the real
+  // scoring pipeline is wired. Deterministic + name-keyed; goes away
+  // the moment we start deriving scores from reports.
+  applyDemoScores(player, sections);
+
+  // Overall — average of every bar score that is populated.
+  const bars = sections.flatMap((s) => s.bars.map((b) => b.score));
+  const scored = bars.filter((v): v is number => v !== null);
+  const overall = scored.length > 0
+    ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length)
+    : null;
+
+  return { sections, overall };
+}
+
+/* Demo-only data. Keyed by "first last" (lowercased). Bar scores are
+   on the 20-80 scouting scale. Sub-metric grades follow the same
+   scale. When the real reports pipeline is in place this overlay can
+   be deleted without touching the rest of the function. */
+type DemoProfile = {
+  bars: Record<string, number>;
+  subs?: Record<string, Record<string, number>>;
+};
+
+const DEMO_PROFILES: Record<string, DemoProfile> = {
+  'cole anderson': {
+    // Strong hitter, solid defender, average vision, good athlete.
+    bars: {
+      hit_mechanics: 65,
+      hit_consistency: 60,
+      hit_swing_decision: 55,
+      def_receiving: 55,
+      def_blocking: 50,
+      def_throwing: 60,
+      def_range: 55,
+      def_routes: 50,
+      def_hands: 60,
+      vis_reaction: 50,
+      vis_tracking: 55,
+      vis_decision: 50,
+      sc_speed: 55,
+      sc_power: 65,
+      sc_endurance: 55,
+    },
+    subs: {
+      hit_mechanics: { connection: 65, path: 70, lower_half: 60, breaks: 60 },
+      hit_consistency: { barrel_pct: 60, squared_up_pct: 65, avg_to_max_ev: 55, whiff_pct: 55 },
+      hit_swing_decision: { chase_pct: 50, barrel_pct: 60, whiff_pct: 55, in_zone_swing_pct: 60 },
+      def_receiving: { recv_path: 55, recv_turn: 50, recv_accuracy: 60, recv_speed: 55 },
+      def_blocking: { blk_range: 50, blk_accuracy: 55, blk_decision: 50 },
+      def_throwing: { thr_transfer: 60, thr_footwork: 55, thr_arm: 65, thr_accuracy: 60 },
+    },
+  },
+  'mason brown': {
+    // Elite pitcher, strong S&C, still hits a little.
+    bars: {
+      hit_mechanics: 45,
+      hit_consistency: 40,
+      hit_swing_decision: 45,
+      pit_mechanics: 70,
+      pit_movement: 75,
+      pit_execution: 65,
+      sc_speed: 60,
+      sc_power: 70,
+      sc_endurance: 65,
+      vis_reaction: 55,
+      vis_tracking: 50,
+      vis_decision: 55,
+    },
+    subs: {
+      hit_mechanics: { connection: 45, path: 45, lower_half: 50, breaks: 40 },
+      hit_consistency: { barrel_pct: 40, squared_up_pct: 45, avg_to_max_ev: 40, whiff_pct: 35 },
+      hit_swing_decision: { chase_pct: 45, barrel_pct: 40, whiff_pct: 45, in_zone_swing_pct: 50 },
+    },
+  },
+};
+
+function applyDemoScores(
+  player: { firstName?: string | null; lastName?: string | null },
+  sections: AggregateSection[],
+): void {
+  const name = `${player.firstName || ''} ${player.lastName || ''}`.trim().toLowerCase();
+  const profile = DEMO_PROFILES[name];
+  if (!profile) return;
+
+  for (const section of sections) {
+    for (const bar of section.bars) {
+      const s = profile.bars[bar.key];
+      if (typeof s === 'number') bar.score = s;
+      const subMap = profile.subs?.[bar.key];
+      if (subMap) {
+        for (const sub of bar.subMetrics) {
+          const g = subMap[sub.key];
+          if (typeof g === 'number') sub.grade = g;
+        }
+      }
+    }
+  }
+}

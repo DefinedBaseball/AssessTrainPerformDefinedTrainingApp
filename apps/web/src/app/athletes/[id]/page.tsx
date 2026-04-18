@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -20,7 +20,7 @@ import { VisionTab } from './tabs/VisionTab';
 import { StrengthConditioningTab } from './tabs/StrengthConditioningTab';
 
 import { ReportModal } from './ReportModal';
-import { formatHeight, getAge } from './helpers';
+import { formatHeight, getAge, computeAggregateScores, scoreColor } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
@@ -137,6 +137,41 @@ export default function PlayerProfilePage() {
     });
   }, [user, id, refreshKey]);
 
+  /* ── Aggregate score (hero "Player Score" bubble) ── */
+  const aggregate = useMemo(() => {
+    if (!player) return null;
+    return computeAggregateScores(player, reports, topMetrics);
+  }, [player, reports, topMetrics]);
+
+  /* ── Visible tabs (position- and report-driven) ── */
+  const visibleTabs = useMemo(() => {
+    if (!player) return TABS;
+    const positions = (player.positions || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const hasNonPitcher = positions.some((p) => p !== 'P');
+    const isPitcher = positions.includes('P');
+    const hasDefenseReport = reports.some((r) =>
+      r.reportType === 'INFIELD' || r.reportType === 'OUTFIELD' || r.reportType === 'CATCHING',
+    );
+
+    return TABS.filter((t) => {
+      if (t.key === 'summary') return true;
+      if (t.key === 'hitting') return hasNonPitcher;
+      if (t.key === 'pitching') return isPitcher;
+      if (t.key === 'defense') return hasNonPitcher && hasDefenseReport;
+      return true; // vision, strength
+    });
+  }, [player, reports]);
+
+  // If the current tab is filtered out (e.g. positions changed), fall back to Summary.
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.key === activeTab)) {
+      setActiveTab('summary');
+    }
+  }, [visibleTabs, activeTab]);
+
   /* ── Guards ── */
   if (authLoading || !user) return null;
   if (loading) return <div className={styles.loading}>Loading player profile...</div>;
@@ -161,26 +196,44 @@ export default function PlayerProfilePage() {
         <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
       )}
 
+      {/* ── Tab Bar (above player name bubble) ── */}
+      <TabBar tabs={visibleTabs} activeKey={activeTab} onTabChange={setActiveTab} />
+
       {/* ── Hero Section (compact — name + tabs only) ── */}
       <div className={styles.heroOuter}>
-        <div className={styles.heroEyebrow}>SUMMER PRO ASSESSMENT</div>
+        {isCoach && (
+          <div className={styles.heroEyebrowRow}>
+            <button
+              type="button"
+              className={styles.newReportBtn}
+              onClick={() => setShowReportModal(true)}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New Report
+            </button>
+          </div>
+        )}
 
         {/* Hero layout: left column (name + stats + info row) | right column (commitment) */}
-        <div className={styles.heroTopRow}>
+        <div className={`${styles.heroTopRow}${activeTab !== 'summary' ? ` ${styles.heroTopRowCompact}` : ''}`}>
 
           {/* Left: single big player card */}
-          <div className={styles.playerCard}>
+          <div className={`${styles.playerCard}${activeTab !== 'summary' ? ` ${styles.playerCardCompact}` : ''}`}>
             {/* Name row with accent bar */}
             <div className={styles.nameRow}>
               <div className={styles.nameAccent} aria-hidden="true" />
               <h1 className={styles.heroName}>{player.firstName} {player.lastName}</h1>
             </div>
 
+            {activeTab === 'summary' && (
+            <>
             {/* Divider */}
             <div className={styles.cardDivider} />
 
-            {/* Row 1: Position, Height, Weight, Bats, Throws */}
-            <div className={`${styles.cardStatRow} ${styles.cardStatRowPhysical}`}>
+            {/* Single stat row: Position / Height / Weight / Bats/Throws / Grad Year / Age / High School */}
+            <div className={`${styles.cardStatRow} ${styles.cardStatRowProfile}`}>
               <div className={styles.cardStat}>
                 <span className={styles.cardStatLabel}>Position</span>
                 <span className={styles.cardStatValue}>{player.positions || '—'}</span>
@@ -194,17 +247,11 @@ export default function PlayerProfilePage() {
                 <span className={styles.cardStatValue}>{player.weightLbs ? `${player.weightLbs}` : '—'}</span>
               </div>
               <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Bats</span>
-                <span className={styles.cardStatValue}>{player.bats || '—'}</span>
+                <span className={styles.cardStatLabel}>Bats/Throws</span>
+                <span className={styles.cardStatValue}>
+                  {(player.bats || '—')}/{(player.throws || '—')}
+                </span>
               </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Throws</span>
-                <span className={styles.cardStatValue}>{player.throws || '—'}</span>
-              </div>
-            </div>
-
-            {/* Row 2: Grad Year, Age, High School, Club Team, PBR National, PBR State, PBR Position, PG Score */}
-            <div className={`${styles.cardStatRow} ${styles.cardStatRowProfile}`}>
               <div className={styles.cardStat}>
                 <span className={styles.cardStatLabel}>Grad Year</span>
                 <span className={styles.cardStatValue}>{player.gradYear || '—'}</span>
@@ -217,73 +264,78 @@ export default function PlayerProfilePage() {
                 <span className={styles.cardStatLabel}>High School</span>
                 <span className={styles.cardStatValue}>{player.highSchool || '—'}</span>
               </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Club Team</span>
-                <span className={styles.cardStatValue}>{player.clubTeam || '—'}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>PBR National</span>
-                <span className={styles.cardStatValue}>{player.pbrNational ? `#${player.pbrNational}` : '—'}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>PBR State</span>
-                <span className={styles.cardStatValue}>{player.pbrState ? `#${player.pbrState}` : '—'}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>PBR Position</span>
-                <span className={styles.cardStatValue}>{player.pbrPosition ? `#${player.pbrPosition}` : '—'}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>PG Score</span>
-                <span className={styles.cardStatValue}>{player.pgScore || '—'}</span>
-              </div>
             </div>
-          </div>
-
-          {/* Right: college commitment */}
-          <div className={`${styles.commitBox}${player.collegeCommit ? ` ${styles.commitBoxCommitted}` : ''}`}>
-            <svg
-              className={styles.commitIcon}
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M22 10L12 4 2 10l10 6 10-6z" />
-              <path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5" />
-              <path d="M22 10v6" />
-            </svg>
-            <div className={styles.commitLabel}>College Commitment</div>
-            {player.collegeCommit ? (
-              <div className={styles.commitName}>{player.collegeCommit}</div>
-            ) : (
-              <div className={styles.commitNone}>Uncommitted</div>
+            </>
             )}
           </div>
 
+          {/* Middle: player score */}
+          <div className={styles.scoreBox}>
+            <div className={styles.scoreLabel}>Player Score</div>
+            <div className={styles.scoreValueRow}>
+              <span
+                className={styles.scoreValue}
+                style={
+                  aggregate?.overall != null
+                    ? { color: scoreColor(aggregate.overall) }
+                    : undefined
+                }
+              >
+                {aggregate?.overall ?? '—'}
+              </span>
+              <span className={styles.scoreMax}>/80</span>
+            </div>
+            <div className={styles.scoreSub}>
+              {aggregate?.overall != null ? '20–80 Scale' : 'Not Scored'}
+            </div>
+          </div>
+
+          {/* Right: college commitment — falls back to club team when uncommitted */}
+          {(() => {
+            const committed = Boolean(player.collegeCommit);
+            const showingClub = !committed && Boolean(player.clubTeam);
+            return (
+              <div className={`${styles.commitBox}${committed ? ` ${styles.commitBoxCommitted}` : ''}${showingClub ? ` ${styles.commitBoxClub}` : ''}`}>
+                {committed ? (
+                  <svg
+                    className={styles.commitIcon}
+                    width="22" height="22" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="1.6"
+                    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                  >
+                    <path d="M22 10L12 4 2 10l10 6 10-6z" />
+                    <path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5" />
+                    <path d="M22 10v6" />
+                  </svg>
+                ) : (
+                  <svg
+                    className={styles.commitIcon}
+                    width="22" height="22" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="1.6"
+                    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                  >
+                    <path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2" />
+                    <circle cx="10" cy="7" r="3" />
+                    <path d="M21 21v-2a4 4 0 00-3-3.87" />
+                    <path d="M17 3.13A4 4 0 0117 11" />
+                  </svg>
+                )}
+                <div className={styles.commitLabel}>
+                  {committed ? 'College Commitment' : showingClub ? 'Club Team' : 'College Commitment'}
+                </div>
+                {committed ? (
+                  <div className={styles.commitName}>{player.collegeCommit}</div>
+                ) : showingClub ? (
+                  <div className={styles.commitName}>{player.clubTeam}</div>
+                ) : (
+                  <div className={styles.commitNone}>Uncommitted</div>
+                )}
+              </div>
+            );
+          })()}
+
         </div>
-
-        {isCoach && (
-          <button
-            type="button"
-            className={styles.newReportBtn}
-            onClick={() => setShowReportModal(true)}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New Report
-          </button>
-        )}
       </div>
-
-      {/* ── Tab Bar (directly under name) ── */}
-      <TabBar tabs={TABS} activeKey={activeTab} onTabChange={setActiveTab} />
 
       {/* ── Content ── */}
       <div className={styles.contentWrap}>

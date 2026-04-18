@@ -9,9 +9,6 @@ import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
 import styles from './page.module.css';
 
-/* ── Player Profile (inline) ── */
-import PlayerProfilePage from './athletes/[id]/page';
-
 /* ── Helper: format relative time ── */
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -216,17 +213,27 @@ export default function DashboardPage() {
 
   if (isLoading || !user) return null;
 
-  /* ── Player view: show their own profile ── */
+  /* ── Player Dashboard ── */
   if (!isCoach && user.playerId) {
     return (
       <div>
-        {/* Weekly Schedule Strip */}
-        <div style={{ padding: '24px 24px 0' }}>
-          <WeeklyScheduleStrip weekDays={weekDays} drillsByDate={drillsByDate} />
+        {/* ── Hero ── */}
+        <div className={styles.heroOuter}>
+          <div className={styles.hero}>
+            <div className={styles.heroEyebrow}>Player Dashboard</div>
+            <h1 className={styles.heroTitle}>Train. Track. Improve.</h1>
+            <p className={styles.heroSub}>
+              Your weekly schedule and the latest from your coaches.
+            </p>
+          </div>
         </div>
 
-        {/* Announcement Feed */}
-        <div style={{ padding: '24px' }}>
+        {/* ── Content ── */}
+        <div className={styles.content}>
+          {/* Weekly Schedule replaces stats grid */}
+          <WeeklyScheduleStrip weekDays={weekDays} drillsByDate={drillsByDate} />
+
+          {/* Announcement Feed (read-only) */}
           <AnnouncementFeed
             posts={posts}
             isCoach={false}
@@ -234,9 +241,6 @@ export default function DashboardPage() {
             onEdit={() => {}}
           />
         </div>
-
-        {/* Player Profile */}
-        <PlayerProfilePage />
       </div>
     );
   }

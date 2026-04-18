@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { SwingBattedBallTab } from './SwingBattedBallTab';
 import { PitchRecognitionTab } from './PitchRecognitionTab';
-import { DownloadPdfButton } from '@/components/assessment';
+import { DownloadPdfButton, TabBarActions } from '@/components/assessment';
 import { generateHittingPdf } from '@/lib/pdf';
 import type { TabProps } from '../helpers';
 
@@ -19,13 +19,13 @@ export function HittingTab(props: TabProps) {
 
   return (
     <>
-      {/* ── Download Button ── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+      {/* ── Download Button (portaled into TabBar) ── */}
+      <TabBarActions>
         <DownloadPdfButton
           label="Download Hitting PDF"
           onDownload={() => generateHittingPdf(props.player, props.reports, props.topMetrics)}
         />
-      </div>
+      </TabBarActions>
 
       {/* ── Sub-tab bar ── */}
       <div style={{

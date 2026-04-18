@@ -1,85 +1,122 @@
 .container {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  position: relative;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  padding: 20px;
+  padding: 22px;
+  box-shadow: var(--shadow-card-hi);
+  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  overflow: hidden;
+}
+.container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent);
+  pointer-events: none;
+}
+.container:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-bright);
 }
 
 .unit {
-  font-size: 11px;
-  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.14em;
+  margin-top: 3px;
 }
 
 .statsRow {
   display: flex;
-  gap: 16px;
+  gap: 18px;
 }
 
 .stat {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 1px;
+  gap: 3px;
 }
 
 .statValue {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--text);
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+  line-height: 1;
 }
 
 .statLabel {
+  font-family: 'DM Mono', monospace;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.16em;
 }
 
 .chartWrap {
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .tooltip {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 8px 12px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .tooltipValue {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--accent);
+  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
 }
 
 .tooltipValue span {
-  font-size: 11px;
-  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
   color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-left: 4px;
 }
 
 .tooltipDate {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 2px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  letter-spacing: 0.04em;
 }
 
 .empty {

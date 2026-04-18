@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Area, AreaChart, ReferenceLine,
   ScatterChart, Scatter, ZAxis, Legend, Cell,
+  BarChart, Bar, LabelList,
 } from 'recharts';
 import {
   SectionHeader, Section,
@@ -21,6 +22,9 @@ import {
   formatHeight, getAge,
   type ReportSummary,
 } from '../helpers';
+import { CustomCharts } from '@/components/CustomCharts';
+import { TabBarActions } from '@/components/assessment';
+import VideoThumbnail from '@/components/VideoThumbnail';
 
 /* ═══════════════════════════════════════════
    POSITION DETECTION
@@ -807,789 +811,407 @@ const VISION_METRICS = [
   { key: 'vizual_edge_multi_object_tracking', label: 'Multi-Object Tracking' },
 ];
 
-function scoreColor(score: number): string {
-  if (score >= 80) return '#4ADE80';
-  if (score >= 60) return '#FBBF24';
-  if (score >= 40) return '#F97316';
-  return '#F87171';
-}
+// scoreColor moved to helpers.ts so the hero Player Score bubble
+// can share the same band logic as the per-section summary scores.
 
 /* ═══════════════════════════════════════════
-   MAIN COMPONENT
+   MAIN COMPONENT — aggregate-score layout
    ═══════════════════════════════════════════ */
 
+import { computeAggregateScores, scoreColor, type AggregateBar, type AggregateSection } from '../helpers';
+
 export function PlayerSummaryTab({
-  player, topMetrics, progressData, videos, reports, isCoach, onRefresh,
+  player, topMetrics, reports,
 }: TabProps) {
-  const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
+  const aggregate = useMemo(
+    () => computeAggregateScores(player, reports, topMetrics),
+    [player, reports, topMetrics],
+  );
 
-  // Position detection
-  const pos = useMemo(() => parsePositions(player.positions), [player.positions]);
+  // Flat list of every populated (score != null) bar, in visual order.
+  // Drives both the auto-cycle and the click-to-pin behavior.
+  const populatedBars = useMemo(() => {
+    const result: Array<{ section: AggregateSection; bar: AggregateBar }> = [];
+    for (const s of aggregate.sections) {
+      for (const b of s.bars) {
+        if (b.score !== null) result.push({ section: s, bar: b });
+      }
+    }
+    return result;
+  }, [aggregate]);
 
-  // TrackMan data for pitchers
-  const [pitches, setPitches] = useState<api.TrackmanPitch[]>([]);
+  // The currently-highlighted bar is derived from selectedKey; that key
+  // is advanced every 15s by the interval, OR overridden immediately
+  // when the athlete clicks a bar (which also flips autoCycle off).
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [autoCycle, setAutoCycle] = useState(true);
+
+  const selected = useMemo(() => {
+    if (populatedBars.length === 0) return null;
+    const hit = populatedBars.find((p) => p.bar.key === selectedKey);
+    return hit ?? populatedBars[0];
+  }, [populatedBars, selectedKey]);
+
+  // Auto-cycle — advances to the next populated bar every 15 seconds,
+  // loops back to the start. Disabled permanently once the user clicks.
   useEffect(() => {
-    if (pos.isPitcher && player.id) {
-      api.getTrackmanPitches(player.id).then(setPitches).catch(() => {});
-    }
-  }, [pos.isPitcher, player.id]);
+    if (!autoCycle || populatedBars.length <= 1) return;
+    const id = setInterval(() => {
+      setSelectedKey((cur) => {
+        const idx = populatedBars.findIndex((p) => p.bar.key === cur);
+        const next = populatedBars[(idx + 1) % populatedBars.length];
+        return next.bar.key;
+      });
+    }, 15000);
+    return () => clearInterval(id);
+  }, [autoCycle, populatedBars]);
 
-  // Report-derived summaries
-  const catchingSummary = useMemo(() => pos.isCatcher ? extractCatchingSummary(reports) : null, [reports, pos.isCatcher]);
-  const infieldSummary = useMemo(() => pos.isInfielder ? extractInfieldSummary(reports) : null, [reports, pos.isInfielder]);
-  const outfieldSummary = useMemo(() => pos.isOutfielder ? extractOutfieldSummary(reports) : null, [reports, pos.isOutfielder]);
+  function pinSelection(barKey: string): void {
+    setAutoCycle(false);
+    setSelectedKey(barKey);
+  }
 
-  // Pitcher arsenal
-  const arsenal = useMemo(() => pos.isPitcher ? buildPitchArsenal(pitches) : [], [pitches, pos.isPitcher]);
-
-  // Pitcher velocity progress (group pitches by type + date for growth chart)
-  const pitchVeloProgress = useMemo(() => {
-    if (!pos.isPitcher || pitches.length === 0) return [];
-    const groups: Record<string, Record<string, number[]>> = {};
-    for (const p of pitches) {
-      const type = p.pitchType || 'Unknown';
-      const date = p.recordedAt.slice(0, 10);
-      const velo = p.relSpeed ?? p.velocity;
-      if (velo <= 0) continue;
-      if (!groups[type]) groups[type] = {};
-      if (!groups[type][date]) groups[type][date] = [];
-      groups[type][date].push(velo);
-    }
-    return Object.entries(groups).map(([type, dateMap]) => ({
-      type,
-      data: Object.entries(dateMap)
-        .map(([date, velos]) => ({ date, max: Math.max(...velos) }))
-        .sort((a, b) => a.date.localeCompare(b.date)),
-    }));
-  }, [pitches, pos.isPitcher]);
-
-  // Most recent session pitches for movement plot
-  const recentSessionPitches = useMemo(() => {
-    if (pitches.length === 0) return [];
-    const sortedByDate = [...pitches].sort(
-      (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
-    );
-    const latestDate = sortedByDate[0].recordedAt.slice(0, 10);
-    return sortedByDate.filter(p => p.recordedAt.slice(0, 10) === latestDate);
-  }, [pitches]);
-
-  // First session pitches for movement plot comparison
-  const firstSessionPitches = useMemo(() => {
-    if (pitches.length === 0) return [];
-    const sortedByDate = [...pitches].sort(
-      (a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime()
-    );
-    const firstDate = sortedByDate[0].recordedAt.slice(0, 10);
-    return sortedByDate.filter(p => p.recordedAt.slice(0, 10) === firstDate);
-  }, [pitches]);
-
-  // Helper: get most recent session avg from progress data
-  const getLatestAvg = (key: string): number | null => {
-    const d = progressData[key];
-    if (!d || d.length === 0) return null;
-    return d[d.length - 1].value;
-  };
-
-  // Vision metrics
-  const edgeScore = topMetrics['vizual_edge_overall'];
-  const visionScores = VISION_METRICS
-    .map(vm => ({ ...vm, metric: topMetrics[vm.key] }))
-    .filter(vm => vm.metric);
-
-  const hasVisionData = !!edgeScore || visionScores.length > 0;
-
-  /* ─────────────────────────────────────
-     RENDER
-     ───────────────────────────────────── */
+  // Per-section chart data + rolled-up section averages.
+  const sectionCharts = useMemo(() => {
+    return aggregate.sections.map((s) => {
+      const rows = s.bars.map((b) => ({
+        key: b.key,
+        label: b.label,
+        // Recharts renders 0-height bars as invisible. Use 20 (chart floor)
+        // when the score is null so the column still gets a clickable hit
+        // target and a placeholder silhouette. We dim it in <Cell>.
+        score: b.score ?? 20,
+        realScore: b.score,
+      }));
+      const scored = s.bars
+        .map((b) => b.score)
+        .filter((v): v is number => v !== null);
+      const avg = scored.length > 0
+        ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length)
+        : null;
+      return { section: s, rows, avg };
+    });
+  }, [aggregate]);
 
   return (
     <>
-      {/* ── Report Selector + Download ── */}
-      <div className={aStyles.reportSelectorRow}>
-        <ReportSelector
-          reports={reports}
-          reportTypes={REPORT_TYPES}
-          label="Player Summary"
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-        />
+      {/* ── Download (portaled into TabBar) ── */}
+      <TabBarActions>
         <DownloadPdfButton
-          label="Summary PDF"
+          label="Download PDF"
           onDownload={() => generateSummaryPdf(player, reports, topMetrics)}
         />
+      </TabBarActions>
+
+      {/* ── Per-section bar charts ── */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'stretch',
+          marginTop: 4,
+          marginBottom: 20,
+        }}
+      >
+        {sectionCharts.map(({ section, rows, avg }) => (
+          <div
+            key={section.key}
+            style={{
+              flex: rows.length,
+              background: 'var(--card-elev)',
+              border: '1px solid var(--border)',
+              borderTop: `3px solid ${section.color}`,
+              borderRadius: 12,
+              padding: '12px 10px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: 0,
+            }}
+          >
+            {/* Section header: label + overall section score */}
+            <div
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px 8px',
+                borderBottom: '1px solid var(--border)',
+                marginBottom: 8,
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: section.color,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'center',
+                }}
+              >
+                {section.label}
+              </div>
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 4,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 800,
+                    color: avg == null ? 'var(--text-muted)' : scoreColor(avg),
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {avg ?? '—'}
+                </span>
+                <span style={{ fontSize: 13, color: 'var(--faint)' }}>/ 80</span>
+              </div>
+            </div>
+
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={rows} margin={{ top: 28, right: 6, bottom: 4, left: 0 }}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.06)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: 'var(--text-muted)', fontSize: 10, fontWeight: 600 }}
+                  axisLine={{ stroke: 'var(--border)' }}
+                  tickLine={false}
+                  interval={0}
+                />
+                <YAxis
+                  domain={[20, 80]}
+                  ticks={[20, 30, 40, 50, 60, 70, 80]}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  axisLine={{ stroke: 'var(--border)' }}
+                  tickLine={false}
+                  width={30}
+                />
+                <ReferenceLine y={50} stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" />
+                <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                  contentStyle={{
+                    background: 'var(--card-elev)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(_v: any, _n: any, item: any) => {
+                    const row = item?.payload;
+                    return [row?.realScore ?? '—', `${section.label} · ${row?.label ?? ''}`];
+                  }}
+                />
+                <Bar
+                  dataKey="score"
+                  radius={[6, 6, 0, 0]}
+                  onClick={(data: any) => {
+                    if (data?.payload?.key) pinSelection(data.payload.key);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {rows.map((row) => (
+                    <Cell
+                      key={row.key}
+                      fill={row.realScore == null ? '#6B7280' : scoreColor(row.realScore)}
+                      fillOpacity={row.realScore == null ? 0.25 : 1}
+                    />
+                  ))}
+                  <LabelList
+                    dataKey="realScore"
+                    position="top"
+                    style={{ fill: 'var(--text)', fontSize: 15, fontWeight: 700 }}
+                    formatter={(v: any) => (v == null ? '—' : v)}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
       </div>
 
-      {/* ══════════════════════════════════════
-         KEY METRICS: HITTING
-         ══════════════════════════════════════ */}
-      {pos.isHitter && (
-        <Section>
-          <SectionHeader icon="⚾" iconColor="gold" title="Hitting" subtitle="Best recorded & most recent session" />
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: 12,
-          }}>
-            <DualValueCard
-              label="Exit Velocity"
-              maxVal={topMetrics['max_exit_velo']?.value ?? null}
-              avgVal={getLatestAvg('avg_exit_velo')}
-              avgLabel="Avg (last session)"
-              unit="mph"
-            />
-            <DualValueCard
-              label="Bat Speed"
-              maxVal={topMetrics['max_bat_speed']?.value ?? null}
-              avgVal={getLatestAvg('avg_bat_speed')}
-              avgLabel="Avg (last session)"
-              unit="mph"
-            />
-            <DualValueCard
-              label="Launch Angle"
-              maxVal={topMetrics['launch_angle']?.value ?? null}
-              maxLabel="avg"
-              avgVal={topMetrics['attack_angle']?.value ?? null}
-              avgLabel="Attack Angle"
-              unit="°"
-            />
-            <DualValueCard
-              label="Distance"
-              maxVal={topMetrics['distance']?.value ?? null}
-              avgVal={getLatestAvg('distance')}
-              avgLabel="Avg (last session)"
-              unit="ft"
-            />
-          </div>
-        </Section>
-      )}
+      <div
+        style={{
+          display: 'flex',
+          gap: 14,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          paddingBottom: 16,
+          fontSize: 11,
+          color: 'var(--text-muted)',
+        }}
+      >
+        <span>Click any bar for details · 20–80 scouting scale · Faded bars have no data yet</span>
+      </div>
 
-      {/* ══════════════════════════════════════
-         KEY METRICS: PITCHING
-         ══════════════════════════════════════ */}
-      {pos.isPitcher && (
-        <Section>
-          <SectionHeader icon="⚾" iconColor="red" title="Pitching Arsenal" subtitle="Most recent TrackMan session" />
-          {arsenal.length > 0 ? (
-            <div style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              overflow: 'hidden',
-            }}>
-              {/* Table Header */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '130px 80px 80px 80px 80px',
-                gap: 8,
-                padding: '10px 16px',
-                borderBottom: '1px solid var(--border)',
-                fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.08em', color: 'var(--text-muted)',
-              }}>
-                <span>Pitch</span>
-                <span style={{ textAlign: 'center' }}>Max Velo</span>
-                <span style={{ textAlign: 'center' }}>Avg Velo</span>
-                <span style={{ textAlign: 'center' }}>H-Break</span>
-                <span style={{ textAlign: 'center' }}>IVB</span>
+      {/* ── Bar detail panel ── */}
+      {selected && (
+        <div
+          style={{
+            background: 'var(--card-elev)',
+            border: `1px solid ${selected.section.color}55`,
+            borderLeft: `4px solid ${selected.section.color}`,
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  color: selected.section.color,
+                  marginBottom: 4,
+                }}
+              >
+                {selected.section.label}
               </div>
-              {/* Rows */}
-              {arsenal.map(row => (
-                <div
-                  key={row.pitchType}
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                {selected.bar.label}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                Aggregate:{' '}
+                <span style={{ color: 'var(--text)', fontWeight: 700 }}>
+                  {selected.bar.score ?? '—'}
+                </span>
+                <span style={{ color: 'var(--faint)' }}> / 80</span>
+              </div>
+            </div>
+            {autoCycle && populatedBars.length > 1 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.04em',
+                }}
+                title="Cycling every 15s — click any bar to pin"
+              >
+                <span
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '130px 80px 80px 80px 80px',
-                    gap: 8,
-                    padding: '10px 16px',
-                    borderBottom: '1px solid var(--border)',
-                    alignItems: 'center',
+                    display: 'inline-block',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: selected.section.color,
+                    boxShadow: `0 0 6px ${selected.section.color}`,
                   }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: getPitchColor(row.pitchType), flexShrink: 0,
-                    }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                      {row.pitchType}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'var(--faint)' }}>({row.count})</span>
-                  </span>
-                  <span style={{
-                    fontSize: 15, fontWeight: 800, fontFamily: MONO,
-                    color: '#FFFFFF', textAlign: 'center',
-                  }}>
-                    {row.maxVelo.toFixed(1)}
-                  </span>
-                  <span style={{
-                    fontSize: 13, fontWeight: 600, fontFamily: MONO,
-                    color: 'var(--text-secondary)', textAlign: 'center',
-                  }}>
-                    {row.avgVelo.toFixed(1)}
-                  </span>
-                  <span style={{
-                    fontSize: 13, fontWeight: 600, fontFamily: MONO,
-                    color: 'var(--text-secondary)', textAlign: 'center',
-                  }}>
-                    {row.hBreak !== null ? `${row.hBreak.toFixed(1)}"` : '—'}
-                  </span>
-                  <span style={{
-                    fontSize: 13, fontWeight: 600, fontFamily: MONO,
-                    color: 'var(--text-secondary)', textAlign: 'center',
-                  }}>
-                    {row.ivBreak !== null ? `${row.ivBreak.toFixed(1)}"` : '—'}
-                  </span>
-                </div>
-              ))}
+                />
+                Auto · 15s
+              </div>
+            ) : (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--faint)',
+                  letterSpacing: '0.04em',
+                  padding: '4px 10px',
+                }}
+              >
+                Pinned
+              </div>
+            )}
+          </div>
+
+          {selected.bar.subMetrics.length === 0 ? (
+            <div
+              style={{
+                padding: 16,
+                textAlign: 'center',
+                color: 'var(--text-muted)',
+                fontSize: 13,
+                background: 'rgba(0,0,0,0.15)',
+                borderRadius: 8,
+              }}
+            >
+              Underlying metric breakdown will populate here once scoring logic is wired in.
             </div>
           ) : (
-            <div className={styles.emptyMsg}>
-              No TrackMan pitch data available.
-              <span className={styles.emptyHint}>
-                {isCoach ? 'Upload TrackMan CSV to populate pitching metrics.' : 'Ask your coach to upload pitch data.'}
-              </span>
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* ══════════════════════════════════════
-         KEY METRICS: DEFENSE — CATCHER
-         ══════════════════════════════════════ */}
-      {pos.isCatcher && catchingSummary && (
-        <Section>
-          <SectionHeader icon="🎯" iconColor="teal" title="Catching" subtitle="Best from all reports & most recent session" />
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: 12,
-          }}>
-            <DualValueCard
-              label="Pop Time"
-              maxVal={catchingSummary.popTime.best}
-              maxLabel="best"
-              avgVal={catchingSummary.popTime.avg}
-              avgLabel="Avg (last)"
-              unit="s"
-              higherBetter={false}
-            />
-            <DualValueCard
-              label="Exchange Time"
-              maxVal={catchingSummary.exchangeTime.best}
-              maxLabel="best"
-              avgVal={catchingSummary.exchangeTime.avg}
-              avgLabel="Avg (last)"
-              unit="s"
-              higherBetter={false}
-            />
-            <DualValueCard
-              label="Catcher Velocity"
-              maxVal={catchingSummary.catcherVelo.best}
-              avgVal={catchingSummary.catcherVelo.avg}
-              avgLabel="Avg (last)"
-              unit="mph"
-            />
-            <GradeBadge label="Overall Receiving" grade={catchingSummary.receivingOverall} />
-            <GradeBadge label="Overall Blocking" grade={catchingSummary.blockingOverall} />
-          </div>
-        </Section>
-      )}
-
-      {/* ══════════════════════════════════════
-         KEY METRICS: DEFENSE — INFIELD
-         ══════════════════════════════════════ */}
-      {pos.isInfielder && infieldSummary && (
-        <Section>
-          <SectionHeader icon="🧤" iconColor="gold" title="Infield" subtitle="Best from all reports & most recent session" />
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: 12,
-          }}>
-            <DualValueCard
-              label="Arm Strength"
-              maxVal={infieldSummary.armVelocity.best}
-              avgVal={infieldSummary.armVelocity.avg}
-              avgLabel="Avg (last)"
-              unit="mph"
-            />
-            <DualValueCard
-              label="Arm Accuracy"
-              maxVal={infieldSummary.armAccuracy.best}
-              avgVal={infieldSummary.armAccuracy.avg}
-              avgLabel="Avg (last)"
-              unit="%"
-            />
-            <GradeBadge label="Range / Footwork" grade={infieldSummary.rangeFootworkOverall} />
-            <GradeBadge label="Hands / Glove" grade={infieldSummary.handsGloveOverall} />
-          </div>
-        </Section>
-      )}
-
-      {/* ══════════════════════════════════════
-         KEY METRICS: DEFENSE — OUTFIELD
-         ══════════════════════════════════════ */}
-      {pos.isOutfielder && outfieldSummary && (
-        <Section>
-          <SectionHeader icon="🏃" iconColor="green" title="Outfield" subtitle="Best from all reports & most recent session" />
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: 12,
-          }}>
-            <DualValueCard
-              label="Arm Strength"
-              maxVal={outfieldSummary.armVelocity.best}
-              avgVal={outfieldSummary.armVelocity.avg}
-              avgLabel="Avg (last)"
-              unit="mph"
-            />
-            <DualValueCard
-              label="Arm Accuracy"
-              maxVal={outfieldSummary.armAccuracy.best}
-              avgVal={outfieldSummary.armAccuracy.avg}
-              avgLabel="Avg (last)"
-              unit="%"
-            />
-            <GradeBadge label="Routes" grade={outfieldSummary.routesScore} />
-            <GradeBadge label="Range" grade={outfieldSummary.rangeScore} />
-          </div>
-        </Section>
-      )}
-
-      {/* ══════════════════════════════════════
-         KEY METRICS: VISION
-         ══════════════════════════════════════ */}
-      {hasVisionData && (
-        <Section>
-          <SectionHeader icon="👁️" iconColor="teal" title="Vision" subtitle="Vizual Edge scores (1-100)" />
-
-          {/* Edge Score — prominent */}
-          {edgeScore && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 20,
-              padding: '20px 24px',
-              background: 'var(--surface)',
-              border: `1px solid ${scoreColor(edgeScore.value)}33`,
-              borderRadius: 12,
-              marginBottom: 16,
-            }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: 16,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: `${scoreColor(edgeScore.value)}18`,
-                border: `2px solid ${scoreColor(edgeScore.value)}`,
-              }}>
-                <span style={{
-                  fontSize: 26, fontWeight: 800, fontFamily: MONO,
-                  color: scoreColor(edgeScore.value),
-                }}>
-                  {edgeScore.value.toFixed(0)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: '0.08em', color: 'var(--text-muted)',
-                }}>
-                  Edge Score
-                </span>
-                <span style={{
-                  fontSize: 18, fontWeight: 800,
-                  color: scoreColor(edgeScore.value),
-                }}>
-                  {edgeScore.value.toFixed(0)} / 100
-                </span>
-                <span style={{ fontSize: 10, color: 'var(--faint)' }}>
-                  Overall visual performance
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Detailed scores table */}
-          {visionScores.length > 0 && (
-            <div style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              overflow: 'hidden',
-            }}>
-              <div style={{
+            <div
+              style={{
                 display: 'grid',
-                gridTemplateColumns: '1fr 70px 1fr',
-                gap: 8,
-                padding: '8px 16px',
-                borderBottom: '1px solid var(--border)',
-                fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.08em', color: 'var(--text-muted)',
-              }}>
-                <span>Metric</span>
-                <span style={{ textAlign: 'center' }}>Score</span>
-                <span>Rating</span>
-              </div>
-              {visionScores.map(({ key, label, metric }) => {
-                const val = metric!.value;
-                const pct = Math.min(val, 100);
-                return (
-                  <div key={key} style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 70px 1fr',
-                    gap: 8,
-                    padding: '8px 16px',
-                    borderBottom: '1px solid var(--border)',
-                    alignItems: 'center',
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
-                    <span style={{
-                      fontSize: 15, fontWeight: 800, fontFamily: MONO,
-                      color: scoreColor(val), textAlign: 'center',
-                    }}>
-                      {val.toFixed(0)}
-                    </span>
-                    <div style={{
-                      height: 6, borderRadius: 3, background: 'var(--border)',
-                      overflow: 'hidden', position: 'relative',
-                    }}>
-                      <div style={{
-                        position: 'absolute', top: 0, left: 0, height: '100%',
-                        width: `${pct}%`, borderRadius: 3,
-                        background: `linear-gradient(90deg, ${scoreColor(val)}88, ${scoreColor(val)})`,
-                      }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* ══════════════════════════════════════
-         KEY METRICS: STRENGTH & CONDITIONING
-         ══════════════════════════════════════ */}
-      <Section>
-        <SectionHeader icon="💪" iconColor="red" title="Strength & Conditioning" subtitle="VALD Performance data" />
-        {(() => {
-          const strengthKeys = [
-            'jump_height', 'broad_jump', 'sprint_60',
-            'squat_max', 'bench_max', 'deadlift_max',
-            'grip_strength_l', 'grip_strength_r', 'body_weight',
-          ];
-          const available = strengthKeys.filter(k => topMetrics[k]);
-
-          if (available.length === 0) {
-            return (
-              <div className={styles.emptyMsg}>
-                No strength & conditioning data available yet.
-                <span className={styles.emptyHint}>
-                  This section will populate with VALD performance data when available.
-                </span>
-              </div>
-            );
-          }
-
-          return (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-              gap: 12,
-            }}>
-              {available.map(key => {
-                const m = topMetrics[key];
-                return (
-                  <DualValueCard
-                    key={key}
-                    label={METRIC_LABELS[key] || key}
-                    maxVal={m.value}
-                    maxLabel=""
-                    avgVal={getLatestAvg(key)}
-                    avgLabel="Latest"
-                    unit={m.unit}
-                  />
-                );
-              })}
-            </div>
-          );
-        })()}
-      </Section>
-
-      {/* ══════════════════════════════════════
-         GROWTH CHARTS
-         ══════════════════════════════════════ */}
-
-      {/* ── Hitter Graphs ── */}
-      {pos.isHitter && (progressData['max_exit_velo'] || progressData['max_bat_speed']) && (
-        <Section>
-          <SectionHeader icon="📈" iconColor="gold" title="Hitting Growth" subtitle="Max values per session" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-            {progressData['max_exit_velo'] && (
-              <MetricChart
-                title="Max Exit Velocity"
-                unit="mph"
-                data={condenseToSessionMax(progressData['max_exit_velo'], 'max_exit_velo')}
-                color="#4A90D9"
-              />
-            )}
-            {progressData['max_bat_speed'] && (
-              <MetricChart
-                title="Max Bat Speed"
-                unit="mph"
-                data={condenseToSessionMax(progressData['max_bat_speed'], 'max_bat_speed')}
-                color="#E8AF34"
-              />
-            )}
-          </div>
-        </Section>
-      )}
-
-      {/* ── Pitcher Graphs ── */}
-      {pos.isPitcher && pitchVeloProgress.length > 0 && (
-        <Section>
-          <SectionHeader icon="📈" iconColor="red" title="Pitching Growth" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-            <PitchVelocityChart progressByType={pitchVeloProgress} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {firstSessionPitches.length > 0 && recentSessionPitches.length > 0 && firstSessionPitches[0].recordedAt.slice(0, 10) !== recentSessionPitches[0].recordedAt.slice(0, 10) ? (
-                <>
-                  <MovementPlot
-                    pitches={firstSessionPitches}
-                    title={`Initial Assessment (${new Date(firstSessionPitches[0].recordedAt).toLocaleDateString()})`}
-                  />
-                  <MovementPlot
-                    pitches={recentSessionPitches}
-                    title={`Most Recent (${new Date(recentSessionPitches[0].recordedAt).toLocaleDateString()})`}
-                  />
-                </>
-              ) : recentSessionPitches.length > 0 ? (
-                <MovementPlot
-                  pitches={recentSessionPitches}
-                  title={`Movement Plot (${new Date(recentSessionPitches[0].recordedAt).toLocaleDateString()})`}
-                />
-              ) : null}
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {/* ── Catcher Graphs ── */}
-      {pos.isCatcher && (progressData['pop_time'] || progressData['exchange_time'] || progressData['catcher_velo']) && (
-        <Section>
-          <SectionHeader icon="📈" iconColor="teal" title="Catching Growth" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-            {(progressData['pop_time'] || progressData['exchange_time']) && (
-              <DualMetricChart
-                title="Pop Time & Exchange Time"
-                subtitle="Best per assessment"
-                data1={condenseToSessionMax(progressData['pop_time'] || [], 'pop_time')}
-                data2={condenseToSessionMax(progressData['exchange_time'] || [], 'exchange_time')}
-                label1="Pop Time"
-                label2="Exchange"
-                color1="#EF4444"
-                color2="#F97316"
-                unit="s"
-              />
-            )}
-            {progressData['catcher_velo'] && (
-              <MetricChart
-                title="Catcher Arm Velocity"
-                unit="mph"
-                data={condenseToSessionMax(progressData['catcher_velo'], 'catcher_velo')}
-                color="#3B82F6"
-              />
-            )}
-          </div>
-        </Section>
-      )}
-
-      {/* ── Infield Graphs ── */}
-      {pos.isInfielder && progressData['infield_velo'] && (
-        <Section>
-          <SectionHeader icon="📈" iconColor="gold" title="Infield Growth" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, maxWidth: 600 }}>
-            <MetricChart
-              title="Max Infield Arm Velocity"
-              unit="mph"
-              data={condenseToSessionMax(progressData['infield_velo'], 'infield_velo')}
-              color="#FF9500"
-            />
-          </div>
-        </Section>
-      )}
-
-      {/* ── Outfield Graphs ── */}
-      {pos.isOutfielder && progressData['outfield_velo'] && (
-        <Section>
-          <SectionHeader icon="📈" iconColor="green" title="Outfield Growth" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, maxWidth: 600 }}>
-            <MetricChart
-              title="Max Outfield Arm Velocity"
-              unit="mph"
-              data={condenseToSessionMax(progressData['outfield_velo'], 'outfield_velo')}
-              color="#FF6B00"
-            />
-          </div>
-        </Section>
-      )}
-
-      {/* ── Vision Graphs ── */}
-      {progressData['vizual_edge_overall'] && (
-        <Section>
-          <SectionHeader icon="📈" iconColor="teal" title="Vision Growth" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, maxWidth: 600 }}>
-            <MetricChart
-              title="Edge Score"
-              unit="score"
-              data={condenseToSessionMax(progressData['vizual_edge_overall'], 'vizual_edge_overall')}
-              color="#06B6D4"
-            />
-          </div>
-        </Section>
-      )}
-
-      {/* ── VALD Graphs Placeholder ── */}
-      <Section>
-        <SectionHeader icon="📈" iconColor="red" title="Strength Growth" subtitle="VALD Performance trends" />
-        {(() => {
-          const valdKeys = ['jump_height', 'broad_jump', 'squat_max', 'bench_max', 'deadlift_max'];
-          const available = valdKeys.filter(k => progressData[k]);
-
-          if (available.length === 0) {
-            return (
-              <div className={styles.emptyMsg}>
-                No strength trend data available yet.
-                <span className={styles.emptyHint}>
-                  Strength growth charts will populate as VALD data is recorded over time.
-                </span>
-              </div>
-            );
-          }
-
-          return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-              {available.map(key => (
-                <MetricChart
-                  key={key}
-                  title={METRIC_LABELS[key] || key}
-                  unit={topMetrics[key]?.unit || ''}
-                  data={condenseToSessionMax(progressData[key], key)}
-                  color={CHART_COLORS[key] || '#AF52DE'}
-                />
-              ))}
-            </div>
-          );
-        })()}
-      </Section>
-
-      {/* ══════════════════════════════════════
-         REPORTS (COLLAPSIBLE)
-         ══════════════════════════════════════ */}
-      <Collapsible title="Reports" count={reports.length}>
-        {reports.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            No reports yet.
-          </div>
-        ) : (
-          <div>
-            {[...reports]
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .map(r => (
+                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                gap: 10,
+              }}
+            >
+              {selected.bar.subMetrics.map((sm) => (
                 <div
-                  key={r.id}
+                  key={sm.key}
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--border)',
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: '10px 12px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                      color: '#FFFFFF', letterSpacing: '0.5px',
-                      padding: '3px 8px', borderRadius: 4,
-                      background: 'rgba(255,255,255,0.08)',
-                      whiteSpace: 'nowrap', flexShrink: 0,
-                    }}>
-                      {r.reportType}
-                    </span>
-                    {r.notes && (
-                      <span style={{
-                        fontSize: 12, color: 'var(--text-muted)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {r.notes}
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: 'var(--text-muted)',
+                      marginBottom: 4,
+                    }}
+                  >
+                    {sm.label}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
+                    {sm.grade ?? sm.value ?? '—'}
+                    {sm.unit && (
+                      <span style={{ fontSize: 11, color: 'var(--faint)', marginLeft: 4 }}>
+                        {sm.unit}
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap', marginLeft: 12 }}>
-                    {new Date(r.createdAt).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                  </span>
                 </div>
               ))}
-          </div>
-        )}
-      </Collapsible>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* ══════════════════════════════════════
-         VIDEOS (COLLAPSIBLE)
-         ══════════════════════════════════════ */}
-      <Collapsible title="Videos" count={videos.length}>
-        {videos.length === 0 ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            No videos uploaded yet.
-          </div>
-        ) : (
-          <div>
-            {[...videos]
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .map(v => (
-                <div
-                  key={v.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--border)',
-                    cursor: v.originalUrl ? 'pointer' : 'default',
-                  }}
-                  onClick={() => {
-                    if (v.originalUrl) window.open(v.originalUrl, '_blank');
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                      color: '#FFFFFF', letterSpacing: '0.5px',
-                      padding: '3px 8px', borderRadius: 4,
-                      background: 'rgba(255,255,255,0.08)',
-                      whiteSpace: 'nowrap', flexShrink: 0,
-                    }}>
-                      {v.category}
-                    </span>
-                    <span style={{
-                      fontSize: 13, fontWeight: 600, color: 'var(--text)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {v.title}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--faint)', whiteSpace: 'nowrap', marginLeft: 12 }}>
-                    {new Date(v.createdAt).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                  </span>
-                </div>
-              ))}
-          </div>
-        )}
-      </Collapsible>
+      <CustomCharts section="OVERVIEW" playerId={player.id} />
     </>
   );
 }
+

@@ -60,6 +60,26 @@ model Player {
   posts              Post[]
 }
 
+// ─── Club Teams & Colleges (coach-curated lists) ─────────────────
+
+model ClubTeam {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  logoUrl    String?
+  websiteUrl String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model College {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  logoUrl    String?
+  websiteUrl String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 // ─── Metrics (Normalized from all vendors) ───────────────────────
 
 model Metric {
@@ -316,6 +336,40 @@ model CsvUpload {
   successRows  Int?
   errorDetails String?  // JSON error info
   createdAt    DateTime @default(now())
+}
+
+// ─── Custom Chart Configs (Coach-built analytics) ───────────────
+
+model ChartConfig {
+  id           String   @id @default(uuid())
+  createdById  String   // User.id (coach)
+  scope        String   @default("PRIVATE") // "PRIVATE" | "GLOBAL"
+  section      String   // "HITTING" | "PITCHING" | "DEFENSE" | "CATCHING" | "STRENGTH" | "OVERVIEW"
+  chartType    String   // "BAR" | "LINE" | "SCATTER" | "BUBBLE" | "PERCENT_INCREASE" | "STAT_BUBBLE"
+  title        String
+  dataSources  String   // JSON array: [{ source, metricType, label, color? }]
+  dateMode     String   @default("ALL_TIME") // "ALL_TIME" | "RANGE" | "LAST_N_DAYS"
+  dateFrom     String?  // ISO date when dateMode = "RANGE"
+  dateTo       String?  // ISO date when dateMode = "RANGE"
+  lastNDays    Int?     // when dateMode = "LAST_N_DAYS"
+  playerScope  String   @default("ALL") // "ALL" | "INDIVIDUAL" (mode)
+  playerIds    String?         // JSON array of player ids when playerScope = "INDIVIDUAL"
+  dataMode     String   @default("DATE_RANGE") // "DATE_RANGE" | "REPORTS"
+  reportIds    String?         // JSON array of report ids when dataMode = "REPORTS"
+  sortOrder    Int      @default(0)
+  // Advanced chart fields (optional, chartType-specific)
+  rollingWindow Int?            // ROLLING_AVG: window size (# of points)
+  rollingMode   String?         // ROLLING_AVG: "SMA" | "EMA"
+  targetMin     Float?          // TARGET_BAND: lower bound
+  targetMax     Float?          // TARGET_BAND: upper bound
+  pbDirection   String?         // PERSONAL_BEST: "MAX" | "MIN"
+  zoneGrid      String?         // STRIKE_ZONE_HEAT: "3x3" | "5x5"
+  zoneMetric    String?         // STRIKE_ZONE_HEAT: "COUNT" | "AVG" | "WHIFF"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([section, scope])
+  @@index([createdById])
 }
 
 // ─── Posts / Announcements Feed ─────────────────────────────────

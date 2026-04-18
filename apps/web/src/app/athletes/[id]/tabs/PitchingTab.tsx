@@ -11,6 +11,8 @@ import { TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds
 import * as api from '@/lib/api';
 import type { TrackmanPitch } from '@/lib/api';
 import { generatePitchingPdf } from '@/lib/pdf';
+import { CustomCharts } from '@/components/CustomCharts';
+import { TabBarActions } from '@/components/assessment';
 
 /* ── Pitch type colors ── */
 const PITCH_COLORS: Record<string, string> = {
@@ -739,8 +741,8 @@ export function PitchingTab({
 
   return (
     <>
-      {/* ── Report Selector + Download ── */}
-      <div className={aStyles.reportSelectorRow}>
+      {/* ── Report Selector + Download (portaled into TabBar) ── */}
+      <TabBarActions>
         <ReportSelector
           reports={reports}
           reportTypes={['PITCHING']}
@@ -754,7 +756,7 @@ export function PitchingTab({
           label="Download PDF"
           onDownload={() => generatePitchingPdf(player, reports)}
         />
-      </div>
+      </TabBarActions>
 
       {/* Loading */}
       {loading && (
@@ -775,9 +777,23 @@ export function PitchingTab({
         </Section>
       )}
 
-      {/* ── Break & Spin + Tilt Table (tight to arsenal) ── */}
+      {/* ── Movement Plot + Pitch Location (side by side, tight to arsenal) ── */}
       {hasPitchData && (
-        <div style={{ marginTop: -38, marginBottom: 48 }}>
+        <div style={{ marginTop: -28, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+            </div>
+            <div>
+              <PitchLocationPlot pitches={pitches} selected={selectedLocPitch} onSelect={setSelectedLocPitch} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Break & Spin + Tilt Table ── */}
+      {hasPitchData && (
+        <div style={{ marginBottom: 48 }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
             <BreakTable rows={arsenal} />
             <div style={{ marginTop: 20 }}>
@@ -785,22 +801,6 @@ export function PitchingTab({
             </div>
           </div>
         </div>
-      )}
-
-      {/* ── Movement Plot + Pitch Location (side by side) ── */}
-      {hasPitchData && (
-        <Section>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <SectionHeader icon="&#127744;" iconColor="teal" title="Movement Plot" />
-              <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
-            </div>
-            <div>
-              <SectionHeader icon="&#127919;" iconColor="red" title="Pitch Location" />
-              <PitchLocationPlot pitches={pitches} selected={selectedLocPitch} onSelect={setSelectedLocPitch} />
-            </div>
-          </div>
-        </Section>
       )}
 
 
@@ -870,6 +870,8 @@ export function PitchingTab({
           </Section>
         );
       })()}
+
+      <CustomCharts section="PITCHING" playerId={player.id} />
 
     </>
   );

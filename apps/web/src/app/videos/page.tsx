@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, VideoWithPlayer } from '@/lib/api';
+import VideoThumbnail from '@/components/VideoThumbnail';
 import styles from './page.module.css';
 
 /* ── Constants ── */
@@ -89,6 +90,7 @@ function VideoPlayerModal({
             ref={videoRef}
             className={styles.modalVideo}
             src={videoUrl}
+            poster={video.thumbnailUrl || undefined}
             controls
             autoPlay
             playsInline
@@ -381,9 +383,11 @@ function VideoCard({
     <div className={styles.videoCard} onClick={onPlay}>
       {/* Thumbnail */}
       <div className={styles.videoThumb}>
-        {video.thumbnailUrl ? (
-          <img src={video.thumbnailUrl} alt="" className={styles.videoThumbImg} />
-        ) : null}
+        <VideoThumbnail
+          thumbnailUrl={video.thumbnailUrl}
+          src={videoUrl || null}
+          className={styles.videoThumbImg}
+        />
         <div className={styles.playOverlay}>
           <div className={styles.playBtn}>▶</div>
         </div>
