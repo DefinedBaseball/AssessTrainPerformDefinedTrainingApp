@@ -1,0 +1,513 @@
+/* ════════════════════════════════════════════════
+   Player Summary Tab — ported from test-3, recolored
+   to match master's premium-graphite monochrome shell.
+   The bubble layout (domain bars / big score / focus
+   grid / hitting detail / decision matrix / compare +
+   trend) is kept intact; colors are remapped to the
+   master design tokens so the tab reads like the rest
+   of the master branch.
+   ════════════════════════════════════════════════ */
+
+.root {
+  /* Local palette — tuned to master's premium-graphite shell.
+     These vars live inside .root so they don't bleed into other
+     tabs or the global design system. */
+  --ps-bg:          var(--bg);
+  --ps-surface:     rgba(255, 255, 255, 0.025);
+  --ps-surface-2:   rgba(255, 255, 255, 0.04);
+  --ps-border:      var(--border-light);
+  --ps-border-soft: var(--border);
+  --ps-text:        var(--text);
+  --ps-muted:       var(--text-muted);
+  --ps-faint:       var(--faint);
+  --ps-green:       #4ADE80;
+  --ps-green-soft:  #86efac;
+  --ps-amber:       #F59E0B;
+  --ps-amber-soft:  #fcd34d;
+  --ps-purple:      #A78BFA;
+  --ps-purple-soft: #c4b5fd;
+  --ps-teal:        #14B8A6;
+  --ps-blue:        #60A5FA;
+  --ps-blue-soft:   #93c5fd;
+  --ps-good:        var(--green);
+  --ps-warn:        var(--gold);
+  --ps-bad:         var(--red);
+
+  color: var(--ps-text);
+  display: grid;
+  gap: 1.25rem;
+  padding: 0.25rem 0 1.5rem;
+}
+
+/* ════════════════════════════════════════════════
+   Panel — matches master's elevated card treatment
+   (subtle white-highlight + graphite tint over the
+   page gradient, rounded 24px, master's card shadow).
+   ════════════════════════════════════════════════ */
+.panel {
+  position: relative;
+  overflow: hidden;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem;
+  box-shadow: var(--shadow-card);
+}
+
+/* White hairline up top — very subtle accent to match the
+   soft-light rim master uses on elevated surfaces. */
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Bottom-right vignette — same as the master player card. */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 90% 100%, rgba(0, 0, 0, 0.35) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════
+   Section title + tiny label
+   ════════════════════════════════════════════════ */
+.sectionTitle {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.sectionTitle h2 {
+  margin: 0;
+  font-size: clamp(1.125rem, 1.02rem + 0.6vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ps-text);
+}
+
+.tiny {
+  font-size: 0.72rem;
+  color: var(--ps-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+}
+
+.eyebrow {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+}
+
+/* Legend row */
+.legendInline {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--ps-muted);
+  font-size: 0.72rem;
+}
+
+.legendInline span {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ════════════════════════════════════════════════
+   HERO ROW — 2 columns (domain list + big score)
+   ════════════════════════════════════════════════ */
+.hero {
+  display: grid;
+  grid-template-columns: 1.35fr 0.9fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 1120px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Domain list (tool grades) ── */
+.domainList {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.domainRow {
+  padding: 1rem 1rem 1.05rem;
+  border-radius: var(--radius-md);
+  background: var(--ps-surface);
+  border: 1px solid var(--border);
+}
+
+.domainMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.domainName {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ps-text);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 14px currentColor;
+}
+
+.score {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ps-text);
+  font-family: 'DM Mono', monospace;
+}
+
+.score small {
+  color: var(--ps-muted);
+  font-weight: 600;
+}
+
+.barTrack {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.07));
+  overflow: hidden;
+}
+
+.baseline {
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+}
+
+.target {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  opacity: 0.55;
+  border-radius: 4px;
+}
+
+.barFooter {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  color: var(--ps-muted);
+  font-size: 0.72rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* ── Big-score + focus grid (right panel of hero) ── */
+.noteCard {
+  display: grid;
+  gap: 1rem;
+}
+
+.bigScore {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.bigScoreNum {
+  font-family: 'DM Mono', monospace;
+  font-size: clamp(3rem, 2.3rem + 3vw, 4.9rem);
+  line-height: 0.9;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ps-text);
+}
+
+.bigScoreTag {
+  font-size: 0.9rem;
+  color: var(--ps-muted);
+  max-width: 22ch;
+  padding-bottom: 0.4rem;
+}
+
+.focusGrid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .focusGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.focus {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--ps-surface);
+  border: 1px solid var(--border);
+}
+
+.focus strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+  color: var(--ps-text);
+  font-weight: 700;
+}
+
+.focus span {
+  color: var(--ps-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+/* ════════════════════════════════════════════════
+   MIDDLE ROW — hitting detail + quadrants
+   ════════════════════════════════════════════════ */
+.middle {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 1120px) {
+  .middle {
+    grid-template-columns: 1fr;
+  }
+}
+
+.playerCard {
+  display: grid;
+  gap: 1rem;
+}
+
+.chips {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 0.38rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
+  color: var(--text-soft);
+  text-transform: uppercase;
+}
+
+.chipWarn {
+  background: var(--gold-dim);
+  border-color: rgba(232, 175, 52, 0.35);
+  color: var(--gold);
+}
+
+.kpiGrid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.kpi {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--ps-surface);
+  border: 1px solid var(--border);
+}
+
+.kpiLabel {
+  display: block;
+  color: var(--ps-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.55rem;
+  font-weight: 700;
+}
+
+.kpiValue {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ps-text);
+}
+
+.kpiTrend {
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--ps-good);
+  font-weight: 600;
+}
+
+.kpiTrendBad {
+  color: var(--ps-bad);
+}
+
+.chartWrap {
+  position: relative;
+  z-index: 2;
+  height: 320px;
+  margin-top: 0.25rem;
+}
+
+.chartWrapTall {
+  height: 340px;
+}
+
+/* ── Quadrant matrix ── */
+.matrix {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.quad {
+  min-height: 138px;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--ps-surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.quadGood {
+  outline: 1px solid rgba(109, 170, 69, 0.30);
+  background: linear-gradient(180deg, rgba(109, 170, 69, 0.05), rgba(255, 255, 255, 0.015));
+}
+
+.quadWarn {
+  outline: 1px solid rgba(232, 175, 52, 0.30);
+  background: linear-gradient(180deg, rgba(232, 175, 52, 0.05), rgba(255, 255, 255, 0.015));
+}
+
+.quadBad {
+  outline: 1px solid rgba(221, 105, 116, 0.30);
+  background: linear-gradient(180deg, rgba(221, 105, 116, 0.05), rgba(255, 255, 255, 0.015));
+}
+
+.quad h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ps-text);
+  letter-spacing: -0.01em;
+}
+
+.quad p {
+  margin: 0.45rem 0 0;
+  color: var(--ps-muted);
+  font-size: 0.88rem;
+  max-width: 32ch;
+  line-height: 1.45;
+}
+
+.quadMetric {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.55rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--ps-text);
+}
+
+.quadMetricMuted {
+  color: var(--ps-faint);
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'DM Mono', monospace;
+}
+
+/* ════════════════════════════════════════════════
+   BOTTOM ROW — sub-grade compare + trend line
+   ════════════════════════════════════════════════ */
+.bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 1120px) {
+  .bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+.footerNote {
+  color: var(--ps-muted);
+  font-size: 0.85rem;
+  padding: 0 0.25rem;
+  text-align: center;
+}
