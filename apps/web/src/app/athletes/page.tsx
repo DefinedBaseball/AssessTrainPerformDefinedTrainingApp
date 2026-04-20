@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
@@ -45,21 +46,26 @@ export default function AthletesPage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Athletes</h1>
-        <div className={styles.actions}>
-          <input
-            type="text"
-            placeholder="Search athletes..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className={styles.searchInput}
-          />
-          {isCoach && (
-            <Link href="/players/new" className="btn btn-primary">+ Add Athlete</Link>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Roster"
+        title="Athletes"
+        subtitle="Search, filter, and jump into any athlete's development profile."
+        readout={`${players.length} on roster`}
+        actions={
+          <>
+            <input
+              type="text"
+              placeholder="Search athletes..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className={styles.searchInput}
+            />
+            {isCoach && (
+              <Link href="/players/new" className="btn btn-primary">+ Add Athlete</Link>
+            )}
+          </>
+        }
+      />
 
       {/* Position filter */}
       <div className={styles.filterRow}>

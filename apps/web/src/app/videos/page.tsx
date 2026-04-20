@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, VideoWithPlayer } from '@/lib/api';
 import VideoThumbnail from '@/components/VideoThumbnail';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 /* ── Constants ── */
@@ -509,17 +510,12 @@ export default function VideosPage() {
   return (
     <div className={styles.pageWrap}>
       {/* ── Header ── */}
-      <div className={styles.headerRow}>
-        <div>
-          <h1 className={styles.title}>{isCoach ? 'Videos' : 'My Videos'}</h1>
-          <p className={styles.subtitle}>
-            {isCoach ? 'Browse, play, and download player video' : 'View and download your videos'}
-            {videos.length > 0 && (
-              <span className={styles.videoCount}> · {videos.length} video{videos.length !== 1 ? 's' : ''}</span>
-            )}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Film Room"
+        title={isCoach ? 'Videos' : 'My Videos'}
+        subtitle={isCoach ? 'Browse, play, and download player video.' : 'View and download your videos.'}
+        readout={videos.length > 0 ? `${videos.length} video${videos.length !== 1 ? 's' : ''}` : undefined}
+      />
 
       {/* ── Athlete Selector (Coach Only) ── */}
       {isCoach && (

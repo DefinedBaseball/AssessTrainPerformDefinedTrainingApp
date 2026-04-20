@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 /* ── Helper: format relative time ── */
@@ -218,15 +219,14 @@ export default function DashboardPage() {
     return (
       <div>
         {/* ── Hero ── */}
-        <div className={styles.heroOuter}>
-          <div className={styles.hero}>
-            <div className={styles.heroEyebrow}>Player Dashboard</div>
-            <h1 className={styles.heroTitle}>Train. Track. Improve.</h1>
-            <p className={styles.heroSub}>
-              Your weekly schedule and the latest from your coaches.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          size="hero"
+          eyebrow="Player Dashboard"
+          title="Train. Track."
+          titleAccent="Improve."
+          subtitle="Your weekly schedule and the latest from your coaches."
+          readout="Live"
+        />
 
         {/* ── Content ── */}
         <div className={styles.content}>
@@ -263,15 +263,14 @@ export default function DashboardPage() {
   return (
     <div>
       {/* ── Hero ── */}
-      <div className={styles.heroOuter}>
-        <div className={styles.hero}>
-          <div className={styles.heroEyebrow}>Coach Dashboard</div>
-          <h1 className={styles.heroTitle}>Assess, Train, Perform</h1>
-          <p className={styles.heroSub}>
-            Manage your athletes, upload data, and track development.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        size="hero"
+        eyebrow="Coach Dashboard"
+        title="Assess, Train,"
+        titleAccent="Perform"
+        subtitle="Manage your athletes, upload data, and track development."
+        readout="Live"
+      />
 
       {/* ── Content ── */}
       <div className={styles.content}>

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { EduClass, Drill, MlbPlayer, MlbVideo } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 const SPORTS = [
@@ -190,9 +191,13 @@ export default function EducationPage() {
 function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount: number; drillCount: number; playerCount: number; goTo: (p: Page) => void }) {
   return (
     <>
-      <div className={styles.landingEyebrow}>Player Development</div>
-      <div className={styles.landingTitle}>Education Hub</div>
-      <div className={styles.landingSub}>Your complete learning library — classes, drills, and Major League video study.</div>
+      <PageHeader
+        eyebrow="Player Development"
+        title="Education"
+        titleAccent="Hub"
+        subtitle="Your complete learning library — classes, drills, and Major League video study."
+        readout={`${classCount + drillCount + playerCount} resources`}
+      />
       <div className={styles.hubGrid}>
         <div className={styles.hubCard} style={{ borderColor: 'rgba(232,175,52,.3)' }} onClick={() => goTo('classes')}>
           <div className={styles.hubIcon} style={{ background: 'var(--gold-dim)' }}>🎓</div>

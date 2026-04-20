@@ -1,13 +1,14 @@
 /* ── Athlete Profile Page ──
-   Premium graphite/black/white treatment.
-   Page-specific styles; component styles live in assessment.module.css
+   Premium graphite/black/white treatment. Ported from test-3
+   Command Deck layout, retuned to master's monochrome palette
+   (white/silver dominant, a single muted gold accent).
 */
 
 .backLink {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -18,7 +19,7 @@
   transition: color var(--transition), transform var(--transition);
 }
 .backLink:hover {
-  color: var(--text);
+  color: var(--accent-bright);
   transform: translateX(-2px);
 }
 
@@ -30,17 +31,30 @@
   margin-bottom: 0;
 }
 
-/* faint top-glow behind hero */
+/* faint top-glow behind hero — monochrome silver + gold corner */
 .heroOuter::before {
   content: '';
   position: absolute;
   top: -40px;
   left: 10%;
   right: 10%;
-  height: 160px;
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.035) 0%, transparent 65%);
+  height: 200px;
+  background:
+    radial-gradient(ellipse at 18% center, rgba(255,255,255,0.06) 0%, transparent 58%),
+    radial-gradient(ellipse at 82% center, rgba(232,175,52,0.05) 0%, transparent 58%),
+    radial-gradient(ellipse at center, rgba(255,255,255,0.02) 0%, transparent 65%);
   pointer-events: none;
   z-index: 0;
+}
+
+.heroOuter::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: var(--grad-edge);
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .heroEyebrowRow {
@@ -59,7 +73,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
@@ -72,455 +86,380 @@
   display: inline-block;
   width: 22px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--graphite) 40%, var(--text-secondary));
+  background: linear-gradient(90deg, transparent, var(--graphite) 40%, var(--accent-bright));
 }
 
 .heroEyebrow::after {
   content: '';
   display: inline-block;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--text-secondary);
-  box-shadow: 0 0 10px rgba(255,255,255,0.35);
+  background: var(--accent-bright);
+  box-shadow: 0 0 6px rgba(255,255,255,0.45);
 }
 
-/* Top row: player card + commitment box */
-.heroTopRow {
+/* ═══════════════════════════════════════════════════════════════
+   COMMAND DECK (ported from test-3)
+   Telemetry-style HUD: left identity block + right-side SVG gauge
+   & radar. Surrounded by a bubble surface so the page reads as an
+   active readout.
+   ═══════════════════════════════════════════════════════════════ */
+.commandDeck {
   position: relative;
   z-index: 1;
-  display: flex;
-  gap: 14px;
-  align-items: stretch;
-}
-
-/* ── Player Card ── */
-.playerCard {
-  position: relative;
-  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.85fr);
+  gap: 20px;
+  padding: 20px 26px 18px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
-    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: var(--radius-md);
-  padding: 22px 28px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.08) inset,
-    0 0 0 1px rgba(255,255,255,0.015) inset,
-    0 24px 48px rgba(0,0,0,0.45),
-    0 2px 6px rgba(0,0,0,0.4);
+    radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.05) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(232,175,52,0.05) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.010) 100%);
+  border: 1px solid var(--border-light);
+  border-radius: 28px;
+  box-shadow: var(--shadow-bubble-dark);
+  /* Clip decorative pseudo-elements to the rounded silhouette. */
   overflow: hidden;
 }
 
-/* Compact variant (non-summary tabs) — just name, no stats */
-.playerCardCompact {
-  padding: 10px 22px;
-  justify-content: center;
-}
-.playerCardCompact .nameRow {
-  padding-bottom: 0;
-}
-.playerCardCompact .heroName {
-  font-size: 28px;
-  line-height: 1.1;
-}
-
-/* Shrink score + commit boxes to match compact name bubble */
-.heroTopRowCompact .scoreBox,
-.heroTopRowCompact .commitBox {
-  padding: 10px 16px;
-  gap: 4px;
-}
-.heroTopRowCompact .scoreIcon,
-.heroTopRowCompact .commitIcon {
-  width: 16px;
-  height: 16px;
-}
-.heroTopRowCompact .scoreValue {
-  font-size: 22px;
-}
-.heroTopRowCompact .scoreSub,
-.heroTopRowCompact .commitNone {
-  display: none;
-}
-.heroTopRowCompact .commitName {
-  font-size: 13px;
-}
-
-/* top hairline shine */
-.playerCard::before {
+/* Soft gold glow in the top-left corner */
+.commandDeck::before {
   content: '';
   position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  top: 0; left: 0;
+  width: 80px; height: 80px;
+  background: radial-gradient(circle at 0 0, rgba(232,175,52,0.22) 0%, transparent 65%);
   pointer-events: none;
+  z-index: 2;
 }
-
-/* subtle vignette bottom-right */
-.playerCard::after {
+/* White beacon bar running vertically through the left edge */
+.commandDeck::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 90% 100%, rgba(0,0,0,0.35) 0%, transparent 55%);
+  left: 14px;
+  top: 70px;
+  bottom: 70px;
+  width: 2px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(255,255,255,0.55) 15%,
+    rgba(255,255,255,0.85) 50%,
+    rgba(255,255,255,0.55) 85%,
+    transparent 100%);
+  animation: beaconPulse 2.4s ease-in-out infinite;
   pointer-events: none;
+  z-index: 2;
 }
 
-/* Name row with accent bar — name flush-bottom with inline stat values */
-.nameRow {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  padding-bottom: 18px;
-}
-
-/* Inline stats to the right of the player name (Position / Height / Weight) */
-.nameStats {
-  display: flex;
-  align-items: flex-end;
-  gap: 32px;
-  margin-left: auto;
-  padding-left: 20px;
-  padding-bottom: 4px;
-}
-
-.nameStat {
+/* ── Identity block (LEFT column) ── */
+.identityBlock {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: 10px;
+  padding-left: 20px;
+  min-width: 0;
+}
+
+/* Telemetry strip — code-like readout at the very top of the deck */
+.telemetryStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed rgba(255,255,255,0.06);
+  line-height: 1.2;
+}
+.telemetryStrip span {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  line-height: 1;
-}
-
-.nameStatLabel {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.2;
   letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  white-space: nowrap;
+}
+.telemetryStrip b {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.2;
+  color: var(--text-bright);
+  text-transform: none;
+  /* Force lining figures so pure-digit values (GRAD, AGE, WT) sit on
+     the same baseline / cap-height as adjacent letters. Syne defaults
+     to oldstyle figures which dip below the baseline. */
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+.telemetryStrip em {
+  font-style: normal;
+  color: var(--amber-bright);
+  font-weight: 600;
+}
+.telemetryStrip i {
+  font-style: normal;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px rgba(255,255,255,0.7);
+  animation: telemetryTick 1.6s ease-in-out infinite;
+  align-self: center;
 }
 
-.nameStatValue {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 20px;
+/* Mega name — centerpiece. Syne display, silver gradient. */
+.megaName {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.6vw, 46px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.94;
+  margin: 0;
+  padding: 0;
+  display: block;
+  background: linear-gradient(180deg,
+    #ffffff 0%,
+    #e1e5eb 40%,
+    #b9bfc7 85%,
+    #8a9098 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 40px rgba(255,255,255,0.08);
+}
+.megaName .lastName {
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text);
+  font-style: italic;
+  background: linear-gradient(180deg,
+    #f5c55f 0%,
+    #e8af34 55%,
+    #a67a1d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Metrics column (RIGHT column) — gauge + radar ── */
+.metricsCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: center;
+  justify-items: center;
+  min-width: 0;
+}
+
+/* Circular score gauge */
+.gaugeWrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: radarPop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.gaugeWrap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+.gaugeWrap .gaugeTrack {
+  fill: none;
+  stroke: rgba(255,255,255,0.06);
+  stroke-width: 6;
+}
+.gaugeWrap .gaugeFill {
+  fill: none;
+  stroke: url(#gaugeGrad);
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.35));
+  transition: stroke-dashoffset 1s cubic-bezier(0.25, 1, 0.3, 1);
+}
+.gaugeInner {
+  position: relative;
+  z-index: 1;
+  text-align: center;
   line-height: 1;
-  white-space: nowrap;
 }
-
-.nameAccent {
-  width: 3px;
-  align-self: stretch;
-  border-radius: 2px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, var(--graphite) 80%, transparent);
-  box-shadow: 0 0 10px rgba(255,255,255,0.1);
-  margin-right: 4px;
-}
-
-.heroName {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+.gaugeInner .val {
+  display: block;
+  font-family: var(--font-display);
   font-size: 38px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 0.95;
-  background: linear-gradient(180deg, #ffffff 0%, #cfd3d7 100%);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  background: linear-gradient(180deg, #ffffff 0%, #d6dce3 60%, #b9bfc7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
 }
-
-.heroJersey {
-  font-family: 'DM Mono', monospace;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  padding-bottom: 4px;
-}
-
-.cardDivider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.09) 20%, rgba(255,255,255,0.09) 80%, transparent);
-  margin: 0 -6px;
-}
-
-/* Stat row — shared base */
-.cardStatRow {
-  position: relative;
-  display: flex;
-  gap: 0;
-}
-
-.cardStatRowProfile .cardStat {
-  padding-top: 18px;
-  padding-bottom: 10px;
-}
-
-/* Stat cell */
-.cardStat {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 0 8px;
-  border-right: 1px solid rgba(255,255,255,0.05);
-  transition: background var(--transition);
-}
-
-.cardStat:last-child {
-  border-right: none;
-}
-
-.cardStat:hover {
-  background: rgba(255,255,255,0.015);
-}
-
-.cardStatLabel {
-  font-family: 'DM Mono', monospace;
+.gaugeInner .suffix {
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
   color: var(--text-muted);
-  line-height: 1;
-  white-space: nowrap;
+  margin-top: 8px;
+  display: block;
 }
 
-/* Profile-row values (Bats / Throws / Grad Year / Age / High School / Club Team) */
-.cardStatRowProfile .cardStatValue {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 16px;
+/* Radar — 5 axes for the tool grades */
+.radarWrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  animation: radarPop 0.9s cubic-bezier(0.2, 0.9, 0.3, 1) both 0.12s;
+}
+.radarWrap svg { width: 100%; height: 100%; overflow: visible; }
+.radarGrid { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 1; }
+.radarSpoke { stroke: rgba(255,255,255,0.06); stroke-width: 1; }
+.radarShape {
+  fill: url(#radarFill);
+  stroke: rgba(255,255,255,0.75);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.28));
+}
+.radarVertex { fill: var(--accent-bright); }
+.radarLabel {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  fill: var(--text-muted);
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+/* ── HUD strip — under the name. 3-column row with dashed dividers. */
+.hud {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255,255,255,0.08);
+}
+.hudCell {
+  position: relative;
+  padding: 6px 12px 4px;
+  border-right: 1px dashed rgba(255,255,255,0.06);
+  min-width: 0;
+}
+.hudCell:last-child { border-right: none; }
+.hudCell:first-child { padding-left: 10px; }
+.hudCell::before {
+  content: '';
+  position: absolute;
+  top: 8px; left: 12px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.hudCell:first-child::before { left: 10px; }
+.hudCell.warm::before { background: var(--amber-bright); box-shadow: 0 0 8px var(--amber-glow); }
+.hudCell.cold::before { background: var(--text-muted); box-shadow: none; }
+
+.hudLabel {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+  padding-left: 10px;
+}
+.hudValue {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  color: var(--text);
-  line-height: 1.15;
-}
-
-/* fallback */
-.cardStatValue {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1;
-}
-
-/* ── Commitment Box ── */
-/* ── Player Score Box ── */
-.scoreBox {
-  position: relative;
-  flex: 0 0 210px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
-    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: var(--radius-md);
-  padding: 22px 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 12px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.06) inset,
-    0 24px 48px rgba(0,0,0,0.45);
-  overflow: hidden;
-}
-.scoreBox::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 20%; right: 20%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-}
-.scoreIcon {
-  color: var(--text-muted);
-  opacity: 0.75;
-}
-.scoreLabel {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: var(--text-muted);
-  line-height: 1;
-}
-.scoreValueRow {
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
-}
-.scoreValue {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 52px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
   color: var(--text-bright);
-  line-height: 1;
-}
-.scoreMax {
-  font-family: 'DM Mono', monospace;
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-}
-.scoreSub {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--faint);
-}
-
-.commitBox {
-  position: relative;
-  flex: 0 0 220px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
-    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: var(--radius-md);
-  padding: 22px 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 12px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.06) inset,
-    0 24px 48px rgba(0,0,0,0.45);
+  line-height: 1.15;
+  padding-left: 10px;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.commitBox::before {
+/* Neon pipe connector between hero and signal strip */
+.pipeConnector {
+  position: relative;
+  height: 28px;
+  margin: 10px 0 0;
+  pointer-events: none;
+}
+.pipeConnector::before {
   content: '';
   position: absolute;
-  top: 0; left: 20%; right: 20%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  left: 28px;
+  right: 28px;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.55) 15%,
+    rgba(255,255,255,0.85) 50%,
+    rgba(232,175,52,0.65) 85%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: neonPipeFlow 4s linear infinite;
+  box-shadow: 0 0 10px rgba(255,255,255,0.25);
+}
+.pipeConnector::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--accent-bright);
+  box-shadow: 0 0 12px rgba(255,255,255,0.55);
 }
 
-.commitBoxCommitted {
-  border-color: rgba(109,170,69,0.32);
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(109,170,69,0.18) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(109,170,69,0.08) 0%, rgba(109,170,69,0.02) 100%);
-  box-shadow:
-    0 1px 0 rgba(109,170,69,0.25) inset,
-    0 0 40px rgba(109,170,69,0.10),
-    0 24px 48px rgba(0,0,0,0.45);
+/* Mobile collapse */
+@media (max-width: 900px) {
+  .commandDeck {
+    grid-template-columns: 1fr;
+    padding: 16px 16px 14px;
+  }
+  .metricsCol { grid-template-columns: 1fr; justify-items: start; }
+  .megaName { font-size: clamp(30px, 7vw, 44px); }
+  .hud { grid-template-columns: repeat(2, 1fr); }
 }
 
-.commitBoxCommitted::before {
-  background: linear-gradient(90deg, transparent, rgba(109,170,69,0.6), transparent);
-}
-
-/* Club-team fallback (no college yet) — subtle slate accent */
-.commitBoxClub {
-  border-color: rgba(150,170,200,0.22);
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(150,170,200,0.12) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(150,170,200,0.05) 0%, rgba(150,170,200,0.01) 100%);
-  box-shadow:
-    0 1px 0 rgba(200,215,235,0.18) inset,
-    0 24px 48px rgba(0,0,0,0.45);
-}
-
-.commitBoxClub::before {
-  background: linear-gradient(90deg, transparent, rgba(200,215,235,0.45), transparent);
-}
-
-.commitBoxClub .commitIcon {
-  color: rgba(200,215,235,0.85);
-  opacity: 1;
-}
-
-.commitBoxClub .commitLabel {
-  color: rgba(200,215,235,0.7);
-}
-
-.commitBoxClub .commitName {
-  color: var(--text);
-  text-shadow: none;
-}
-
-.commitIcon {
-  color: var(--text-muted);
-  opacity: 0.75;
-  transition: color var(--transition), opacity var(--transition);
-}
-
-.commitBoxCommitted .commitIcon {
-  color: var(--green);
-  opacity: 1;
-  filter: drop-shadow(0 0 8px rgba(109,170,69,0.35));
-}
-
-.commitLabel {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: var(--text-muted);
-  line-height: 1;
-}
-
-.commitBoxCommitted .commitLabel {
-  color: rgba(109,170,69,0.8);
-}
-
-.commitName {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--green);
-  line-height: 1.2;
-  text-shadow: 0 0 20px rgba(109,170,69,0.25);
-}
-
-.commitNone {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--faint);
-  letter-spacing: 0.02em;
-}
-
-/* ── New Report Button ── */
+/* ── New Report Button ── monochrome silver pill */
 .newReportBtn {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 18px 9px 14px;
-  font-family: 'DM Mono', monospace;
+  padding: 10px 20px 10px 16px;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text);
-  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: var(--radius-full);
   text-decoration: none;
   transition: all var(--transition);
@@ -535,12 +474,13 @@
   border-color: rgba(255,255,255,0.4);
   box-shadow:
     0 1px 0 rgba(255,255,255,0.9) inset,
-    0 8px 24px rgba(255,255,255,0.08),
+    0 10px 26px rgba(255,255,255,0.12),
     0 6px 16px rgba(0,0,0,0.4);
+  transform: translateY(-1px);
 }
 .newReportBtn svg { flex-shrink: 0; }
 
-/* ── Report Modal (unchanged) ── */
+/* ── Report Modal ── */
 .modalOverlay {
   position: fixed;
   inset: 0;
@@ -554,12 +494,24 @@
 }
 
 .modalContent {
-  background: var(--bg, #0E1117);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  background:
+    radial-gradient(80% 50% at 50% 0%, rgba(255,255,255,0.06), transparent 60%),
+    linear-gradient(180deg, #101116 0%, #060709 100%);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 820px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(255,255,255,0.04);
+  position: relative;
+}
+.modalContent::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 1px;
+  background: var(--grad-edge);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .modalHeader {
@@ -689,17 +641,13 @@
   color: var(--text);
 }
 .gradeValue {
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   text-align: center;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .heroTopRow { flex-direction: column; }
-  .commitBox { flex: 1; }
-  .heroName { font-size: 30px; }
-  .cardStatRow { flex-wrap: wrap; }
   .chartsGrid { grid-template-columns: 1fr; }
   .gradeRow { grid-template-columns: 1fr 60px 60px 90px; gap: 8px; font-size: 13px; }
 }

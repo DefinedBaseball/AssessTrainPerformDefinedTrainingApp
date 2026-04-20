@@ -8,6 +8,7 @@ import type {
   AnalyticsColumn, ChartConfig, ChartConfigInput,
   ChartDataSource, ChartEvaluation, Player,
 } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 const SECTIONS = [
@@ -62,13 +63,13 @@ export default function AnalyticsPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Data Analytics</h1>
-        <p className={styles.subtitle}>
-          Build custom charts and bubbles from any imported data, preview them
-          against a live player, then pin them to the relevant profile tab.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Coach Workbench"
+        title="Data"
+        titleAccent="Analytics"
+        subtitle="Build custom charts and bubbles from any imported data, preview them against a live player, then pin them to the relevant profile tab."
+        readout="Chart Builder"
+      />
 
       <div className={styles.tabs}>
         <button

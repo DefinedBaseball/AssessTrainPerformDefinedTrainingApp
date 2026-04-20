@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 /* ── Constants ── */
@@ -364,17 +365,18 @@ export default function TrainingPage() {
   return (
     <div className={styles.page}>
       {/* ── Header ── */}
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <div className={styles.eyebrow}>TRAINING CALENDAR</div>
-          <h1 className={styles.title}>
-            {isCoach
-              ? (selectedPlayer ? `${selectedPlayer.firstName} ${selectedPlayer.lastName}` : 'Select Athlete')
-              : 'My Training'
-            }
-          </h1>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Training Calendar"
+        title={
+          isCoach
+            ? (selectedPlayer ? `${selectedPlayer.firstName} ${selectedPlayer.lastName}` : 'Select Athlete')
+            : 'My Training'
+        }
+        subtitle={isCoach
+          ? 'Build and schedule drills for each athlete\u2019s weekly plan.'
+          : 'Your weekly drill schedule and training history.'}
+        readout={todayDateStr}
+      />
 
       {/* ── Athlete Selector (Coach Only) ── */}
       {isCoach && (

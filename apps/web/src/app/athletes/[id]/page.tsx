@@ -20,7 +20,7 @@ import { VisionTab } from './tabs/VisionTab';
 import { StrengthConditioningTab } from './tabs/StrengthConditioningTab';
 
 import { ReportModal } from './ReportModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor } from './helpers';
+import { formatHeight, getAge, computeAggregateScores } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
@@ -199,143 +199,174 @@ export default function PlayerProfilePage() {
       {/* ── Tab Bar (above player name bubble) ── */}
       <TabBar tabs={visibleTabs} activeKey={activeTab} onTabChange={setActiveTab} />
 
-      {/* ── Hero Section (compact — name + tabs only) ── */}
-      <div className={styles.heroOuter}>
-        {isCoach && (
-          <div className={styles.heroEyebrowRow}>
-            <button
-              type="button"
-              className={styles.newReportBtn}
-              onClick={() => setShowReportModal(true)}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              New Report
-            </button>
-          </div>
-        )}
+      {/* ── COMMAND DECK HERO (ported from test-3) ── */}
+      {(() => {
+        const overall = aggregate?.overall ?? null;
+        const pct = overall != null ? Math.max(0, Math.min(1, (overall - 20) / 60)) : 0;
+        const R = 68;                // gauge radius
+        const C = 2 * Math.PI * R;   // gauge circumference
 
-        {/* Hero layout: left column (name + stats + info row) | right column (commitment) */}
-        <div className={`${styles.heroTopRow}${activeTab !== 'summary' ? ` ${styles.heroTopRowCompact}` : ''}`}>
+        // 5-axis radar values (20-80 scouting scale) — derived from the
+        // aggregate sections when available; otherwise a neutral 50.
+        const bySection = (key: string) => {
+          const sec = aggregate?.sections?.find((s) => s.key === key);
+          if (!sec) return 50;
+          const scored = sec.bars.filter((b) => b.score != null).map((b) => b.score as number);
+          if (!scored.length) return 50;
+          return scored.reduce((a, b) => a + b, 0) / scored.length;
+        };
+        const axes = [
+          { label: 'HIT',    v: bySection('hitting') },
+          { label: 'DEF',    v: bySection('defense') },
+          { label: 'PITCH',  v: bySection('pitching') },
+          { label: 'VIS',    v: bySection('vision') },
+          { label: 'ATH',    v: bySection('strength') },
+        ];
+        const rx = 70;
+        const cx = 85;
+        const cy = 85;
+        const pts = axes.map((a, i) => {
+          const theta = (-Math.PI / 2) + (2 * Math.PI * i) / axes.length;
+          const k = Math.max(0.1, Math.min(1, (a.v - 20) / 60));
+          return {
+            x: cx + Math.cos(theta) * rx * k,
+            y: cy + Math.sin(theta) * rx * k,
+            lx: cx + Math.cos(theta) * (rx + 14),
+            ly: cy + Math.sin(theta) * (rx + 14),
+            label: a.label,
+          };
+        });
 
-          {/* Left: single big player card */}
-          <div className={`${styles.playerCard}${activeTab !== 'summary' ? ` ${styles.playerCardCompact}` : ''}`}>
-            {/* Name row with accent bar */}
-            <div className={styles.nameRow}>
-              <div className={styles.nameAccent} aria-hidden="true" />
-              <h1 className={styles.heroName}>{player.firstName} {player.lastName}</h1>
-            </div>
+        const committed = Boolean(player.collegeCommit);
 
-            {activeTab === 'summary' && (
-            <>
-            {/* Divider */}
-            <div className={styles.cardDivider} />
-
-            {/* Single stat row: Position / Height / Weight / Bats/Throws / Grad Year / Age / High School */}
-            <div className={`${styles.cardStatRow} ${styles.cardStatRowProfile}`}>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Position</span>
-                <span className={styles.cardStatValue}>{player.positions || '—'}</span>
+        return (
+          <div className={styles.heroOuter}>
+            {isCoach && (
+              <div className={styles.heroEyebrowRow}>
+                <button
+                  type="button"
+                  className={styles.newReportBtn}
+                  onClick={() => setShowReportModal(true)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  New Report
+                </button>
               </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Height</span>
-                <span className={styles.cardStatValue}>{formatHeight(player.heightInches)}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Weight</span>
-                <span className={styles.cardStatValue}>{player.weightLbs ? `${player.weightLbs}` : '—'}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Bats/Throws</span>
-                <span className={styles.cardStatValue}>
-                  {(player.bats || '—')}/{(player.throws || '—')}
-                </span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Grad Year</span>
-                <span className={styles.cardStatValue}>{player.gradYear || '—'}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>Age</span>
-                <span className={styles.cardStatValue}>{getAge(player.birthDate, player.gradYear)}</span>
-              </div>
-              <div className={styles.cardStat}>
-                <span className={styles.cardStatLabel}>High School</span>
-                <span className={styles.cardStatValue}>{player.highSchool || '—'}</span>
-              </div>
-            </div>
-            </>
             )}
-          </div>
 
-          {/* Middle: player score */}
-          <div className={styles.scoreBox}>
-            <div className={styles.scoreLabel}>Player Score</div>
-            <div className={styles.scoreValueRow}>
-              <span
-                className={styles.scoreValue}
-                style={
-                  aggregate?.overall != null
-                    ? { color: scoreColor(aggregate.overall) }
-                    : undefined
-                }
-              >
-                {aggregate?.overall ?? '—'}
-              </span>
-              <span className={styles.scoreMax}>/80</span>
-            </div>
-            <div className={styles.scoreSub}>
-              {aggregate?.overall != null ? '20–80 Scale' : 'Not Scored'}
-            </div>
-          </div>
-
-          {/* Right: college commitment — falls back to club team when uncommitted */}
-          {(() => {
-            const committed = Boolean(player.collegeCommit);
-            const showingClub = !committed && Boolean(player.clubTeam);
-            return (
-              <div className={`${styles.commitBox}${committed ? ` ${styles.commitBoxCommitted}` : ''}${showingClub ? ` ${styles.commitBoxClub}` : ''}`}>
-                {committed ? (
-                  <svg
-                    className={styles.commitIcon}
-                    width="22" height="22" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" strokeWidth="1.6"
-                    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-                  >
-                    <path d="M22 10L12 4 2 10l10 6 10-6z" />
-                    <path d="M6 12v5c0 1 2 3 6 3s6-2 6-3v-5" />
-                    <path d="M22 10v6" />
-                  </svg>
-                ) : (
-                  <svg
-                    className={styles.commitIcon}
-                    width="22" height="22" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" strokeWidth="1.6"
-                    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-                  >
-                    <path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2" />
-                    <circle cx="10" cy="7" r="3" />
-                    <path d="M21 21v-2a4 4 0 00-3-3.87" />
-                    <path d="M17 3.13A4 4 0 0117 11" />
-                  </svg>
-                )}
-                <div className={styles.commitLabel}>
-                  {committed ? 'College Commitment' : showingClub ? 'Club Team' : 'College Commitment'}
+            <div className={styles.commandDeck}>
+              {/* LEFT: identity block */}
+              <div className={styles.identityBlock}>
+                <div className={styles.telemetryStrip}>
+                  <i aria-hidden="true" />
+                  <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
+                  <span>HT <b>{formatHeight(player.heightInches)}</b></span>
+                  <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
+                  <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
+                  <span>GRAD <b>{player.gradYear || '—'}</b></span>
+                  <span>AGE <b>{getAge(player.birthDate, player.gradYear)}</b></span>
                 </div>
-                {committed ? (
-                  <div className={styles.commitName}>{player.collegeCommit}</div>
-                ) : showingClub ? (
-                  <div className={styles.commitName}>{player.clubTeam}</div>
-                ) : (
-                  <div className={styles.commitNone}>Uncommitted</div>
-                )}
-              </div>
-            );
-          })()}
 
-        </div>
-      </div>
+                <h1 className={styles.megaName}>
+                  {player.firstName}{' '}
+                  <span className={styles.lastName}>{player.lastName}</span>
+                </h1>
+
+                <div className={styles.hud}>
+                  <div className={styles.hudCell}>
+                    <span className={styles.hudLabel}>High School</span>
+                    <span className={styles.hudValue}>{player.highSchool || '—'}</span>
+                  </div>
+                  <div className={`${styles.hudCell} ${player.clubTeam ? '' : styles.cold}`}>
+                    <span className={styles.hudLabel}>Club Team</span>
+                    <span className={styles.hudValue}>{player.clubTeam || '—'}</span>
+                  </div>
+                  <div className={`${styles.hudCell} ${committed ? styles.warm : styles.cold}`}>
+                    <span className={styles.hudLabel}>Commitment</span>
+                    <span className={styles.hudValue}>{committed ? player.collegeCommit : 'Uncommitted'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT: gauge + radar */}
+              <div className={styles.metricsCol}>
+                <div className={styles.gaugeWrap}>
+                  <svg viewBox="0 0 160 160" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%"  stopColor="#ffffff" />
+                        <stop offset="55%" stopColor="#c9ced6" />
+                        <stop offset="100%" stopColor="#E8AF34" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="80" cy="80" r={R} className={styles.gaugeTrack} />
+                    <circle
+                      cx="80" cy="80" r={R}
+                      className={styles.gaugeFill}
+                      strokeDasharray={C}
+                      strokeDashoffset={C - C * pct}
+                    />
+                  </svg>
+                  <div className={styles.gaugeInner}>
+                    <span className={styles.val}>{overall ?? '—'}</span>
+                    <span className={styles.suffix}>/80 SCALE</span>
+                  </div>
+                </div>
+
+                <div className={styles.radarWrap}>
+                  <svg viewBox="0 0 170 170" aria-hidden="true">
+                    <defs>
+                      <radialGradient id="radarFill" cx="50%" cy="50%" r="60%">
+                        <stop offset="0%"  stopColor="rgba(255,255,255,0.32)" />
+                        <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
+                      </radialGradient>
+                    </defs>
+                    {[0.33, 0.66, 1].map((k) => (
+                      <polygon
+                        key={k}
+                        className={styles.radarGrid}
+                        points={axes.map((_, i) => {
+                          const theta = (-Math.PI / 2) + (2 * Math.PI * i) / axes.length;
+                          return `${cx + Math.cos(theta) * rx * k},${cy + Math.sin(theta) * rx * k}`;
+                        }).join(' ')}
+                      />
+                    ))}
+                    {axes.map((_, i) => {
+                      const theta = (-Math.PI / 2) + (2 * Math.PI * i) / axes.length;
+                      return (
+                        <line
+                          key={i}
+                          className={styles.radarSpoke}
+                          x1={cx} y1={cy}
+                          x2={cx + Math.cos(theta) * rx}
+                          y2={cy + Math.sin(theta) * rx}
+                        />
+                      );
+                    })}
+                    <polygon
+                      className={styles.radarShape}
+                      points={pts.map((p) => `${p.x},${p.y}`).join(' ')}
+                    />
+                    {pts.map((p, i) => (
+                      <circle key={i} className={styles.radarVertex} cx={p.x} cy={p.y} r="2.5" />
+                    ))}
+                    {pts.map((p, i) => (
+                      <text key={i} className={styles.radarLabel} x={p.lx} y={p.ly}>
+                        {p.label}
+                      </text>
+                    ))}
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Neon pipe connector — bridges the hero to the content */}
+            <div className={styles.pipeConnector} aria-hidden="true" />
+          </div>
+        );
+      })()}
 
       {/* ── Content ── */}
       <div className={styles.contentWrap}>

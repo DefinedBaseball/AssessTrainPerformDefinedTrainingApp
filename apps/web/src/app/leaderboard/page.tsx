@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { LeaderboardEntry, Player } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 /* ── Metric definitions ── */
@@ -107,12 +108,12 @@ export default function LeaderboardPage() {
   return (
     <div className={styles.pageWrap}>
       {/* ── Header ── */}
-      <div className={styles.headerRow}>
-        <div>
-          <h1 className={styles.title}>Leaderboard</h1>
-          <p className={styles.subtitle}>Top 15 athletes per metric, by graduation year</p>
-        </div>
-        {isCoach && (
+      <PageHeader
+        eyebrow="Rankings"
+        title="Leaderboards"
+        subtitle="Top 15 athletes per metric, by graduation year."
+        readout="Live"
+        actions={isCoach ? (
           <button
             className={styles.recomputeBtn}
             onClick={handleRecompute}
@@ -124,8 +125,8 @@ export default function LeaderboardPage() {
               '↻ Recompute Rankings'
             )}
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {/* ── Grad Year tabs ── */}
       {availableGradYears.length > 0 ? (

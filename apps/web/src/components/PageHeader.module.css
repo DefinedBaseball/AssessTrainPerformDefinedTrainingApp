@@ -1,0 +1,198 @@
+/* ── Shared PageHeader ──
+   Unified page-title bar used across every top-level route.
+   Premium graphite surface + Syne display title + mono eyebrow.
+*/
+
+.pageHeader {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 22px;
+  padding: 18px 26px 16px;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(255,255,255,0.05) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(232,175,52,0.045) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.030) 0%, rgba(255,255,255,0.008) 100%);
+  border: 1px solid var(--border-light);
+  border-radius: 22px;
+  box-shadow: var(--shadow-bubble-dark);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.pageHeader.hero {
+  padding: 28px 32px 26px;
+  border-radius: 28px;
+  margin-bottom: 28px;
+}
+
+/* Top-left gold corner glow — echoes the athlete Command Deck */
+.cornerGlow {
+  position: absolute;
+  top: 0; left: 0;
+  width: 90px; height: 90px;
+  background: radial-gradient(circle at 0 0, rgba(232,175,52,0.22) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Bottom hairline — the signature grad-edge rule */
+.rule {
+  position: absolute;
+  left: 12%; right: 12%;
+  bottom: 0;
+  height: 1px;
+  background: var(--grad-edge);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ── Row layout ── */
+.headerRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ── Eyebrow ── code-like readout */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1;
+  padding-bottom: 2px;
+}
+.eyebrow::after {
+  content: '';
+  display: inline-block;
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.35), transparent);
+}
+.tick {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px rgba(255,255,255,0.7);
+  animation: telemetryTick 1.6s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+
+/* ── Title ── Syne display silver gradient */
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #dfe3e8 55%, #b9bfc7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 32px rgba(255,255,255,0.06);
+}
+
+.hero .title {
+  font-size: clamp(32px, 3.2vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.96;
+}
+
+/* Optional italic-gold accent portion */
+.titleAccent {
+  font-weight: 600;
+  font-style: italic;
+  background: linear-gradient(180deg, #f5c55f 0%, #e8af34 55%, #a67a1d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Subtitle ── */
+.subtitle {
+  margin: 4px 0 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+.hero .subtitle {
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+/* ── Right-side stack (readout + actions) ── */
+.sideStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px dashed rgba(255,255,255,0.12);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.025);
+}
+.readoutDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber-bright);
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ── Responsive collapse ── */
+@media (max-width: 720px) {
+  .pageHeader { padding: 14px 18px 14px; border-radius: 18px; }
+  .pageHeader.hero { padding: 20px 20px 18px; border-radius: 22px; }
+  .headerRow { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .sideStack { align-items: flex-start; width: 100%; }
+  .actions { width: 100%; }
+}
