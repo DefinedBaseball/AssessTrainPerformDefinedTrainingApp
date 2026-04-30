@@ -33,6 +33,10 @@ interface ReportSelectorProps {
   /** When provided, clicking the report name on the bar opens this report
    *  for editing (the ▼ arrow on the far right always toggles the list). */
   onEdit?: (report: ReportSummary) => void;
+  /** When true, the dropdown becomes a pure date-range picker — no list of
+   *  individual reports, no per-row download/delete. The bar shows the
+   *  currently-selected range label instead of a report title. */
+  rangeOnly?: boolean;
 }
 
 export function ReportSelector({
@@ -46,23 +50,53 @@ export function ReportSelector({
   onNewReport,
   onDownload,
   onEdit,
+  rangeOnly = false,
 }: ReportSelectorProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  // Filter & sort matching reports
-  // When reportTypes is empty, skip type filtering (use all provided reports)
-  const matchingReports = useMemo(() => {
+  /** Date-range presets — "Last Report" = single most recent report; the rest
+   *  are time windows (days back from now). days=null means no time filter. */
+  type RangeKey = 'lastReport' | 'all' | 'week' | 'month' | '3months' | '6months' | 'year';
+  const RANGE_OPTIONS: { key: RangeKey; label: string; days: number | null }[] = [
+    { key: 'lastReport', label: 'Last Report',   days: null },
+    { key: 'all',        label: 'All Time',      days: null },
+    { key: 'week',       label: 'Last Week',     days: 7 },
+    { key: 'month',      label: 'Last Month',    days: 30 },
+    { key: '3months',    label: 'Last 3 Months', days: 90 },
+    { key: '6months',    label: 'Last 6 Months', days: 180 },
+    { key: 'year',       label: 'Last Year',     days: 365 },
+  ];
+  const [dateRange, setDateRange] = useState<RangeKey>('lastReport');
+
+  // Filter by report type first, then sort newest-first.
+  const typeFilteredReports = useMemo(() => {
     const filtered = reportTypes.length > 0
       ? reports.filter(r => reportTypes.includes(r.reportType))
       : reports;
     return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [reports, reportTypes]);
 
-  // Auto-select most recent if no selection (or selection no longer in list)
+  // Apply the date-range preset on top of the type filter.
+  //   lastReport → single newest report (or empty if none on file)
+  //   all        → every report (no time cutoff)
+  //   N days     → reports newer than now − N days
+  const matchingReports = useMemo(() => {
+    if (dateRange === 'lastReport') {
+      return typeFilteredReports.length > 0 ? [typeFilteredReports[0]] : [];
+    }
+    const def = RANGE_OPTIONS.find(o => o.key === dateRange);
+    if (!def || def.days === null) return typeFilteredReports;
+    const cutoff = Date.now() - def.days * 24 * 60 * 60 * 1000;
+    return typeFilteredReports.filter(r => new Date(r.createdAt).getTime() >= cutoff);
+  }, [typeFilteredReports, dateRange]);
+
+  // Auto-select most recent if no selection (or selection no longer in list).
+  // Skipped in rangeOnly mode — that mode doesn't track an active report.
   useEffect(() => {
+    if (rangeOnly) return;
     if (matchingReports.length === 0) {
       if (selectedId !== null) onSelect(null);
       return;
@@ -71,7 +105,7 @@ export function ReportSelector({
     if (!current) {
       onSelect(matchingReports[0]);
     }
-  }, [matchingReports, selectedId]);
+  }, [matchingReports, selectedId, rangeOnly]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -113,9 +147,12 @@ export function ReportSelector({
 
   const selected = selectedId ? matchingReports.find(r => r.id === selectedId) : matchingReports[0];
 
-  if (matchingReports.length === 0) {
-    // Empty state — render the SAME bar shape as populated so widths line up
-    // across every tab (icon · two-line title/meta · count chip · arrow).
+  if (typeFilteredReports.length === 0 && !rangeOnly) {
+    // Truly empty — no reports of this type exist for the player at all.
+    // (When type-matching reports DO exist but the date-range filter excludes
+    //  them, we fall through to the populated branch so the user can still
+    //  change the range from inside the dropdown. rangeOnly mode also falls
+    //  through so the date picker stays visible regardless of report count.)
     return (
       <div className={styles.reportSelector}>
         <button
@@ -140,76 +177,134 @@ export function ReportSelector({
     );
   }
 
+  const activeRangeLabel = RANGE_OPTIONS.find(o => o.key === dateRange)?.label ?? 'All Time';
+
   return (
     <div className={styles.reportSelector} ref={dropRef}>
       {/* ── Selector Bar (split into two click targets) ── */}
       <div className={`${styles.reportSelectorBar} ${open ? styles.reportSelectorBarOpen : ''}`}>
-        {/* LEFT — clicking the title/meta opens the selected report for editing.
-              Falls back to toggling the dropdown if no onEdit handler is wired. */}
-        <button
-          type="button"
-          className={styles.reportSelectorTitleBtn}
-          onClick={() => {
-            if (selected && onEdit) {
-              onEdit(selected);
-              setOpen(false);
-              setConfirmId(null);
-            } else {
-              setOpen(o => !o);
-              setConfirmId(null);
-            }
-          }}
-          title={selected && onEdit ? 'Edit this report' : 'Open report list'}
-        >
-          <div className={styles.reportSelectorLeft}>
-            <span className={styles.reportSelectorIcon}>📋</span>
-            <div className={styles.reportSelectorInfo}>
-              <span className={styles.reportSelectorTitle}>
-                {selected?.title || selected?.reportType?.replace(/_/g, ' ') || label}
-              </span>
-              <span className={styles.reportSelectorMeta}>
-                {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
-                {selected?.createdBy && ` · ${getEmailName(selected.createdBy.email)}`}
-              </span>
+        {rangeOnly ? (
+          // Range-only mode — single click target opens the date-range picker.
+          <button
+            type="button"
+            className={styles.reportSelectorTitleBtn}
+            onClick={() => { setOpen(o => !o); setConfirmId(null); }}
+            title="Filter by date range"
+            aria-expanded={open}
+            style={{ flex: 1 }}
+          >
+            <div className={styles.reportSelectorLeft}>
+              <span className={styles.reportSelectorIcon}>📅</span>
+              <div className={styles.reportSelectorInfo}>
+                <span className={styles.reportSelectorTitle}>{label}</span>
+                <span className={styles.reportSelectorMeta}>{activeRangeLabel}</span>
+              </div>
             </div>
-          </div>
-        </button>
-        {/* RIGHT — the count chip + arrow toggles the dropdown of past reports. */}
-        <button
-          type="button"
-          className={styles.reportSelectorArrowBtn}
-          onClick={() => { setOpen(o => !o); setConfirmId(null); }}
-          title="Browse past reports"
-          aria-expanded={open}
-        >
-          <span className={styles.reportSelectorCount}>
-            {matchingReports.length} report{matchingReports.length !== 1 ? 's' : ''}
-          </span>
-          <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>
-            ▼
-          </span>
-        </button>
+          </button>
+        ) : (
+          <>
+            {/* LEFT — clicking the title/meta opens the selected report for editing.
+                  Falls back to toggling the dropdown if no onEdit handler is wired. */}
+            <button
+              type="button"
+              className={styles.reportSelectorTitleBtn}
+              onClick={() => {
+                if (selected && onEdit) {
+                  onEdit(selected);
+                  setOpen(false);
+                  setConfirmId(null);
+                } else {
+                  setOpen(o => !o);
+                  setConfirmId(null);
+                }
+              }}
+              title={selected && onEdit ? 'Edit this report' : 'Open report list'}
+            >
+              <div className={styles.reportSelectorLeft}>
+                <span className={styles.reportSelectorIcon}>📋</span>
+                <div className={styles.reportSelectorInfo}>
+                  <span className={styles.reportSelectorTitle}>
+                    {selected?.title || selected?.reportType?.replace(/_/g, ' ') || label}
+                  </span>
+                  <span className={styles.reportSelectorMeta}>
+                    {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
+                    {selected?.createdBy && ` · ${getEmailName(selected.createdBy.email)}`}
+                  </span>
+                </div>
+              </div>
+            </button>
+            {/* RIGHT — the count chip + arrow toggles the dropdown of past reports. */}
+            <button
+              type="button"
+              className={styles.reportSelectorArrowBtn}
+              onClick={() => { setOpen(o => !o); setConfirmId(null); }}
+              title="Browse past reports"
+              aria-expanded={open}
+            >
+              <span className={styles.reportSelectorCount}>
+                {matchingReports.length} report{matchingReports.length !== 1 ? 's' : ''}
+              </span>
+              <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>
+                ▼
+              </span>
+            </button>
+          </>
+        )}
+        {rangeOnly && (
+          <button
+            type="button"
+            className={styles.reportSelectorArrowBtn}
+            onClick={() => { setOpen(o => !o); setConfirmId(null); }}
+            title="Filter by date range"
+            aria-expanded={open}
+          >
+            <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>
+              ▼
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── Dropdown ── */}
       {open && (
         <div className={styles.reportSelectorDropdown}>
-          {isCoach && onNewReport && (
-            <button
-              type="button"
-              className={styles.reportSelectorNewRow}
-              onClick={(e) => {
-                e.stopPropagation();
-                onNewReport();
-                setOpen(false);
-                setConfirmId(null);
-              }}
-            >
-              <span className={styles.reportSelectorNewIcon} aria-hidden="true">+</span>
-              <span className={styles.reportSelectorNewText}>New Report</span>
-            </button>
+          {/* Date-range presets — vertical dropdown list of options. Picks the
+              report set used by the rest of the tab (filter by upload date). */}
+          <div className={styles.reportSelectorRangeMenu}>
+            <span className={styles.reportSelectorRangeMenuLabel}>Filter by</span>
+            {RANGE_OPTIONS.map(opt => {
+              const active = dateRange === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={`${styles.reportSelectorRangeOption} ${active ? styles.reportSelectorRangeOptionActive : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDateRange(opt.key);
+                    setConfirmId(null);
+                    // Close after selecting in rangeOnly mode (it's the only thing in the dropdown).
+                    if (rangeOnly) setOpen(false);
+                  }}
+                >
+                  <span className={styles.reportSelectorRangeOptionCheck} aria-hidden="true">
+                    {active ? '✓' : ''}
+                  </span>
+                  <span className={styles.reportSelectorRangeOptionLabel}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* "+ New Report" row removed — the AddReportButton sits beside the
+              bar in TabBarActions and is the canonical entry point. */}
+
+          {matchingReports.length === 0 && !rangeOnly && (
+            <div className={styles.reportSelectorRangeEmpty}>
+              No reports in this date range.
+            </div>
           )}
-          {matchingReports.map(r => {
+          {!rangeOnly && matchingReports.map(r => {
             const isActive = r.id === selected?.id;
             return (
               <div

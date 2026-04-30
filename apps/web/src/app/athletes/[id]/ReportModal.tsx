@@ -12,7 +12,6 @@ import { type ManualSwingScores, getManualSwingScores, scoreColor } from './help
 /* ── Constants ── */
 
 const REPORT_TYPES = [
-  { id: 'SUMMARY', label: 'Summary', icon: '📋' },
   { id: 'HITTING', label: 'Hitting', icon: '🏏' },
   { id: 'AT_BAT_RESULTS', label: 'At-Bat Results', icon: '📊' },
   { id: 'PITCHING', label: 'Pitching', icon: '⚾' },
@@ -21,6 +20,7 @@ const REPORT_TYPES = [
   { id: 'CATCHING', label: 'Catching', icon: '🎯' },
   { id: 'STRENGTH', label: 'S & C', icon: '💪' },
   { id: 'COGNITION', label: 'Cognition', icon: '🧠' },
+  { id: 'SUMMARY', label: 'Summary', icon: '📋' },
 ];
 
 const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'];
@@ -1368,7 +1368,7 @@ interface ReportModalProps {
 
 export function ReportModal({ player, userId, onClose, onSaved, existingReport }: ReportModalProps) {
   const isEdit = !!existingReport;
-  const [reportType, setReportType] = useState(existingReport?.reportType || 'SUMMARY');
+  const [reportType, setReportType] = useState(existingReport?.reportType || 'HITTING');
   const [csvFiles, setCsvFiles] = useState<Record<string, File | null>>({});
   const [csvResults, setCsvResults] = useState<Record<string, UploadResult | null>>({});
   const [reportTitle, setReportTitle] = useState(existingReport?.title || '');
@@ -1558,7 +1558,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
         </div>
 
         <form onSubmit={handleSubmit} className={styles.modalBody}>
-          {/* Report type chips */}
+          {/* Report type chips — cleaner, segmented row */}
           <div className={rs.fieldGroup}>
             <label className={rs.label}>Report Type</label>
             <div className={rs.chipRow}>
@@ -1569,15 +1569,6 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
                   <span className={rs.chipIcon}>{t.icon}</span>{t.label}
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* Report type header */}
-          <div className={rs.reportTypeHeader}>
-            <div className={rs.reportTypeIcon}>{REPORT_TYPES.find(t => t.id === reportType)?.icon}</div>
-            <div>
-              <div className={rs.reportTypeLabel}>{REPORT_TYPES.find(t => t.id === reportType)?.label} Report</div>
-              <div className={rs.reportTypePlayer}>{player.firstName} {player.lastName}</div>
             </div>
           </div>
 
@@ -1631,6 +1622,14 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
             </>
           ) : (
             <>
+              {reportType === 'HITTING' && (
+                <CoachDiagnosisSliders scores={manualScores} setScores={setManualScores} />
+              )}
+              <div className={rs.section}>
+                <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>Notes</span></div>
+                <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="Session observations, development notes, drill recommendations..." rows={4} />
+              </div>
               <div className={rs.section}>
                 <div className={rs.sectionHeader}>
                   <span className={rs.sectionIcon}>📊</span>
@@ -1644,14 +1643,6 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
                       onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }} />
                   ))}
                 </div>
-              </div>
-              {reportType === 'HITTING' && (
-                <CoachDiagnosisSliders scores={manualScores} setScores={setManualScores} />
-              )}
-              <div className={rs.section}>
-                <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>Notes</span></div>
-                <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="Session observations, development notes, drill recommendations..." rows={4} />
               </div>
               <VideoSection videos={videos} setVideos={setVideos} />
             </>

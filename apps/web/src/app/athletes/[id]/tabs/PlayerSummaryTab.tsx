@@ -555,7 +555,7 @@ export function PlayerSummaryTab({
         <ReportSelector
           reports={reports}
           reportTypes={[]}
-          label="Player"
+          label="Player Reports"
           isCoach={isCoach}
           selectedId={selectedReport?.id ?? null}
           onSelect={setSelectedReport}
@@ -563,6 +563,7 @@ export function PlayerSummaryTab({
           onNewReport={onNewReport}
           onEdit={onEditReport}
           onDownload={(r) => generateSummaryPdf(player, [r], topMetrics)}
+          rangeOnly
         />
       </TabBarActions>
 

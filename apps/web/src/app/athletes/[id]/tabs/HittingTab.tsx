@@ -296,11 +296,19 @@ export function HittingTab(props: TabProps) {
 
       {/* ── Top row: Spray Chart (left) + shared big bubble (right) ── */}
       <Section>
+        {/* Outer bubble wrapping the Hitting Snapshot header + spray chart +
+            grade bars + diagnosis notes — header sits INSIDE the bubble. */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
+          border: '1px solid var(--border)',
+          borderRadius: 16,
+          padding: 16,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+        }}>
         <SectionHeader
           icon="🏏"
           iconColor="gold"
           title="Hitting Snapshot"
-          subtitle="Spray chart + Swing · Quality of Contact · Coach Diagnosis composite grades"
         />
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'stretch',
@@ -328,6 +336,7 @@ export function HittingTab(props: TabProps) {
             />
           </div>
         </div>
+        </div>{/* /outer snapshot bubble */}
       </Section>
 
       {/* ── Sub-tab content ── */}

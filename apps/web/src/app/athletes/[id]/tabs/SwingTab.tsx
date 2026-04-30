@@ -99,6 +99,14 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           HITTING INPUTS — Full Swing + Blast Motion + Coach Grades in one bubble
           ───────────────────────────────────────────────────────────────── */}
       <Section>
+        {/* Outer bubble wrapping Coach Grades + Full Swing + Blast Motion */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
+          border: '1px solid var(--border)',
+          borderRadius: 16,
+          padding: 16,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+        }}>
         {/* ── COACH GRADES — moved above Full Swing / Blast Motion ── */}
         <SectionHeader
           icon="✍️"
@@ -288,6 +296,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           </div>
         )}
 
+        </div>{/* /outer Hitting Inputs bubble */}
       </Section>
 
     </>
