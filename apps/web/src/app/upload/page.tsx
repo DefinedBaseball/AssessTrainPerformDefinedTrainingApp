@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { CsvUploadResult, UploadHistoryEntry } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 const SOURCES = [
@@ -70,10 +71,12 @@ export default function UploadPage() {
 
   return (
     <div>
-      <h1 className={styles.title}>Upload CSV</h1>
-      <p className={styles.subtitle}>
-        Import player metrics from Blast Motion, Full Swing, HitTrax, Trackman, or VALD
-      </p>
+      <PageHeader
+        eyebrow="Data Import"
+        title="Upload"
+        titleAccent="CSV"
+        subtitle="Import player metrics from Blast Motion, Full Swing, HitTrax, Trackman, or VALD"
+      />
 
       {/* Source selector */}
       <div className={styles.sourceRow}>

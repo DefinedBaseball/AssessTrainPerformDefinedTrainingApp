@@ -141,18 +141,15 @@
 }
 
 /* ════════════════════════════════════════════════
-   HERO ROW — 2 columns (domain list + big score)
+   HERO — single stacked column:
+   1) Tool-grades bubble
+   2) Sub-grade breakdown detail card
+   3) Development-snapshot card
    ════════════════════════════════════════════════ */
 .hero {
-  display: grid;
-  grid-template-columns: 1.35fr 0.9fr;
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
-}
-
-@media (max-width: 1120px) {
-  .hero {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ── Domain list (tool grades) ── */
@@ -249,7 +246,180 @@
   flex-wrap: wrap;
 }
 
-/* ── Big-score + focus grid (right panel of hero) ── */
+/* ── Condensed Tool Grades bubble (top panel of hero)
+      One card containing a compact vertical bar-graph stack. ── */
+.toolBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.toolBubbleHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolBubbleHead h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ps-text);
+  letter-spacing: -0.01em;
+}
+
+.toolBarList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.toolBarRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.toolBarRow:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.toolBarRow:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.toolBarRowActive {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.toolBarRow + .toolBarRow {
+  margin-top: 0.15rem;
+}
+
+.toolBarMain {
+  display: grid;
+  grid-template-columns: 120px 1fr 46px;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.toolBarLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ps-text);
+  white-space: nowrap;
+}
+
+.toolBarTrack {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.07));
+  overflow: hidden;
+}
+
+.toolBarBaseline {
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  z-index: 1;
+}
+
+.toolBarFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  box-shadow: 0 0 14px -2px currentColor;
+}
+
+.toolBarTarget {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  opacity: 0.55;
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.toolBarScore {
+  font-family: 'DM Mono', monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ps-text);
+}
+
+/* Sub-grade mini bars — aligned below the main bar, offset to match
+   the label column so they sit under the main track. */
+.toolSubRow {
+  margin-left: calc(120px + 0.9rem);
+  margin-right: calc(46px + 0.9rem);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.35rem 0.9rem;
+}
+
+.toolSubItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 20px;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolSubLabel {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ps-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolSubTrack {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.toolSubFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+}
+
+.toolSubScore {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ps-muted);
+}
+
+/* ── Big-score + focus grid (development snapshot) ── */
 .noteCard {
   display: grid;
   gap: 1rem;
@@ -316,23 +486,54 @@
 }
 
 /* ════════════════════════════════════════════════
-   MIDDLE ROW — hitting detail + quadrants
+   MIDDLE ROW — decision matrix (full width now that
+   hitting detail was promoted to the hero stack)
    ════════════════════════════════════════════════ */
 .middle {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1fr;
   gap: 1.25rem;
-}
-
-@media (max-width: 1120px) {
-  .middle {
-    grid-template-columns: 1fr;
-  }
 }
 
 .playerCard {
   display: grid;
-  gap: 1rem;
+  gap: 0.55rem;
+}
+
+/* Condensed header + KPI treatment scoped to the Sub-grade Breakdown card.
+   Keeps the bar chart full-size but tightens everything above it. */
+.playerCard .sectionTitle {
+  margin-bottom: 0.25rem;
+}
+.playerCard .sectionTitle h2 {
+  font-size: clamp(0.95rem, 0.9rem + 0.35vw, 1.1rem);
+}
+.playerCard .tiny {
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+}
+.playerCard .chip {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.65rem;
+}
+.playerCard .kpiRow {
+  padding: 0 12px 0 60px;
+  gap: 0.4rem;
+}
+.playerCard .kpi {
+  padding: 0.45rem 0.55rem;
+}
+.playerCard .kpiLabel {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.2rem;
+}
+.playerCard .kpiValue {
+  font-size: 1.15rem;
+}
+.playerCard .kpiTrend {
+  font-size: 0.58rem;
+  margin-top: 0.18rem;
 }
 
 .chips {
@@ -370,6 +571,28 @@
 @media (max-width: 900px) {
   .kpiGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Proportional KPI row — each bubble spans over its matching group of
+   sub-metric bars in the chart below. Left/right padding reserves the
+   same gutter recharts uses for the YAxis + right margin. */
+.kpiRow {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 0.55rem;
+  padding: 0 12px 0 60px;
+}
+
+.kpiRow > .kpi {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .kpiRow {
+    padding: 0 6px 0 48px;
+    gap: 0.35rem;
   }
 }
 

@@ -5,6 +5,7 @@ import type { Player, Metric, Video } from '@/lib/api';
 export interface ReportSummary {
   id: string;
   reportType: string;
+  title?: string | null;
   notes: string | null;
   videoIds: string | null;
   content: string | null;
@@ -21,6 +22,12 @@ export interface TabProps {
   isCoach: boolean;
   onRefresh?: () => void;
   refreshKey?: number;
+  /** Open the New-Report modal on the parent profile. Passed to ReportSelector
+   *  so coaches can create a new report straight from the dropdown. */
+  onNewReport?: () => void;
+  /** Open the Report modal in EDIT mode for an existing report. Plumbed into
+   *  ReportSelector so clicking the report name on the bar opens that report. */
+  onEditReport?: (report: ReportSummary) => void;
 }
 
 /** Get the latest report matching any of the given types */
@@ -45,6 +52,63 @@ export function getReportContentVideos(report: ReportSummary | null): { name: st
     if (Array.isArray(parsed.videos)) return parsed.videos;
   } catch { /* ignore */ }
   return [];
+}
+
+/** Manual coach-entered "Coach Diagnosis" scores (20-80 scale) — lifted from a
+ *  HITTING report's content JSON.  Returns nulls when missing. */
+export interface ManualSwingScores {
+  forwardMove: number | null;
+  posture: number | null;
+  stability: number | null;
+  direction: number | null;
+  stretch: number | null;
+  core: number | null;
+  slot: number | null;
+  timing: number | null;
+}
+
+export function getManualSwingScores(report: ReportSummary | null): ManualSwingScores {
+  const empty: ManualSwingScores = {
+    forwardMove: null, posture: null, stability: null, direction: null,
+    stretch: null, core: null, slot: null, timing: null,
+  };
+  if (!report?.content) return empty;
+  try {
+    const parsed = JSON.parse(report.content);
+    const m = parsed?.manualScores ?? {};
+    const num = (v: unknown): number | null => {
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    return {
+      forwardMove: num(m.forwardMove),
+      posture:     num(m.posture),
+      stability:   num(m.stability),
+      direction:   num(m.direction),
+      stretch:     num(m.stretch),
+      core:        num(m.core),
+      slot:        num(m.slot),
+      timing:      num(m.timing),
+    };
+  } catch { return empty; }
+}
+
+/** Average a sparse set of 20-80 grades, ignoring nulls. */
+export function averageGrades(values: (number | null | undefined)[]): number | null {
+  const real = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (real.length === 0) return null;
+  const avg = real.reduce((a, b) => a + b, 0) / real.length;
+  return Math.round(avg);
+}
+
+/** Convert a metric `topMetrics` reading to a 20-80 grade (clamped, rounded to 5). */
+export function metricToGrade(
+  topMetrics: Record<string, { value: number }>,
+  metricKey: string,
+): number | null {
+  const m = topMetrics[metricKey];
+  if (!m) return null;
+  return toScoutingGrade(m.value, metricKey);
 }
 
 /** Extract all uploadIds from a report's content JSON (from csvUploads) */
@@ -116,10 +180,25 @@ export const METRIC_LABELS: Record<string, string> = {
   os_whiff_pct: 'OS Whiff%',
   os_in_zone_swing_pct: 'OS In-Zone Swing%',
   os_chase_pct: 'OS Chase%',
-  overall_barrel_pct: 'Overall Barrel%',
-  overall_bb_pct: 'BB%',
-  overall_k_pct: 'K%',
+  overall_barrel_pct: 'Total Barrel%',
+  overall_whiff_pct: 'Total Whiff%',
+  /** Computed in SwingTab from Full Swing CSV column Q (SquaredUp). A null in
+   *  that column = no contact = miss. Miss% = nulls / total swings * 100. */
+  full_swing_miss_pct: 'Miss%',
+  overall_chase_pct: 'Total Chase%',
+  overall_in_zone_swing_pct: 'Total In-Zone Swing%',
+  overall_bb_pct: 'Walk%',
+  overall_k_pct: 'Strikeout%',
   avg_ev: 'Avg EV',
+  // Derived swing-mechanics scores (graded 20-80)
+  plane_score: 'Plane Score',
+  connection_score: 'Connection Score',
+  rotation_score: 'Rotation Score',
+  // Manual coach scores (20-80)
+  manual_forward_move: 'Forward Move',
+  manual_posture: 'Posture',
+  manual_stability: 'Stability',
+  manual_direction: 'Direction',
   // Vision (Vizual Edge)
   vizual_edge_convergence: 'Convergence',
   vizual_edge_divergence: 'Divergence',
@@ -142,6 +221,32 @@ export const METRIC_LABELS: Record<string, string> = {
 /* ── Metric Keys Grouped by Tab ── */
 
 export const TAB_METRICS = {
+  /** SWING MECHANICS — Blast Motion + age-adjusted bat speed + 3 derived scores
+   *  (Plane / Connection / Rotation) and 4 coach-entered manual grades. */
+  swingMech: [
+    'attack_angle',          // Avg Attack Angle
+    'plane_angle',           // Avg Tilt
+    'avg_bat_speed',         // Bat Speed (against age avgs)
+    'time_to_contact',
+    'on_plane_efficiency',   // → Plane Score
+    'connection_at_contact', // → Connection Score
+    'rotational_acceleration', // → Rotation Score
+  ],
+  /** SWING DECISION — plate-discipline rates split by FB / OS / Total */
+  swingDecision: [
+    'fb_barrel_pct', 'os_barrel_pct', 'overall_barrel_pct',
+    'fb_whiff_pct', 'os_whiff_pct', 'overall_whiff_pct',
+    'fb_chase_pct', 'os_chase_pct', 'overall_chase_pct',
+    'overall_bb_pct', 'overall_k_pct',
+    'fb_in_zone_swing_pct', 'os_in_zone_swing_pct', 'overall_in_zone_swing_pct',
+  ],
+  /** QUALITY OF CONTACT — outcome metrics from Full Swing / HitTrax */
+  qualityOfContact: [
+    'avg_exit_velo', 'squared_up_pct', 'smash_factor',
+    'overall_whiff_pct', 'overall_barrel_pct',
+    'launch_angle', 'distance',
+  ],
+  /* Legacy groupings — kept so older tab files keep working. */
   swing: [
     'max_bat_speed', 'avg_bat_speed', 'attack_angle', 'plane_angle',
     'time_to_contact', 'on_plane_efficiency', 'peak_hand_speed',
@@ -204,9 +309,19 @@ const THRESHOLDS: Record<string, [number, number, boolean]> = {
   os_in_zone_swing_pct: [65, 50, true],
   os_chase_pct: [25, 35, false],   // lower chase is better
   overall_barrel_pct: [20, 12, true],
+  overall_whiff_pct: [20, 30, false],   // lower is better
+  full_swing_miss_pct: [15, 30, false], // lower is better
+  overall_chase_pct: [22, 32, false],   // lower is better
+  overall_in_zone_swing_pct: [70, 55, true],
   overall_bb_pct: [12, 8, true],
   overall_k_pct: [15, 25, false],  // lower K% is better
   avg_ev: [95, 85, true],
+  attack_angle: [15, 8, true],     // sweet-spot ~10-15° (treat higher = better in-window)
+  plane_angle: [35, 25, true],     // tilt — higher generally better up to ~35°
+  time_to_contact: [0.14, 0.18, false], // faster is better
+  connection_at_contact: [88, 78, true],
+  rotational_acceleration: [22, 16, true],
+  launch_angle: [25, 15, true],   // sweet-spot for damage
   vizual_edge_overall: [80, 65, true],
   vizual_edge_convergence: [80, 60, true],
   vizual_edge_divergence: [80, 60, true],
@@ -262,6 +377,31 @@ export const GRADE_RANGES: Record<string, [number, number]> = {
   smash_factor: [0.8, 1.5],
   distance: [250, 450],
   spin_rate: [1600, 2800],
+  // Swing-decision rates (note: lower-is-better metrics use [worst, best])
+  fb_barrel_pct: [5, 30],
+  os_barrel_pct: [3, 25],
+  overall_barrel_pct: [5, 25],
+  fb_whiff_pct: [35, 10],         // lower is better
+  os_whiff_pct: [40, 15],         // lower is better
+  overall_whiff_pct: [35, 12],    // lower is better
+  full_swing_miss_pct: [40, 5],   // lower is better — % of swings with no contact
+  fb_chase_pct: [40, 10],         // lower is better
+  os_chase_pct: [45, 15],         // lower is better
+  overall_chase_pct: [42, 12],    // lower is better
+  overall_bb_pct: [4, 16],
+  overall_k_pct: [35, 8],         // lower is better
+  fb_in_zone_swing_pct: [40, 80],
+  os_in_zone_swing_pct: [40, 75],
+  overall_in_zone_swing_pct: [40, 78],
+  squared_up_pct: [10, 45],
+  // Swing mechanics
+  attack_angle: [-5, 18],          // sweet-spot positive
+  plane_angle: [10, 38],
+  time_to_contact: [0.20, 0.13],   // lower is better
+  on_plane_efficiency: [55, 92],
+  connection_at_contact: [70, 95],
+  rotational_acceleration: [10, 26],
+  launch_angle: [5, 22],
 };
 
 export function toScoutingGrade(value: number, metricType: string): number {
@@ -383,26 +523,14 @@ export interface AggregateScores {
    lightness) as the score moves away from the midpoint 50, so a 20
    is noticeably more intense than a 40, an 80 is noticeably deeper
    than a 60, etc. */
+/** Flat three-stop scoring color: every "bad" grade is the same red, every
+ *  "average" grade is the same yellow, every "good" grade is the same green.
+ *    < 40 → red,  40-59 → yellow,  ≥ 60 → green. */
 export function scoreColor(score: number): string {
   const clamped = Math.max(20, Math.min(80, score));
-
-  let hue: number;
-  let t: number; // 0 = band-midpoint (lightest), 1 = band extreme (darkest)
-
-  if (clamped < 40) {
-    hue = 0;                          // red
-    t = (40 - clamped) / 20;          // 0 at 40, 1 at 20
-  } else if (clamped < 60) {
-    hue = 220;                        // blue
-    t = Math.abs(clamped - 50) / 10;  // 0 at 50, 1 at 40 or 60
-  } else {
-    hue = 142;                        // green
-    t = (clamped - 60) / 20;          // 0 at 60, 1 at 80
-  }
-
-  const lightness = 62 - t * 22;      // 62% lightest, 40% deepest
-  const saturation = 70 + t * 20;     // 70% → 90%
-  return `hsl(${hue}, ${saturation.toFixed(1)}%, ${lightness.toFixed(1)}%)`;
+  if (clamped >= 60) return '#22C55E';   // green = good
+  if (clamped >= 40) return '#EAB308';   // yellow = average
+  return '#EF4444';                       // red = bad
 }
 
 export function computeAggregateScores(
@@ -536,11 +664,11 @@ export function computeAggregateScores(
     });
   }
 
-  // Vision — same trigger as hitting
+  // Cognition — same trigger as hitting
   if (hasNonPitcher) {
     sections.push({
       key: 'vision',
-      label: 'Vision',
+      label: 'Cognition',
       color: '#A78BFA',
       bars: [
         { key: 'vis_reaction', label: 'Reaction Time', score: null, subMetrics: [] },

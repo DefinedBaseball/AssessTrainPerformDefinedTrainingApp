@@ -14,7 +14,7 @@ const TABS = [
   { key: 'pitching', label: 'Pitching' },
   { key: 'defense', label: 'Defense' },
   { key: 'strength', label: 'S&C' },
-  { key: 'vision', label: 'Vision' },
+  { key: 'vision', label: 'Cognition' },
 ];
 
 /* ── Tab+Category Color System ──
@@ -93,7 +93,7 @@ const TAB_LABELS: Record<string, string> = {
   pitching: 'Pitching',
   defense: 'Defense',
   strength: 'S&C',
-  vision: 'Vision',
+  vision: 'Cognition',
 };
 
 /* Modal dropdown config per tab — `dbCategory` is the Drill Library category it pulls from.
@@ -369,8 +369,13 @@ export default function TrainingPage() {
         eyebrow="Training Calendar"
         title={
           isCoach
-            ? (selectedPlayer ? `${selectedPlayer.firstName} ${selectedPlayer.lastName}` : 'Select Athlete')
-            : 'My Training'
+            ? (selectedPlayer ? selectedPlayer.firstName : 'Select')
+            : 'My'
+        }
+        titleAccent={
+          isCoach
+            ? (selectedPlayer ? selectedPlayer.lastName : 'Athlete')
+            : 'Training'
         }
         subtitle={isCoach
           ? 'Build and schedule drills for each athlete\u2019s weekly plan.'

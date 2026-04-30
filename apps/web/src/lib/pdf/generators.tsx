@@ -16,6 +16,7 @@ import * as api from '@/lib/api';
 import type { ReportSummary } from '@/app/athletes/[id]/helpers';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
+  getManualSwingScores, metricToGrade,
 } from '@/app/athletes/[id]/helpers';
 
 /* ── Helpers ── */
@@ -76,44 +77,73 @@ export async function generateHittingPdf(
   const uploadIds = getReportUploadIds(hittingReport);
   const ids = uploadIds.length > 0 ? uploadIds : undefined;
 
-  // Fetch data
-  const [bbSummary, blastSummary] = await Promise.all([
-    api.getBattedBallSummary(player.id, 'FULL_SWING', ids).catch(() => ({})),
-    api.getBattedBallSummary(player.id, 'BLAST_MOTION', ids).catch(() => ({})),
-  ]);
+  // Manual coach grades + diagnosis notes from latest HITTING report
+  const manual = getManualSwingScores(hittingReport);
+  let diagnosisNotes = '';
+  if (hittingReport?.content) {
+    try {
+      const c = JSON.parse(hittingReport.content);
+      diagnosisNotes = typeof c.diagnosisNotes === 'string' ? c.diagnosisNotes : '';
+    } catch { /* ignore */ }
+  }
 
-  // At-Bat Results
-  const atBatReport = reports
-    .filter(r => r.reportType === 'AT_BAT_RESULTS')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+  // Compute Full Swing Miss% + spray dots from a single session-data fetch
+  // (same source SwingTab + SprayChartView use). Miss% = swings where Squared
+  // Up (col Q) was null. Spray dots = each swing's (angle, distance) plus EV.
+  let fullSwingMissPct: number | null = null;
+  let sprayDots: { angle: number; distance: number; exitVelo?: number }[] = [];
+  try {
+    const rows = await api.getSessionData(player.id, 'FULL_SWING',
+      ['bat_speed', 'squared_up_pct', 'spray_angle', 'distance', 'max_exit_velo'],
+      ids ? { uploadIds: ids } : undefined);
+    const byTs = new Map<string, { bat: boolean; sq: boolean; angle?: number; dist?: number; ev?: number }>();
+    for (const r of (rows as any[])) {
+      const cur = byTs.get(r.recordedAt) ?? { bat: false, sq: false };
+      if (r.metricType === 'bat_speed')      cur.bat = true;
+      if (r.metricType === 'squared_up_pct') cur.sq  = true;
+      if (r.metricType === 'spray_angle')    cur.angle = r.value;
+      if (r.metricType === 'distance')       cur.dist  = r.value;
+      if (r.metricType === 'max_exit_velo')  cur.ev    = r.value;
+      byTs.set(r.recordedAt, cur);
+    }
+    const swings = Array.from(byTs.values()).filter(s => s.bat);
+    if (swings.length > 0) {
+      const misses = swings.filter(s => !s.sq).length;
+      fullSwingMissPct = (misses / swings.length) * 100;
+    }
+    sprayDots = Array.from(byTs.values())
+      .filter(s => s.angle !== undefined && s.dist !== undefined && s.dist! > 0)
+      .map(s => ({ angle: s.angle!, distance: s.dist!, exitVelo: s.ev }));
+  } catch { /* ignore */ }
 
-  const atBatUploadIds = getReportUploadIds(atBatReport);
-  const atBatIds = atBatUploadIds.length > 0 ? atBatUploadIds : undefined;
+  // Inject the synthetic miss% reading so the PDF renders Miss like any other metric.
+  const topMetricsAll: Record<string, { value: number; unit: string; recordedAt: string }> = {
+    ...topMetrics,
+  };
+  if (fullSwingMissPct !== null) {
+    topMetricsAll.full_swing_miss_pct = {
+      value: fullSwingMissPct, unit: '%', recordedAt: new Date().toISOString(),
+    };
+  }
 
-  const [fsSummary] = await Promise.all([
-    api.getBattedBallSummary(player.id, 'FULL_SWING', atBatIds).catch(() => ({})),
-  ]);
-
-  // Get recognition metrics
-  const recMetrics = getTabMetrics(topMetrics, TAB_METRICS.pitchRec);
-  const swingMetrics = getTabMetrics(topMetrics, TAB_METRICS.swing);
-
-  // Combine into activeMetrics for scouting grades
-  const activeSwingMetrics = { ...topMetrics };
-
-  // At-bat assessment from report content
-  const atBatAssessment = getAtBatAssessmentFromReport(atBatReport);
+  // Per-key 20-80 grades for Blast Motion mechanics inputs
+  const SWING_KEYS = [
+    'attack_angle', 'plane_angle', 'avg_bat_speed', 'time_to_contact',
+    'on_plane_efficiency', 'connection_at_contact', 'rotational_acceleration',
+  ] as const;
+  const metricGrades: Record<string, number | null> = {};
+  for (const k of SWING_KEYS) {
+    metricGrades[k] = metricToGrade(topMetricsAll, k);
+  }
 
   const data: HittingPdfData = {
     player,
-    swingMetrics: activeSwingMetrics,
-    battedBallSummary: bbSummary as any,
-    blastSummary: blastSummary as any,
+    topMetrics: topMetricsAll,
+    metricGrades,
+    manual,
+    diagnosisNotes,
+    sprayDots,
     swingNotes: hittingReport?.notes || null,
-    atBatAssessment: atBatAssessment,
-    fsSummary: fsSummary as any,
-    recognitionMetrics: recMetrics,
-    atBatNotes: atBatReport?.notes || null,
     reportDate,
   };
 
@@ -349,13 +379,13 @@ export async function generateVisionPdf(
   };
 
   const doc = (
-    <Document title={`${player.firstName} ${player.lastName} — Vision Assessment`}>
-      <CoverPage player={player} reportTitle="Vision Assessment" reportDate={reportDate} />
+    <Document title={`${player.firstName} ${player.lastName} — Cognition Assessment`}>
+      <CoverPage player={player} reportTitle="Cognition Assessment" reportDate={reportDate} />
       <VisionReportPages data={data} />
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Vision'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Cognition'));
 }
 
 /* ═══════════════════════════════════════════
@@ -417,17 +447,62 @@ export async function generateSummaryPdf(
     visionUploadIds.length > 0 ? api.getPlayerMetrics(player.id, { uploadIds: visionUploadIds }).catch(() => []) : Promise.resolve([]),
   ]);
 
-  // Build hitting data
+  // Build hitting data — mirrors generateHittingPdf so the summary PDF's
+  // hitting page matches the standalone Hitting PDF.
+  const summaryManual = getManualSwingScores(hittingReport);
+  let summaryDiagnosisNotes = '';
+  if (hittingReport?.content) {
+    try {
+      const c = JSON.parse(hittingReport.content);
+      summaryDiagnosisNotes = typeof c.diagnosisNotes === 'string' ? c.diagnosisNotes : '';
+    } catch { /* ignore */ }
+  }
+  let summaryMissPct: number | null = null;
+  let summarySprayDots: { angle: number; distance: number; exitVelo?: number }[] = [];
+  try {
+    const rows = await api.getSessionData(player.id, 'FULL_SWING',
+      ['bat_speed', 'squared_up_pct', 'spray_angle', 'distance', 'max_exit_velo'],
+      hIds ? { uploadIds: hIds } : undefined);
+    const byTs = new Map<string, { bat: boolean; sq: boolean; angle?: number; dist?: number; ev?: number }>();
+    for (const r of (rows as any[])) {
+      const cur = byTs.get(r.recordedAt) ?? { bat: false, sq: false };
+      if (r.metricType === 'bat_speed')      cur.bat = true;
+      if (r.metricType === 'squared_up_pct') cur.sq  = true;
+      if (r.metricType === 'spray_angle')    cur.angle = r.value;
+      if (r.metricType === 'distance')       cur.dist  = r.value;
+      if (r.metricType === 'max_exit_velo')  cur.ev    = r.value;
+      byTs.set(r.recordedAt, cur);
+    }
+    const swings = Array.from(byTs.values()).filter(s => s.bat);
+    if (swings.length > 0) {
+      summaryMissPct = (swings.filter(s => !s.sq).length / swings.length) * 100;
+    }
+    summarySprayDots = Array.from(byTs.values())
+      .filter(s => s.angle !== undefined && s.dist !== undefined && s.dist! > 0)
+      .map(s => ({ angle: s.angle!, distance: s.dist!, exitVelo: s.ev }));
+  } catch { /* ignore */ }
+  const summaryTopAll: Record<string, { value: number; unit: string; recordedAt: string }> = { ...topMetrics };
+  if (summaryMissPct !== null) {
+    summaryTopAll.full_swing_miss_pct = {
+      value: summaryMissPct, unit: '%', recordedAt: new Date().toISOString(),
+    };
+  }
+  const SWING_KEYS_SUM = [
+    'attack_angle', 'plane_angle', 'avg_bat_speed', 'time_to_contact',
+    'on_plane_efficiency', 'connection_at_contact', 'rotational_acceleration',
+  ] as const;
+  const summaryGrades: Record<string, number | null> = {};
+  for (const k of SWING_KEYS_SUM) {
+    summaryGrades[k] = metricToGrade(summaryTopAll, k);
+  }
   const hittingData: HittingPdfData = {
     player,
-    swingMetrics: topMetrics,
-    battedBallSummary: bbSummary as any,
-    blastSummary: blastSummary as any,
+    topMetrics: summaryTopAll,
+    metricGrades: summaryGrades,
+    manual: summaryManual,
+    diagnosisNotes: summaryDiagnosisNotes,
+    sprayDots: summarySprayDots,
     swingNotes: hittingReport?.notes || null,
-    atBatAssessment: getAtBatAssessmentFromReport(atBatReport),
-    fsSummary: fsSummary as any,
-    recognitionMetrics: getTabMetrics(topMetrics, TAB_METRICS.pitchRec),
-    atBatNotes: atBatReport?.notes || null,
     reportDate,
   };
 

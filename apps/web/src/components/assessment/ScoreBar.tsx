@@ -22,8 +22,8 @@ const FILL_CLASS: Record<FillLevel, string> = {
 
 const COLORS: Record<FillLevel, string> = {
   high: 'var(--green)',
-  mid: 'var(--gold)',
-  low: 'var(--red)',
+  mid: '#F1F5F9',
+  low: '#3B82F6',
   teal: 'var(--accent)',
 };
 

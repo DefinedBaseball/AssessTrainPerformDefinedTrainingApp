@@ -18,9 +18,10 @@ import { DefenseTab } from './tabs/DefenseTab';
 import { PitchingTab } from './tabs/PitchingTab';
 import { VisionTab } from './tabs/VisionTab';
 import { StrengthConditioningTab } from './tabs/StrengthConditioningTab';
+import { VideosTab } from './tabs/VideosTab';
 
 import { ReportModal } from './ReportModal';
-import { formatHeight, getAge, computeAggregateScores } from './helpers';
+import { formatHeight, getAge, computeAggregateScores, scoreColor } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
@@ -53,6 +54,13 @@ const IconVision = (
 const IconStrength = (
   <svg {...iconProps}><path d="M3 9v6M6 6v12M10 4v16M14 4v16M18 6v12M21 9v6" /></svg>
 );
+const IconVideos = (
+  <svg {...iconProps}>
+    <rect x="2" y="5" width="14" height="14" rx="2" />
+    <path d="M16 10l5-3v10l-5-3z" />
+    <circle cx="9" cy="12" r="2.5" />
+  </svg>
+);
 
 /* ── Tab definitions ── */
 const TABS: Tab[] = [
@@ -60,8 +68,9 @@ const TABS: Tab[] = [
   { key: 'hitting', label: 'Hitting', icon: IconHitting },
   { key: 'defense', label: 'Defense', icon: IconDefense },
   { key: 'pitching', label: 'Pitching', icon: IconPitching },
-  { key: 'vision', label: 'Vision', icon: IconVision },
+  { key: 'vision', label: 'Cognition', icon: IconVision },
   { key: 'strength', label: 'Strength & Conditioning', icon: IconStrength },
+  { key: 'videos', label: 'Videos', icon: IconVideos },
 ];
 
 /* ── Progress metrics to fetch ── */
@@ -98,6 +107,8 @@ export default function PlayerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
+  /** When set, ReportModal opens in edit mode for this existing report. */
+  const [editingReport, setEditingReport] = useState<ReportSummary | null>(null);
 
   /* ── Auth guard ── */
   useEffect(() => {
@@ -161,7 +172,7 @@ export default function PlayerProfilePage() {
       if (t.key === 'hitting') return hasNonPitcher;
       if (t.key === 'pitching') return isPitcher;
       if (t.key === 'defense') return hasNonPitcher && hasDefenseReport;
-      return true; // vision, strength
+      return true; // vision, strength, videos
     });
   }, [player, reports]);
 
@@ -187,6 +198,8 @@ export default function PlayerProfilePage() {
     isCoach,
     onRefresh: () => setRefreshKey(k => k + 1),
     refreshKey,
+    onNewReport: () => { setEditingReport(null); setShowReportModal(true); },
+    onEditReport: (r) => { setEditingReport(r); setShowReportModal(true); },
   };
 
   return (
@@ -241,20 +254,7 @@ export default function PlayerProfilePage() {
 
         return (
           <div className={styles.heroOuter}>
-            {isCoach && (
-              <div className={styles.heroEyebrowRow}>
-                <button
-                  type="button"
-                  className={styles.newReportBtn}
-                  onClick={() => setShowReportModal(true)}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  New Report
-                </button>
-              </div>
-            )}
+            {/* "New Report" has moved into the Reports dropdown on each tab. */}
 
             <div className={styles.commandDeck}>
               {/* LEFT: identity block */}
@@ -292,28 +292,42 @@ export default function PlayerProfilePage() {
 
               {/* RIGHT: gauge + radar */}
               <div className={styles.metricsCol}>
-                <div className={styles.gaugeWrap}>
-                  <svg viewBox="0 0 160 160" aria-hidden="true">
-                    <defs>
-                      <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%"  stopColor="#ffffff" />
-                        <stop offset="55%" stopColor="#c9ced6" />
-                        <stop offset="100%" stopColor="#E8AF34" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="80" cy="80" r={R} className={styles.gaugeTrack} />
-                    <circle
-                      cx="80" cy="80" r={R}
-                      className={styles.gaugeFill}
-                      strokeDasharray={C}
-                      strokeDashoffset={C - C * pct}
-                    />
-                  </svg>
-                  <div className={styles.gaugeInner}>
-                    <span className={styles.val}>{overall ?? '—'}</span>
-                    <span className={styles.suffix}>/80 SCALE</span>
-                  </div>
-                </div>
+                {(() => {
+                  // Gauge now follows the unified score bands: 20-40 red,
+                  // 40-50 orange, 50-60 yellow→green, 60-80 green. Use the
+                  // current overall to drive the stroke color (plus a softer
+                  // second stop for visual depth).
+                  const gaugeHi = overall != null ? scoreColor(overall) : '#c9ced6';
+                  const gaugeLo = overall != null ? scoreColor(Math.max(20, overall - 12)) : '#ffffff';
+                  return (
+                    <div className={styles.gaugeWrap}>
+                      <svg viewBox="0 0 160 160" aria-hidden="true">
+                        <defs>
+                          <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%"  stopColor={gaugeLo} />
+                            <stop offset="100%" stopColor={gaugeHi} />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="80" cy="80" r={R} className={styles.gaugeTrack} />
+                        <circle
+                          cx="80" cy="80" r={R}
+                          className={styles.gaugeFill}
+                          strokeDasharray={C}
+                          strokeDashoffset={C - C * pct}
+                        />
+                      </svg>
+                      <div className={styles.gaugeInner}>
+                        <span
+                          className={styles.val}
+                          style={overall != null ? { color: gaugeHi, WebkitTextFillColor: gaugeHi, background: 'none' } : undefined}
+                        >
+                          {overall ?? '—'}
+                        </span>
+                        <span className={styles.suffix}>/80 SCALE</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className={styles.radarWrap}>
                   <svg viewBox="0 0 170 170" aria-hidden="true">
@@ -361,9 +375,6 @@ export default function PlayerProfilePage() {
                 </div>
               </div>
             </div>
-
-            {/* Neon pipe connector — bridges the hero to the content */}
-            <div className={styles.pipeConnector} aria-hidden="true" />
           </div>
         );
       })()}
@@ -388,14 +399,18 @@ export default function PlayerProfilePage() {
         <TabPanel active={activeTab === 'strength'}>
           <StrengthConditioningTab {...tabProps} />
         </TabPanel>
+        <TabPanel active={activeTab === 'videos'}>
+          <VideosTab {...tabProps} />
+        </TabPanel>
       </div>
 
-      {/* Report Modal */}
+      {/* Report Modal — used for both Create (editingReport=null) and Edit */}
       {showReportModal && (
         <ReportModal
           player={player}
           userId={(user as any).id || (user as any).sub}
-          onClose={() => setShowReportModal(false)}
+          existingReport={editingReport}
+          onClose={() => { setShowReportModal(false); setEditingReport(null); }}
           onSaved={() => setRefreshKey(k => k + 1)}
         />
       )}

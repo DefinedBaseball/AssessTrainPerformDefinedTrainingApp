@@ -26,13 +26,13 @@ export const colors = {
   textMuted:  '#768390',
   textDark:   '#1C2128',
 
-  // Badges
-  elite:      '#22C55E',
-  eliteBg:    '#14532D',
-  aboveAvg:   '#EAB308',
-  aboveAvgBg: '#713F12',
-  developing: '#EF4444',
-  developingBg:'#7F1D1D',
+  // Grade badges — Red (bad) / Yellow (average) / Green (good)
+  elite:      '#16A34A',     // green text
+  eliteBg:    '#DCFCE7',     // light green bg (white-page friendly)
+  aboveAvg:   '#CA8A04',     // yellow text
+  aboveAvgBg: '#FEF9C3',     // light yellow bg
+  developing: '#DC2626',     // red text
+  developingBg:'#FEE2E2',    // light red bg
 
   // Page
   pageBg:     '#FFFFFF',

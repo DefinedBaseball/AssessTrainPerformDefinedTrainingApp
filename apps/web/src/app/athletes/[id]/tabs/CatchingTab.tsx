@@ -55,7 +55,15 @@ interface CatchingAssessment {
     recoverySpeed: GradeItem;
     overallGrade: number | null;
     blockingRangeFeet?: number | null;
+    /* Positional blocking grades — used by the Catching Snapshot field
+       diagram. Falls back to existing fields if not captured yet. */
+    blockLeft?: GradeItem;
+    blockCenter?: GradeItem;
+    blockRight?: GradeItem;
   };
+  /* Optional border-zone grades (16 outer cells around the strike zone).
+     If not provided, border zones render neutral. */
+  borderZoneColors?: (0 | 1 | 2)[];
 }
 
 /* ── Constants ── */
@@ -76,18 +84,29 @@ const THROWING_CARDS: {
 
 /* ── Helpers ── */
 
+/* Color bands on the 20-80 scouting scale:
+     20-40 → red
+     40-60 → yellow
+     60-80 → green
+*/
 function gradeColor(grade: number | null): string {
   if (grade === null) return 'var(--faint)';
-  if (grade >= 60) return '#4ADE80';
-  if (grade >= 50) return '#FBBF24';
-  return '#F87171';
+  if (grade >= 60) return '#22C55E'; // green
+  if (grade >= 40) return '#F1F5F9'; // white (average band)
+  return '#60A5FA';                   // blue (low band)
 }
 
 function gradeBg(grade: number | null): string {
   if (grade === null) return 'transparent';
-  if (grade >= 60) return 'rgba(74,222,128,0.10)';
-  if (grade >= 50) return 'rgba(251,191,36,0.10)';
-  return 'rgba(248,113,113,0.10)';
+  if (grade >= 60) return 'rgba(34,197,94,0.10)';   // green
+  if (grade >= 40) return 'rgba(255,255,255,0.08)'; // white (average band)
+  return 'rgba(59,130,246,0.12)';                    // blue (low band)
+}
+
+/* Map a 20-80 scouting score to a 0-100% bar fill. */
+function gradePct(grade: number | null): number {
+  if (grade === null) return 0;
+  return Math.max(0, Math.min(((grade - 20) / 60) * 100, 100));
 }
 
 function gradeLabel(grade: number | null): string {
@@ -300,7 +319,7 @@ function BlockingRangeVisual({ rangeFeet }: { rangeFeet: number | null }) {
 /* ── Receiving Score Card ── */
 function ReceivingScoreRow({ label, item }: { label: string; item: GradeItem | undefined }) {
   const grade = item?.grade ?? null;
-  const pct = grade !== null ? Math.min((grade / 80) * 100, 100) : 0;
+  const pct = gradePct(grade);
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '140px 44px 1fr', alignItems: 'center',
@@ -326,7 +345,7 @@ function ReceivingScoreRow({ label, item }: { label: string; item: GradeItem | u
 /* ── Blocking Score Card ── */
 function BlockingScoreRow({ label, item }: { label: string; item: GradeItem | undefined }) {
   const grade = item?.grade ?? null;
-  const pct = grade !== null ? Math.min((grade / 80) * 100, 100) : 0;
+  const pct = gradePct(grade);
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '160px 44px 1fr', alignItems: 'center',
@@ -353,8 +372,387 @@ function BlockingScoreRow({ label, item }: { label: string; item: GradeItem | un
    MAIN TAB
    ═══════════════════════════════════════════ */
 
+/* ════════════════════════════════════════════════════════════════
+   NEW: Strike-Zone Heat Map (5×5 with inner 3×3 strike zone).
+   The inner 9 cells are populated from the report's zoneColors;
+   the outer 16 border cells use borderZoneColors if present, else
+   default to neutral. The strike-zone box is outlined prominently.
+   ════════════════════════════════════════════════════════════════ */
+function StrikeZoneHeatMap5x5({
+  zoneColors, borderZoneColors,
+}: {
+  zoneColors: (0 | 1 | 2)[];
+  borderZoneColors?: (0 | 1 | 2)[];
+}) {
+  const W = 280, H = 320;
+  const cellW = 50, cellH = 56;
+  const gridW = cellW * 5, gridH = cellH * 5;
+  const ox = (W - gridW) / 2; // 15
+  const oy = (H - gridH) / 2; // 20
+
+  const ZONE_FILLS_LOCAL: Record<number, string> = { 0: '#F87171', 1: 'rgba(255,255,255,0.18)', 2: '#4ADE80' };
+
+  // Compute fill for each of the 25 cells
+  const cellAt = (row: number, col: number): 0 | 1 | 2 => {
+    const isStrike = row >= 1 && row <= 3 && col >= 1 && col <= 3;
+    if (isStrike) {
+      const inner = (row - 1) * 3 + (col - 1);
+      return (zoneColors[inner] ?? 1) as 0 | 1 | 2;
+    }
+    if (!borderZoneColors) return 1;
+    // Outer cells indexed left-to-right, top-to-bottom
+    let idx = -1;
+    if (row === 0) idx = col;                     // 0..4
+    else if (row === 4) idx = 5 + col;            // 5..9
+    else if (col === 0) idx = 10 + (row - 1);     // 10..12
+    else if (col === 4) idx = 13 + (row - 1);     // 13..15
+    return (borderZoneColors[idx] ?? 1) as 0 | 1 | 2;
+  };
+
+  const cells: React.ReactNode[] = [];
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const x = ox + c * cellW, y = oy + r * cellH;
+      const v = cellAt(r, c);
+      const isStrike = r >= 1 && r <= 3 && c >= 1 && c <= 3;
+      cells.push(
+        <rect
+          key={`${r}-${c}`}
+          x={x} y={y} width={cellW} height={cellH}
+          fill={ZONE_FILLS_LOCAL[v]}
+          stroke="rgba(255,255,255,0.10)"
+          strokeWidth={isStrike ? 0.7 : 0.5}
+          rx={2}
+          opacity={isStrike ? 0.95 : 0.55}
+        />,
+      );
+    }
+  }
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+         style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 360, margin: '0 auto' }}>
+      {/* Backdrop */}
+      <rect x={0} y={0} width={W} height={H} fill="rgba(0,0,0,0.32)" rx={4} />
+
+      {/* All 25 cells */}
+      {cells}
+
+      {/* Bold strike-zone outline around inner 3×3 */}
+      <rect
+        x={ox + cellW * 1} y={oy + cellH * 1}
+        width={cellW * 3} height={cellH * 3}
+        fill="none"
+        stroke="rgba(255,255,255,0.85)"
+        strokeWidth={2}
+        rx={2}
+      />
+
+      {/* Border-zone label hints (top-left + top-right corner ticks) */}
+      <text x={ox + 5} y={oy + 12}
+            fontSize={8} fontFamily="'DM Mono', monospace" fontWeight={700}
+            fill="rgba(255,255,255,0.40)" letterSpacing="0.18em">BORDER</text>
+      <text x={ox + gridW - 5} y={oy + 12} textAnchor="end"
+            fontSize={8} fontFamily="'DM Mono', monospace" fontWeight={700}
+            fill="rgba(255,255,255,0.40)" letterSpacing="0.18em">ZONES</text>
+
+      {/* Strike-zone label inside outline (top center) */}
+      <text x={W / 2} y={oy + cellH + 14} textAnchor="middle"
+            fontSize={9} fontFamily="'DM Mono', monospace" fontWeight={700}
+            fill="rgba(255,255,255,0.70)" letterSpacing="0.22em">STRIKE ZONE</text>
+
+      {/* Legend at bottom */}
+      <g transform={`translate(${ox}, ${H - 8})`}>
+        {[
+          { v: 2, label: 'Receives well' },
+          { v: 1, label: 'Average' },
+          { v: 0, label: 'Struggles' },
+        ].map((item, i) => (
+          <g key={item.v} transform={`translate(${i * 90}, -10)`}>
+            <rect width={10} height={10} rx={2} fill={ZONE_FILLS_LOCAL[item.v]} stroke="rgba(255,255,255,0.18)" />
+            <text x={14} y={9} fontSize={10} fill="rgba(255,255,255,0.65)" fontFamily="inherit">{item.label}</text>
+          </g>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NEW: Catching Field Diagram — bird's-eye baseball field with
+   throwing line stats stacked between 2B and home, plus three
+   blocking-grade chips (with directional arrows) below home.
+   ════════════════════════════════════════════════════════════════ */
+function CatchingFieldDiagram({
+  popTime, exchange, velocity,
+  leftGrade, centerGrade, rightGrade,
+}: {
+  popTime: number | null;
+  exchange: number | null;
+  velocity: number | null;
+  leftGrade: number | null;
+  centerGrade: number | null;
+  rightGrade: number | null;
+}) {
+  // Symmetric geometry constants (mirrors the reimagined diamond)
+  const CX = 180, CENTER_Y = 230, HALF = 128;
+  const HOME_Y = CENTER_Y + HALF;        // 358
+  const TWOB_Y = CENTER_Y - HALF;        // 102
+  const ONEB_X = CX + HALF;              // 308
+  const THREEB_X = CX - HALF;            // 52
+  const HOME_TIP_Y = HOME_Y + 6;         // 364
+  const FOUL_LEN = 156;
+  const FOUL_END_Y = HOME_TIP_Y - FOUL_LEN; // 208
+  const FOUL_LEFT_X = CX - FOUL_LEN;     // 24
+  const FOUL_RIGHT_X = CX + FOUL_LEN;    // 336
+  const ARC_R = 230;
+
+  const tone = (g: number | null) => {
+    if (g === null) return { stroke: 'rgba(255,255,255,0.18)', fill: 'rgba(255,255,255,0.04)', text: 'rgba(255,255,255,0.40)' };
+    if (g >= 60)    return { stroke: '#22C55E', fill: 'rgba(34,197,94,0.16)',   text: '#22C55E' };
+    if (g >= 40)    return { stroke: 'rgba(255,255,255,0.65)', fill: 'rgba(255,255,255,0.10)', text: '#F1F5F9' };
+    return                  { stroke: '#60A5FA', fill: 'rgba(96,165,250,0.16)', text: '#60A5FA' };
+  };
+  const L = tone(leftGrade), M = tone(centerGrade), R = tone(rightGrade);
+
+  /* Block annotation chip with a directional arrow.
+     dir: -1 = arrow points left, 0 = arrow points down, +1 = arrow points right. */
+  const BlockChip = ({ x, label, grade, dir, t }: {
+    x: number; label: string; grade: number | null; dir: -1 | 0 | 1;
+    t: ReturnType<typeof tone>;
+  }) => {
+    // Arrow path inside the chip
+    const arrow = dir === -1 ? '◀' : dir === 1 ? '▶' : '▼';
+    return (
+      <g transform={`translate(${x}, 408)`}>
+        <rect x="-30" y="-22" width="60" height="44" rx="8"
+          fill={t.fill} stroke={t.stroke} strokeWidth="1.3" />
+        <text x="0" y="-10" textAnchor="middle"
+          fontSize="9" fontFamily="'Satoshi', sans-serif" fontWeight="600"
+          fill="rgba(255,255,255,0.65)" letterSpacing="0.04em">{label}</text>
+        <text x="0" y="9" textAnchor="middle"
+          fontSize="16" fontFamily="'Syne', sans-serif" fontWeight="800"
+          fill={t.text} fontVariantNumeric="tabular-nums">
+          {grade !== null ? grade : '—'}
+        </text>
+        <text x="0" y="20" textAnchor="middle"
+          fontSize="10"
+          fill={t.stroke}>{arrow}</text>
+      </g>
+    );
+  };
+
+  /* Stat callout chip on the throwing line between 2B and home */
+  const StatChip = ({ y, label, value, unit }: {
+    y: number; label: string; value: number | null; unit: string;
+  }) => (
+    <g transform={`translate(${CX}, ${y})`}>
+      <rect x="-58" y="-16" width="116" height="32" rx="6"
+        fill="rgba(20,24,32,0.92)"
+        stroke="rgba(255,255,255,0.22)"
+        strokeWidth="1" />
+      <text x="-50" y="-3" textAnchor="start"
+        fontSize="8.5" fontFamily="'DM Mono', monospace" fontWeight="700"
+        fill="rgba(255,255,255,0.55)" letterSpacing="0.18em">{label}</text>
+      <text x="-50" y="11" textAnchor="start"
+        fontSize="13" fontFamily="'Syne', sans-serif" fontWeight="800"
+        fill="#F1F5F9" fontVariantNumeric="tabular-nums">
+        {value !== null ? (unit === 'mph' ? value.toFixed(0) : value.toFixed(2)) : '—'}
+        <tspan fontSize="9" fontFamily="'DM Mono', monospace" fontWeight="600"
+               fill="rgba(255,255,255,0.55)" letterSpacing="0.12em"
+               dx="4">{unit}</tspan>
+      </text>
+    </g>
+  );
+
+  return (
+    <svg viewBox="0 0 360 480" preserveAspectRatio="xMidYMid meet"
+         style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 720, margin: '0 auto', filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.55))' }}>
+      {/* Outfield grass — symmetric fan from home */}
+      <path
+        d={`M ${CX} ${HOME_TIP_Y} L ${FOUL_LEFT_X} ${FOUL_END_Y} A ${ARC_R} ${ARC_R} 0 0 1 ${FOUL_RIGHT_X} ${FOUL_END_Y} Z`}
+        fill="rgba(74,222,128,0.04)"
+        stroke="rgba(255,255,255,0.10)"
+        strokeWidth="1"
+      />
+      {/* Outfield warning track */}
+      <path
+        d={`M ${FOUL_LEFT_X} ${FOUL_END_Y} A ${ARC_R} ${ARC_R} 0 0 1 ${FOUL_RIGHT_X} ${FOUL_END_Y}`}
+        fill="none"
+        stroke="rgba(255,255,255,0.16)"
+        strokeWidth="1"
+        strokeDasharray="3 5"
+      />
+
+      {/* Infield diamond — perfect rotated square */}
+      <polygon
+        points={`${CX},${TWOB_Y} ${ONEB_X},${CENTER_Y} ${CX},${HOME_Y} ${THREEB_X},${CENTER_Y}`}
+        fill="rgba(212,175,52,0.05)"
+        stroke="rgba(255,255,255,0.18)"
+        strokeWidth="1.2"
+      />
+
+      {/* Throwing path — dashed line from home to 2B */}
+      <line
+        x1={CX} y1={HOME_Y - 2} x2={CX} y2={TWOB_Y + 2}
+        stroke="rgba(255,255,255,0.45)" strokeWidth="1.5"
+        strokeDasharray="7 5"
+      />
+      {/* Arrow pointing toward 2B */}
+      <polygon
+        points={`${CX - 5},${TWOB_Y + 6} ${CX + 5},${TWOB_Y + 6} ${CX},${TWOB_Y - 1}`}
+        fill="rgba(255,255,255,0.65)"
+      />
+
+      {/* Pitcher's mound — small dot in dead center */}
+      <circle cx={CX} cy={CENTER_Y} r="6" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.30)" strokeWidth="0.8" />
+
+      {/* Bases */}
+      <rect x={CX - 6}     y={TWOB_Y - 6}    width="12" height="12"
+        transform={`rotate(45 ${CX} ${TWOB_Y})`}
+        fill="rgba(255,255,255,0.55)" stroke="rgba(255,255,255,0.30)" strokeWidth="0.7" />
+      <rect x={ONEB_X - 6} y={CENTER_Y - 6}  width="12" height="12"
+        transform={`rotate(45 ${ONEB_X} ${CENTER_Y})`}
+        fill="rgba(255,255,255,0.55)" stroke="rgba(255,255,255,0.30)" strokeWidth="0.7" />
+      <rect x={THREEB_X - 6} y={CENTER_Y - 6} width="12" height="12"
+        transform={`rotate(45 ${THREEB_X} ${CENTER_Y})`}
+        fill="rgba(255,255,255,0.55)" stroke="rgba(255,255,255,0.30)" strokeWidth="0.7" />
+
+      {/* Base labels */}
+      <text x={CX} y={TWOB_Y - 14} textAnchor="middle" fontSize="10" fontFamily="'DM Mono', monospace" fontWeight="700"
+            fill="rgba(255,255,255,0.55)" letterSpacing="0.18em">2B</text>
+      <text x={ONEB_X + 16} y={CENTER_Y + 4} textAnchor="start" fontSize="10" fontFamily="'DM Mono', monospace" fontWeight="700"
+            fill="rgba(255,255,255,0.45)" letterSpacing="0.18em">1B</text>
+      <text x={THREEB_X - 16} y={CENTER_Y + 4} textAnchor="end" fontSize="10" fontFamily="'DM Mono', monospace" fontWeight="700"
+            fill="rgba(255,255,255,0.45)" letterSpacing="0.18em">3B</text>
+
+      {/* THROWING-LINE STAT CHIPS — between 2B and home, vertically stacked */}
+      <StatChip y={140} label="POP TIME" value={popTime}  unit="s" />
+      <StatChip y={205} label="VELOCITY" value={velocity} unit="mph" />
+      <StatChip y={310} label="EXCHANGE" value={exchange} unit="s" />
+
+      {/* Home plate */}
+      <polygon
+        points={`${CX - 14},${HOME_Y - 8} ${CX + 14},${HOME_Y - 8} ${CX + 14},${HOME_Y + 4} ${CX},${HOME_TIP_Y} ${CX - 14},${HOME_Y + 4}`}
+        fill="rgba(255,255,255,0.92)"
+        stroke="rgba(255,255,255,0.50)"
+        strokeWidth="1"
+      />
+
+      {/* Catcher's blocking arc — connects the 3 zone annotations */}
+      <path
+        d={`M ${CX - 78} 408 Q ${CX} 432 ${CX + 78} 408`}
+        fill="none"
+        stroke="rgba(255,255,255,0.10)"
+        strokeWidth="1"
+        strokeDasharray="2 4"
+      />
+
+      {/* THREE BLOCKING ANNOTATIONS WITH DIRECTIONAL ARROWS */}
+      <BlockChip x={CX - 78} label="Blocks Left"   grade={leftGrade}   dir={-1} t={L} />
+      <BlockChip x={CX}      label="Blocks Center" grade={centerGrade} dir={0}  t={M} />
+      <BlockChip x={CX + 78} label="Blocks Right"  grade={rightGrade}  dir={1}  t={R} />
+
+      {/* Footer caption */}
+      <text x={CX} y="468" textAnchor="middle" fontSize="11" fontFamily="'Satoshi', sans-serif" fontWeight="600"
+            fill="rgba(255,255,255,0.40)" fontStyle="italic">Blocking coverage behind home plate</text>
+    </svg>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NEW: Underlying-stats row — one row per phase (Throwing /
+   Receiving / Blocking). Each row shows label + N inline stat
+   cells (label, value, optional badge).
+   ════════════════════════════════════════════════════════════════ */
+type StatCell =
+  | { kind: 'metric'; label: string; value: number | null; unit: string; decimals?: number }
+  | { kind: 'grade'; label: string; grade: number | null };
+
+function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: StatCell[] }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+      padding: '14px 18px', marginBottom: 10,
+      display: 'grid', gridTemplateColumns: '180px 1fr', gap: 18, alignItems: 'center',
+    }}>
+      {/* Row title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{
+            fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.18em', color: 'var(--text-muted)',
+          }}>Phase</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{title}</span>
+        </div>
+      </div>
+
+      {/* Stat cells — wraps responsively */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+        {cells.map((c, i) => {
+          if (c.kind === 'metric') {
+            const has = c.value !== null && c.value !== undefined;
+            const decimals = c.decimals ?? (c.unit === 'mph' ? 0 : 2);
+            return (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '8px 12px', minHeight: 60,
+                display: 'flex', flexDirection: 'column', gap: 2,
+              }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.14em', color: 'var(--text-muted)',
+                }}>{c.label}</span>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800,
+                    color: has ? 'var(--text)' : 'var(--faint)',
+                    letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    {has ? c.value!.toFixed(decimals) : '—'}
+                  </span>
+                  <span style={{
+                    fontFamily: MONO, fontSize: 10, fontWeight: 600, color: 'var(--text-muted)',
+                    letterSpacing: '0.10em',
+                  }}>{c.unit}</span>
+                </span>
+              </div>
+            );
+          } else {
+            const grade = c.grade;
+            const valueColor = gradeColor(grade);
+            const ratingLabel = grade !== null ? gradeLabel(grade) : 'Not graded';
+            return (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '8px 12px', minHeight: 60,
+                display: 'flex', flexDirection: 'column', gap: 2,
+              }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.14em', color: 'var(--text-muted)',
+                }}>{c.label}</span>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800,
+                    color: valueColor, letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums',
+                  }}>{grade !== null ? grade : '—'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {ratingLabel}
+                  </span>
+                </span>
+              </div>
+            );
+          }
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function CatchingTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos,
+  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
@@ -392,6 +790,7 @@ export function CatchingTab({
           selectedId={selectedReport?.id ?? null}
           onSelect={setSelectedReport}
           onDeleted={onRefresh}
+          onNewReport={onNewReport}
         />
       </TabBarActions>
 
@@ -412,93 +811,110 @@ export function CatchingTab({
         </Section>
       ) : (
         <>
-          {/* ═══ SECTION 1: THROWING (no Pop Time 3B, no Overall Grade) ═══ */}
-          <Section>
-            <SectionHeader icon="🎯" iconColor="teal" title="Throwing & Pop Time" />
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12,
-            }}>
-              {THROWING_CARDS.map(({ key, label, unit, mlbRef }) => {
-                const metric = catchingAssessment.throwing[key];
-                if (!metric || typeof metric !== 'object' || !('attempts' in metric)) return null;
-                return (
-                  <ThrowingMetricCard key={key} metric={metric as ThrowingMetric} label={label} unit={unit} mlbRef={mlbRef} />
-                );
-              })}
-            </div>
-          </Section>
+          {/* ═══ SECTION 1: SNAPSHOT — heat map (left) + field (right) ═══ */}
+          {(() => {
+            const t = catchingAssessment.throwing;
+            const b = catchingAssessment.blocking;
+            const popBest = t.popTime2B?.best ?? null;
+            const exchangeBest = t.exchangeTime?.best ?? null;
+            const veloBest = t.velocity?.best ?? null;
+            // Prefer dedicated positional grades; fall back to existing fields as proxies
+            const leftGrade   = b.blockLeft?.grade   ?? b.gloveBodyAngle?.grade ?? null;
+            const centerGrade = b.blockCenter?.grade ?? b.accuracy?.grade       ?? null;
+            const rightGrade  = b.blockRight?.grade  ?? b.recoverySpeed?.grade  ?? null;
 
-          {/* ═══ SECTION 2: RECEIVING — Zone + Scores ═══ */}
-          <Section>
-            <SectionHeader icon="🧤" iconColor="gold" title="Receiving" />
-            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              {/* Interactive Strike Zone */}
-              <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-                padding: '12px', flex: '0 0 auto',
-              }}>
-                <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 4 }}>
-                  Zone Receiving — Click to Grade
-                </div>
-                <ReceivingZone zoneColors={zoneColors as (0 | 1 | 2)[]} onToggle={handleZoneToggle} />
-              </div>
-
-              {/* Receiving Scores */}
-              <div style={{
-                flex: 1, minWidth: 280,
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-                overflow: 'hidden',
-              }}>
+            return (
+              <Section>
+                <SectionHeader icon="🧤" iconColor="teal" title="Catching Snapshot"
+                  subtitle="Where this catcher receives the ball, and what happens when they throw or block."
+                />
                 <div style={{
-                  display: 'grid', gridTemplateColumns: '140px 44px 1fr', gap: 10,
-                  padding: '8px 14px', borderBottom: '1px solid var(--border)',
-                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(280px, 0.85fr) minmax(0, 1.4fr)',
+                  gap: 28,
+                  alignItems: 'center',
                 }}>
-                  <span>Skill</span>
-                  <span style={{ textAlign: 'center' }}>Grade</span>
-                  <span>Rating</span>
+                  {/* LEFT — 5×5 strike-zone heat map */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                      gap: 10, paddingBottom: 4,
+                    }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                        Receiving Heat Map
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Strike zone &amp; borders
+                      </span>
+                    </div>
+                    <StrikeZoneHeatMap5x5
+                      zoneColors={zoneColors as (0 | 1 | 2)[]}
+                      borderZoneColors={catchingAssessment.borderZoneColors}
+                    />
+                  </div>
+
+                  {/* RIGHT — field with throwing-line stats and blocking chips */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                      gap: 10, paddingBottom: 4,
+                    }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                        Throwing &amp; Blocking
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        Home plate to second base
+                      </span>
+                    </div>
+                    <CatchingFieldDiagram
+                      popTime={popBest}
+                      exchange={exchangeBest}
+                      velocity={veloBest}
+                      leftGrade={leftGrade}
+                      centerGrade={centerGrade}
+                      rightGrade={rightGrade}
+                    />
+                  </div>
                 </div>
-                <ReceivingScoreRow label="Path" item={catchingAssessment.receiving.path} />
-                <ReceivingScoreRow label="Accuracy" item={catchingAssessment.receiving.accuracy} />
-                <ReceivingScoreRow label="Speed" item={catchingAssessment.receiving.speed} />
-                <ReceivingScoreRow label="Presentation" item={catchingAssessment.receiving.presentation} />
-              </div>
-            </div>
-          </Section>
+              </Section>
+            );
+          })()}
 
-          {/* ═══ SECTION 3: BLOCKING — Range Visual + Scores ═══ */}
+          {/* ═══ SECTION 2: UNDERLYING STATS — 3 rows (Throwing / Receiving / Blocking) ═══ */}
           <Section>
-            <SectionHeader icon="🛡️" iconColor="red" title="Blocking" />
-
-            {/* Blocking Range Visual */}
-            <div style={{
-              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-              padding: '16px 12px 8px', marginBottom: 14,
-            }}>
-              <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 4 }}>
-                Blocking Range
-              </div>
-              <BlockingRangeVisual rangeFeet={catchingAssessment.blocking.blockingRangeFeet ?? null} />
-            </div>
-
-            {/* Blocking Scores */}
-            <div style={{
-              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                display: 'grid', gridTemplateColumns: '160px 44px 1fr', gap: 10,
-                padding: '8px 14px', borderBottom: '1px solid var(--border)',
-                fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)',
-              }}>
-                <span>Skill</span>
-                <span style={{ textAlign: 'center' }}>Grade</span>
-                <span>Rating</span>
-              </div>
-              <BlockingScoreRow label="Blocking Accuracy" item={catchingAssessment.blocking.accuracy} />
-              <BlockingScoreRow label="Body Angle & Glove" item={catchingAssessment.blocking.gloveBodyAngle} />
-              <BlockingScoreRow label="Recovery Speed" item={catchingAssessment.blocking.recoverySpeed} />
-            </div>
+            <SectionHeader icon="📊" iconColor="gold" title="Underlying Stats"
+              subtitle="The full breakdown that drives the snapshot above."
+            />
+            <StatsRow
+              title="Throwing"
+              icon="🎯"
+              cells={[
+                { kind: 'metric', label: 'Pop Time 2B', value: catchingAssessment.throwing.popTime2B?.best   ?? null, unit: 's',   decimals: 2 },
+                { kind: 'metric', label: 'Pop Time 3B', value: catchingAssessment.throwing.popTime3B?.best   ?? null, unit: 's',   decimals: 2 },
+                { kind: 'metric', label: 'Exchange',    value: catchingAssessment.throwing.exchangeTime?.best ?? null, unit: 's',  decimals: 2 },
+                { kind: 'metric', label: 'Velocity',    value: catchingAssessment.throwing.velocity?.best     ?? null, unit: 'mph', decimals: 0 },
+              ]}
+            />
+            <StatsRow
+              title="Receiving"
+              icon="🧤"
+              cells={[
+                { kind: 'grade', label: 'Path',         grade: catchingAssessment.receiving.path?.grade         ?? null },
+                { kind: 'grade', label: 'Accuracy',     grade: catchingAssessment.receiving.accuracy?.grade     ?? null },
+                { kind: 'grade', label: 'Speed',        grade: catchingAssessment.receiving.speed?.grade        ?? null },
+                { kind: 'grade', label: 'Presentation', grade: catchingAssessment.receiving.presentation?.grade ?? null },
+              ]}
+            />
+            <StatsRow
+              title="Blocking"
+              icon="🛡️"
+              cells={[
+                { kind: 'grade', label: 'Range',          grade: catchingAssessment.blocking.range?.grade          ?? null },
+                { kind: 'grade', label: 'Accuracy',       grade: catchingAssessment.blocking.accuracy?.grade       ?? null },
+                { kind: 'grade', label: 'Body & Glove',   grade: catchingAssessment.blocking.gloveBodyAngle?.grade ?? null },
+                { kind: 'grade', label: 'Recovery Speed', grade: catchingAssessment.blocking.recoverySpeed?.grade  ?? null },
+              ]}
+            />
           </Section>
         </>
       )}

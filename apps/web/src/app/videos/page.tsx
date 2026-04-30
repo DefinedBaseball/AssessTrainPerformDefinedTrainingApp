@@ -512,7 +512,8 @@ export default function VideosPage() {
       {/* ── Header ── */}
       <PageHeader
         eyebrow="Film Room"
-        title={isCoach ? 'Videos' : 'My Videos'}
+        title={isCoach ? 'Video' : 'My Video'}
+        titleAccent="Library"
         subtitle={isCoach ? 'Browse, play, and download player video.' : 'View and download your videos.'}
         readout={videos.length > 0 ? `${videos.length} video${videos.length !== 1 ? 's' : ''}` : undefined}
       />

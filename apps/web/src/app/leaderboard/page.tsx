@@ -110,7 +110,8 @@ export default function LeaderboardPage() {
       {/* ── Header ── */}
       <PageHeader
         eyebrow="Rankings"
-        title="Leaderboards"
+        title="Leader"
+        titleAccent="Boards"
         subtitle="Top 15 athletes per metric, by graduation year."
         readout="Live"
         actions={isCoach ? (

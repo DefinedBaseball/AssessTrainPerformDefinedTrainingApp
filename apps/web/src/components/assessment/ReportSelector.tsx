@@ -23,6 +23,16 @@ interface ReportSelectorProps {
   selectedId: string | null;
   onSelect: (report: ReportSummary | null) => void;
   onDeleted?: () => void;
+  /** When provided and isCoach, shows a "+ New Report" row inside the dropdown
+   *  (and in the empty state) that invokes this handler. */
+  onNewReport?: () => void;
+  /** When provided, each report row gets a small Download button that calls
+   *  this handler with the report — used by tabs to generate a PDF tied to
+   *  that specific report. */
+  onDownload?: (report: ReportSummary) => void;
+  /** When provided, clicking the report name on the bar opens this report
+   *  for editing (the ▼ arrow on the far right always toggles the list). */
+  onEdit?: (report: ReportSummary) => void;
 }
 
 export function ReportSelector({
@@ -33,6 +43,9 @@ export function ReportSelector({
   selectedId,
   onSelect,
   onDeleted,
+  onNewReport,
+  onDownload,
+  onEdit,
 }: ReportSelectorProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -101,49 +114,101 @@ export function ReportSelector({
   const selected = selectedId ? matchingReports.find(r => r.id === selectedId) : matchingReports[0];
 
   if (matchingReports.length === 0) {
+    // Empty state — render the SAME bar shape as populated so widths line up
+    // across every tab (icon · two-line title/meta · count chip · arrow).
     return (
       <div className={styles.reportSelector}>
-        <div className={styles.reportSelectorBar}>
-          <span className={styles.reportSelectorLabel}>{label} Reports</span>
-          <span className={styles.reportSelectorEmpty}>No reports yet</span>
-        </div>
+        <button
+          type="button"
+          className={styles.reportSelectorBar}
+          disabled
+          style={{ cursor: 'default', opacity: 0.85 }}
+        >
+          <div className={styles.reportSelectorLeft}>
+            <span className={styles.reportSelectorIcon}>📋</span>
+            <div className={styles.reportSelectorInfo}>
+              <span className={styles.reportSelectorTitle}>{label}</span>
+              <span className={styles.reportSelectorMeta}>No reports yet</span>
+            </div>
+          </div>
+          <div className={styles.reportSelectorRight}>
+            <span className={styles.reportSelectorCount}>0 reports</span>
+            <span className={styles.reportSelectorArrow}>▼</span>
+          </div>
+        </button>
       </div>
     );
   }
 
   return (
     <div className={styles.reportSelector} ref={dropRef}>
-      {/* ── Selector Bar ── */}
-      <button
-        type="button"
-        className={`${styles.reportSelectorBar} ${open ? styles.reportSelectorBarOpen : ''}`}
-        onClick={() => { setOpen(o => !o); setConfirmId(null); }}
-      >
-        <div className={styles.reportSelectorLeft}>
-          <span className={styles.reportSelectorIcon}>📋</span>
-          <div className={styles.reportSelectorInfo}>
-            <span className={styles.reportSelectorTitle}>
-              {selected?.title || selected?.reportType?.replace(/_/g, ' ') || label}
-            </span>
-            <span className={styles.reportSelectorMeta}>
-              {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
-              {selected?.createdBy && ` · ${getEmailName(selected.createdBy.email)}`}
-            </span>
+      {/* ── Selector Bar (split into two click targets) ── */}
+      <div className={`${styles.reportSelectorBar} ${open ? styles.reportSelectorBarOpen : ''}`}>
+        {/* LEFT — clicking the title/meta opens the selected report for editing.
+              Falls back to toggling the dropdown if no onEdit handler is wired. */}
+        <button
+          type="button"
+          className={styles.reportSelectorTitleBtn}
+          onClick={() => {
+            if (selected && onEdit) {
+              onEdit(selected);
+              setOpen(false);
+              setConfirmId(null);
+            } else {
+              setOpen(o => !o);
+              setConfirmId(null);
+            }
+          }}
+          title={selected && onEdit ? 'Edit this report' : 'Open report list'}
+        >
+          <div className={styles.reportSelectorLeft}>
+            <span className={styles.reportSelectorIcon}>📋</span>
+            <div className={styles.reportSelectorInfo}>
+              <span className={styles.reportSelectorTitle}>
+                {selected?.title || selected?.reportType?.replace(/_/g, ' ') || label}
+              </span>
+              <span className={styles.reportSelectorMeta}>
+                {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
+                {selected?.createdBy && ` · ${getEmailName(selected.createdBy.email)}`}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className={styles.reportSelectorRight}>
+        </button>
+        {/* RIGHT — the count chip + arrow toggles the dropdown of past reports. */}
+        <button
+          type="button"
+          className={styles.reportSelectorArrowBtn}
+          onClick={() => { setOpen(o => !o); setConfirmId(null); }}
+          title="Browse past reports"
+          aria-expanded={open}
+        >
           <span className={styles.reportSelectorCount}>
             {matchingReports.length} report{matchingReports.length !== 1 ? 's' : ''}
           </span>
           <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>
             ▼
           </span>
-        </div>
-      </button>
+        </button>
+      </div>
 
       {/* ── Dropdown ── */}
       {open && (
         <div className={styles.reportSelectorDropdown}>
+          {isCoach && onNewReport && (
+            <button
+              type="button"
+              className={styles.reportSelectorNewRow}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewReport();
+                setOpen(false);
+                setConfirmId(null);
+              }}
+            >
+              <span className={styles.reportSelectorNewIcon} aria-hidden="true">+</span>
+              <span className={styles.reportSelectorNewText}>New Report</span>
+            </button>
+          )}
           {matchingReports.map(r => {
             const isActive = r.id === selected?.id;
             return (
@@ -175,7 +240,8 @@ export function ReportSelector({
                   </div>
                 </button>
 
-                {isCoach && (
+                {/* Per-row actions: Download (anyone) + Delete (coach only) */}
+                {(onDownload || isCoach) && (
                   <div className={styles.reportSelectorItemActions}>
                     {confirmId === r.id ? (
                       <div className={styles.reportDeleteConfirm}>
@@ -197,14 +263,38 @@ export function ReportSelector({
                         </button>
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        className={styles.reportDeleteBtn}
-                        onClick={(e) => { e.stopPropagation(); setConfirmId(r.id); }}
-                        title="Delete report"
-                      >
-                        ×
-                      </button>
+                      <>
+                        {onDownload && (
+                          <button
+                            type="button"
+                            className={styles.reportDownloadBtn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDownload(r);
+                              setOpen(false);
+                            }}
+                            title="Download this report as a PDF"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
+                              stroke="currentColor" strokeWidth="1.6"
+                              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M8 2v9" />
+                              <path d="M4.5 7.5L8 11l3.5-3.5" />
+                              <path d="M3 13.5h10" />
+                            </svg>
+                          </button>
+                        )}
+                        {isCoach && (
+                          <button
+                            type="button"
+                            className={styles.reportDeleteBtn}
+                            onClick={(e) => { e.stopPropagation(); setConfirmId(r.id); }}
+                            title="Delete report"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

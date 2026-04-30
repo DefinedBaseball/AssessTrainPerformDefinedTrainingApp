@@ -48,11 +48,16 @@ export default function AthletesPage() {
     <div>
       <PageHeader
         eyebrow="Roster"
-        title="Athletes"
+        title="Athlete"
+        titleAccent="Hub"
         subtitle="Search, filter, and jump into any athlete's development profile."
-        readout={`${players.length} on roster`}
         actions={
-          <>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'nowrap',
+          }}>
             <input
               type="text"
               placeholder="Search athletes..."
@@ -61,9 +66,11 @@ export default function AthletesPage() {
               className={styles.searchInput}
             />
             {isCoach && (
-              <Link href="/players/new" className="btn btn-primary">+ Add Athlete</Link>
+              <Link href="/players/new" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
+                + Add Athlete
+              </Link>
             )}
-          </>
+          </div>
         }
       />
 

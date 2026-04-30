@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
+import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
 type TabKey = 'account' | 'appearance' | 'notifications' | 'data' | 'teams' | 'myProfile';
@@ -42,10 +43,12 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>Settings</h1>
-        <p className={styles.subtitle}>Manage your account and preferences</p>
-      </div>
+      <PageHeader
+        eyebrow="Preferences"
+        title="Settings"
+        titleAccent="Hub"
+        subtitle="Manage your account and preferences"
+      />
 
       <div className={styles.tabs}>
         {tabs.map((t) => (

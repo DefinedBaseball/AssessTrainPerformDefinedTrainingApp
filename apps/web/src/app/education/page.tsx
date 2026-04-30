@@ -12,7 +12,7 @@ const SPORTS = [
   { id: 'pitching', label: 'Pitching', color: '#DC4646' },
   { id: 'defense', label: 'Defense', color: '#38A850' },
   { id: 'strength', label: 'S&C', color: '#EA9230' },
-  { id: 'vision', label: 'Vision', color: '#DAC328' },
+  { id: 'vision', label: 'Cognition', color: '#DAC328' },
 ];
 
 const LEVELS = [

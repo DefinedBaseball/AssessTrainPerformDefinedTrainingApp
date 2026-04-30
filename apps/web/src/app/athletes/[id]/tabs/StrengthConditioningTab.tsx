@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, ScalePips, NotesBox,
-  ReportSelector, DownloadPdfButton,
+  ReportSelector,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -18,45 +18,71 @@ import {
 import * as api from '@/lib/api';
 import { generateStrengthPdf } from '@/lib/pdf';
 import { CustomCharts } from '@/components/CustomCharts';
-import { TabBarActions } from '@/components/assessment';
+import { TabBarActions, AddReportButton } from '@/components/assessment';
 
 const REPORT_TYPES = ['STRENGTH'];
 
 export function StrengthConditioningTab({
-  player, topMetrics, isCoach, onRefresh, reports, refreshKey,
+  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
-  const [reportMetrics, setReportMetrics] = useState<Record<string, { value: number; unit: string; recordedAt: string }> | null>(null);
 
-  // Extract uploadIds from the selected report for filtering
-  const reportUploadIds = useMemo(() => getReportUploadIds(selectedReport), [selectedReport]);
-
-  // When a report is selected, fetch metrics for that report's uploads
+  // Per-STRENGTH-report metrics index (carry-forward fallback — see HittingTab
+  // for the same pattern). When the active report is missing a metric we walk
+  // back through earlier reports rather than filling from the all-time max.
+  const strengthReports = useMemo(
+    () => reports.filter(r => REPORT_TYPES.includes(r.reportType))
+                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [reports],
+  );
+  const [perReportMetrics, setPerReportMetrics] = useState<Map<string, Record<string, { value: number; unit: string; recordedAt: string }>>>(new Map());
   useEffect(() => {
-    if (!player?.id || reportUploadIds.length === 0) {
-      setReportMetrics(null);
+    if (!player?.id || strengthReports.length === 0) {
+      setPerReportMetrics(new Map());
       return;
     }
-    api.getPlayerMetrics(player.id, { uploadIds: reportUploadIds })
-      .then(metrics => {
-        // Build top metrics from the report's data (take max per metricType, min for lower-is-better)
-        const lowerIsBetter = new Set(['sprint_60']);
+    const lowerIsBetter = new Set(['sprint_60']);
+    let cancelled = false;
+    Promise.all(strengthReports.map(async (r) => {
+      const ids = getReportUploadIds(r);
+      if (ids.length === 0) return [r.id, null] as const;
+      try {
+        const metrics = await api.getPlayerMetrics(player.id, { uploadIds: ids });
         const top: Record<string, { value: number; unit: string; recordedAt: string }> = {};
         for (const m of metrics) {
           const isBetter = lowerIsBetter.has(m.metricType)
             ? (!top[m.metricType] || m.value < top[m.metricType].value)
             : (!top[m.metricType] || m.value > top[m.metricType].value);
-          if (isBetter) {
-            top[m.metricType] = { value: m.value, unit: m.unit, recordedAt: m.recordedAt };
-          }
+          if (isBetter) top[m.metricType] = { value: m.value, unit: m.unit, recordedAt: m.recordedAt };
         }
-        setReportMetrics(top);
-      })
-      .catch(() => setReportMetrics(null));
-  }, [player?.id, reportUploadIds, refreshKey]);
+        return [r.id, top] as const;
+      } catch { return [r.id, null] as const; }
+    })).then(entries => {
+      if (cancelled) return;
+      const next = new Map<string, Record<string, { value: number; unit: string; recordedAt: string }>>();
+      for (const [id, m] of entries) if (m) next.set(id, m);
+      setPerReportMetrics(next);
+    });
+    return () => { cancelled = true; };
+  }, [player?.id, refreshKey, strengthReports]);
 
-  // Use report-specific metrics when a report is selected, otherwise global
-  const activeMetrics = reportMetrics ?? topMetrics;
+  /** Carry-forward chain — start at active report, walk back through earlier
+   *  STRENGTH reports filling missing keys; render "—" if no report has them. */
+  const activeReport = selectedReport ?? strengthReports[0] ?? null;
+  const activeMetrics = useMemo(() => {
+    const result: Record<string, { value: number; unit: string; recordedAt: string }> = {};
+    if (!activeReport) return result;
+    const activeIdx = strengthReports.findIndex(r => r.id === activeReport.id);
+    if (activeIdx < 0) return result;
+    for (let i = activeIdx; i < strengthReports.length; i++) {
+      const m = perReportMetrics.get(strengthReports[i].id);
+      if (!m) continue;
+      for (const [k, v] of Object.entries(m)) {
+        if (!(k in result)) result[k] = v;
+      }
+    }
+    return result;
+  }, [activeReport, strengthReports, perReportMetrics]);
   const scMetrics = getTabMetrics(activeMetrics, TAB_METRICS.strengthCond);
   const hasData = Object.keys(scMetrics).length > 0;
 
@@ -71,6 +97,7 @@ export function StrengthConditioningTab({
     <>
       {/* ── Report Selector + Download (portaled into TabBar) ── */}
       <TabBarActions>
+        <AddReportButton onClick={onNewReport} show={isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}
@@ -79,10 +106,9 @@ export function StrengthConditioningTab({
           selectedId={selectedReport?.id ?? null}
           onSelect={setSelectedReport}
           onDeleted={onRefresh}
-        />
-        <DownloadPdfButton
-          label="Download PDF"
-          onDownload={() => generateStrengthPdf(player, reports, topMetrics)}
+          onNewReport={onNewReport}
+          onEdit={onEditReport}
+          onDownload={(r) => generateStrengthPdf(player, [r], topMetrics)}
         />
       </TabBarActions>
 

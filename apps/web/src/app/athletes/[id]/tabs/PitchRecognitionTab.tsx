@@ -124,10 +124,10 @@ function MetricPctCard({ label, value, higherIsBetter, color }: {
 }) {
   let levelColor = 'var(--text-muted)';
   if (value !== null && higherIsBetter !== undefined) {
-    // Simple coloring: green=good, yellow=mid, red=bad
+    // Simple coloring: green=good, white=mid, blue=bad
     const good = higherIsBetter ? value >= 20 : value <= 20;
     const mid = higherIsBetter ? value >= 10 : value <= 35;
-    levelColor = good ? '#4ADE80' : mid ? '#FBBF24' : '#F87171';
+    levelColor = good ? '#4ADE80' : mid ? '#F1F5F9' : '#60A5FA';
   }
 
   return (
@@ -232,7 +232,7 @@ function AtBatDetail({ atBat }: { atBat: AtBat }) {
 const AT_BAT_REPORT_TYPES = ['AT_BAT_RESULTS', 'COGNITION'];
 
 export function PitchRecognitionTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos,
+  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport,
 }: TabProps) {
   const recMetrics = getTabMetrics(topMetrics, TAB_METRICS.pitchRec);
   const hasRecData = Object.keys(recMetrics).length > 0;
@@ -326,6 +326,7 @@ export function PitchRecognitionTab({
           selectedId={selectedReport?.id ?? null}
           onSelect={setSelectedReport}
           onDeleted={onRefresh}
+          onNewReport={onNewReport}
         />
       </TabBarActions>
 

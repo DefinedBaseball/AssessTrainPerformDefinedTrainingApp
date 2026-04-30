@@ -12,7 +12,7 @@
   padding: 18px 26px 16px;
   background:
     radial-gradient(ellipse at 18% 0%, rgba(255,255,255,0.05) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 100%, rgba(232,175,52,0.045) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(61,139,253,0.055) 0%, transparent 55%),
     linear-gradient(180deg, rgba(255,255,255,0.030) 0%, rgba(255,255,255,0.008) 100%);
   border: 1px solid var(--border-light);
   border-radius: 22px;
@@ -27,12 +27,12 @@
   margin-bottom: 28px;
 }
 
-/* Top-left gold corner glow — echoes the athlete Command Deck */
+/* Top-left blue corner glow — echoes the athlete Command Deck */
 .cornerGlow {
   position: absolute;
   top: 0; left: 0;
   width: 90px; height: 90px;
-  background: radial-gradient(circle at 0 0, rgba(232,175,52,0.22) 0%, transparent 65%);
+  background: radial-gradient(circle at 0 0, rgba(61,139,253,0.28) 0%, transparent 65%);
   pointer-events: none;
   z-index: 0;
 }
@@ -121,11 +121,11 @@
   line-height: 0.96;
 }
 
-/* Optional italic-gold accent portion */
+/* Optional italic-blue accent portion */
 .titleAccent {
   font-weight: 600;
   font-style: italic;
-  background: linear-gradient(180deg, #f5c55f 0%, #e8af34 55%, #a67a1d 100%);
+  background: linear-gradient(180deg, #7EB6FF 0%, #3D8BFD 55%, #1F5FD1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

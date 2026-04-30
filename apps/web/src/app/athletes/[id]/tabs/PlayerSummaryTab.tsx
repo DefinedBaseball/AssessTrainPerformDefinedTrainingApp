@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, ReferenceLine, LabelList,
   AreaChart, Area,
 } from 'recharts';
 import {
-  DownloadPdfButton, TabBarActions,
+  TabBarActions, AddReportButton, ReportSelector,
 } from '@/components/assessment';
 import { generateSummaryPdf } from '@/lib/pdf';
 import {
@@ -35,7 +35,7 @@ const DOMAIN_PALETTE: Record<string, {
   hitting:  { main: '#4ADE80', soft: '#86efac', name: 'Hitting'  },
   pitching: { main: '#60A5FA', soft: '#93c5fd', name: 'Pitching' },
   defense:  { main: '#F59E0B', soft: '#fcd34d', name: 'Defense'  },
-  vision:   { main: '#A78BFA', soft: '#c4b5fd', name: 'Vision'   },
+  vision:   { main: '#A78BFA', soft: '#c4b5fd', name: 'Cognition' },
   strength: { main: '#14B8A6', soft: '#5eead4', name: 'S & C'    },
 };
 
@@ -88,11 +88,11 @@ const CHART_TOKENS = {
    ═══════════════════════════════════════════ */
 
 function DomainBar({
-  label, color, soft, score, target, subs,
+  label, color, score, target, subs,
 }: {
   label: string;
+  /** Section-identity color — used only for the small leading dot. */
   color: string;
-  soft: string;
   score: number | null;
   target: number;
   subs: AggregateBar[];
@@ -100,6 +100,11 @@ function DomainBar({
   const hasScore = score !== null;
   const fillPct = hasScore ? scoreToPct(score!) : 0;
   const targetPct = scoreToPct(target);
+
+  // Bar fill & numeric score color both follow the unified score bands
+  // (blue / white / green on black-test).
+  const bandColor = hasScore ? scoreColor(score!) : '#6e767d';
+  const bandSoft  = hasScore ? scoreColor(Math.max(20, score! - 10)) : '#6e767d';
 
   const subText = subs
     .map((b) => `${b.label} ${b.score ?? '—'}`)
@@ -112,7 +117,7 @@ function DomainBar({
           <span className={styles.dot} style={{ color, background: color }} />
           {label}
         </div>
-        <div className={styles.score}>
+        <div className={styles.score} style={hasScore ? { color: bandColor } : undefined}>
           {score ?? '—'} <small>/ 80</small>
         </div>
       </div>
@@ -122,7 +127,7 @@ function DomainBar({
           className={styles.fill}
           style={{
             width: `${fillPct}%`,
-            background: `linear-gradient(90deg, ${soft}, ${color})`,
+            background: `linear-gradient(90deg, ${bandSoft}, ${bandColor})`,
             opacity: hasScore ? 1 : 0.25,
           }}
         />
@@ -249,7 +254,10 @@ function SubgradeCompareChart({
         name: b.label,
         value: b.score ?? null,
         displayValue: b.score ?? 20,
-        color: DOMAIN_PALETTE[s.key]?.main ?? '#9aa0a6',
+        // Bars use the unified score-band color so blue/white/green reads
+        // consistently with the rest of the black-test theme. The
+        // section palette is kept for tooltip context only.
+        color: b.score != null ? scoreColor(b.score) : '#9aa0a6',
         sectionLabel: s.label,
       })),
     );
@@ -319,37 +327,53 @@ function SubgradeCompareChart({
 }
 
 /* ═══════════════════════════════════════════
-   Hitting mechanics bar chart (middle-left panel)
+   Section sub-grade bar chart — driven by the
+   Tool Grades bubble click-selection.
    ═══════════════════════════════════════════ */
 
-function HittingBarsChart({ section }: { section: AggregateSection | null }) {
+function SectionBarsChart({ section }: { section: AggregateSection | null }) {
   const tk = CHART_TOKENS;
+  /* Flatten every sub-metric across every bar in the section so the chart
+     shows the *leaf* grades (what actually rolls up into each group score),
+     while the KPI bubbles above already surface the group totals. */
   const data = useMemo(() => {
     if (!section) return [];
-    return section.bars.map((b) => ({
-      name: b.label,
-      value: b.score ?? null,
-      displayValue: b.score ?? 20,
-    }));
+    return section.bars.flatMap((b) =>
+      b.subMetrics.map((sm) => ({
+        name: sm.label,
+        group: b.label,
+        value: sm.grade ?? null,
+        displayValue: sm.grade ?? 20,
+      })),
+    );
   }, [section]);
 
   if (!section || data.length === 0) {
     return (
       <div style={{ color: 'var(--text-muted)', padding: '32px 12px', textAlign: 'center', fontSize: 13 }}>
-        No hitting sub-grades yet.
+        No {section?.label.toLowerCase() ?? 'section'} sub-grades yet.
       </div>
     );
   }
 
+  /* With many sub-metrics, angle x-axis labels and shrink the bars so
+     everything fits without collisions. */
+  const many = data.length > 5;
+  const barSize = many ? Math.max(18, Math.round(260 / data.length)) : 44;
+
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 16, right: 12, bottom: 8, left: 0 }}>
+      <BarChart data={data} margin={{ top: 16, right: 12, bottom: many ? 36 : 8, left: 0 }}>
         <CartesianGrid stroke={tk.grid} vertical={false} />
         <XAxis
           dataKey="name"
           stroke={tk.axis}
-          fontSize={11}
+          fontSize={10}
           tickLine={false}
+          interval={0}
+          angle={many ? -28 : 0}
+          textAnchor={many ? 'end' : 'middle'}
+          height={many ? 50 : 30}
         />
         <YAxis
           domain={[20, 80]}
@@ -368,9 +392,12 @@ function HittingBarsChart({ section }: { section: AggregateSection | null }) {
             fontSize: 12,
             color: tk.tooltipText,
           }}
-          formatter={(v: any, _n: any, item: any) => [item?.payload?.value ?? '—', 'Score']}
+          formatter={(_v: any, _n: any, item: any) => [
+            item?.payload?.value ?? '—',
+            item?.payload?.group ?? 'Score',
+          ]}
         />
-        <Bar dataKey="displayValue" radius={[10, 10, 0, 0]} barSize={44}>
+        <Bar dataKey="displayValue" radius={[8, 8, 0, 0]} barSize={barSize}>
           {data.map((d, i) => (
             <Cell
               key={i}
@@ -381,7 +408,7 @@ function HittingBarsChart({ section }: { section: AggregateSection | null }) {
           <LabelList
             dataKey="value"
             position="top"
-            style={{ fill: tk.label, fontSize: 13, fontWeight: 700 }}
+            style={{ fill: tk.label, fontSize: 12, fontWeight: 700 }}
             formatter={(v: any) => (v == null ? '—' : v)}
           />
         </Bar>
@@ -395,7 +422,7 @@ function HittingBarsChart({ section }: { section: AggregateSection | null }) {
    ═══════════════════════════════════════════ */
 
 function TrendChart({
-  data, unit, accent = '#E8AF34',
+  data, unit, accent = '#60A5FA',
 }: {
   data: { label: string; value: number }[];
   unit: string;
@@ -464,8 +491,9 @@ function TrendChart({
    ═══════════════════════════════════════════ */
 
 export function PlayerSummaryTab({
-  player, topMetrics, reports, progressData,
+  player, topMetrics, reports, progressData, isCoach, onNewReport, onEditReport, onRefresh,
 }: TabProps) {
+  const [selectedReport, setSelectedReport] = useState<import('../helpers').ReportSummary | null>(null);
   const aggregate = useMemo(
     () => computeAggregateScores(player, reports, topMetrics),
     [player, reports, topMetrics],
@@ -476,18 +504,25 @@ export function PlayerSummaryTab({
     [aggregate],
   );
 
-  const hittingSection = aggregate.sections.find((s) => s.key === 'hitting') ?? null;
-  const hittingAvg = hittingSection ? sectionAvg(hittingSection) : null;
-
-  // Pull the four KPI sub-grades from "Consistency" if present.
-  const consistencyBar = hittingSection?.bars.find((b) => b.key === 'hit_consistency');
+  /* Detail-card selection: the user can click a row in the Tool-Grades
+     bubble to swap the "Detail focus card" (below it) between Hitting,
+     Pitching, Defense, Vision, and S&C. Default to Hitting; fall back to
+     the first available section if Hitting isn't present. */
+  const [selectedKey, setSelectedKey] =
+    useState<AggregateSection['key']>('hitting');
+  const selectedSection =
+    aggregate.sections.find((s) => s.key === selectedKey) ??
+    aggregate.sections.find((s) => s.key === 'hitting') ??
+    aggregate.sections[0] ??
+    null;
+  const selectedAvg = selectedSection ? sectionAvg(selectedSection) : null;
 
   // Build a trend dataset from the richest available progress metric.
   const trend = useMemo(() => {
     const candidates = [
-      { key: 'avg_bat_speed', label: 'Avg Bat Speed', unit: 'mph', accent: '#E8AF34' },
+      { key: 'avg_bat_speed', label: 'Avg Bat Speed', unit: 'mph', accent: '#60A5FA' },
       { key: 'max_exit_velo', label: 'Max Exit Velo', unit: 'mph', accent: '#60A5FA' },
-      { key: 'max_bat_speed', label: 'Max Bat Speed', unit: 'mph', accent: '#E8AF34' },
+      { key: 'max_bat_speed', label: 'Max Bat Speed', unit: 'mph', accent: '#60A5FA' },
       { key: 'fb_max_velo',   label: 'FB Max Velo',   unit: 'mph', accent: '#4ADE80' },
     ];
     for (const c of candidates) {
@@ -509,24 +544,33 @@ export function PlayerSummaryTab({
         return { ...c, points };
       }
     }
-    return { key: '', label: 'Custom trend', unit: 'mph', accent: '#E8AF34', points: [] };
+    return { key: '', label: 'Custom trend', unit: 'mph', accent: '#60A5FA', points: [] };
   }, [progressData]);
 
   return (
     <div className={styles.root}>
-      {/* ── Download button portal ── */}
+      {/* ── Tab actions: Add Report + Reports dropdown (per-report download) ── */}
       <TabBarActions>
-        <DownloadPdfButton
-          label="Download PDF"
-          onDownload={() => generateSummaryPdf(player, reports, topMetrics)}
+        <AddReportButton onClick={onNewReport} show={isCoach} />
+        <ReportSelector
+          reports={reports}
+          reportTypes={[]}
+          label="Player"
+          isCoach={isCoach}
+          selectedId={selectedReport?.id ?? null}
+          onSelect={setSelectedReport}
+          onDeleted={onRefresh}
+          onNewReport={onNewReport}
+          onEdit={onEditReport}
+          onDownload={(r) => generateSummaryPdf(player, [r], topMetrics)}
         />
       </TabBarActions>
 
       {/* ══════════ HERO ══════════ */}
       <section className={styles.hero}>
-        {/* Left: tool grades */}
-        <div className={styles.panel}>
-          <div className={styles.sectionTitle}>
+        {/* Left: condensed tool grades bubble — compact multi-row bar graph */}
+        <div className={`${styles.panel} ${styles.toolBubble}`}>
+          <div className={styles.toolBubbleHead}>
             <div>
               <div className={styles.tiny}>Tool grades</div>
               <h2>Current vs target</h2>
@@ -542,26 +586,171 @@ export function PlayerSummaryTab({
               </span>
             </div>
           </div>
-          <div className={styles.domainList}>
+          <div className={styles.toolBarList}>
             {aggregate.sections.map((s) => {
               const avg = sectionAvg(s);
               const palette = DOMAIN_PALETTE[s.key] ?? DOMAIN_PALETTE.hitting;
+              const hasScore = avg !== null;
+              const bandColor = hasScore ? scoreColor(avg!) : '#6e767d';
+              const target = targetFor(avg);
+              const fillPct = hasScore ? scoreToPct(avg!) : 0;
+              const targetPct = scoreToPct(target);
+              const isSelected = selectedSection?.key === s.key;
               return (
-                <DomainBar
+                <div
                   key={s.key}
-                  label={s.label}
-                  color={palette.main}
-                  soft={palette.soft}
-                  score={avg}
-                  target={targetFor(avg)}
-                  subs={s.bars}
-                />
+                  className={`${styles.toolBarRow}${isSelected ? ' ' + styles.toolBarRowActive : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  onClick={() => setSelectedKey(s.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedKey(s.key);
+                    }
+                  }}
+                >
+                  <div className={styles.toolBarMain}>
+                    <div className={styles.toolBarLabel}>
+                      <span
+                        className={styles.dot}
+                        style={{ color: palette.main, background: palette.main }}
+                      />
+                      {s.label}
+                    </div>
+                    <div className={styles.toolBarTrack}>
+                      <div className={styles.toolBarBaseline} />
+                      <div
+                        className={styles.toolBarFill}
+                        style={{
+                          width: `${fillPct}%`,
+                          background: bandColor,
+                          opacity: hasScore ? 1 : 0.25,
+                        }}
+                      />
+                      <div
+                        className={styles.toolBarTarget}
+                        style={{ left: `${targetPct}%`, opacity: hasScore ? 0.55 : 0.25 }}
+                      />
+                    </div>
+                    <div
+                      className={styles.toolBarScore}
+                      style={hasScore ? { color: bandColor } : undefined}
+                    >
+                      {avg ?? '—'}
+                    </div>
+                  </div>
+                  {s.bars.length > 0 && (
+                    <div className={styles.toolSubRow}>
+                      {s.bars.map((b) => {
+                        const hasSub = b.score !== null;
+                        const subColor = hasSub ? scoreColor(b.score!) : '#6e767d';
+                        const subPct = hasSub ? scoreToPct(b.score!) : 0;
+                        return (
+                          <div key={b.key} className={styles.toolSubItem}>
+                            <span className={styles.toolSubLabel}>{b.label}</span>
+                            <div className={styles.toolSubTrack}>
+                              <div
+                                className={styles.toolSubFill}
+                                style={{
+                                  width: `${subPct}%`,
+                                  background: subColor,
+                                  opacity: hasSub ? 1 : 0.2,
+                                }}
+                              />
+                            </div>
+                            <span
+                              className={styles.toolSubScore}
+                              style={hasSub ? { color: subColor } : undefined}
+                            >
+                              {b.score ?? '—'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
         </div>
 
-        {/* Right: big score + focus grid */}
+        {/* Selected-section detail card — driven by the Tool-Grades bubble. */}
+        <div className={`${styles.panel} ${styles.playerCard}`}>
+          <div className={styles.sectionTitle}>
+            <div>
+              <div className={styles.tiny}>
+                {(selectedSection?.label ?? 'Section')} detail
+              </div>
+              <h2>Sub-grade breakdown</h2>
+            </div>
+            <div className={styles.chips}>
+              <span className={styles.chip}>
+                Aggregate {selectedAvg ?? '—'} / 80
+              </span>
+              {selectedAvg != null && selectedAvg < 50 && (
+                <span className={`${styles.chip} ${styles.chipWarn}`}>Priority area</span>
+              )}
+            </div>
+          </div>
+
+          {/* Bubbles are now flex-proportional so each group card spans
+              exactly over its own sub-metric columns in the chart below.
+              Horizontal padding matches the chart's YAxis gutter (≈60px)
+              and right-side margin (12px) so columns line up. */}
+          <div className={styles.kpiRow}>
+            {(selectedSection?.bars ?? []).map((bar) => {
+              const grade = bar.score;
+              let trendCopy = 'Awaiting data';
+              let bad = false;
+              if (grade != null) {
+                if (grade >= 60) trendCopy = 'Above program average';
+                else if (grade >= 50) trendCopy = 'Trending steady';
+                else if (grade >= 40) trendCopy = 'Needs tighter spread';
+                else { trendCopy = 'Below desired band'; bad = true; }
+              }
+              // Width weight = number of leaf sub-metrics in this bar.
+              // Fallback to 1 so groups without sub-metrics still render.
+              const weight = Math.max(1, bar.subMetrics.length);
+              // Unified scoreColor for the group score, matching the chart bars
+              // and Tool-Grades bubble.
+              const kpiColor = grade != null ? scoreColor(grade) : undefined;
+              return (
+                <div
+                  key={bar.key}
+                  className={styles.kpi}
+                  style={{ flex: `${weight} ${weight} 0` }}
+                >
+                  <label className={styles.kpiLabel}>{bar.label}</label>
+                  <strong
+                    className={styles.kpiValue}
+                    style={kpiColor ? { color: kpiColor } : undefined}
+                  >
+                    {grade ?? '—'}
+                  </strong>
+                  <div className={`${styles.kpiTrend}${bad ? ' ' + styles.kpiTrendBad : ''}`}>
+                    {trendCopy}
+                  </div>
+                </div>
+              );
+            })}
+            {(!selectedSection || selectedSection.bars.length === 0) && (
+              <div className={styles.kpi} style={{ flex: '1 1 0' }}>
+                <label className={styles.kpiLabel}>No sub-grades</label>
+                <strong className={styles.kpiValue}>—</strong>
+                <div className={styles.kpiTrend}>Awaiting assessment</div>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.chartWrap}>
+            <SectionBarsChart section={selectedSection} />
+          </div>
+        </div>
+
+        {/* Development snapshot — big score + focus grid */}
         <div className={`${styles.panel} ${styles.noteCard}`}>
           <div>
             <div className={styles.eyebrow}>Development snapshot</div>
@@ -585,58 +774,7 @@ export function PlayerSummaryTab({
 
       {/* ══════════ MIDDLE ══════════ */}
       <section className={styles.middle}>
-        {/* Left: hitting detail */}
-        <div className={`${styles.panel} ${styles.playerCard}`}>
-          <div className={styles.sectionTitle}>
-            <div>
-              <div className={styles.tiny}>Hitting detail</div>
-              <h2>Consistency focus card</h2>
-            </div>
-            <div className={styles.chips}>
-              <span className={styles.chip}>
-                Aggregate {hittingAvg ?? '—'} / 80
-              </span>
-              {hittingAvg != null && hittingAvg < 50 && (
-                <span className={`${styles.chip} ${styles.chipWarn}`}>Priority area</span>
-              )}
-            </div>
-          </div>
-
-          <div className={styles.kpiGrid}>
-            {(consistencyBar?.subMetrics ?? [
-              { key: 'barrel_pct', label: 'Barrel %' },
-              { key: 'squared_up_pct', label: 'Squared Up %' },
-              { key: 'avg_to_max_ev', label: 'Avg to Max EV' },
-              { key: 'whiff_pct', label: 'Whiff %' },
-            ]).slice(0, 4).map((sm) => {
-              const grade = (sm as any).grade as number | undefined;
-              const isWhiff = sm.key === 'whiff_pct';
-              const bad = isWhiff && grade != null && grade < 45;
-              let trendCopy = 'Awaiting data';
-              if (grade != null) {
-                if (grade >= 60) trendCopy = 'Above program average';
-                else if (grade >= 50) trendCopy = 'Trending steady';
-                else if (bad) trendCopy = 'Above desired band';
-                else trendCopy = 'Needs tighter spread';
-              }
-              return (
-                <div key={sm.key} className={styles.kpi}>
-                  <label className={styles.kpiLabel}>{sm.label}</label>
-                  <strong className={styles.kpiValue}>{grade ?? '—'}</strong>
-                  <div className={`${styles.kpiTrend}${bad ? ' ' + styles.kpiTrendBad : ''}`}>
-                    {trendCopy}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className={styles.chartWrap}>
-            <HittingBarsChart section={hittingSection} />
-          </div>
-        </div>
-
-        {/* Right: decision matrix */}
+        {/* Decision matrix */}
         <div className={styles.panel}>
           <div className={styles.sectionTitle}>
             <div>

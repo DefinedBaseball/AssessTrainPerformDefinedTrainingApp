@@ -446,6 +446,17 @@ export async function deleteReport(id: string) {
   return request<any>(`/reports/${id}`, { method: 'DELETE' });
 }
 
+/** Backend supports `PATCH /reports/:id` with { content?, notes?, videoIds? }. */
+export async function updateReport(
+  id: string,
+  data: { content?: string; notes?: string; videoIds?: string },
+) {
+  return request<any>(`/reports/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 // ---- Training ----
 
 export async function getPlayerPrograms(playerId: string) {

@@ -7,6 +7,7 @@ import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import rs from '@/components/assessment/report-form.module.css';
 import styles from './page.module.css';
+import { type ManualSwingScores, getManualSwingScores, scoreColor } from './helpers';
 
 /* ── Constants ── */
 
@@ -83,7 +84,7 @@ const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   COGNITION: [
     { key: 'atbat', label: 'At-Bat Assessment', subtitle: 'At-Bat Assessment XLSX', vendor: 'AtBat' },
     { key: 'fullswing', label: 'Full Swing Data', subtitle: 'Full Swing CSV', vendor: 'Full Swing' },
-    { key: 'vizual', label: 'Vision Testing', subtitle: 'Vizual Edge CSV', vendor: 'Vizual Edge' },
+    { key: 'vizual', label: 'Cognition Testing', subtitle: 'Vizual Edge CSV', vendor: 'Vizual Edge' },
   ],
 };
 
@@ -1360,14 +1361,18 @@ interface ReportModalProps {
   userId: string;
   onClose: () => void;
   onSaved: () => void;
+  /** When provided, the modal opens in EDIT mode for this existing report —
+   *  prefills reportType / title / notes and saves via PATCH instead of POST. */
+  existingReport?: import('./helpers').ReportSummary | null;
 }
 
-export function ReportModal({ player, userId, onClose, onSaved }: ReportModalProps) {
-  const [reportType, setReportType] = useState('SUMMARY');
+export function ReportModal({ player, userId, onClose, onSaved, existingReport }: ReportModalProps) {
+  const isEdit = !!existingReport;
+  const [reportType, setReportType] = useState(existingReport?.reportType || 'SUMMARY');
   const [csvFiles, setCsvFiles] = useState<Record<string, File | null>>({});
   const [csvResults, setCsvResults] = useState<Record<string, UploadResult | null>>({});
-  const [reportTitle, setReportTitle] = useState('');
-  const [notes, setNotes] = useState('');
+  const [reportTitle, setReportTitle] = useState(existingReport?.title || '');
+  const [notes, setNotes] = useState(existingReport?.notes || '');
   const [videos, setVideos] = useState<VideoEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -1382,6 +1387,16 @@ export function ReportModal({ player, userId, onClose, onSaved }: ReportModalPro
   const [catchingData, setCatchingData] = useState<CatchingFormData>(emptyCatchingForm());
   const [infieldData, setInfieldData] = useState<InfieldFormData>(emptyInfieldForm());
   const [outfieldData, setOutfieldData] = useState<OutfieldFormData>(emptyOutfieldForm());
+
+  // Coach Diagnosis manual scores (HITTING reports). When editing an existing
+  // HITTING report, prefill from the report's content.manualScores; otherwise
+  // start with all nulls so coaches can grade fresh.
+  const [manualScores, setManualScores] = useState<ManualSwingScores>(() =>
+    isEdit && existingReport ? getManualSwingScores(existingReport) : {
+      forwardMove: null, posture: null, stability: null, direction: null,
+      stretch: null, core: null, slot: null, timing: null,
+    }
+  );
 
   // Pre-fill summary from player
   useEffect(() => {
@@ -1472,23 +1487,57 @@ export function ReportModal({ player, userId, onClose, onSaved }: ReportModalPro
           }
         }
 
-        const content = JSON.stringify({
-          csvUploads: uploadSummary,
-          videos: uploadedVideos,
+        // In edit mode, MERGE the new content keys over the existing report's
+        // content JSON so we don't drop fields the modal doesn't manage
+        // (manualScores, diagnosisNotes, etc. saved by other UIs).
+        let prevContent: Record<string, any> = {};
+        if (isEdit && existingReport?.content) {
+          try { prevContent = JSON.parse(existingReport.content) || {}; } catch { /* ignore */ }
+        }
+        const newContent = {
+          ...prevContent,
+          ...(Object.keys(uploadSummary).length > 0 ? { csvUploads: { ...(prevContent.csvUploads || {}), ...uploadSummary } } : {}),
+          ...(uploadedVideos.length > 0 ? { videos: [...(prevContent.videos || []), ...uploadedVideos] } : {}),
           ...(atBatData ? { atBatAssessment: atBatData } : {}),
           ...(reportType === 'CATCHING' ? { catchingAssessment: buildCatchingContent(catchingData) } : {}),
           ...(reportType === 'INFIELD' ? { infieldAssessment: buildInfieldContent(infieldData) } : {}),
           ...(reportType === 'OUTFIELD' ? { outfieldAssessment: buildOutfieldContent(outfieldData) } : {}),
-        });
-        await api.createReport({
-          playerId: player.id,
-          createdById: userId,
-          reportType,
-          title: reportTitle || undefined,
-          content,
-          notes: notes || undefined,
-          videoIds: uploadedVideoIds.length > 0 ? uploadedVideoIds.join(',') : undefined,
-        });
+          ...(reportType === 'HITTING' ? {
+            manualScores: {
+              forwardMove: manualScores.forwardMove,
+              posture:     manualScores.posture,
+              stability:   manualScores.stability,
+              direction:   manualScores.direction,
+              stretch:     manualScores.stretch,
+              core:        manualScores.core,
+              slot:        manualScores.slot,
+              timing:      manualScores.timing,
+              updatedAt:   new Date().toISOString(),
+              updatedBy:   userId,
+            },
+          } : {}),
+        };
+        const content = JSON.stringify(newContent);
+        if (isEdit && existingReport) {
+          // Combine previously-saved videoIds with any newly uploaded ones
+          const prevIds = (existingReport.videoIds || '').split(',').map(s => s.trim()).filter(Boolean);
+          const combinedIds = [...prevIds, ...uploadedVideoIds];
+          await api.updateReport(existingReport.id, {
+            content,
+            notes: notes || undefined,
+            videoIds: combinedIds.length > 0 ? combinedIds.join(',') : undefined,
+          });
+        } else {
+          await api.createReport({
+            playerId: player.id,
+            createdById: userId,
+            reportType,
+            title: reportTitle || undefined,
+            content,
+            notes: notes || undefined,
+            videoIds: uploadedVideoIds.length > 0 ? uploadedVideoIds.join(',') : undefined,
+          });
+        }
       }
       setSuccess(true);
       onSaved();
@@ -1596,6 +1645,9 @@ export function ReportModal({ player, userId, onClose, onSaved }: ReportModalPro
                   ))}
                 </div>
               </div>
+              {reportType === 'HITTING' && (
+                <CoachDiagnosisSliders scores={manualScores} setScores={setManualScores} />
+              )}
               <div className={rs.section}>
                 <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>Notes</span></div>
                 <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
@@ -1614,6 +1666,155 @@ export function ReportModal({ player, userId, onClose, onSaved }: ReportModalPro
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Coach Diagnosis Sliders — eight 20-80 sliders the coach uses to grade the
+   player on each Hitting Report. The same data feeds the Coach Diagnosis bar
+   in the Hitting Snapshot bubble on the player's profile.
+   ─────────────────────────────────────────────────────────────────────────── */
+const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: string }[] = [
+  { key: 'forwardMove', label: 'Forward Move', hint: 'Lower-half load → directional intent toward the pitcher.' },
+  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.' },
+  { key: 'stability',   label: 'Stability',    hint: 'Balance and base — head-still through finish.' },
+  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.' },
+  { key: 'stretch',     label: 'Stretch',      hint: 'Length & separation between hips and shoulders at launch.' },
+  { key: 'core',        label: 'Core',         hint: 'Trunk strength & sequencing through contact.' },
+  { key: 'slot',        label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.' },
+  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.' },
+];
+
+function CoachDiagnosisSliders({
+  scores,
+  setScores,
+}: {
+  scores: ManualSwingScores;
+  setScores: React.Dispatch<React.SetStateAction<ManualSwingScores>>;
+}) {
+  const filledCount = COACH_DIAG_KEYS.filter(k => scores[k.key] != null).length;
+  return (
+    <div className={rs.section}>
+      <div className={rs.sectionHeader}>
+        <span className={rs.sectionIcon}>✍️</span>
+        <span className={rs.sectionTitle}>Coach Diagnosis</span>
+        <span className={rs.sectionCount}>{filledCount} / {COACH_DIAG_KEYS.length} graded</span>
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: 12,
+      }}>
+        {COACH_DIAG_KEYS.map(({ key, label, hint }) => (
+          <CoachDiagnosisRow
+            key={key}
+            label={label}
+            hint={hint}
+            value={scores[key]}
+            onChange={(v) => setScores(prev => ({ ...prev, [key]: v }))}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CoachDiagnosisRow({
+  label, hint, value, onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+}) {
+  const tone = value !== null ? scoreColor(value) : '#475569';
+  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
+  return (
+    <div style={{
+      padding: '12px 14px',
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+      }}>
+        <span style={{
+          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--text-muted)',
+        }}>
+          {label}
+        </span>
+        <span style={{
+          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 22,
+          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+        }}>
+          {value ?? '—'}
+        </span>
+      </div>
+
+      <div style={{
+        height: 5, borderRadius: 3,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid var(--border)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${pct}%`, height: '100%',
+          background: tone, transition: 'width 0.18s ease',
+        }} />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range"
+          min={20} max={80} step={5}
+          value={value ?? 50}
+          onChange={(e) => onChange(Number(e.target.value))}
+          style={{ flex: 1 }}
+        />
+        <input
+          type="number"
+          min={20} max={80} step={5}
+          value={value ?? ''}
+          placeholder="—"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '') return onChange(null);
+            const n = Number(v);
+            if (!Number.isFinite(n)) return;
+            onChange(Math.max(20, Math.min(80, Math.round(n / 5) * 5)));
+          }}
+          style={{
+            width: 56,
+            background: 'rgba(20,24,32,0.85)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            padding: '4px 7px',
+            borderRadius: 6,
+            fontSize: 12, fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            textAlign: 'center',
+          }}
+        />
+        {value !== null && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            title="Clear"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: 13, padding: '0 4px',
+            }}
+          >×</button>
+        )}
+      </div>
+
+      <span style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+        {hint}
+      </span>
     </div>
   );
 }

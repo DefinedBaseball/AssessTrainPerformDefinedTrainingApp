@@ -3,12 +3,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   SectionHeader, Section,
-  NotesBox, VideoPlaceholder, ReportSelector, DownloadPdfButton,
+  NotesBox, VideoPlaceholder, ReportSelector, AddReportButton,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
-import { TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, type ReportSummary } from '../helpers';
+import hud from './PitchingTab.module.css';
+import { TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport, type ReportSummary } from '../helpers';
 import * as api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import type { TrackmanPitch } from '@/lib/api';
 import { generatePitchingPdf } from '@/lib/pdf';
 import { CustomCharts } from '@/components/CustomCharts';
@@ -44,6 +46,15 @@ const PITCH_DISPLAY: Record<string, string> = {
 
 function getPitchColor(type: string): string {
   return PITCH_COLORS[type] || PITCH_COLORS.Unknown;
+}
+
+/** Convert a #RRGGBB hex pitch color to an rgba() glow halo string. */
+function pitchGlow(type: string, alpha = 0.5): string {
+  const hex = getPitchColor(type).replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 /* ── Arsenal summary ── */
@@ -129,38 +140,38 @@ function ArsenalCard({ row }: { row: ArsenalRow }) {
 
   return (
     <div style={{
-      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-      padding: '14px 18px', flex: 1, minWidth: 160,
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+      padding: '9px 11px', flex: 1, minWidth: 108,
     }}>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div style={{ fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 5 }}>
         {PITCH_DISPLAY[row.pitchType] || row.pitchType}
       </div>
       {hasData ? (
         <>
           {/* Max Velocity — biggest */}
-          <div style={{ fontSize: 30, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, lineHeight: 1 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, lineHeight: 1 }}>
             {row.maxVelo.toFixed(1)}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontWeight: 500 }}>mph max</div>
+          <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>mph max</div>
 
           {/* Avg Velocity — medium */}
-          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, lineHeight: 1, marginTop: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, lineHeight: 1, marginTop: 5 }}>
             {row.avgVelo.toFixed(1)}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, fontWeight: 500 }}>mph avg</div>
+          <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>mph avg</div>
 
           {/* Velocity Range — smallest */}
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: 'var(--text)', lineHeight: 1 }}>
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: 'var(--text)', lineHeight: 1 }}>
               {row.minVelo.toFixed(1)} – {row.maxVelo.toFixed(1)}
             </div>
-            <div style={{ fontSize: 8, color: 'var(--faint)', marginTop: 2, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Velo Range (mph)</div>
+            <div style={{ fontSize: 7.5, color: 'var(--faint)', marginTop: 1, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Velo Range (mph)</div>
           </div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 30, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: 'var(--faint)', lineHeight: 1 }}>--</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>No data yet</div>
+          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: 'var(--faint)', lineHeight: 1 }}>--</div>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 3 }}>No data yet</div>
         </>
       )}
     </div>
@@ -205,7 +216,7 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
   );
 }
 
-/* ── Interactive Movement Plot (fixed -25 to 25 axes, compact) ── */
+/* ── Interactive Movement Plot — tactical HUD styling (matches spray chart) ── */
 function MovementPlot({
   pitches, selected, onSelect,
 }: {
@@ -213,11 +224,11 @@ function MovementPlot({
   selected: TrackmanPitch | null;
   onSelect: (p: TrackmanPitch | null) => void;
 }) {
-  const width = 340;
-  const height = 340;
-  const pad = { top: 32, right: 16, bottom: 42, left: 44 };
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
+  const W = 460;
+  const H = 440;
+  const pad = { top: 44, right: 32, bottom: 48, left: 56 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
 
   const valid = pitches.filter(p =>
     p.horzBreak != null && p.inducedVertBreak != null &&
@@ -230,92 +241,179 @@ function MovementPlot({
   const axisMax = 25;
   const sx = (v: number) => pad.left + ((v - axisMin) / (axisMax - axisMin)) * plotW;
   const sy = (v: number) => pad.top + (1 - (v - axisMin) / (axisMax - axisMin)) * plotH;
-  const ticks = [-25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25];
+  const cx = sx(0);
+  const cy = sy(0);
+  const minorTicks = [-20, -15, -10, -5, 5, 10, 15, 20];
+  const majorTicks = [-20, -10, 10, 20];
+  const pitchTypes = [...new Set(valid.map(p => p.pitchType))];
 
   return (
-    <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px', flex: '0 0 auto' }}>
-        <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4, textAlign: 'center' }}>
-          Movement Plot &mdash; Pitcher&apos;s View
-        </div>
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
-          style={{ cursor: 'pointer', display: 'block' }}
-          onClick={(e) => {
-            const rect = (e.target as SVGElement).closest('svg')!.getBoundingClientRect();
-            const scaleX = width / rect.width;
-            const scaleY = height / rect.height;
-            const mx = (e.clientX - rect.left) * scaleX;
-            const my = (e.clientY - rect.top) * scaleY;
-            let closest: TrackmanPitch | null = null;
-            let minDist = 18;
-            for (const p of valid) {
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+      style={{ cursor: 'default', display: 'block', width: '100%', height: 'auto' }}>
+            <defs>
+              {/* Scan-line overlay — tactical HUD texture; canvas is transparent
+                 so the outer bubble gradient shows through */}
+              <pattern id="mvScanlines" x="0" y="0" width="1" height="5" patternUnits="userSpaceOnUse">
+                <rect width="1" height="5" fill="transparent" />
+                <rect y="0" width="1" height="1" fill="rgba(255,255,255,0.018)" />
+              </pattern>
+              {/* Origin beacon glow */}
+              <radialGradient id="mvBeacon" cx="50%" cy="50%" r="50%">
+                <stop offset="0%"  stopColor="rgba(126,182,255,0.45)" />
+                <stop offset="40%" stopColor="rgba(61,139,253,0.18)" />
+                <stop offset="100%" stopColor="rgba(61,139,253,0)" />
+              </radialGradient>
+            </defs>
+
+            {/* Transparent click-to-deselect surface */}
+            <rect width={W} height={H} fill="transparent" onClick={() => onSelect(null)} />
+            <rect width={W} height={H} fill="url(#mvScanlines)" pointerEvents="none" />
+
+            {/* Origin beacon */}
+            <circle cx={cx} cy={cy} r={90} fill="url(#mvBeacon)" pointerEvents="none" />
+
+            {/* Minor grid lines — dashed silver hairlines every 5 units */}
+            {minorTicks.map(v => (
+              <g key={`mx${v}`}>
+                <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
+                  stroke="rgba(183,190,201,0.10)" strokeWidth={0.6} strokeDasharray="3 5" />
+                <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
+                  stroke="rgba(183,190,201,0.10)" strokeWidth={0.6} strokeDasharray="3 5" />
+              </g>
+            ))}
+
+            {/* Major grid + tick chips at ±10, ±20 */}
+            {majorTicks.map(v => (
+              <g key={`mj${v}`}>
+                <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
+                  stroke="rgba(183,190,201,0.18)" strokeWidth={0.75} strokeDasharray="3 5" />
+                <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
+                  stroke="rgba(183,190,201,0.18)" strokeWidth={0.75} strokeDasharray="3 5" />
+
+                {/* X-axis chip (bottom) */}
+                <g transform={`translate(${sx(v)}, ${pad.top + plotH + 14})`}>
+                  <rect x={-13} y={-8} width={26} height={14} rx={7}
+                    fill="rgba(10,12,18,0.75)"
+                    stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+                  <text x={0} y={2.5}
+                    fill="rgba(183,190,201,0.8)"
+                    fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                    fontWeight={600} letterSpacing="0.12em"
+                    textAnchor="middle">{v > 0 ? `+${v}` : v}</text>
+                </g>
+
+                {/* Y-axis chip (left) */}
+                <g transform={`translate(${pad.left - 18}, ${sy(v)})`}>
+                  <rect x={-14} y={-7} width={28} height={14} rx={7}
+                    fill="rgba(10,12,18,0.75)"
+                    stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+                  <text x={0} y={3}
+                    fill="rgba(183,190,201,0.8)"
+                    fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                    fontWeight={600} letterSpacing="0.12em"
+                    textAnchor="middle">{v > 0 ? `+${v}` : v}</text>
+                </g>
+              </g>
+            ))}
+
+            {/* Crosshair axes — bright silver rails at x=0, y=0 */}
+            <line x1={pad.left} y1={cy} x2={pad.left + plotW} y2={cy}
+              stroke="rgba(223,227,232,0.42)" strokeWidth={1.2} />
+            <line x1={cx} y1={pad.top} x2={cx} y2={pad.top + plotH}
+              stroke="rgba(223,227,232,0.42)" strokeWidth={1.2} />
+
+            {/* Origin marker — tiny silver pentagon (like the home-plate on spray) */}
+            <circle cx={cx} cy={cy} r={4} fill="rgba(223,227,232,0.92)"
+              stroke="rgba(255,255,255,0.5)" strokeWidth={0.75} />
+
+            {/* Axis labels — mono, uppercase, tracked */}
+            <text x={pad.left} y={pad.top + plotH + 36}
+              fill="rgba(183,190,201,0.55)"
+              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontWeight={600} letterSpacing="0.28em"
+              textAnchor="start">← ARM</text>
+            <text x={pad.left + plotW} y={pad.top + plotH + 36}
+              fill="rgba(183,190,201,0.55)"
+              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontWeight={600} letterSpacing="0.28em"
+              textAnchor="end">GLOVE →</text>
+            <g transform={`translate(16, ${pad.top + plotH / 2}) rotate(-90)`}>
+              <text x={0} y={0}
+                fill="rgba(183,190,201,0.55)"
+                fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                fontWeight={600} letterSpacing="0.28em"
+                textAnchor="middle">DROP · RISE</text>
+            </g>
+
+            {/* Selected → thin dashed vector from origin to the dot */}
+            {selected && (() => {
+              const hb = selected.horzBreak;
+              const ivb = selected.inducedVertBreak;
+              if (hb == null || ivb == null) return null;
+              return (
+                <line x1={cx} y1={cy} x2={sx(hb as number)} y2={sy(ivb as number)}
+                  stroke="rgba(255,255,255,0.35)"
+                  strokeWidth={0.8}
+                  strokeDasharray="2 3"
+                  pointerEvents="none" />
+              );
+            })()}
+
+            {/* Pitch dots — pitch-colored with matching glow halo */}
+            {valid.map((p, i) => {
+              const isSelected = selected && p.id === selected.id;
+              const dim = selected && !isSelected;
               const px = sx(p.horzBreak as number);
               const py = sy(p.inducedVertBreak as number);
-              const dist = Math.sqrt((mx - px) ** 2 + (my - py) ** 2);
-              if (dist < minDist) { minDist = dist; closest = p; }
-            }
-            onSelect(closest);
-          }}
-        >
-          {ticks.map((v, i) => (
-            <g key={`x${i}`}>
-              <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
-                stroke={v === 0 ? 'var(--text-muted)' : 'var(--border)'}
-                strokeWidth={v === 0 ? 0.8 : 0.5}
-                strokeDasharray={v === 0 ? '4 3' : 'none'}
-                opacity={v === 0 ? 0.4 : 1}
-              />
-              {v % 10 === 0 && <text x={sx(v)} y={height - 8} textAnchor="middle" fontSize={8} fill="var(--text-muted)">{v}</text>}
-            </g>
-          ))}
-          {ticks.map((v, i) => (
-            <g key={`y${i}`}>
-              <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
-                stroke={v === 0 ? 'var(--text-muted)' : 'var(--border)'}
-                strokeWidth={v === 0 ? 0.8 : 0.5}
-                strokeDasharray={v === 0 ? '4 3' : 'none'}
-                opacity={v === 0 ? 0.4 : 1}
-              />
-              {v % 10 === 0 && <text x={pad.left - 6} y={sy(v) + 3} textAnchor="end" fontSize={8} fill="var(--text-muted)">{v}</text>}
-            </g>
-          ))}
-          <text x={pad.left + plotW / 2} y={height - 22} textAnchor="middle" fontSize={9} fontWeight={600} fill="var(--text-muted)">
-            &#8592; Arm &middot; Glove &#8594;
-          </text>
-          <text x={10} y={pad.top + plotH / 2} textAnchor="middle" fontSize={9} fontWeight={600} fill="var(--text-muted)"
-            transform={`rotate(-90, 10, ${pad.top + plotH / 2})`}>Drop &middot; Rise</text>
-          {valid.map((p, i) => {
-            const isSelected = selected && p.id === selected.id;
-            return (
-              <circle key={i} cx={sx(p.horzBreak as number)} cy={sy(p.inducedVertBreak as number)}
-                r={isSelected ? 6 : 4} fill={getPitchColor(p.pitchType)}
-                opacity={selected && !isSelected ? 0.3 : 0.85}
-                stroke={isSelected ? '#fff' : 'rgba(0,0,0,0.3)'} strokeWidth={isSelected ? 2 : 0.5}
-                style={{ transition: 'opacity 0.15s, r 0.15s' }}
-              />
-            );
-          })}
-          <rect x={pad.left} y={pad.top} width={plotW} height={plotH} fill="none" stroke="var(--border)" strokeWidth={1} />
-          {(() => {
-            const types = [...new Set(valid.map(p => p.pitchType))];
-            return types.map((t, i) => (
-              <g key={t} transform={`translate(${pad.left + plotW - types.length * 58 + i * 58}, ${pad.top - 16})`}>
-                <circle cx={0} cy={0} r={3.5} fill={getPitchColor(t)} />
-                <text x={7} y={3} fontSize={9} fontWeight={600} fill="var(--text-muted)">{PITCH_SHORT[t] || t}</text>
-              </g>
-            ));
-          })()}
-        </svg>
-      </div>
-      <div style={{
-        flex: 1, minWidth: 140,
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-        padding: '10px 14px',
-        display: 'flex', flexDirection: 'column', gap: 1,
-      }}>
-        <PitchDetailPanel selected={selected} compact />
-      </div>
-    </div>
+              const color = getPitchColor(p.pitchType);
+              return (
+                <g key={i}
+                  style={{ cursor: 'pointer' }}
+                  onClick={e => { e.stopPropagation(); onSelect(isSelected ? null : p); }}>
+                  <circle cx={px} cy={py} r={isSelected ? 15 : 9}
+                    fill={pitchGlow(p.pitchType, isSelected ? 0.6 : 0.4)}
+                    opacity={dim ? 0.2 : (isSelected ? 0.95 : 0.55)} />
+                  <circle cx={px} cy={py}
+                    r={isSelected ? 6.5 : 4}
+                    fill={color}
+                    stroke={isSelected ? '#ffffff' : 'rgba(6,8,14,0.55)'}
+                    strokeWidth={isSelected ? 2 : 0.75}
+                    opacity={dim ? 0.35 : 1}
+                    style={{ transition: 'all 0.15s ease' }} />
+                  {isSelected && (
+                    <circle cx={px - 1.4} cy={py - 1.4} r={1.3}
+                      fill="rgba(255,255,255,0.92)" />
+                  )}
+                </g>
+              );
+            })}
+
+            {/* Plot frame — grad-edge hairline rectangle */}
+            <rect x={pad.left} y={pad.top} width={plotW} height={plotH}
+              fill="none" stroke="rgba(183,190,201,0.16)" strokeWidth={0.75} />
+
+            {/* Pitch-type legend — mono chips along the top rim */}
+            {pitchTypes.map((t, i) => {
+              const chipW = 54;
+              const gap = 8;
+              const totalW = pitchTypes.length * chipW + (pitchTypes.length - 1) * gap;
+              const startX = pad.left + plotW - totalW;
+              return (
+                <g key={t} transform={`translate(${startX + i * (chipW + gap)}, 18)`}>
+                  <rect x={0} y={-10} width={chipW} height={18} rx={9}
+                    fill="rgba(10,12,18,0.72)"
+                    stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+                  <circle cx={9} cy={0} r={3.5} fill={getPitchColor(t)}
+                    style={{ filter: `drop-shadow(0 0 4px ${pitchGlow(t, 0.7)})` }} />
+                  <text x={18} y={3.5}
+                    fill="rgba(183,190,201,0.82)"
+                    fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                    fontWeight={600} letterSpacing="0.14em"
+                    textAnchor="start">{PITCH_SHORT[t] || t}</text>
+                </g>
+              );
+            })}
+    </svg>
   );
 }
 
@@ -440,11 +538,11 @@ function PitchLocationPlot({
   selected: TrackmanPitch | null;
   onSelect: (p: TrackmanPitch | null) => void;
 }) {
-  const width = 340;
-  const height = 340;
-  const pad = { top: 32, right: 16, bottom: 42, left: 44 };
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
+  const W = 460;
+  const H = 440;
+  const pad = { top: 44, right: 32, bottom: 48, left: 52 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
 
   const valid = pitches.filter(p =>
     p.plateLocSide != null && p.plateLocHeight != null &&
@@ -456,9 +554,6 @@ function PitchLocationPlot({
   const xMin = -2.5, xMax = 2.5, yMin = 0, yMax = 5;
   const sx = (v: number) => pad.left + ((v - xMin) / (xMax - xMin)) * plotW;
   const sy = (v: number) => pad.top + (1 - (v - yMin) / (yMax - yMin)) * plotH;
-
-  const xTicks = [-2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5];
-  const yTicks = [0, 1, 2, 3, 4, 5];
 
   const szLeft = -0.83, szRight = 0.83, szBot = 1.5, szTop = 3.5;
   const szW = szRight - szLeft;
@@ -474,95 +569,196 @@ function PitchLocationPlot({
     { n: 8, x: szLeft + szW / 3, y: szBot },
     { n: 9, x: szLeft + 2 * szW / 3, y: szBot },
   ];
-  const types = [...new Set(valid.map(p => p.pitchType))];
+  const pitchTypes = [...new Set(valid.map(p => p.pitchType))];
+  const szCx = sx(0);
+  const szCy = sy((szBot + szTop) / 2);
 
   return (
-    <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px', flex: '0 0 auto' }}>
-        <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4, textAlign: 'center' }}>
-          Pitch Location &mdash; Catcher&apos;s View
-        </div>
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
-          style={{ cursor: 'pointer', display: 'block' }}
-          onClick={(e) => {
-            const rect = (e.target as SVGElement).closest('svg')!.getBoundingClientRect();
-            const scaleX = width / rect.width;
-            const scaleY = height / rect.height;
-            const mx = (e.clientX - rect.left) * scaleX;
-            const my = (e.clientY - rect.top) * scaleY;
-            let closest: TrackmanPitch | null = null;
-            let minDist = 18;
-            for (const p of valid) {
-              if (p.plateLocSide == null || p.plateLocHeight == null) continue;
-              const px = sx(p.plateLocSide);
-              const py = sy(p.plateLocHeight);
-              const dist = Math.sqrt((mx - px) ** 2 + (my - py) ** 2);
-              if (dist < minDist) { minDist = dist; closest = p; }
-            }
-            onSelect(closest);
-          }}
-        >
-          {xTicks.map((v, i) => (
-            <g key={`x${i}`}>
-              <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH} stroke="var(--border)" strokeWidth={0.5} />
-              {Number.isInteger(v) && <text x={sx(v)} y={height - 8} textAnchor="middle" fontSize={8} fill="var(--text-muted)">{v}</text>}
-            </g>
-          ))}
-          {yTicks.map((v, i) => (
-            <g key={`y${i}`}>
-              <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)} stroke="var(--border)" strokeWidth={0.5} />
-              <text x={pad.left - 6} y={sy(v) + 3} textAnchor="end" fontSize={8} fill="var(--text-muted)">{v}</text>
-            </g>
-          ))}
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+      style={{ cursor: 'default', display: 'block', width: '100%', height: 'auto' }}>
+      <defs>
+        <pattern id="locScanlines" x="0" y="0" width="1" height="5" patternUnits="userSpaceOnUse">
+          <rect width="1" height="5" fill="transparent" />
+          <rect y="0" width="1" height="1" fill="rgba(255,255,255,0.018)" />
+        </pattern>
+        <radialGradient id="locBeacon" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"  stopColor="rgba(126,182,255,0.40)" />
+          <stop offset="45%" stopColor="rgba(61,139,253,0.16)" />
+          <stop offset="100%" stopColor="rgba(61,139,253,0)" />
+        </radialGradient>
+      </defs>
 
-          {/* Strike zone */}
-          <rect x={sx(szLeft)} y={sy(szTop)} width={sx(szRight) - sx(szLeft)} height={sy(szBot) - sy(szTop)}
-            fill="none" stroke="var(--text-muted)" strokeWidth={1.5} opacity={0.5} />
-          <line x1={sx(szLeft + szW / 3)} y1={sy(szTop)} x2={sx(szLeft + szW / 3)} y2={sy(szBot)} stroke="var(--text-muted)" strokeWidth={0.5} opacity={0.3} />
-          <line x1={sx(szLeft + 2 * szW / 3)} y1={sy(szTop)} x2={sx(szLeft + 2 * szW / 3)} y2={sy(szBot)} stroke="var(--text-muted)" strokeWidth={0.5} opacity={0.3} />
-          <line x1={sx(szLeft)} y1={sy(szTop - szH / 3)} x2={sx(szRight)} y2={sy(szTop - szH / 3)} stroke="var(--text-muted)" strokeWidth={0.5} opacity={0.3} />
-          <line x1={sx(szLeft)} y1={sy(szTop - 2 * szH / 3)} x2={sx(szRight)} y2={sy(szTop - 2 * szH / 3)} stroke="var(--text-muted)" strokeWidth={0.5} opacity={0.3} />
-          {zones.map(z => (
-            <text key={z.n} x={sx(z.x + szW / 6)} y={sy(z.y + szH / 6) + 4}
-              textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--text-muted)" opacity={0.25}>
-              {z.n}
-            </text>
-          ))}
-          <polygon
-            points={`${sx(-0.71)},${sy(0.3)} ${sx(0.71)},${sy(0.3)} ${sx(0.71)},${sy(0.15)} ${sx(0)},${sy(0)} ${sx(-0.71)},${sy(0.15)}`}
-            fill="var(--text-muted)" opacity={0.12} />
+      {/* Transparent click-to-deselect surface */}
+      <rect width={W} height={H} fill="transparent" onClick={() => onSelect(null)} />
+      <rect width={W} height={H} fill="url(#locScanlines)" pointerEvents="none" />
 
-          {/* Data points */}
-          {valid.map((p, i) => {
-            const isSelected = selected && p.id === selected.id;
-            return (
-              <circle key={i} cx={sx(p.plateLocSide as number)} cy={sy(p.plateLocHeight as number)}
-                r={isSelected ? 6 : 4} fill={getPitchColor(p.pitchType)}
-                opacity={selected && !isSelected ? 0.3 : 0.85}
-                stroke={isSelected ? '#fff' : 'rgba(0,0,0,0.3)'} strokeWidth={isSelected ? 2 : 0.5}
-                style={{ transition: 'opacity 0.15s, r 0.15s' }}
-              />
-            );
-          })}
+      {/* Strike-zone beacon glow */}
+      <circle cx={szCx} cy={szCy} r={90} fill="url(#locBeacon)" pointerEvents="none" />
 
-          <rect x={pad.left} y={pad.top} width={plotW} height={plotH} fill="none" stroke="var(--border)" strokeWidth={1} />
-          {types.map((t, i) => (
-            <g key={t} transform={`translate(${pad.left + plotW - types.length * 58 + i * 58}, ${pad.top - 16})`}>
-              <circle cx={0} cy={0} r={3.5} fill={getPitchColor(t)} />
-              <text x={7} y={3} fontSize={9} fontWeight={600} fill="var(--text-muted)">{PITCH_SHORT[t] || t}</text>
-            </g>
-          ))}
-        </svg>
-      </div>
-      <div style={{
-        flex: 1, minWidth: 140,
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-        padding: '10px 14px',
-        display: 'flex', flexDirection: 'column', gap: 1,
-      }}>
-        <PitchDetailPanel selected={selected} compact />
-      </div>
-    </div>
+      {/* Minor grid — dashed silver hairlines at 0.5ft / 1ft */}
+      {[-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2].map(v => (
+        <line key={`xg${v}`} x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
+          stroke="rgba(183,190,201,0.08)" strokeWidth={0.6} strokeDasharray="3 5" />
+      ))}
+      {[0.5, 1.5, 2.5, 3.5, 4.5].map(v => (
+        <line key={`yg${v}`} x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
+          stroke="rgba(183,190,201,0.08)" strokeWidth={0.6} strokeDasharray="3 5" />
+      ))}
+
+      {/* Integer-foot Y-axis ticks + mono pill chips */}
+      {[1, 2, 3, 4, 5].map(v => (
+        <g key={`yt${v}`}>
+          <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
+            stroke="rgba(183,190,201,0.14)" strokeWidth={0.7} strokeDasharray="3 5" />
+          <g transform={`translate(${pad.left - 18}, ${sy(v)})`}>
+            <rect x={-14} y={-7} width={28} height={14} rx={7}
+              fill="rgba(10,12,18,0.75)"
+              stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+            <text x={0} y={3}
+              fill="rgba(183,190,201,0.8)"
+              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontWeight={600} letterSpacing="0.12em"
+              textAnchor="middle">{v}FT</text>
+          </g>
+        </g>
+      ))}
+
+      {/* Integer-foot X-axis chips */}
+      {[-2, -1, 0, 1, 2].map(v => (
+        <g key={`xt${v}`} transform={`translate(${sx(v)}, ${pad.top + plotH + 14})`}>
+          <rect x={-13} y={-8} width={26} height={14} rx={7}
+            fill="rgba(10,12,18,0.75)"
+            stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+          <text x={0} y={2.5}
+            fill="rgba(183,190,201,0.8)"
+            fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+            fontWeight={600} letterSpacing="0.12em"
+            textAnchor="middle">{v > 0 ? `+${v}` : v}</text>
+        </g>
+      ))}
+
+      {/* Strike zone — bright silver frame with mono-gridded 3×3 zones */}
+      {(() => {
+        const x = sx(szLeft), y = sy(szTop);
+        const w = sx(szRight) - sx(szLeft);
+        const h = sy(szBot) - sy(szTop);
+        return (
+          <g pointerEvents="none">
+            {/* Zone subdividers */}
+            <line x1={sx(szLeft + szW / 3)} y1={sy(szTop)} x2={sx(szLeft + szW / 3)} y2={sy(szBot)}
+              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+            <line x1={sx(szLeft + 2 * szW / 3)} y1={sy(szTop)} x2={sx(szLeft + 2 * szW / 3)} y2={sy(szBot)}
+              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+            <line x1={sx(szLeft)} y1={sy(szTop - szH / 3)} x2={sx(szRight)} y2={sy(szTop - szH / 3)}
+              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+            <line x1={sx(szLeft)} y1={sy(szTop - 2 * szH / 3)} x2={sx(szRight)} y2={sy(szTop - 2 * szH / 3)}
+              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+            {/* Zone frame */}
+            <rect x={x} y={y} width={w} height={h}
+              fill="none" stroke="rgba(223,227,232,0.55)" strokeWidth={1.25} />
+            {/* Zone numbers */}
+            {zones.map(z => (
+              <text key={z.n}
+                x={sx(z.x + szW / 6)} y={sy(z.y + szH / 6) + 3.5}
+                fill="rgba(183,190,201,0.5)"
+                fontSize={10}
+                fontFamily="'DM Mono', ui-monospace, monospace"
+                fontWeight={600}
+                letterSpacing="0.08em"
+                textAnchor="middle">{z.n}</text>
+            ))}
+          </g>
+        );
+      })()}
+
+      {/* Home plate silhouette at the bottom */}
+      <polygon
+        points={`${sx(-0.71)},${sy(0.35)} ${sx(0.71)},${sy(0.35)} ${sx(0.71)},${sy(0.18)} ${sx(0)},${sy(0)} ${sx(-0.71)},${sy(0.18)}`}
+        fill="rgba(223,227,232,0.22)"
+        stroke="rgba(223,227,232,0.42)"
+        strokeWidth={0.75}
+      />
+
+      {/* Selected → dashed vector from strike-zone center to the dot */}
+      {selected && (() => {
+        const sd = selected.plateLocSide;
+        const ht = selected.plateLocHeight;
+        if (sd == null || ht == null) return null;
+        return (
+          <line x1={szCx} y1={szCy} x2={sx(sd as number)} y2={sy(ht as number)}
+            stroke="rgba(255,255,255,0.3)"
+            strokeWidth={0.8}
+            strokeDasharray="2 3"
+            pointerEvents="none" />
+        );
+      })()}
+
+      {/* Pitch dots with glow halos */}
+      {valid.map((p, i) => {
+        const isSelected = selected && p.id === selected.id;
+        const dim = selected && !isSelected;
+        const px = sx(p.plateLocSide as number);
+        const py = sy(p.plateLocHeight as number);
+        const color = getPitchColor(p.pitchType);
+        return (
+          <g key={i}
+            style={{ cursor: 'pointer' }}
+            onClick={e => { e.stopPropagation(); onSelect(isSelected ? null : p); }}>
+            <circle cx={px} cy={py} r={isSelected ? 15 : 9}
+              fill={pitchGlow(p.pitchType, isSelected ? 0.6 : 0.4)}
+              opacity={dim ? 0.2 : (isSelected ? 0.95 : 0.55)} />
+            <circle cx={px} cy={py}
+              r={isSelected ? 6.5 : 4}
+              fill={color}
+              stroke={isSelected ? '#ffffff' : 'rgba(6,8,14,0.55)'}
+              strokeWidth={isSelected ? 2 : 0.75}
+              opacity={dim ? 0.35 : 1}
+              style={{ transition: 'all 0.15s ease' }} />
+            {isSelected && (
+              <circle cx={px - 1.4} cy={py - 1.4} r={1.3} fill="rgba(255,255,255,0.92)" />
+            )}
+          </g>
+        );
+      })}
+
+      {/* Plot frame */}
+      <rect x={pad.left} y={pad.top} width={plotW} height={plotH}
+        fill="none" stroke="rgba(183,190,201,0.16)" strokeWidth={0.75} />
+
+      {/* Axis labels — mono, uppercase, tracked */}
+      <text x={pad.left} y={pad.top + plotH + 36}
+        fill="rgba(183,190,201,0.55)"
+        fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+        fontWeight={600} letterSpacing="0.28em"
+        textAnchor="start">← INSIDE</text>
+      <text x={pad.left + plotW} y={pad.top + plotH + 36}
+        fill="rgba(183,190,201,0.55)"
+        fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+        fontWeight={600} letterSpacing="0.28em"
+        textAnchor="end">OUTSIDE →</text>
+
+      {/* Pitch-type legend — mono chips along the top rim */}
+      {pitchTypes.map((t, i) => {
+        const chipW = 54;
+        const gap = 8;
+        const totalW = pitchTypes.length * chipW + (pitchTypes.length - 1) * gap;
+        const startX = pad.left + plotW - totalW;
+        return (
+          <g key={t} transform={`translate(${startX + i * (chipW + gap)}, 18)`}>
+            <rect x={0} y={-10} width={chipW} height={18} rx={9}
+              fill="rgba(10,12,18,0.72)"
+              stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+            <circle cx={9} cy={0} r={3.5} fill={getPitchColor(t)}
+              style={{ filter: `drop-shadow(0 0 4px ${pitchGlow(t, 0.7)})` }} />
+            <text x={18} y={3.5}
+              fill="rgba(183,190,201,0.82)"
+              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontWeight={600} letterSpacing="0.14em"
+              textAnchor="start">{PITCH_SHORT[t] || t}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -701,16 +897,67 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Main PitchingTab ── */
 export function PitchingTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos,
+  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport,
 }: TabProps) {
+  const { user } = useAuth();
   const [pitches, setPitches] = useState<TrackmanPitch[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPitch, setSelectedPitch] = useState<TrackmanPitch | null>(null);
-  const [selectedLocPitch, setSelectedLocPitch] = useState<TrackmanPitch | null>(null);
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
   // Extract uploadIds from the selected report for filtering
   const reportUploadIds = useMemo(() => getReportUploadIds(selectedReport), [selectedReport]);
+
+  // ── Coaching notes for the pitch report (mirrors the diagnosis-notes pattern from SwingTab) ──
+  const latestPitching = useMemo(() => getLatestReport(reports, ['PITCHING']), [reports]);
+  const persistedPitchingNotes = useMemo(() => {
+    if (!latestPitching?.content) return '';
+    try {
+      const c = JSON.parse(latestPitching.content);
+      return typeof c.pitchingNotes === 'string' ? c.pitchingNotes : '';
+    } catch { return ''; }
+  }, [latestPitching]);
+  const [pitchingNotes, setPitchingNotes] = useState(persistedPitchingNotes);
+  useEffect(() => { setPitchingNotes(persistedPitchingNotes); }, [persistedPitchingNotes]);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaveOk, setNotesSaveOk] = useState(false);
+  const [notesSaveError, setNotesSaveError] = useState<string | null>(null);
+  const notesDirty = pitchingNotes !== persistedPitchingNotes;
+
+  async function savePitchingNotes() {
+    if (!user) { setNotesSaveError('Not signed in.'); return; }
+    setSavingNotes(true);
+    setNotesSaveError(null);
+    setNotesSaveOk(false);
+    try {
+      const userId = (user as any).id || (user as any).sub;
+      let prev: Record<string, any> = {};
+      if (latestPitching?.content) {
+        try { prev = JSON.parse(latestPitching.content) || {}; } catch { /* ignore */ }
+      }
+      const newContent = {
+        ...prev,
+        pitchingNotes,
+        notesUpdatedAt: new Date().toISOString(),
+        notesUpdatedBy: userId,
+      };
+      await api.createReport({
+        playerId: player.id,
+        createdById: userId,
+        reportType: 'PITCHING',
+        title: 'Pitching Notes Update',
+        content: JSON.stringify(newContent),
+        notes: latestPitching?.notes ?? undefined,
+      });
+      setNotesSaveOk(true);
+      onRefresh?.();
+    } catch (e) {
+      setNotesSaveError((e as Error).message || 'Save failed');
+    } finally {
+      setSavingNotes(false);
+      setTimeout(() => setNotesSaveOk(false), 2200);
+    }
+  }
 
   useEffect(() => {
     if (!player?.id) return;
@@ -741,8 +988,9 @@ export function PitchingTab({
 
   return (
     <>
-      {/* ── Report Selector + Download (portaled into TabBar) ── */}
+      {/* ── Report Selector + Add Report + Download (portaled into TabBar) ── */}
       <TabBarActions>
+        <AddReportButton onClick={onNewReport} show={isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={['PITCHING']}
@@ -751,10 +999,9 @@ export function PitchingTab({
           selectedId={selectedReport?.id ?? null}
           onSelect={setSelectedReport}
           onDeleted={onRefresh}
-        />
-        <DownloadPdfButton
-          label="Download PDF"
-          onDownload={() => generatePitchingPdf(player, reports)}
+          onNewReport={onNewReport}
+          onEdit={onEditReport}
+          onDownload={(r) => generatePitchingPdf(player, [r])}
         />
       </TabBarActions>
 
@@ -765,28 +1012,182 @@ export function PitchingTab({
         </div>
       )}
 
-      {/* ── Pitch Arsenal Summary ── */}
-      {!loading && (
-        <Section>
-          <SectionHeader icon="&#9889;" iconColor="teal" title="Pitch Arsenal Summary" subtitle={hasPitchData ? `${pitches.length} Pitches` : ''} />
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {arsenalCards.map((row, i) => (
+      {/* ── Unified Pitch Report — Arsenal + Movement + Location in one HUD bubble ── */}
+      {!loading && hasPitchData && (
+        <div className={hud.hudConsole} style={{ marginBottom: 24 }}>
+          {/* Console header */}
+          <div className={hud.hudHead}>
+            <span className={hud.hudHeadDot} />
+            Pitch Report
+            <span style={{ color: 'var(--text-muted)', letterSpacing: '0.18em', fontWeight: 500, marginLeft: 4 }}>
+              &middot; {pitches.length} pitches
+            </span>
+          </div>
+
+          {/* Arsenal strip */}
+          <div className={hud.hudArsenal}>
+            {arsenalCards.map((row) => (
               <ArsenalCard key={row.pitchType} row={row} />
             ))}
           </div>
-        </Section>
-      )}
 
-      {/* ── Movement Plot + Pitch Location (side by side, tight to arsenal) ── */}
-      {hasPitchData && (
-        <div style={{ marginTop: -28, marginBottom: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+          {/* Plot pane headers */}
+          <div className={hud.hudSubHead}>
+            <span className={hud.hudSubTitle}>
+              <span className={hud.hudSubTitleDot} /> Movement &middot; Pitcher&rsquo;s View
+            </span>
+            <span className={hud.hudSubTitle}>
+              <span className={hud.hudSubTitleDot} /> Location &middot; Catcher&rsquo;s View
+            </span>
+          </div>
+
+          {/* Plots side by side */}
+          <div className={hud.hudPlotsGrid}>
+            <div className={hud.hudPlotPane}>
+              <div className={hud.hudPlotCanvas}>
+                <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+              </div>
             </div>
-            <div>
-              <PitchLocationPlot pitches={pitches} selected={selectedLocPitch} onSelect={setSelectedLocPitch} />
+            <div className={hud.hudPlotPane}>
+              <div className={hud.hudPlotCanvas}>
+                <PitchLocationPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+              </div>
             </div>
+          </div>
+
+          {/* Shared readout bar */}
+          <div className={hud.hudReadoutBar}>
+            <div className={hud.hudReadoutHead}>
+              <span className={hud.hudHeadDot} />
+              {selectedPitch ? 'Selected Pitch' : 'Pitch Readout'}
+            </div>
+            <div className={hud.hudReadoutBody}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8, width: '100%' }}>
+                {([
+                  ['Pitch',
+                    selectedPitch ? (PITCH_SHORT[selectedPitch.pitchType] || selectedPitch.pitchType) : '--',
+                    selectedPitch ? getPitchColor(selectedPitch.pitchType) : 'var(--text-muted)'],
+                  ['Velocity',
+                    selectedPitch?.relSpeed != null ? `${selectedPitch.relSpeed.toFixed(1)} mph` : '--',
+                    'var(--text)'],
+                  ['Spin',
+                    selectedPitch?.spinRate != null ? `${Math.round(selectedPitch.spinRate)} rpm` : '--',
+                    'var(--text)'],
+                  ['H-Break',
+                    selectedPitch?.horzBreak != null ? `${selectedPitch.horzBreak.toFixed(1)}"` : '--',
+                    'var(--text)'],
+                  ['IVB',
+                    selectedPitch?.inducedVertBreak != null ? `${selectedPitch.inducedVertBreak.toFixed(1)}"` : '--',
+                    'var(--text)'],
+                  ['Extension',
+                    selectedPitch?.extension != null ? `${selectedPitch.extension.toFixed(1)} ft` : '--',
+                    'var(--text)'],
+                  ['Rel Ht',
+                    selectedPitch?.relHeight != null ? `${selectedPitch.relHeight.toFixed(1)} ft` : '--',
+                    'var(--text)'],
+                  ['Rel Side',
+                    selectedPitch?.relSide != null ? `${selectedPitch.relSide.toFixed(1)} ft` : '--',
+                    'var(--text)'],
+                ] as [string, string, string][]).map(([label, val, color]) => (
+                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 7.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                      {label}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Coaching notes — beneath Movement + Location plots ── */}
+          <div style={{
+            margin: '10px 0 0',
+            padding: '12px 14px',
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+            }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                fontSize: 10.5, fontWeight: 700, letterSpacing: '0.22em',
+                textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
+              }}>
+                <span style={{
+                  display: 'inline-block', width: 7, height: 7, borderRadius: 4,
+                  background: '#7eb6ff', boxShadow: '0 0 6px rgba(126,182,255,0.6)',
+                }} />
+                Pitching Notes
+              </span>
+              {isCoach && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: 11 }}>Saved.</span>}
+                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: 11 }}>{notesSaveError}</span>}
+                  <button
+                    type="button"
+                    onClick={savePitchingNotes}
+                    disabled={savingNotes || !notesDirty}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 7,
+                      background: notesDirty
+                        ? 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))'
+                        : 'rgba(255,255,255,0.04)',
+                      border: notesDirty
+                        ? '1px solid rgba(74,222,128,0.55)'
+                        : '1px solid var(--border)',
+                      color: notesDirty ? '#ecfdf5' : 'var(--text-muted)',
+                      fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                      cursor: savingNotes || !notesDirty ? 'not-allowed' : 'pointer',
+                      opacity: savingNotes ? 0.6 : 1,
+                    }}
+                  >
+                    {savingNotes ? 'Saving…' : '💾 Save Notes'}
+                  </button>
+                </div>
+              )}
+            </div>
+            {isCoach ? (
+              <textarea
+                value={pitchingNotes}
+                onChange={(e) => setPitchingNotes(e.target.value)}
+                placeholder="Pitching observations — arsenal trends, command, release consistency, sequencing notes…"
+                rows={3}
+                style={{
+                  background: 'rgba(20,24,32,0.85)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  padding: '10px 12px',
+                  borderRadius: 7,
+                  fontSize: 12,
+                  lineHeight: 1.55,
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  minHeight: 70,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              />
+            ) : (
+              <div style={{
+                fontSize: 12, lineHeight: 1.55,
+                color: pitchingNotes ? 'var(--text)' : 'var(--text-muted)',
+                fontStyle: pitchingNotes ? 'normal' : 'italic',
+                padding: '10px 12px',
+                background: 'rgba(20,24,32,0.55)',
+                border: '1px solid var(--border)',
+                borderRadius: 7,
+                minHeight: 50,
+              }}>
+                {pitchingNotes || 'No notes yet.'}
+              </div>
+            )}
           </div>
         </div>
       )}

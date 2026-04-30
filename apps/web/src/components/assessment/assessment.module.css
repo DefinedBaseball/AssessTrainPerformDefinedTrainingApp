@@ -154,10 +154,11 @@
   border-radius: var(--radius-full);
   border: 1px solid var(--border-light);
 }
+/* Grade badges — Red (bad) / Yellow (average) / Green (good) */
 .badgeHigh { background: var(--green-dim); border-color: rgba(109,170,69,0.4); color: var(--green); }
-.badgeMid  { background: var(--gold-dim);  border-color: rgba(232,175,52,0.4); color: var(--gold); }
-.badgeLow  { background: var(--red-dim);   border-color: rgba(221,105,116,0.4); color: var(--red); }
-.badgeTeal { background: rgba(255,255,255,0.12); border-color: var(--border-strong); color: var(--text-bright); }
+.badgeMid  { background: rgba(234,179,8,0.16); border-color: rgba(234,179,8,0.45); color: #FACC15; }
+.badgeLow  { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.45); color: #F87171; }
+.badgeTeal { background: rgba(255,255,255,0.10); border-color: var(--border-strong); color: var(--text-bright); }
 
 /* ── SCORE BAR ── */
 .scoreBarHeader {
@@ -181,8 +182,8 @@
   transition: width 0.6s ease;
 }
 .fillHigh { background: var(--green); }
-.fillMid  { background: var(--gold); }
-.fillLow  { background: var(--red); }
+.fillMid  { background: #F1F5F9; }
+.fillLow  { background: #3B82F6; }
 .fillTeal { background: #919ba1; }
 
 /* ── 20-80 SCALE PIPS ── */
@@ -200,8 +201,8 @@
   transition: background 0.3s;
 }
 .pipHigh { background: var(--green); }
-.pipMid  { background: var(--gold); }
-.pipLow  { background: var(--red); }
+.pipMid  { background: #F1F5F9; }
+.pipLow  { background: #3B82F6; }
 
 /* ── NOTES BOX ── */
 .notesBox {
@@ -302,10 +303,8 @@
   max-width: 320px;
 }
 .tabBarActions .reportSelectorBar {
-  padding: 9px 14px;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-btn);
-  gap: 10px;
 }
 .tabBarActions .reportSelectorIcon {
   font-size: 13px;
@@ -750,19 +749,19 @@
 .reportSelectorBar {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 18px;
+  gap: 0;
+  padding: 0;
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: all var(--transition);
   font-family: inherit;
   text-align: left;
   color: inherit;
   box-shadow: var(--shadow-card-hi);
+  overflow: hidden;
 }
 .reportSelectorBar:hover {
   background: var(--card-elev-hover), var(--card-elev-bg);
@@ -772,6 +771,51 @@
   border-color: var(--border-bright);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
+}
+
+/* Inner click targets — share the bar's padding so the visual remains identical
+   to the old single-button bar. The vertical divider between them shows that
+   the title and the arrow are independent click targets. */
+.reportSelectorTitleBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 12px 14px 12px 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition: background var(--transition);
+}
+.reportSelectorTitleBtn:hover {
+  background: rgba(255,255,255,0.04);
+}
+.reportSelectorArrowBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px 12px 14px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background var(--transition);
+}
+.reportSelectorArrowBtn:hover {
+  background: rgba(255,255,255,0.04);
+}
+/* Inside .tabBarActions the bar shrinks; tighten paddings to match the smaller chrome */
+.tabBarActions .reportSelectorTitleBtn {
+  padding: 9px 11px 9px 14px;
+}
+.tabBarActions .reportSelectorArrowBtn {
+  padding: 9px 14px 9px 11px;
+  gap: 6px;
 }
 
 .reportSelectorLeft {
@@ -833,6 +877,72 @@
   font-size: 12px;
   color: var(--faint);
   font-style: italic;
+}
+
+/* "+ New Report" row inside the dropdown */
+.reportSelectorNewRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(34, 197, 94, 0.06);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: #22C55E;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.reportSelectorNewRow:hover {
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ADE80;
+}
+.reportSelectorNewIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.18);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+.reportSelectorNewText {
+  flex: 1;
+  text-align: left;
+}
+
+/* Compact "+ New Report" button shown in the empty state */
+.reportSelectorNewBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.10);
+  color: #22C55E;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.reportSelectorNewBtn:hover {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: #22C55E;
+  color: #4ADE80;
 }
 
 .reportSelectorLabel {
@@ -1062,6 +1172,25 @@
   color: #e74c3c;
 }
 
+.reportDownloadBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.reportDownloadBtn:hover {
+  background: rgba(126,182,255,0.14);
+  border-color: rgba(126,182,255,0.55);
+  color: var(--accent-light);
+}
+
 .reportDeleteConfirm {
   display: flex;
   align-items: center;
@@ -1129,6 +1258,35 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ── ADD REPORT BUTTON ── slate-blue accent variant of downloadPdfBtn */
+.addReportBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, rgba(135, 175, 255, 0.16) 0%, rgba(135, 175, 255, 0.04) 100%);
+  border: 1px solid rgba(135, 175, 255, 0.32);
+  color: #cfe0ff;
+  border-radius: var(--radius-sm);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-btn);
+}
+.addReportBtn:hover {
+  background: linear-gradient(180deg, rgba(135, 175, 255, 0.28) 0%, rgba(135, 175, 255, 0.08) 100%);
+  border-color: rgba(135, 175, 255, 0.55);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.addReportBtn:active { transform: translateY(0); }
 .downloadPdfSpinner {
   display: flex;
   align-items: center;

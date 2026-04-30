@@ -79,11 +79,11 @@ export function VisionReportPages({ data }: { data: VisionPdfData }) {
       {data.visionNotes && (
         <>
           <PdfDivider />
-          <PdfNotesBox label="VISION ASSESSMENT NOTES" text={data.visionNotes} />
+          <PdfNotesBox label="COGNITION ASSESSMENT NOTES" text={data.visionNotes} />
         </>
       )}
 
-      <PageFooter reportTitle="Vision Assessment" date={reportDate} />
+      <PageFooter reportTitle="Cognition Assessment" date={reportDate} />
     </Page>
   );
 }
