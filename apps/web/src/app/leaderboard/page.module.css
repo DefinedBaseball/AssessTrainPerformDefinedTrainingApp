@@ -85,14 +85,20 @@
 
 .tab {
   padding: 8px 20px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md, 14px);
-  background: var(--card);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 24px rgba(0,0,0,0.35),
+    0 1px 2px rgba(0,0,0,0.25);
 }
 
 .tab:hover {
@@ -101,15 +107,88 @@
 }
 
 .tabActive {
-  background: rgba(255,255,255,0.08);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.10) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.55);
   color: #f1f4f6;
-  border-color: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.22);
 }
 
 .noYears {
   color: var(--text-muted);
   font-size: 13px;
   padding: 8px 0;
+}
+
+/* ── Filter Selects ── */
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.filterSelect {
+  width: 100%;
+  padding: 10px 14px;
+  padding-right: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md, 12px);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  background-image:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23A0A6AE' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
+  background-color: rgba(10, 14, 20, 0.38);
+  background-repeat: no-repeat, no-repeat;
+  background-position: 0 0, right 12px center;
+  color: #f1f4f6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 24px rgba(0,0,0,0.35),
+    0 1px 2px rgba(0,0,0,0.25);
+}
+
+.filterSelect:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, rgba(255,255,255,0.18));
+}
+
+.filterSelect:focus {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 24px rgba(0,0,0,0.35),
+    0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.filterSelect option {
+  background: #0d1218;
+  color: #f1f4f6;
 }
 
 /* ── Metric Chips ── */
@@ -124,13 +203,19 @@
 .metricChip {
   padding: 6px 14px;
   border-radius: var(--radius-full, 100px);
-  border: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 18px rgba(0,0,0,0.30),
+    0 1px 2px rgba(0,0,0,0.25);
 }
 
 .metricChip:hover {
@@ -147,10 +232,17 @@
 /* ── Table Wrapper ── */
 
 .tableWrap {
-  background: var(--card);
-  border: 1px solid var(--border);
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-lg, 18px);
   overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 24px rgba(0,0,0,0.35),
+    0 1px 2px rgba(0,0,0,0.25);
 }
 
 /* ── Loading ── */
@@ -404,6 +496,12 @@
   .recomputeBtn {
     width: 100%;
     justify-content: center;
+  }
+
+  .filterGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
   }
 
   .tabRow {

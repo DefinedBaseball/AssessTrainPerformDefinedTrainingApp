@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '@/lib/api';
+import aStyles from '@/components/assessment/assessment.module.css';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SPRAY CHART VIEW — self-contained
@@ -366,15 +367,18 @@ export function SprayChartView({
     : null;
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(10,16,28,0.72), rgba(8,12,20,0.55))',
-      border: '1px solid var(--border)',
-      borderRadius: 14,
-      padding: compact ? '10px 12px 12px' : '14px 14px 16px',
-      display: 'flex', flexDirection: 'column', gap: compact ? 10 : 14,
-      maxWidth: maxWidth ?? '100%',
-      margin: maxWidth ? '0 auto' : undefined,
-    }}>
+    <div
+      className={aStyles.innerPanel}
+      // Outer spray-chart bubble re-toned to match the Movement Plot —
+      // shared interior chrome (slight blue/dark hue, faint center
+      // highlight, soft inset darken) used across the profile.
+      style={{
+        padding: compact ? '10px 12px 12px' : '14px 14px 16px',
+        display: 'flex', flexDirection: 'column', gap: compact ? 10 : 14,
+        maxWidth: maxWidth ?? '100%',
+        margin: maxWidth ? '0 auto' : undefined,
+      }}
+    >
       {/* Header strip — date range + count */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -401,15 +405,15 @@ export function SprayChartView({
         )}
       </div>
 
-      {/* Chart frame */}
-      <div style={{
-        position: 'relative',
-        background: 'linear-gradient(180deg, rgba(8,12,20,0.85), rgba(4,7,12,0.95))',
-        borderRadius: 12,
-        border: '1px solid rgba(126,182,255,0.18)',
-        overflow: 'hidden',
-        aspectRatio: '520 / 460',
-      }}>
+      {/* Chart frame — Movement-Plot interior bubble. */}
+      <div
+        className={aStyles.innerPanel}
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          aspectRatio: '520 / 460',
+        }}
+      >
         {loading ? (
           <SprayEmpty icon="⏳" title="Loading spray data…" hint="" />
         ) : filteredDots.length > 0 ? (
@@ -429,17 +433,19 @@ export function SprayChartView({
 
       {/* Ball Readout strip — full-width metrics, no header column */}
       {sprayDots.length > 0 && (
-        <div style={{
-          padding: '8px 10px',
-          background: 'rgba(255,255,255,0.025)',
-          border: '1px solid',
-          borderColor: activeDot ? 'rgba(126,182,255,0.45)' : 'var(--border)',
-          borderRadius: 10,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-          gap: 8,
-          transition: 'border-color 0.15s ease',
-        }}>
+        <div
+          className={aStyles.innerPanel}
+          style={{
+            padding: '8px 10px',
+            // Override the .innerPanel border color so the active-dot
+            // accent still reads (cool-blue rim when a dot is selected).
+            borderColor: activeDot ? 'rgba(126,182,255,0.45)' : undefined,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            gap: 8,
+            transition: 'border-color 0.15s ease',
+          }}
+        >
           {[
             { label: 'EV',   value: activeDot?.exitVelo,    unit: 'mph', decimals: 1 },
             { label: 'LA',   value: activeDot?.launchAngle, unit: '°',   decimals: 1 },
@@ -472,13 +478,13 @@ export function SprayChartView({
 
       {/* Filter bar */}
       {sprayDots.length > 0 && (
-        <div style={{
-          padding: '10px 14px 12px',
-          background: 'rgba(255,255,255,0.025)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          display: 'flex', flexDirection: 'column', gap: 10,
-        }}>
+        <div
+          className={aStyles.innerPanel}
+          style={{
+            padding: '10px 14px 12px',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}
+        >
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',

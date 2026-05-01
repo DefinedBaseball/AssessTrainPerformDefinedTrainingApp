@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { LeaderboardEntry, Player } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
 /* ── Metric definitions ── */
@@ -129,36 +130,41 @@ export default function LeaderboardPage() {
         ) : undefined}
       />
 
-      {/* ── Grad Year tabs ── */}
-      {availableGradYears.length > 0 ? (
-        <div className={styles.tabRow}>
-          {availableGradYears.map(y => (
-            <button
-              key={y}
-              className={`${styles.tab} ${gradYear === y ? styles.tabActive : ''}`}
-              onClick={() => setGradYear(y)}
+      {/* ── Outer lighter panel wrapping all controls + table ── */}
+      <div
+        className={aStyles.profilePanel}
+        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
+      >
+      {/* ── Filter Selects (Grad Year + Metric) ── */}
+      <div className={styles.filterGrid}>
+        <div className={styles.filterField}>
+          <label className={styles.filterLabel}>Graduation Year</label>
+          {availableGradYears.length > 0 ? (
+            <select
+              className={styles.filterSelect}
+              value={gradYear ?? ''}
+              onChange={e => setGradYear(parseInt(e.target.value))}
             >
-              {y}
-            </button>
-          ))}
+              {availableGradYears.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          ) : (
+            <span className={styles.noYears}>No athletes found — add players to see grad years.</span>
+          )}
         </div>
-      ) : (
-        <div className={styles.tabRow}>
-          <span className={styles.noYears}>No athletes found — add players to see grad years.</span>
-        </div>
-      )}
-
-      {/* ── Metric chips ── */}
-      <div className={styles.metricRow}>
-        {METRIC_TYPES.map(m => (
-          <button
-            key={m.key}
-            className={`${styles.metricChip} ${metricType === m.key ? styles.metricChipActive : ''}`}
-            onClick={() => setMetricType(m.key)}
+        <div className={styles.filterField}>
+          <label className={styles.filterLabel}>Metric</label>
+          <select
+            className={styles.filterSelect}
+            value={metricType}
+            onChange={e => setMetricType(e.target.value)}
           >
-            {m.label}
-          </button>
-        ))}
+            {METRIC_TYPES.map(m => (
+              <option key={m.key} value={m.key}>{m.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* ── Leaderboard table ── */}
@@ -237,6 +243,7 @@ export default function LeaderboardPage() {
           </table>
         )}
       </div>
+      </div>{/* /profilePanel */}
     </div>
   );
 }

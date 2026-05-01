@@ -822,6 +822,11 @@ const FIELD_SCALE = (FIELD_H - 70) / FIELD_MAX_DIST; // ≈ 0.929 px/ft (full fi
 /** Infielder mode: zoom the polar mapping so 200 ft fills the same pixel field. */
 const IF_MAX_DIST = 200;
 const IF_SCALE = (FIELD_H - 70) / IF_MAX_DIST; // ≈ 1.95 px/ft
+/** Catcher mode: tighter zoom so 120 ft fills the canvas — keeps the 90 ft
+ *  bases prominent while still showing space behind the bag for blocking
+ *  range chips. */
+const CATCH_MAX_DIST = 120;
+const CATCH_SCALE = (FIELD_H - 70) / CATCH_MAX_DIST; // ≈ 3.25 px/ft
 
 function fieldXY(angleDeg: number, dist: number, scale: number = FIELD_SCALE): [number, number] {
   const rad = ((90 - angleDeg) * Math.PI) / 180;
@@ -945,10 +950,11 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
   const L = gradeTone(leftGrade), MID = gradeTone(centerGrade), R = gradeTone(rightGrade);
   const CHIP_FONT = "Inter, 'Helvetica Neue', Arial, sans-serif";
   const VBOX_H = 540;          // extra 80 px below home plate for the block fan
-  // Catching diagram now zooms to the infield (200 ft fills the same pixel
-  // canvas as the old 360 ft full field) so the throw line and bases read
-  // bigger. 2B bag pixel position has to use the same scale.
-  const [twobX, twobY] = fieldXY(0, 90 * Math.SQRT2, IF_SCALE);
+  // Catching diagram zooms tighter than the infield view — 120 ft max
+  // distance fills the canvas so the 90 ft bases (1B / 2B / 3B) read
+  // big and the throw to 2B bag dominates the view. 2B bag pixel
+  // position has to use the same scale.
+  const [twobX, twobY] = fieldXY(0, 90 * Math.SQRT2, CATCH_SCALE);
 
   const BlockChip = ({ x, y, label, grade, dir, t }: {
     x: number; y: number; label: string; grade: number | null; dir: -1 | 0 | 1;
@@ -987,7 +993,7 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
   return (
     <svg viewBox={`0 0 ${FIELD_W} ${VBOX_H}`} preserveAspectRatio="xMidYMid meet"
          style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 560, margin: '0 auto', filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.55))' }}>
-      <SprayField uid="catch" scale={IF_SCALE} distArcs={[60, 120, 200]} />
+      <SprayField uid="catch" scale={CATCH_SCALE} distArcs={[30, 60, 90, 120]} />
 
       {/* Throwing line — home → 2B-bag, dashed */}
       <line x1={FIELD_CX} y1={FIELD_CY - 8} x2={twobX} y2={twobY + 4}
@@ -1148,11 +1154,13 @@ type StatCell =
 
 function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: StatCell[] }) {
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.018)', border: '1px solid var(--border)', borderRadius: 12,
-      padding: '14px 18px', marginBottom: 8,
-      display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, alignItems: 'center',
-    }}>
+    <div
+      className={aStyles.innerPanel}
+      style={{
+        padding: '14px 18px', marginBottom: 8,
+        display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, alignItems: 'center',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 18, borderRight: '1px solid var(--border)' }}>
         <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1166,10 +1174,13 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
             const has = c.value !== null && c.value !== undefined;
             const decimals = c.decimals ?? (c.unit === 'mph' ? 0 : 2);
             return (
-              <div key={i} style={{
-                background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)', borderRadius: 10,
-                padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
-              }}>
+              <div
+                key={i}
+                className={aStyles.innerPanel}
+                style={{
+                  padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
+                }}
+              >
                 <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-bright)' }}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
                   <span style={{ fontSize: 24, fontWeight: 800, color: has ? 'var(--text)' : 'var(--faint)',
@@ -1185,10 +1196,13 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
             const valueColor = gradeColor(grade);
             const ratingLabel = grade !== null ? gradeLabel(grade) : 'Not graded';
             return (
-              <div key={i} style={{
-                background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)', borderRadius: 10,
-                padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
-              }}>
+              <div
+                key={i}
+                className={aStyles.innerPanel}
+                style={{
+                  padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
+                }}
+              >
                 <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-bright)' }}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontSize: 24, fontWeight: 800, color: valueColor,
@@ -1224,7 +1238,11 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, statsRows }: {
         style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(0, 1fr)', gap: 28, alignItems: 'stretch' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Left pane (Receiving Heat Map) — wrapped in Movement-Plot tone */}
+          <div
+            className={aStyles.innerPanel}
+            style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14 }}
+          >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{leftPane.title}</span>
@@ -1234,7 +1252,11 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, statsRows }: {
               {leftPane.node}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Right pane (Throwing & Blocking field) — wrapped in Movement-Plot tone */}
+          <div
+            className={aStyles.innerPanel}
+            style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14 }}
+          >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{rightPane.title}</span>
@@ -1511,8 +1533,11 @@ export function InfieldSubTab({
                 gap: 24,
                 alignItems: 'flex-start',
               }} className={styles.fieldRow}>
-                {/* Field column */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                {/* Field column — Movement-Plot tone bubble. */}
+                <div
+                  className={aStyles.innerPanel}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, padding: 14 }}
+                >
                   <div style={{
                     display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
                     gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
@@ -1539,8 +1564,11 @@ export function InfieldSubTab({
                   </div>
                 </div>
 
-                {/* Bars column — Hands & Glove + Range & Footwork */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                {/* Bars column — Hands & Glove + Range & Footwork — Movement-Plot tone bubble. */}
+                <div
+                  className={aStyles.innerPanel}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, padding: 14 }}
+                >
                   <div style={{
                     display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
                     gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
@@ -1797,8 +1825,11 @@ export function OutfieldSubTab({
                 gap: 24,
                 alignItems: 'flex-start',
               }} className={styles.fieldRow}>
-                {/* Field column */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                {/* Field column — Movement-Plot tone bubble. */}
+                <div
+                  className={aStyles.innerPanel}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, padding: 14 }}
+                >
                   <div style={{
                     display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
                     gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
@@ -1825,8 +1856,11 @@ export function OutfieldSubTab({
                   </div>
                 </div>
 
-                {/* Bars column — Glove + Routes & Reads */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                {/* Bars column — Glove + Routes & Reads — Movement-Plot tone bubble. */}
+                <div
+                  className={aStyles.innerPanel}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, padding: 14 }}
+                >
                   <div style={{
                     display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
                     gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',

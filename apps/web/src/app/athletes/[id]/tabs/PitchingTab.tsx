@@ -145,10 +145,15 @@ function ArsenalCard({ row }: { row: ArsenalRow }) {
   const hasData = row.maxVelo > 0;
 
   return (
-    <div style={{
-      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
-      padding: '9px 11px', flex: 1, minWidth: 108,
-    }}>
+    <div
+      // Slight blue/dark hue with center highlight — matches the
+      // Movement Plot canvas so every interior bubble inside the HUD
+      // reads with the same depth.
+      className={aStyles.innerPanel}
+      style={{
+        padding: '9px 11px', flex: 1, minWidth: 108,
+      }}
+    >
       <div style={{ fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 5 }}>
         {PITCH_DISPLAY[row.pitchType] || row.pitchType}
       </div>
@@ -440,7 +445,7 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
 
   if (valid.length === 0) {
     return (
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, textAlign: 'center' }}>
+      <div className={aStyles.innerPanel} style={{ padding: 20, textAlign: 'center' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>Release Point Plot</div>
         <div style={{ fontSize: 13, color: 'var(--faint)' }}>No data available</div>
       </div>
@@ -469,7 +474,7 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
   const types = [...new Set(valid.map(p => p.pitchType))];
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 8px 8px' }}>
+    <div className={aStyles.innerPanel} style={{ padding: '12px 8px 8px' }}>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-bright)', textAlign: 'center', marginBottom: 4 }}>
         Release Point Plot {isLefty ? '(LHP)' : '(RHP)'}
       </div>
@@ -1239,14 +1244,10 @@ export function PitchingTab({
           <MechanicalSummaryStrip grades={pitchingGrades} />
 
           {/* ── Coaching notes — beneath Movement + Location plots ── */}
-          <div style={{
-            margin: '10px 0 0',
-            padding: '12px 14px',
-            background: 'rgba(255,255,255,0.025)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            display: 'flex', flexDirection: 'column', gap: 8,
-          }}>
+          <div
+            className={aStyles.innerPanel}
+            style={{ margin: '10px 0 0', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}
+          >
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
             }}>
@@ -1328,12 +1329,17 @@ export function PitchingTab({
         </div>
       )}
 
-      {/* ── Break & Spin + Tilt Table ── */}
+      {/* ── Break & Spin + Release & Extension tables ──
+          Outer grey bubble holds the section header chrome; each table
+          is now wrapped in its own innerPanel (Movement-Plot-toned) so
+          the two sub-sections read as their own callouts. */}
       {hasPitchData && (
         <div style={{ marginBottom: 48 }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-            <BreakTable rows={arsenal} />
-            <div style={{ marginTop: 20 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className={aStyles.innerPanel} style={{ padding: 14 }}>
+              <BreakTable rows={arsenal} />
+            </div>
+            <div className={aStyles.innerPanel} style={{ padding: 14 }}>
               <ReleaseTable rows={arsenal} />
             </div>
           </div>
@@ -1542,14 +1548,10 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
     .some((g) => g && (g.score != null || (g.options?.length ?? 0) > 0));
   if (!hasAnyData) return null;
   return (
-    <div style={{
-      margin: '10px 0 0',
-      padding: '12px 14px',
-      background: 'rgba(255,255,255,0.025)',
-      border: '1px solid var(--border)',
-      borderRadius: 10,
-      display: 'flex', flexDirection: 'column', gap: 10,
-    }}>
+    <div
+      className={aStyles.innerPanel}
+      style={{ margin: '10px 0 0', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}
+    >
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
         fontSize: 10.5, fontWeight: 700, letterSpacing: '0.22em',
@@ -1583,13 +1585,11 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
             return e?.options ?? [];
           });
           return (
-            <div key={section.key} style={{
-              padding: '7px 9px',
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              display: 'flex', flexDirection: 'column', gap: 6,
-            }}>
+            <div
+              key={section.key}
+              className={aStyles.innerPanel}
+              style={{ padding: '7px 9px', display: 'flex', flexDirection: 'column', gap: 6 }}
+            >
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13 }}>{section.icon}</span>
@@ -1666,13 +1666,10 @@ function DeliverySectionPanel({
   const sectionPct = sectionAvg !== null ? Math.max(0, Math.min(100, ((sectionAvg - 20) / 60) * 100)) : 0;
 
   return (
-    <div style={{
-      padding: '12px 14px',
-      background: 'rgba(255,255,255,0.018)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      display: 'flex', flexDirection: 'column', gap: 10,
-    }}>
+    <div
+      className={aStyles.innerPanel}
+      style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}
+    >
       {/* Section header — title on the left, aggregate grade + score bar
           on the right. The aggregate averages every populated item in this
           section so coaches see the rolled-up checkpoint score at a glance. */}
@@ -1755,14 +1752,10 @@ function DeliveryGradeItem({
   };
 
   return (
-    <div style={{
-      position: 'relative',
-      padding: '7px 9px',
-      background: 'rgba(255,255,255,0.025)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
+    <div
+      className={aStyles.innerPanel}
+      style={{ padding: '7px 9px', display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
       {/* Pencil toggle in top-right corner (coach only) */}
       {isCoach && (
         <button

@@ -488,15 +488,18 @@ export function HittingGradeStack({
   const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(10,16,28,0.72), rgba(8,12,20,0.55))',
-      border: '1px solid var(--border)',
-      borderRadius: 14,
-      padding: '14px 16px 16px',
-      display: 'flex', flexDirection: 'column', gap: 12,
-      width: '100%',
-      minHeight: '100%',
-    }}>
+    <div
+      // Hitting Grades bubble — Movement-Plot tone (slight blue/dark hue
+      // with center highlight) so it sits in the same interior palette
+      // as the rest of the profile.
+      className={aStyles.innerPanel}
+      style={{
+        padding: '14px 16px 16px',
+        display: 'flex', flexDirection: 'column', gap: 12,
+        width: '100%',
+        minHeight: '100%',
+      }}
+    >
       {subTabBar /* sub-tab nav lives at the very top of the bubble when provided */}
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -830,14 +833,16 @@ function ManualScoreCard({
   const [editing, setEditing] = useState(false);
 
   return (
-    <div style={{
-      position: 'relative',
-      padding: '14px 16px',
-      background: 'rgba(255,255,255,0.025)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      display: 'flex', flexDirection: 'column', gap: 10,
-    }}>
+    <div
+      // Coach Grade card (Forward Move / Posture / Stability / Direction /
+      // Stretch / Core / Slot / Timing) — Movement-Plot tone for visual
+      // consistency with the rest of the profile bubbles.
+      className={aStyles.innerPanel}
+      style={{
+        padding: '14px 16px',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}
+    >
       {/* Tiny edit toggle in top-right corner (coach only) */}
       {isCoach && (
         <button

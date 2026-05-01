@@ -60,12 +60,20 @@
 
 .kpi {
   position: relative;
-  background: var(--card-elev), var(--card-elev-bg);
-  border: 1px solid var(--border-light);
+  /* Re-toned to match the Pitching HUD's plot canvas — slight blue/dark
+     hue with a faint center highlight. Every interior KPI bubble across
+     Hitting, Pitching, Defense, and S&C reads with the same depth now. */
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md);
   padding: 18px 18px 16px;
   transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
-  box-shadow: var(--shadow-card-hi);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
   overflow: hidden;
 }
 
@@ -92,10 +100,15 @@
 }
 
 .kpi:hover {
-  background: var(--card-elev-hover), var(--card-elev-bg);
-  border-color: var(--border-strong);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.48);
+  border-color: rgba(255, 255, 255, 0.20);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-hover);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 28px rgba(0, 0, 0, 0.4),
+    0 6px 16px rgba(0, 0, 0, 0.35);
 }
 .kpi:hover::after { opacity: 1; }
 
@@ -177,6 +190,28 @@
 .badgeMid  { background: rgba(234,179,8,0.16); border-color: rgba(234,179,8,0.45); color: #FACC15; }
 .badgeLow  { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.45); color: #F87171; }
 .badgeTeal { background: rgba(255,255,255,0.10); border-color: var(--border-strong); color: var(--text-bright); }
+
+/* ════════════════════════════════════════════════
+   innerPanel — interior bubble shell that mirrors the
+   Pitching HUD's plot canvas (`.hudPlotCanvas`).
+   Slight blue/dark hue with a faint center highlight,
+   used inside profilePanel cards to give individual
+   stat bubbles, KPIs, and chart wells their own depth.
+   ════════════════════════════════════════════════ */
+.innerPanel {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
 
 /* ════════════════════════════════════════════════
    profilePanel — shared bubble chrome used across every

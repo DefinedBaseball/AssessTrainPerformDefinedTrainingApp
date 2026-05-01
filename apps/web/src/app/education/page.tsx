@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { EduClass, Drill, MlbPlayer, MlbVideo } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
 const SPORTS = [
@@ -249,15 +250,19 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
 
   return (
     <>
-      <div className={styles.sectionHead}>
-        <div>
-          <div className={styles.sectionTitle}>Classes</div>
-          <div className={styles.sectionSub}>Structured courses organized by sport and skill level</div>
-        </div>
-        {isCoach && <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Class</button>}
-      </div>
+      <PageHeader
+        eyebrow="Education Library"
+        title="Classes"
+        titleAccent="Library"
+        subtitle="Structured courses organized by sport and skill level."
+        actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Class</button> : undefined}
+      />
+      <div
+        className={aStyles.profilePanel}
+        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
+      >
       <input className={styles.searchInput} placeholder="Search classes..." value={search} onChange={e => setSearch(e.target.value)} />
-      <div className={styles.sportTabs}>
+      <div className={styles.sportTabs} style={{ marginTop: 16 }}>
         {SPORTS.map(s => (
           <button key={s.id} className={`${styles.sportTab} ${sport === s.id ? styles.sportTabActive : ''}`}
             style={sport === s.id ? { background: s.color } : {}}
@@ -273,6 +278,7 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
           return <button key={l.id} className={`${styles.pill} ${level === l.id ? styles.pillActive : ''}`} onClick={() => setLevel(l.id)}>{l.label} ({n})</button>;
         })}
       </div>
+      <div style={{ marginTop: 4 }}>
       {filtered.length === 0 ? (
         <div className={styles.empty}>No classes found.</div>
       ) : (
@@ -302,6 +308,8 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
           })}
         </div>
       )}
+      </div>{/* /grid wrapper */}
+      </div>{/* /profilePanel */}
       {showModal && <ClassModal sport={sport} onClose={() => setShowModal(false)} onSaved={(c: EduClass) => { setClasses((prev: EduClass[]) => [...prev, c]); setShowModal(false); }} />}
       {editingClass && <EditClassModal cls={editingClass} onClose={() => setEditingClass(null)} onSaved={handleClassUpdated} />}
     </>
@@ -536,15 +544,19 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
 
   return (
     <>
-      <div className={styles.sectionHead}>
-        <div>
-          <div className={styles.sectionTitle}>Drill Library</div>
-          <div className={styles.sectionSub}>All training drills organized by sport and category</div>
-        </div>
-        {isCoach && <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Drill</button>}
-      </div>
+      <PageHeader
+        eyebrow="Education Library"
+        title="Drill"
+        titleAccent="Library"
+        subtitle="All training drills organized by sport and category."
+        actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Drill</button> : undefined}
+      />
+      <div
+        className={aStyles.profilePanel}
+        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
+      >
       <input className={styles.searchInput} placeholder="Search drills..." value={search} onChange={e => setSearch(e.target.value)} />
-      <div className={styles.sportTabs}>
+      <div className={styles.sportTabs} style={{ marginTop: 16 }}>
         {SPORTS.map(s => (
           <button key={s.id} className={`${styles.sportTab} ${sport === s.id ? styles.sportTabActive : ''}`}
             style={sport === s.id ? { background: s.color } : {}}
@@ -594,6 +606,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
           </div>
         ))
       )}
+      </div>{/* /profilePanel */}
       {showModal && <DrillModal sport={sport} onClose={() => setShowModal(false)} onSaved={(d: Drill) => { setDrills((prev: Drill[]) => [...prev, d]); setShowModal(false); }} />}
       {viewingDrill && <DrillVideoModal drill={viewingDrill} onClose={() => setViewingDrill(null)} />}
       {editingDrill && <EditDrillModal drill={editingDrill} onClose={() => setEditingDrill(null)} onSaved={handleDrillUpdated} />}
@@ -776,13 +789,17 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
 
   return (
     <>
-      <div className={styles.sectionHead}>
-        <div>
-          <div className={styles.sectionTitle}>Major League Video</div>
-          <div className={styles.sectionSub}>Player video library — click any player to view their folder</div>
-        </div>
-        {isCoach && <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Player</button>}
-      </div>
+      <PageHeader
+        eyebrow="Education Library"
+        title="Major League"
+        titleAccent="Video"
+        subtitle="MLB player video library organized by position."
+        actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Player</button> : undefined}
+      />
+      <div
+        className={aStyles.profilePanel}
+        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
+      >
       <input className={styles.searchInput} placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)} />
       <div className={styles.mlbFilters}>
         <div className={styles.mlbFilterGroup}>
@@ -839,6 +856,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
           })}
         </div>
       )}
+      </div>{/* /profilePanel */}
       {showModal && <PlayerModal onClose={() => setShowModal(false)} onSaved={(p: MlbPlayer) => { setPlayers((prev: MlbPlayer[]) => [...prev, p]); setShowModal(false); }} />}
     </>
   );

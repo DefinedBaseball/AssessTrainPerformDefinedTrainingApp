@@ -227,22 +227,27 @@
   margin: 0 auto;
 }
 
-/* ── Shared readout bar (mirrors .readoutBar in Swing tab) ── */
+/* ── Shared readout bar (mirrors .readoutBar in Swing tab) ──
+   Re-toned to match the Movement Plot canvas — slight blue/dark hue
+   with the faint center highlight, so the readout reads as a sibling
+   bubble to the three plots above it. */
 .hudReadoutBar {
   position: relative;
-  /* Was blue-tinted; re-toned to neutral graphite glow. */
   background:
-    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.07) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  padding: 8px 10px;
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
   margin-top: 10px;
 }
 .hudReadoutBar::before {

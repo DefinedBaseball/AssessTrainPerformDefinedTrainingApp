@@ -198,13 +198,24 @@
 
 /* Category colors are now applied via inline styles from TAB_CAT_COLORS in page.tsx */
 
-/* ── Month Grid ── */
+/* ── Month Grid ──
+   Movement-Plot tone (slight blue/dark hue + center highlight) so the
+   calendar reads as a darker inner well inside the lighter profilePanel
+   shell wrapping the whole page. */
 .monthGrid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .dayHeader {
@@ -278,13 +289,23 @@
   padding: 1px 4px;
 }
 
-/* ── Week List Grid ── */
+/* ── Week List Grid ──
+   Movement-Plot tone — matches Month Grid + Day View so all three
+   calendar layouts read as the dark inner well. */
 .weekListGrid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .weekListCol {
@@ -350,11 +371,21 @@
   text-overflow: ellipsis;
 }
 
-/* ── Day View ── */
+/* ── Day View ──
+   Same Movement-Plot tone as Month Grid so day / week / month all read
+   as the dark calendar well inside the lighter shell. */
 .dayView {
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .dayViewHeader {

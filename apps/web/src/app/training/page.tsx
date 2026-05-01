@@ -6,16 +6,61 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
-/* ── Constants ── */
+/* ── Constants ──
+   The full tab catalog. Visibility on the calendar is filtered per-athlete
+   by position (see `visibleTabsForPlayer` below):
+     • hitting     — any non-pitcher field position (C, 1B-3B, SS, LF/CF/RF)
+     • pitching    — P
+     • catching    — C
+     • infield     — 1B / 2B / 3B / SS  (or the INF position code)
+     • outfield    — LF / CF / RF       (or the OF position code)
+     • strength    — always
+   Cognition / vision was retired — no longer surfaced in Training. */
 const TABS = [
-  { key: 'hitting', label: 'Hitting' },
+  { key: 'hitting',  label: 'Hitting' },
   { key: 'pitching', label: 'Pitching' },
-  { key: 'defense', label: 'Defense' },
+  { key: 'catching', label: 'Catching' },
+  { key: 'infield',  label: 'Infield' },
+  { key: 'outfield', label: 'Outfield' },
   { key: 'strength', label: 'S&C' },
-  { key: 'vision', label: 'Cognition' },
 ];
+
+/** Position codes (raw and grouped) that grant access to each tab. */
+const HITTER_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'INF', 'UTIL'];
+const INFIELD_POSITIONS = ['1B', '2B', '3B', 'SS', 'INF'];
+const OUTFIELD_POSITIONS = ['LF', 'CF', 'RF', 'OF'];
+
+function parsePositions(player: Player | null | undefined): string[] {
+  if (!player?.positions) return [];
+  return player.positions.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+/** Returns the calendar tabs visible for the given player. Multi-position
+ *  athletes get every applicable tab (e.g., a C/INF gets Catching + Infield).
+ *  Pitcher-only athletes only see Pitching + S&C. */
+function visibleTabsForPlayer(player: Player | null | undefined): typeof TABS {
+  const positions = parsePositions(player);
+  const isPitcher    = positions.includes('P');
+  const isHitter     = positions.some(p => HITTER_POSITIONS.includes(p));
+  const isCatcher    = positions.includes('C');
+  const isInfielder  = positions.some(p => INFIELD_POSITIONS.includes(p));
+  const isOutfielder = positions.some(p => OUTFIELD_POSITIONS.includes(p));
+  // No player selected (or no positions on file) → show every tab so the
+  // coach UI doesn't collapse to nothing while picking an athlete.
+  if (positions.length === 0) return TABS;
+  return TABS.filter(t => {
+    if (t.key === 'hitting')  return isHitter;
+    if (t.key === 'pitching') return isPitcher;
+    if (t.key === 'catching') return isCatcher;
+    if (t.key === 'infield')  return isInfielder;
+    if (t.key === 'outfield') return isOutfielder;
+    if (t.key === 'strength') return true;
+    return true;
+  });
+}
 
 /* ── Tab+Category Color System ──
    Each tab has a base hue (Blue/Red/Green/Orange/Yellow).
@@ -37,24 +82,32 @@ const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; t
     'Live':          { dot: '#B52E2E', bg: 'rgba(181,46,46,0.15)',   text: '#B52E2E' },
     'Post-Throw':    { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
   },
-  /* Defense — Greens: mint → light green → green → forest */
-  defense: {
+  /* Catching — Teal-greens (cool side of the green family) */
+  catching: {
+    'Movement Prep': { dot: '#A0E8D8', bg: 'rgba(160,232,216,0.13)', text: '#A0E8D8' },
+    'Drills':        { dot: '#5FD4B5', bg: 'rgba(95,212,181,0.13)',  text: '#5FD4B5' },
+    'Machine':       { dot: '#1FB58E', bg: 'rgba(31,181,142,0.13)',  text: '#1FB58E' },
+    'Live':          { dot: '#0E8E70', bg: 'rgba(14,142,112,0.15)',  text: '#0E8E70' },
+  },
+  /* Infield — True greens: mint → light green → green → forest */
+  infield: {
     'Movement Prep': { dot: '#B0F0B0', bg: 'rgba(176,240,176,0.13)', text: '#B0F0B0' },
     'Drills':        { dot: '#6ED06E', bg: 'rgba(110,208,110,0.13)', text: '#6ED06E' },
     'Machine':       { dot: '#38A850', bg: 'rgba(56,168,80,0.13)',   text: '#38A850' },
     'Live':          { dot: '#1E7A32', bg: 'rgba(30,122,50,0.15)',   text: '#1E7A32' },
+  },
+  /* Outfield — Lime / yellow-greens (warm side of the green family) */
+  outfield: {
+    'Movement Prep': { dot: '#DAF0A0', bg: 'rgba(218,240,160,0.13)', text: '#DAF0A0' },
+    'Drills':        { dot: '#B8D870', bg: 'rgba(184,216,112,0.13)', text: '#B8D870' },
+    'Machine':       { dot: '#88B838', bg: 'rgba(136,184,56,0.13)',  text: '#88B838' },
+    'Live':          { dot: '#5A8418', bg: 'rgba(90,132,24,0.15)',   text: '#5A8418' },
   },
   /* S&C — Oranges: peach → light orange → orange → burnt */
   strength: {
     'Movement Prep': { dot: '#FDE0A8', bg: 'rgba(253,224,168,0.13)', text: '#FDE0A8' },
     'Exercises':     { dot: '#F0A830', bg: 'rgba(240,168,48,0.13)',   text: '#F0A830' },
     'Cool Down':     { dot: '#C07818', bg: 'rgba(192,120,24,0.15)',   text: '#C07818' },
-  },
-  /* Vision — Yellows: cream → yellow → dark gold */
-  vision: {
-    'Vizual Edge': { dot: '#F8F0A0', bg: 'rgba(248,240,160,0.13)', text: '#F8F0A0' },
-    'Drills':      { dot: '#E0C830', bg: 'rgba(224,200,48,0.13)',   text: '#E0C830' },
-    'Live':        { dot: '#B09818', bg: 'rgba(176,152,24,0.15)',   text: '#B09818' },
   },
 };
 
@@ -83,17 +136,19 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const TAB_COLORS: Record<string, { bg: string; text: string }> = {
   hitting:  { bg: 'rgba(59,130,210,0.15)',  text: '#3B82D2' },
   pitching: { bg: 'rgba(220,70,70,0.15)',   text: '#DC4646' },
-  defense:  { bg: 'rgba(56,168,80,0.15)',   text: '#38A850' },
+  catching: { bg: 'rgba(31,181,142,0.15)',  text: '#1FB58E' },
+  infield:  { bg: 'rgba(56,168,80,0.15)',   text: '#38A850' },
+  outfield: { bg: 'rgba(136,184,56,0.15)',  text: '#88B838' },
   strength: { bg: 'rgba(234,146,48,0.15)',  text: '#EA9230' },
-  vision:   { bg: 'rgba(218,195,40,0.15)',  text: '#DAC328' },
 };
 
 const TAB_LABELS: Record<string, string> = {
   hitting: 'Hitting',
   pitching: 'Pitching',
-  defense: 'Defense',
+  catching: 'Catching',
+  infield: 'Infield',
+  outfield: 'Outfield',
   strength: 'S&C',
-  vision: 'Cognition',
 };
 
 /* Modal dropdown config per tab — `dbCategory` is the Drill Library category it pulls from.
@@ -118,12 +173,26 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
     { key: 'p-lv',  label: 'Live',          dbCategory: 'Live',          color: '#B52E2E' },
     { key: 'p-pt',  label: 'Post-Throw',    dbCategory: 'Post-Throw',    color: '#8B1C2C' },
   ],
-  /* Defense dropdowns — lightest → darkest */
-  defense: [
-    { key: 'd-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#B0F0B0' },
-    { key: 'd-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#6ED06E' },
-    { key: 'd-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#38A850' },
-    { key: 'd-lv',  label: 'Live',          dbCategory: 'Live',          color: '#1E7A32' },
+  /* Catching dropdowns — teal-greens, lightest → darkest */
+  catching: [
+    { key: 'c-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#A0E8D8' },
+    { key: 'c-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#5FD4B5' },
+    { key: 'c-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#1FB58E' },
+    { key: 'c-lv',  label: 'Live',          dbCategory: 'Live',          color: '#0E8E70' },
+  ],
+  /* Infield dropdowns — true greens, lightest → darkest */
+  infield: [
+    { key: 'i-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#B0F0B0' },
+    { key: 'i-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#6ED06E' },
+    { key: 'i-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#38A850' },
+    { key: 'i-lv',  label: 'Live',          dbCategory: 'Live',          color: '#1E7A32' },
+  ],
+  /* Outfield dropdowns — lime / yellow-greens, lightest → darkest */
+  outfield: [
+    { key: 'o-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#DAF0A0' },
+    { key: 'o-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#B8D870' },
+    { key: 'o-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#88B838' },
+    { key: 'o-lv',  label: 'Live',          dbCategory: 'Live',          color: '#5A8418' },
   ],
   /* S&C dropdowns — lightest → darkest */
   strength: [
@@ -131,21 +200,16 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
     { key: 's-ex',  label: 'Exercises',     dbCategory: 'Exercises',     color: '#F0A830' },
     { key: 's-cd',  label: 'Cool Down',     dbCategory: 'Cool Down',     color: '#C07818' },
   ],
-  /* Vision dropdowns — lightest → darkest */
-  vision: [
-    { key: 'v-ve',  label: 'Vizual Edge', dbCategory: 'Vizual Edge', color: '#F8F0A0' },
-    { key: 'v-dr',  label: 'Drills',      dbCategory: 'Drills',      color: '#E0C830' },
-    { key: 'v-lv',  label: 'Live',        dbCategory: 'Live',        color: '#B09818' },
-  ],
 };
 
 /* Unique DB categories per tab — for calendar legend */
 const LEGEND_CATEGORIES: Record<string, string[]> = {
   hitting:  ['Movement Prep', 'Drills', 'Batting Practice', 'Machine', 'Live'],
   pitching: ['Movement Prep', 'Drills', 'Bullpen', 'Live', 'Post-Throw'],
-  defense:  ['Movement Prep', 'Drills', 'Machine', 'Live'],
+  catching: ['Movement Prep', 'Drills', 'Machine', 'Live'],
+  infield:  ['Movement Prep', 'Drills', 'Machine', 'Live'],
+  outfield: ['Movement Prep', 'Drills', 'Machine', 'Live'],
   strength: ['Movement Prep', 'Exercises', 'Cool Down'],
-  vision:   ['Vizual Edge', 'Drills', 'Live'],
 };
 
 function formatDate(y: number, m: number, d: number): string {
@@ -343,6 +407,26 @@ export default function TrainingPage() {
     }
   };
 
+  /* ── Hook calls below MUST come before any early return so the hook
+     order stays stable across renders. ── */
+
+  // Find the selected player by ID — pure derivation, no hook.
+  const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+
+  /* Position-aware visible tabs (Hitting / Pitching / Catching / Infield /
+     Outfield / S&C). Falls back to the full catalog when no player is
+     selected so the coach UI stays populated while picking an athlete. */
+  const visibleTabs = useMemo(() => visibleTabsForPlayer(selectedPlayer), [selectedPlayer]);
+
+  /* If the current activeTab is no longer in the visible list (e.g. coach
+     just switched athletes), fall back to "All". */
+  useEffect(() => {
+    if (activeTab === 'all') return;
+    if (!visibleTabs.some(t => t.key === activeTab)) {
+      setActiveTab('all');
+    }
+  }, [visibleTabs, activeTab]);
+
   if (authLoading || !user) return null;
 
   const calTitle = view === 'month'
@@ -358,7 +442,6 @@ export default function TrainingPage() {
         })()
       : currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
-  const selectedPlayer = players.find(p => p.id === selectedPlayerId);
   const legendCats = getLegendCategories(activeTab);
   const todayDateStr = toDateStr(currentDate);
 
@@ -382,6 +465,15 @@ export default function TrainingPage() {
           : 'Your weekly drill schedule and training history.'}
         readout={todayDateStr}
       />
+
+      {/* ── Calendar shell — lighter `profilePanel` outer bubble holds
+          the athlete selector, view tabs/controls, and the calendar grid.
+          The calendar grid itself uses the darker `innerPanel` tone, so
+          the page reads as a clear two-tone hierarchy. */}
+      <div
+        className={aStyles.profilePanel}
+        style={{ marginTop: 16, padding: 18, display: 'flex', flexDirection: 'column' }}
+      >
 
       {/* ── Athlete Selector (Coach Only) ── */}
       {isCoach && (
@@ -411,7 +503,7 @@ export default function TrainingPage() {
           >
             All
           </button>
-          {TABS.map(t => {
+          {visibleTabs.map(t => {
             const isActive = activeTab === t.key;
             const tColor = TAB_COLORS[t.key];
             return (
@@ -498,8 +590,11 @@ export default function TrainingPage() {
           hasCopied={copiedDrills.length > 0}
           copiedFromDate={copiedDate}
           onDrillClick={(drill) => setViewingDrill(drill)}
+          visibleTabs={visibleTabs}
         />
       )}
+
+      </div>{/* /calendar shell (.profilePanel) */}
 
       {/* ── Add Drill FAB (Coach only) ── */}
       {isCoach && selectedPlayerId && (
@@ -514,6 +609,7 @@ export default function TrainingPage() {
           playerId={selectedPlayerId}
           initialDate={modalDate}
           existingEvents={modalEditExisting}
+          visibleTabs={visibleTabs}
           onClose={() => setShowModal(false)}
           onSaved={() => {
             refreshEvents();
@@ -719,6 +815,7 @@ function DayView({
   hasCopied,
   copiedFromDate,
   onDrillClick,
+  visibleTabs,
 }: {
   currentDate: Date;
   allDayEvents: ScheduledDrill[];
@@ -730,6 +827,8 @@ function DayView({
   hasCopied: boolean;
   copiedFromDate: string | null;
   onDrillClick: (drill: Drill) => void;
+  /** Position-aware tabs from the parent — drives the day grid columns. */
+  visibleTabs: typeof TABS;
 }) {
   const dateLabel = currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -768,9 +867,9 @@ function DayView({
         )}
       </div>
 
-      {/* 5-column grid — one per workout type */}
-      <div className={styles.dayGrid}>
-        {TABS.map(tab => {
+      {/* Position-aware columns — one per visible tab for this athlete */}
+      <div className={styles.dayGrid} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+        {visibleTabs.map(tab => {
           const tabEvents = eventsByTab[tab.key] || [];
           const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
           return (
@@ -925,17 +1024,22 @@ function DrillDashboardModal({
   playerId,
   initialDate,
   existingEvents,
+  visibleTabs,
   onClose,
   onSaved,
 }: {
   playerId: string;
   initialDate: string;
   existingEvents: ScheduledDrill[];
+  /** Position-aware tab list from the parent — drives the modal's tab nav. */
+  visibleTabs: typeof TABS;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [date, setDate] = useState(initialDate);
-  const [modalTab, setModalTab] = useState('hitting');
+  // Default to the first visible tab so a pitcher-only athlete starts on
+  // Pitching instead of an invisible Hitting tab.
+  const [modalTab, setModalTab] = useState(visibleTabs[0]?.key ?? 'hitting');
   const [saving, setSaving] = useState(false);
   const isEdit = existingEvents.length > 0;
 
@@ -1070,9 +1174,9 @@ function DrillDashboardModal({
           />
         </div>
 
-        {/* Tab bar inside modal */}
+        {/* Tab bar inside modal — only the position-applicable tabs */}
         <div className={styles.dashTabBar}>
-          {TABS.map(t => {
+          {visibleTabs.map(t => {
             const count = countsPerTab[t.key] || 0;
             const isActive = modalTab === t.key;
             const tColor = TAB_COLORS[t.key];
