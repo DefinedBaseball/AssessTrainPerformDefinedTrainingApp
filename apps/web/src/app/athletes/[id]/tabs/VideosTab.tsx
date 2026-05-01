@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ReportSummary } from '../helpers';
-import { TabBarActions, AddReportButton, ReportSelector } from '@/components/assessment';
+import { TabBarActions, AddReportButton, EditProfileButton, ReportSelector } from '@/components/assessment';
 import type { TabProps } from '../helpers';
 import { CoachingLibrary } from './CoachingLibrary';
 import { CoachingStudio } from './CoachingStudio';
@@ -22,6 +22,7 @@ export function VideosTab(props: TabProps) {
     <>
       <TabBarActions>
         <AddReportButton onClick={props.onNewReport} show={props.isCoach} />
+        <EditProfileButton onClick={props.onEditProfile} show={!props.isCoach} />
         <ReportSelector
           reports={props.reports}
           reportTypes={['COACHING']}

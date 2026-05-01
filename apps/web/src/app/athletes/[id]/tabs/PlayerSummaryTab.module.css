@@ -104,7 +104,8 @@
 
 .tiny {
   font-size: 0.72rem;
-  color: var(--ps-muted);
+  /* Bumped from --ps-muted for stronger eyebrow-label contrast */
+  color: var(--text-bright);
   text-transform: uppercase;
   letter-spacing: 0.16em;
   font-weight: 700;
@@ -387,10 +388,11 @@
 
 .toolSubLabel {
   font-size: 0.66rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--ps-muted);
+  /* Bumped from --ps-muted for stronger label contrast (Swing, QoC, etc.) */
+  color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -419,10 +421,13 @@
   color: var(--ps-muted);
 }
 
-/* ── Big-score + focus grid (development snapshot) ── */
+/* ── Big-score + focus grid (development snapshot) ──
+   Tighter padding + gap than the default panel so the bubble doesn't
+   carry empty space above/below the header and section cards. */
 .noteCard {
   display: grid;
-  gap: 1rem;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 0.95rem;
 }
 
 .bigScore {
@@ -448,6 +453,42 @@
   color: var(--ps-muted);
   max-width: 22ch;
   padding-bottom: 0.4rem;
+}
+
+/* Development snapshot header — eyebrow on the left, total score on
+   the right. The eyebrow now reads as a proper section title (bigger,
+   tighter tracking) so it carries the card on its own without the
+   retired headline copy. */
+.devHeader {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+/* Inline save controls living alongside the eyebrow + total score.
+   Pushes flush right (next to the score) and stays out of the score's
+   way. Hidden entirely for non-coaches / no-data states. */
+.devHeaderSave {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.devHeader .eyebrow {
+  font-size: 1.15rem;
+  letter-spacing: 0.14em;
+  color: var(--text-bright);
+}
+.devTotalScore {
+  font-family: 'DM Mono', monospace;
+  font-size: clamp(2.4rem, 1.6rem + 2.2vw, 3.6rem);
+  line-height: 0.9;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ps-text);
 }
 
 .focusGrid {
@@ -483,6 +524,263 @@
   color: var(--ps-muted);
   font-size: 0.88rem;
   line-height: 1.45;
+}
+
+/* ── Development snapshot — per-section cards ── */
+.devGrid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+/* Each card keeps the section's palette color ONLY as the strong left
+   stripe via --section-tone. The previous tinted background gradient
+   and tinted drop-shadow were retired — body + glow are now neutral so
+   the stripe is the sole identity cue. */
+.devSection {
+  position: relative;
+  padding: 1rem 1.1rem 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--ps-surface);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 3px 0 0 0 var(--section-tone, #94a3b8),
+    0 1px 0 0 rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.devSection:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-light);
+  box-shadow:
+    inset 3px 0 0 0 var(--section-tone, #94a3b8),
+    0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+.devSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.devSectionDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 8px -1px var(--section-tone, currentColor);
+}
+.devSectionTitle {
+  flex: 1;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-bright);
+  letter-spacing: -0.01em;
+}
+.devSectionDirty {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fbbf24;
+}
+/* Section aggregate score — rendered inline in the card header. Replaces
+   the retired overall total score on the snapshot bubble. Stays large so
+   the section's headline number is the dominant glyph in its row. */
+.devSectionScore {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-left: auto;
+}
+.devRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+.devRowLabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+.devRowValue {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  text-align: right;
+}
+.devRowScore {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Best Tool / Biggest Weakness inner bubbles — pair of small callout
+   cards inside each section. They share the section's --section-tone
+   so they read as part of the parent card, just visually pulled out. */
+.devBubbleRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+@media (max-width: 540px) {
+  .devBubbleRow { grid-template-columns: minmax(0, 1fr); }
+}
+.devBubble {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+.devBubbleLabel {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.devBubbleValue {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.devBubbleScore {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-top: 0.05rem;
+}
+.devNotesInput {
+  width: 100%;
+  background: rgba(20, 24, 32, 0.85);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+  min-height: 60px;
+  box-sizing: border-box;
+  margin-top: 0.15rem;
+}
+.devNotesView {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ps-text);
+  padding: 6px 2px;
+  margin-top: 0.15rem;
+}
+.devNotesEmpty {
+  color: var(--ps-muted);
+  font-style: italic;
+}
+.devSaveBar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 0.6rem;
+}
+.devSaveBtn {
+  background: var(--accent);
+  color: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.devSaveBtn:disabled {
+  cursor: default;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+.devResetBtn {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.devSaveError {
+  color: #ef4444;
+  font-size: 12px;
+}
+.devSaveOk {
+  color: #22c55e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Chart panel header dropdown (sub-grade compare + metric trend) ──
+   Sits inline with the panel's section title. Uses the same dark surface
+   token as the rest of the form inputs so it reads as part of the chrome,
+   not as a popover. */
+.chartSelect {
+  background: rgba(20, 24, 32, 0.85);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  /* Limit width on narrow screens but let the longest option dictate
+     baseline width up to a sensible cap. */
+  max-width: 18rem;
+  min-width: 9rem;
+}
+.chartSelect:hover {
+  border-color: var(--accent);
+}
+.chartSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+.chartSelect:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ════════════════════════════════════════════════
@@ -605,7 +903,8 @@
 
 .kpiLabel {
   display: block;
-  color: var(--ps-muted);
+  /* Bumped from --ps-muted for stronger KPI label contrast */
+  color: var(--text-bright);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;

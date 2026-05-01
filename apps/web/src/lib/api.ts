@@ -62,6 +62,9 @@ export interface Player {
   highSchool: string | null;
   clubTeam: string | null;
   birthDate: string | null;
+  /** JSON-encoded map of `{ [aggregateSectionKey]: nextStepsText }` shown in
+   *  the Player Summary's Development snapshot. */
+  developmentNotes?: string | null;
   user?: { email: string; role: string };
 }
 
@@ -446,10 +449,10 @@ export async function deleteReport(id: string) {
   return request<any>(`/reports/${id}`, { method: 'DELETE' });
 }
 
-/** Backend supports `PATCH /reports/:id` with { content?, notes?, videoIds? }. */
+/** Backend supports `PATCH /reports/:id` with { title?, content?, notes?, videoIds? }. */
 export async function updateReport(
   id: string,
-  data: { content?: string; notes?: string; videoIds?: string },
+  data: { title?: string; content?: string; notes?: string; videoIds?: string },
 ) {
   return request<any>(`/reports/${id}`, {
     method: 'PATCH',

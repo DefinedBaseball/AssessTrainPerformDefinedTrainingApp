@@ -45,7 +45,7 @@ export class ReportsService {
     return report;
   }
 
-  async update(id: string, data: { content?: string; notes?: string; videoIds?: string }) {
+  async update(id: string, data: { title?: string; content?: string; notes?: string; videoIds?: string }) {
     return this.prisma.report.update({ where: { id }, data });
   }
 

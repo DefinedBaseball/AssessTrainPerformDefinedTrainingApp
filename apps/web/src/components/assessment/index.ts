@@ -13,3 +13,4 @@ export { ReportSelector } from './ReportSelector';
 export type { ReportSummary as ReportSelectorReport } from './ReportSelector';
 export { DownloadPdfButton } from './DownloadPdfButton';
 export { AddReportButton } from './AddReportButton';
+export { EditProfileButton } from './EditProfileButton';

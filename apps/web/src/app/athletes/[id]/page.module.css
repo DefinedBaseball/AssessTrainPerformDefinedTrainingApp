@@ -645,6 +645,17 @@
   text-align: center;
 }
 
+/* Defense field + grades row — Infield / Outfield top row that places
+   the field on the left and the Hands / Range bars on the right. Drops
+   to a single column on narrow screens. */
+.fieldRow {
+  /* Inline styles handle the wide-screen 2-column layout; this class
+     just attaches the responsive override. */
+}
+@media (max-width: 1100px) {
+  .fieldRow { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .chartsGrid { grid-template-columns: 1fr; }

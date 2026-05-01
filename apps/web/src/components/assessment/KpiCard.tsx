@@ -24,8 +24,23 @@ export function KpiCard({ label, value, unit, badge, badgeLevel = 'teal', color 
   return (
     <div className={styles.kpi}>
       <div className={styles.kpiLabel}>{label}</div>
-      <div className={styles.kpiVal} style={color ? { color } : undefined}>{value}</div>
-      {unit && <div className={styles.kpiUnit}>{unit}</div>}
+      {/* Value + unit share a single baseline-aligned row so "95.2 mph"
+          reads as one number, with the unit visibly smaller. When `color`
+          is overridden we drop the gradient text effect so the inline
+          color actually wins. */}
+      <div className={styles.kpiValRow}>
+        <span
+          className={styles.kpiVal}
+          style={color ? {
+            color,
+            background: 'none',
+            WebkitBackgroundClip: 'border-box',
+            backgroundClip: 'border-box',
+            WebkitTextFillColor: color,
+          } : undefined}
+        >{value}</span>
+        {unit && <span className={styles.kpiUnit}>{unit}</span>}
+      </div>
       {badge && (
         <span className={`${styles.kpiBadge} ${BADGE_CLASS[badgeLevel]}`}>{badge}</span>
       )}

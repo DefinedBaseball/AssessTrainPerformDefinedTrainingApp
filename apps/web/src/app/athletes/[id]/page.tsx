@@ -14,7 +14,7 @@ import styles from './page.module.css';
 
 import { PlayerSummaryTab } from './tabs/PlayerSummaryTab';
 import { HittingTab } from './tabs/HittingTab';
-import { DefenseTab } from './tabs/DefenseTab';
+import { CatchingTab, InfieldTab, OutfieldTab } from './tabs/DefenseTab';
 import { PitchingTab } from './tabs/PitchingTab';
 import { VisionTab } from './tabs/VisionTab';
 import { StrengthConditioningTab } from './tabs/StrengthConditioningTab';
@@ -62,13 +62,16 @@ const IconVideos = (
   </svg>
 );
 
-/* ── Tab definitions ── */
+/* ── Tab definitions ──
+   Defense is split into three position-specific tabs that show only when
+   the player has that position selected in their profile (C / INF / OF). */
 const TABS: Tab[] = [
   { key: 'summary', label: 'Player Summary', icon: IconSummary },
   { key: 'hitting', label: 'Hitting', icon: IconHitting },
-  { key: 'defense', label: 'Defense', icon: IconDefense },
+  { key: 'infield', label: 'Infield', icon: IconDefense },
+  { key: 'catching', label: 'Catching', icon: IconDefense },
+  { key: 'outfield', label: 'Outfield', icon: IconDefense },
   { key: 'pitching', label: 'Pitching', icon: IconPitching },
-  { key: 'vision', label: 'Cognition', icon: IconVision },
   { key: 'strength', label: 'Strength & Conditioning', icon: IconStrength },
   { key: 'videos', label: 'Videos', icon: IconVideos },
 ];
@@ -109,6 +112,9 @@ export default function PlayerProfilePage() {
   const [showReportModal, setShowReportModal] = useState(false);
   /** When set, ReportModal opens in edit mode for this existing report. */
   const [editingReport, setEditingReport] = useState<ReportSummary | null>(null);
+  /** When true, ReportModal opens in profile-only mode (player edit view) —
+   *  shows just the Summary form with no report-type chips. */
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
 
   /* ── Auth guard ── */
   useEffect(() => {
@@ -154,7 +160,9 @@ export default function PlayerProfilePage() {
     return computeAggregateScores(player, reports, topMetrics);
   }, [player, reports, topMetrics]);
 
-  /* ── Visible tabs (position- and report-driven) ── */
+  /* ── Visible tabs (position-driven) ──
+     Defense was split into three position-specific tabs — each shows only
+     when the player carries that position code on their profile. */
   const visibleTabs = useMemo(() => {
     if (!player) return TABS;
     const positions = (player.positions || '')
@@ -163,16 +171,18 @@ export default function PlayerProfilePage() {
       .filter(Boolean);
     const hasNonPitcher = positions.some((p) => p !== 'P');
     const isPitcher = positions.includes('P');
-    const hasDefenseReport = reports.some((r) =>
-      r.reportType === 'INFIELD' || r.reportType === 'OUTFIELD' || r.reportType === 'CATCHING',
-    );
+    const isCatcher    = positions.includes('C');
+    const isInfielder  = positions.includes('INF');
+    const isOutfielder = positions.includes('OF');
 
     return TABS.filter((t) => {
       if (t.key === 'summary') return true;
       if (t.key === 'hitting') return hasNonPitcher;
       if (t.key === 'pitching') return isPitcher;
-      if (t.key === 'defense') return hasNonPitcher && hasDefenseReport;
-      return true; // vision, strength, videos
+      if (t.key === 'catching') return isCatcher;
+      if (t.key === 'infield')  return isInfielder;
+      if (t.key === 'outfield') return isOutfielder;
+      return true; // strength, videos
     });
   }, [player, reports]);
 
@@ -200,6 +210,7 @@ export default function PlayerProfilePage() {
     refreshKey,
     onNewReport: () => { setEditingReport(null); setShowReportModal(true); },
     onEditReport: (r) => { setEditingReport(r); setShowReportModal(true); },
+    onEditProfile: () => { setEditingReport(null); setProfileEditOpen(true); setShowReportModal(true); },
   };
 
   return (
@@ -228,11 +239,21 @@ export default function PlayerProfilePage() {
           if (!scored.length) return 50;
           return scored.reduce((a, b) => a + b, 0) / scored.length;
         };
+        // DEF axis rolls up across the per-position defense sections
+        // (defense_infield / defense_catching / defense_outfield) since
+        // the single 'defense' section was split. Average every populated
+        // bar score across whichever ones exist; fall back to 50.
+        const defenseScores = (aggregate?.sections ?? [])
+          .filter((s) => s.key === 'defense_infield' || s.key === 'defense_catching' || s.key === 'defense_outfield')
+          .flatMap((s) => s.bars.filter((b) => b.score != null).map((b) => b.score as number));
+        const defAvg = defenseScores.length === 0
+          ? 50
+          : defenseScores.reduce((a, b) => a + b, 0) / defenseScores.length;
+        // 4-axis radar (HIT / DEF / PITCH / ATH) — Vision was retired.
         const axes = [
           { label: 'HIT',    v: bySection('hitting') },
-          { label: 'DEF',    v: bySection('defense') },
+          { label: 'DEF',    v: defAvg },
           { label: 'PITCH',  v: bySection('pitching') },
-          { label: 'VIS',    v: bySection('vision') },
           { label: 'ATH',    v: bySection('strength') },
         ];
         const rx = 70;
@@ -387,8 +408,14 @@ export default function PlayerProfilePage() {
         <TabPanel active={activeTab === 'hitting'}>
           <HittingTab {...tabProps} />
         </TabPanel>
-        <TabPanel active={activeTab === 'defense'}>
-          <DefenseTab {...tabProps} />
+        <TabPanel active={activeTab === 'infield'}>
+          <InfieldTab {...tabProps} />
+        </TabPanel>
+        <TabPanel active={activeTab === 'catching'}>
+          <CatchingTab {...tabProps} />
+        </TabPanel>
+        <TabPanel active={activeTab === 'outfield'}>
+          <OutfieldTab {...tabProps} />
         </TabPanel>
         <TabPanel active={activeTab === 'pitching'}>
           <PitchingTab {...tabProps} />
@@ -404,13 +431,17 @@ export default function PlayerProfilePage() {
         </TabPanel>
       </div>
 
-      {/* Report Modal — used for both Create (editingReport=null) and Edit */}
+      {/* Report Modal — used for Create / Edit / Player profile-edit.
+          profileEditOpen flips it into a SUMMARY-only view that hides the
+          report-type chip row, used by the player-side Edit Profile button. */}
       {showReportModal && (
         <ReportModal
           player={player}
           userId={(user as any).id || (user as any).sub}
           existingReport={editingReport}
-          onClose={() => { setShowReportModal(false); setEditingReport(null); }}
+          initialReportType={profileEditOpen ? 'SUMMARY' : undefined}
+          profileOnly={profileEditOpen}
+          onClose={() => { setShowReportModal(false); setEditingReport(null); setProfileEditOpen(false); }}
           onSaved={() => setRefreshKey(k => k + 1)}
         />
       )}

@@ -103,20 +103,38 @@
   position: relative;
   z-index: 1;
   font-family: 'DM Mono', monospace;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.16em;
-  margin-bottom: 12px;
+  /* Bumped a touch (10 → 12px) so the title stands out as the card's
+     headline. Stays uniform across every KpiCard so the row reads
+     evenly even when labels differ in length. */
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.14em;
+  margin-bottom: 10px;
   text-transform: uppercase;
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Value + unit on a single baseline-aligned row so "95.2 mph" reads as
+   one number. Replaces the previous block-level kpiUnit which dropped
+   the unit onto its own line. */
+.kpiValRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .kpiVal {
-  position: relative;
-  z-index: 1;
   font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
-  font-size: 30px;
+  /* Reduced 30 → 24px so the number doesn't overpower the card. */
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
@@ -125,18 +143,18 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  white-space: nowrap;
 }
 
 .kpiUnit {
-  position: relative;
-  z-index: 1;
   font-family: 'DM Mono', monospace;
+  /* Smaller than the value, baseline-aligned beside it. */
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-top: 6px;
   letter-spacing: 0.04em;
   text-transform: lowercase;
+  white-space: nowrap;
 }
 
 .kpiBadge {
@@ -160,12 +178,52 @@
 .badgeLow  { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.45); color: #F87171; }
 .badgeTeal { background: rgba(255,255,255,0.10); border-color: var(--border-strong); color: var(--text-bright); }
 
+/* ════════════════════════════════════════════════
+   profilePanel — shared bubble chrome used across every
+   player-profile tab (Hitting, Pitching, Defense, S&C).
+   Mirrors the Player Summary's `.panel` style so all
+   tabs read with the same elevated-card treatment.
+   ════════════════════════════════════════════════ */
+.profilePanel {
+  position: relative;
+  overflow: hidden;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.4rem;
+  box-shadow: var(--shadow-card);
+}
+.profilePanel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+.profilePanel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 90% 100%, rgba(0, 0, 0, 0.35) 0%, transparent 55%);
+  pointer-events: none;
+}
+/* Direct children sit above the ::after vignette. */
+.profilePanel > * {
+  position: relative;
+  z-index: 2;
+}
+
 /* ── SCORE BAR ── */
 .scoreBarHeader {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: var(--text-muted);
+  /* Bumped from --text-muted for stronger contrast on score bar labels */
+  color: var(--text-bright);
   margin-bottom: 4px;
 }
 
@@ -658,9 +716,10 @@
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: var(--text-muted);
+  /* Stronger contrast for profile card labels */
+  color: var(--text-bright);
   margin-bottom: 6px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .profileCard .value {
   font-family: 'Clash Grotesk', 'Satoshi', sans-serif;

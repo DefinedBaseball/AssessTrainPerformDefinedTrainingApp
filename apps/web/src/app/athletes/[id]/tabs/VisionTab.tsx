@@ -4,14 +4,14 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, NotesBox, ReportSelector,
-  TabBarActions, AddReportButton,
+  TabBarActions, AddReportButton, EditProfileButton,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
-  getReportUploadIds,
+  getReportUploadIds, metricToGrade, scoreColor,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -20,7 +20,7 @@ import { generateVisionPdf } from '@/lib/pdf';
 const REPORT_TYPES = ['COGNITION'];
 
 export function VisionTab({
-  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport,
+  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport, onEditProfile,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
@@ -86,6 +86,7 @@ export function VisionTab({
       {/* ── Report Selector + Download (portaled into TabBar) ── */}
       <TabBarActions>
         <AddReportButton onClick={onNewReport} show={isCoach} />
+        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}
@@ -110,6 +111,7 @@ export function VisionTab({
                 const m = visionMetrics[key];
                 if (!m) return null;
                 const level = getBadgeLevel(key, m.value);
+                const grade = metricToGrade(activeMetrics, key);
                 return (
                   <KpiCard
                     key={key}
@@ -117,6 +119,7 @@ export function VisionTab({
                     value={m.value.toFixed(0)}
                     badge={getBadgeText(level) || undefined}
                     badgeLevel={level}
+                    color={grade !== null ? scoreColor(grade) : undefined}
                   />
                 );
               })}

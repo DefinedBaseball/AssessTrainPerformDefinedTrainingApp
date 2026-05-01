@@ -138,7 +138,7 @@ function ThrowingMetricCard({ metric, label, unit, mlbRef }: {
       background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
       padding: '18px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8,
     }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)' }}>
         {label}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
@@ -432,8 +432,9 @@ function StrikeZoneHeatMap5x5({
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
          style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 360, margin: '0 auto' }}>
-      {/* Backdrop */}
-      <rect x={0} y={0} width={W} height={H} fill="rgba(0,0,0,0.32)" rx={4} />
+      {/* Backdrop — was near-black; re-toned to a softer graphite so it
+          reads as part of the neutral profile palette. */}
+      <rect x={0} y={0} width={W} height={H} fill="rgba(110,118,125,0.10)" rx={4} />
 
       {/* All 25 cells */}
       {cells}

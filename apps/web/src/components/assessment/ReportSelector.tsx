@@ -203,13 +203,14 @@ export function ReportSelector({
           </button>
         ) : (
           <>
-            {/* LEFT — clicking the title/meta opens the selected report for editing.
-                  Falls back to toggling the dropdown if no onEdit handler is wired. */}
+            {/* LEFT — coach: clicking the title/meta opens the selected
+                  report for editing. Player / non-coach: only toggles the
+                  dropdown so they can browse but never enter the edit flow. */}
             <button
               type="button"
               className={styles.reportSelectorTitleBtn}
               onClick={() => {
-                if (selected && onEdit) {
+                if (isCoach && selected && onEdit) {
                   onEdit(selected);
                   setOpen(false);
                   setConfirmId(null);
@@ -218,7 +219,7 @@ export function ReportSelector({
                   setConfirmId(null);
                 }
               }}
-              title={selected && onEdit ? 'Edit this report' : 'Open report list'}
+              title={isCoach && selected && onEdit ? 'Edit this report' : 'Open report list'}
             >
               <div className={styles.reportSelectorLeft}>
                 <span className={styles.reportSelectorIcon}>📋</span>

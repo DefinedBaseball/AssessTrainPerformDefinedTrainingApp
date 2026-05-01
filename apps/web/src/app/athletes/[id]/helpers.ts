@@ -28,6 +28,9 @@ export interface TabProps {
   /** Open the Report modal in EDIT mode for an existing report. Plumbed into
    *  ReportSelector so clicking the report name on the bar opens that report. */
   onEditReport?: (report: ReportSummary) => void;
+  /** Open the profile-edit modal (Summary form). Used by the player-side
+   *  Edit Profile button that replaces Add Report on non-coach views. */
+  onEditProfile?: () => void;
 }
 
 /** Get the latest report matching any of the given types */
@@ -65,6 +68,173 @@ export interface ManualSwingScores {
   core: number | null;
   slot: number | null;
   timing: number | null;
+}
+
+/** Mechanical coach grades for a PITCHING report (20-80 scale). Persisted at
+ *  content.mechanicalScores on the report, displayed by the Pitching tab's
+ *  Mechanical Coach Grades sub-tab. Eight categories cover the most-graded
+ *  delivery checkpoints — coaches can set / unset each independently. */
+export interface MechanicalPitchingScores {
+  balance:    number | null;
+  stride:     number | null;
+  armAction:  number | null;
+  separation: number | null;
+  release:    number | null;
+  gloveSide:  number | null;
+  frontSide:  number | null;
+  tempo:      number | null;
+}
+
+/** A single pitching-grade entry: a 20-80 score plus zero or more
+ *  descriptive multi-select labels picked off the section's option list. */
+export interface PitchingGradeEntry { score: number | null; options: string[]; }
+
+/** All pitching grades for a single PITCHING report, keyed by `${section}.${item}`
+ *  (e.g. `gather.legLiftHeight`). Persisted at content.pitchingGrades. */
+export type PitchingGrades = Record<string, PitchingGradeEntry>;
+
+/** Config for one graded checkpoint inside a pitching delivery section.
+ *  Mirrored between the report modal (where coaches grade) and the Pitching
+ *  profile tab's Mechanical Grades panel (where the saved data displays). */
+export interface PitchingGradeItemConfig { key: string; label: string; options: string[]; }
+export interface PitchingGradeSectionConfig { key: string; title: string; icon: string; items: PitchingGradeItemConfig[]; }
+
+/** Single source of truth for the 7-section pitching delivery grade taxonomy.
+ *  Keys flow through both the modal save and the Mechanical Grades read so
+ *  any change here propagates to both. Entry-storage key is `${section}.${item}`. */
+export const PITCHING_GRADE_SECTIONS: PitchingGradeSectionConfig[] = [
+  {
+    key: 'gather', title: 'The Gather', icon: '⚙️',
+    items: [
+      { key: 'legLiftHeight', label: 'Leg Lift Height', options: ['Low', 'Mid', 'High'] },
+      { key: 'load',          label: 'Load',            options: ['Smooth', 'Rushed', 'Slow', 'Hitch'] },
+      { key: 'tempo',         label: 'Tempo',           options: ['Consistent', 'Rushed', 'Slow'] },
+      { key: 'stability',     label: 'Stability',       options: ['+Hinge', '-Hinge', '+Stack', '-Bad'] },
+    ],
+  },
+  {
+    key: 'armPath', title: 'Arm Path', icon: '🦾',
+    items: [
+      { key: 'armSwing',    label: 'Arm Swing',    options: ['Clean', 'Wraps', 'Short', 'Stabs', 'Stuck'] },
+      { key: 'armPosition', label: 'Arm Position', options: ['On-Time', 'Late', 'Early'] },
+      { key: 'mer',         label: 'MER',          options: ['Stable', 'Hypermobile', 'Limited Mobility'] },
+    ],
+  },
+  {
+    key: 'direction', title: 'Direction', icon: '➡️',
+    items: [
+      { key: 'direction',           label: 'Direction',            options: ['Stuck Back', 'Drift Forward', 'Spin Off', 'Push Off'] },
+      { key: 'strideLength',        label: 'Stride Length',        options: ['Short', 'Medium', 'Long'] },
+      { key: 'lowerHalfConnection', label: 'Lower Half Connection', options: ['Stable', 'Early Hip Rotation', 'Limited Separation'] },
+    ],
+  },
+  {
+    key: 'lhfs', title: 'Lower Half at Foot Strike', icon: '🦵',
+    items: [
+      { key: 'footStrikePosture', label: 'Foot Strike Posture', options: ['Stacked', 'Early Trunk Tilt', 'Falling Forward', 'Stuck Back'] },
+      { key: 'kneeFlexion',       label: 'Knee Flexion',         options: ['Stable', 'Stiff', 'Weak'] },
+      { key: 'leadLegBlock',      label: 'Lead Leg Block',       options: ['On Time', 'Early', 'Late'] },
+    ],
+  },
+  {
+    key: 'uhfs', title: 'Upper Half at Foot Strike', icon: '🎯',
+    items: [
+      { key: 'shoulderPosition', label: 'Shoulder Position', options: ['Closed', 'On-Time', 'Early'] },
+      { key: 'gloveSide',        label: 'Glove Side',         options: ['Tucks', 'Opens', 'Passive'] },
+    ],
+  },
+  {
+    key: 'lhRot', title: 'Lower Half Rotation', icon: '🔄',
+    items: [
+      { key: 'timing',         label: 'Timing',                  options: ['On-Time', 'Early', 'Late'] },
+      { key: 'hipShoulderSep', label: 'Hip / Shoulder Separation', options: ['On-Time', 'Early', 'Late'] },
+    ],
+  },
+  {
+    key: 'decel', title: 'Arm Deceleration', icon: '🛑',
+    items: [
+      { key: 'finish',         label: 'Finish',           options: ['On-Time', 'Early', 'Late'] },
+      { key: 'gloveSideBreak', label: 'Glove Side Break', options: ['Tucks/Stabilizes', 'Flies Open', 'Passive', 'Collapse'] },
+      { key: 'trunkRotation',  label: 'Trunk Rotation',   options: ['Good', 'Stops Early', 'Over Rotates'] },
+    ],
+  },
+];
+
+/** Stable storage key for a pitching grade entry. */
+export const pitchingGradeKey = (section: string, item: string) => `${section}.${item}`;
+
+/** Read pitching grades off a PITCHING report's content.pitchingGrades block.
+ *  Always returns a Record (empty when missing/unparseable) so the modal can
+ *  index into it without null guards. */
+export function getPitchingGrades(report: ReportSummary | null): PitchingGrades {
+  if (!report?.content) return {};
+  try {
+    const parsed = JSON.parse(report.content);
+    const g = parsed?.pitchingGrades;
+    if (!g || typeof g !== 'object') return {};
+    const out: PitchingGrades = {};
+    for (const [k, v] of Object.entries(g)) {
+      const entry = v as any;
+      if (!entry || typeof entry !== 'object') continue;
+      const score = typeof entry.score === 'number' && Number.isFinite(entry.score) ? entry.score : null;
+      const options = Array.isArray(entry.options) ? entry.options.filter((x: any) => typeof x === 'string') : [];
+      out[k] = { score, options };
+    }
+    return out;
+  } catch { return {}; }
+}
+
+/** Read mechanical scores off a PITCHING report's content.mechanicalScores
+ *  block. Returns all-null when missing or unparseable. */
+export function getMechanicalPitchingScores(report: ReportSummary | null): MechanicalPitchingScores {
+  const empty: MechanicalPitchingScores = {
+    balance: null, stride: null, armAction: null, separation: null,
+    release: null, gloveSide: null, frontSide: null, tempo: null,
+  };
+  if (!report?.content) return empty;
+  try {
+    const parsed = JSON.parse(report.content);
+    const m = parsed?.mechanicalScores;
+    if (!m || typeof m !== 'object') return empty;
+    const pick = (k: keyof MechanicalPitchingScores) =>
+      typeof m[k] === 'number' && Number.isFinite(m[k]) ? m[k] : null;
+    return {
+      balance:    pick('balance'),
+      stride:     pick('stride'),
+      armAction:  pick('armAction'),
+      separation: pick('separation'),
+      release:    pick('release'),
+      gloveSide:  pick('gloveSide'),
+      frontSide:  pick('frontSide'),
+      tempo:      pick('tempo'),
+    };
+  } catch { return empty; }
+}
+
+/** Descriptive multi-select tags paired with each manual swing score. Stored
+ *  at content.manualOptions on the HITTING report alongside content.manualScores.
+ *  An item with no tags simply renders an empty string[]. */
+export type ManualSwingOptions = Record<keyof ManualSwingScores, string[]>;
+
+export function getManualSwingOptions(report: ReportSummary | null): ManualSwingOptions {
+  const empty: ManualSwingOptions = {
+    forwardMove: [], posture: [], stability: [], direction: [],
+    stretch: [], core: [], slot: [], timing: [],
+  };
+  if (!report?.content) return empty;
+  try {
+    const parsed = JSON.parse(report.content);
+    const m = parsed?.manualOptions;
+    if (!m || typeof m !== 'object') return empty;
+    const result: ManualSwingOptions = { ...empty };
+    for (const k of Object.keys(empty) as (keyof ManualSwingOptions)[]) {
+      const arr = m[k];
+      if (Array.isArray(arr)) {
+        result[k] = arr.filter((x: any) => typeof x === 'string');
+      }
+    }
+    return result;
+  } catch { return empty; }
 }
 
 export function getManualSwingScores(report: ReportSummary | null): ManualSwingScores {
@@ -501,8 +671,19 @@ export interface AggregateBar {
   subMetrics: AggregateSubMetric[];
 }
 
+/** Aggregate-section keys. Defense was split into per-position sections so
+ *  the Tool Grades bubble mirrors the player's actual tab layout (each
+ *  position only renders its own defense bar). */
+export type AggregateSectionKey =
+  | 'hitting'
+  | 'pitching'
+  | 'defense_infield'
+  | 'defense_catching'
+  | 'defense_outfield'
+  | 'strength';
+
 export interface AggregateSection {
-  key: 'hitting' | 'pitching' | 'defense' | 'vision' | 'strength';
+  key: AggregateSectionKey;
   label: string;
   color: string;
   bars: AggregateBar[];
@@ -550,46 +731,102 @@ export function computeAggregateScores(
 
   const sections: AggregateSection[] = [];
 
-  // Hitting — any position other than pitcher-only
+  // Hitting — any position other than pitcher-only.
+  // Bars mirror the player's Hitting tab exactly: Swing, Quality of Contact,
+  // Swing Decision, Coach Grades. Scores + sub-metric grades are computed
+  // here from the real data (topMetrics + latest HITTING report's manual
+  // scores) so the Summary view matches what the coach sees on the tab.
   if (hasNonPitcher) {
+    /* Same key sets as SwingTab.HittingGradeStack — keep them mirrored so
+       the Summary's bars roll up the same numbers. */
+    const SWING_KEYS_LOCAL = [
+      'attack_angle', 'plane_angle', 'avg_bat_speed', 'time_to_contact',
+      'on_plane_efficiency', 'connection_at_contact', 'rotational_acceleration',
+    ];
+    const QOC_KEYS_LOCAL = [
+      'avg_exit_velo', 'squared_up_pct', 'smash_factor',
+      'full_swing_miss_pct', 'overall_barrel_pct',
+      'launch_angle', 'distance',
+    ];
+    /* Swing Decision sub-metrics roll up to four aggregate buckets in the
+       Sub-Grade Breakdown: Barrel %, Whiff %, Chase %, In Zone Swing %.
+       Each bucket averages the FB / OS / Total grades behind it. */
+    const DECISION_BUCKETS: { key: string; label: string; sources: string[] }[] = [
+      { key: 'decision_barrel',  label: 'Barrel %',         sources: ['fb_barrel_pct', 'os_barrel_pct', 'overall_barrel_pct'] },
+      { key: 'decision_whiff',   label: 'Whiff %',          sources: ['fb_whiff_pct',  'os_whiff_pct',  'overall_whiff_pct'] },
+      { key: 'decision_chase',   label: 'Chase %',          sources: ['fb_chase_pct',  'os_chase_pct',  'overall_chase_pct'] },
+      { key: 'decision_zone_sw', label: 'In Zone Swing %',  sources: ['fb_in_zone_swing_pct', 'os_in_zone_swing_pct', 'overall_in_zone_swing_pct'] },
+    ];
+
+    /* Pull the latest HITTING report's coach-entered manual scores so the
+       Coach Grades bar aggregates the eight 20-80 manual checkpoints. */
+    const latestHitting = getLatestReport(_reports, ['HITTING']);
+    const manual = getManualSwingScores(latestHitting);
+    const COACH_GRADE_DEFS: { key: keyof ManualSwingScores; label: string }[] = [
+      { key: 'forwardMove', label: 'Forward Move' },
+      { key: 'posture',     label: 'Posture' },
+      { key: 'stability',   label: 'Stability' },
+      { key: 'direction',   label: 'Direction' },
+      { key: 'stretch',     label: 'Stretch' },
+      { key: 'core',        label: 'Core' },
+      { key: 'slot',        label: 'Slot' },
+      { key: 'timing',      label: 'Timing' },
+    ];
+
+    /* For metric-keyed bars, build sub-metrics with their per-key grade so
+       the Section detail card renders one bar per leaf metric (matching
+       what the Hitting tab's KPI rows show). */
+    const metricSubs = (keys: string[]): AggregateSubMetric[] =>
+      keys
+        .filter((k) => _topMetrics[k])
+        .map((k) => {
+          const m = _topMetrics[k];
+          const grade = toScoutingGrade(m.value, k) ?? undefined;
+          return {
+            key: k,
+            label: METRIC_LABELS[k] || k,
+            value: m.value,
+            unit: m.unit,
+            grade,
+          };
+        });
+
+    const swingSubs    = metricSubs(SWING_KEYS_LOCAL);
+    const qocSubs      = metricSubs(QOC_KEYS_LOCAL);
+    /* Build one aggregate sub-metric per decision bucket. Grade is the
+       average of every contributing FB/OS/Total key that has a value;
+       buckets with zero contributors render with no grade ("—"). */
+    const decisionSubs: AggregateSubMetric[] = DECISION_BUCKETS.map((bucket) => {
+      const grades = bucket.sources
+        .map((k) => (_topMetrics[k] ? toScoutingGrade(_topMetrics[k].value, k) : null))
+        .filter((g): g is number => g != null);
+      const avg = grades.length > 0
+        ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length)
+        : undefined;
+      return { key: bucket.key, label: bucket.label, grade: avg };
+    });
+
+    const coachSubs: AggregateSubMetric[] = COACH_GRADE_DEFS.map(({ key, label }) => ({
+      key: `manual_${key}`,
+      label,
+      grade: manual[key] ?? undefined,
+    }));
+
+    /* Bar scores are the average of every populated sub-metric grade. */
+    const swingScore    = averageGrades(swingSubs.map((s) => s.grade ?? null));
+    const qocScore      = averageGrades(qocSubs.map((s) => s.grade ?? null));
+    const decisionScore = averageGrades(decisionSubs.map((s) => s.grade ?? null));
+    const coachScore    = averageGrades(coachSubs.map((s) => s.grade ?? null));
+
     sections.push({
       key: 'hitting',
       label: 'Hitting',
       color: '#4ADE80',
       bars: [
-        {
-          key: 'hit_mechanics',
-          label: 'Mechanics',
-          score: null,
-          subMetrics: [
-            { key: 'connection', label: 'Connection' },
-            { key: 'path', label: 'Path' },
-            { key: 'lower_half', label: 'Lower Half' },
-            { key: 'breaks', label: 'Breaks' },
-          ],
-        },
-        {
-          key: 'hit_consistency',
-          label: 'Consistency',
-          score: null,
-          subMetrics: [
-            { key: 'barrel_pct', label: 'Barrel %' },
-            { key: 'squared_up_pct', label: 'Squared Up %' },
-            { key: 'avg_to_max_ev', label: 'Avg to Max EV' },
-            { key: 'whiff_pct', label: 'Whiff %' },
-          ],
-        },
-        {
-          key: 'hit_swing_decision',
-          label: 'Swing Decision',
-          score: null,
-          subMetrics: [
-            { key: 'chase_pct', label: 'Chase %' },
-            { key: 'barrel_pct', label: 'Barrel %' },
-            { key: 'whiff_pct', label: 'Whiff %' },
-            { key: 'in_zone_swing_pct', label: 'In-Zone Swing %' },
-          ],
-        },
+        { key: 'hit_swing',          label: 'Swing',              score: swingScore,    subMetrics: swingSubs },
+        { key: 'hit_qoc',            label: 'Quality of Contact', score: qocScore,      subMetrics: qocSubs },
+        { key: 'hit_swing_decision', label: 'Swing Decision',     score: decisionScore, subMetrics: decisionSubs },
+        { key: 'hit_coach',          label: 'Coach Grades',       score: coachScore,    subMetrics: coachSubs },
       ],
     });
   }
@@ -608,13 +845,26 @@ export function computeAggregateScores(
     });
   }
 
-  // Defense — position-aware content. Catchers get receiving/blocking/throwing,
-  // INF/OF get range/routes/hands. If both flags are present (rare), catcher
-  // wins because it's the more specialized role.
+  // Defense — split into one section per position so the Tool Grades
+  // bubble lines up 1:1 with the player profile's Infield / Catching /
+  // Outfield top-level tabs. A multi-position athlete (e.g. C + INF)
+  // gets both rows; a pitcher-only gets none.
+  if (isInfielder) {
+    sections.push({
+      key: 'defense_infield',
+      label: 'Infield',
+      color: '#F59E0B',
+      bars: [
+        { key: 'def_range', label: 'Range', score: null, subMetrics: [] },
+        { key: 'def_routes', label: 'Routes', score: null, subMetrics: [] },
+        { key: 'def_hands', label: 'Hands', score: null, subMetrics: [] },
+      ],
+    });
+  }
   if (isCatcher) {
     sections.push({
-      key: 'defense',
-      label: 'Defense',
+      key: 'defense_catching',
+      label: 'Catching',
       color: '#F59E0B',
       bars: [
         {
@@ -651,10 +901,11 @@ export function computeAggregateScores(
         },
       ],
     });
-  } else if (isInfielder || isOutfielder) {
+  }
+  if (isOutfielder) {
     sections.push({
-      key: 'defense',
-      label: 'Defense',
+      key: 'defense_outfield',
+      label: 'Outfield',
       color: '#F59E0B',
       bars: [
         { key: 'def_range', label: 'Range', score: null, subMetrics: [] },
@@ -664,19 +915,8 @@ export function computeAggregateScores(
     });
   }
 
-  // Cognition — same trigger as hitting
-  if (hasNonPitcher) {
-    sections.push({
-      key: 'vision',
-      label: 'Cognition',
-      color: '#A78BFA',
-      bars: [
-        { key: 'vis_reaction', label: 'Reaction Time', score: null, subMetrics: [] },
-        { key: 'vis_tracking', label: 'Tracking', score: null, subMetrics: [] },
-        { key: 'vis_decision', label: 'Decision Making', score: null, subMetrics: [] },
-      ],
-    });
-  }
+  // Cognition / Vision was retired with the Vision tab — no longer
+  // surfaced in Tool Grades since there's no profile tab to drill into.
 
   // S&C — always
   sections.push({
@@ -718,10 +958,14 @@ type DemoProfile = {
 const DEMO_PROFILES: Record<string, DemoProfile> = {
   'cole anderson': {
     // Strong hitter, solid defender, average vision, good athlete.
+    // Hitting bars now match the player's Hitting tab — Swing / QoC /
+    // Swing Decision / Coach Grades. Sub-metric keys mirror the Hitting
+    // tab's metric keys (snake_case from the metrics pipeline).
     bars: {
-      hit_mechanics: 65,
-      hit_consistency: 60,
+      hit_swing: 65,
+      hit_qoc: 60,
       hit_swing_decision: 55,
+      hit_coach: 60,
       def_receiving: 55,
       def_blocking: 50,
       def_throwing: 60,
@@ -736,9 +980,21 @@ const DEMO_PROFILES: Record<string, DemoProfile> = {
       sc_endurance: 55,
     },
     subs: {
-      hit_mechanics: { connection: 65, path: 70, lower_half: 60, breaks: 60 },
-      hit_consistency: { barrel_pct: 60, squared_up_pct: 65, avg_to_max_ev: 55, whiff_pct: 55 },
-      hit_swing_decision: { chase_pct: 50, barrel_pct: 60, whiff_pct: 55, in_zone_swing_pct: 60 },
+      hit_swing: {
+        attack_angle: 65, plane_angle: 60, avg_bat_speed: 70, time_to_contact: 60,
+        on_plane_efficiency: 65, connection_at_contact: 60, rotational_acceleration: 70,
+      },
+      hit_qoc: {
+        avg_exit_velo: 65, squared_up_pct: 60, smash_factor: 60,
+        full_swing_miss_pct: 55, overall_barrel_pct: 60, launch_angle: 55, distance: 60,
+      },
+      hit_swing_decision: {
+        decision_barrel: 60, decision_whiff: 55, decision_chase: 55, decision_zone_sw: 60,
+      },
+      hit_coach: {
+        manual_forwardMove: 60, manual_posture: 65, manual_stability: 60, manual_direction: 60,
+        manual_stretch: 55, manual_core: 60, manual_slot: 65, manual_timing: 60,
+      },
       def_receiving: { recv_path: 55, recv_turn: 50, recv_accuracy: 60, recv_speed: 55 },
       def_blocking: { blk_range: 50, blk_accuracy: 55, blk_decision: 50 },
       def_throwing: { thr_transfer: 60, thr_footwork: 55, thr_arm: 65, thr_accuracy: 60 },
@@ -747,9 +1003,10 @@ const DEMO_PROFILES: Record<string, DemoProfile> = {
   'mason brown': {
     // Elite pitcher, strong S&C, still hits a little.
     bars: {
-      hit_mechanics: 45,
-      hit_consistency: 40,
+      hit_swing: 45,
+      hit_qoc: 40,
       hit_swing_decision: 45,
+      hit_coach: 45,
       pit_mechanics: 70,
       pit_movement: 75,
       pit_execution: 65,
@@ -761,9 +1018,21 @@ const DEMO_PROFILES: Record<string, DemoProfile> = {
       vis_decision: 55,
     },
     subs: {
-      hit_mechanics: { connection: 45, path: 45, lower_half: 50, breaks: 40 },
-      hit_consistency: { barrel_pct: 40, squared_up_pct: 45, avg_to_max_ev: 40, whiff_pct: 35 },
-      hit_swing_decision: { chase_pct: 45, barrel_pct: 40, whiff_pct: 45, in_zone_swing_pct: 50 },
+      hit_swing: {
+        attack_angle: 45, plane_angle: 45, avg_bat_speed: 50, time_to_contact: 45,
+        on_plane_efficiency: 45, connection_at_contact: 40, rotational_acceleration: 50,
+      },
+      hit_qoc: {
+        avg_exit_velo: 40, squared_up_pct: 45, smash_factor: 40,
+        full_swing_miss_pct: 35, overall_barrel_pct: 40, launch_angle: 45, distance: 40,
+      },
+      hit_swing_decision: {
+        decision_barrel: 40, decision_whiff: 45, decision_chase: 45, decision_zone_sw: 50,
+      },
+      hit_coach: {
+        manual_forwardMove: 45, manual_posture: 50, manual_stability: 45, manual_direction: 40,
+        manual_stretch: 45, manual_core: 50, manual_slot: 40, manual_timing: 45,
+      },
     },
   },
 };
@@ -779,12 +1048,14 @@ function applyDemoScores(
   for (const section of sections) {
     for (const bar of section.bars) {
       const s = profile.bars[bar.key];
-      if (typeof s === 'number') bar.score = s;
+      // Demo only fills *unscored* bars — real computed scores always win
+      // so the Summary stays in sync with the Hitting tab once data exists.
+      if (typeof s === 'number' && bar.score == null) bar.score = s;
       const subMap = profile.subs?.[bar.key];
       if (subMap) {
         for (const sub of bar.subMetrics) {
           const g = subMap[sub.key];
-          if (typeof g === 'number') sub.grade = g;
+          if (typeof g === 'number' && sub.grade == null) sub.grade = g;
         }
       }
     }

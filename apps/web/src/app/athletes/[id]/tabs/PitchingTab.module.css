@@ -5,18 +5,21 @@
 
 .hudConsole {
   position: relative;
+  /* Was tinted blue (61,139,253). Re-toned to a neutral graphite glow
+     so the HUD bubble matches the rest of the player profile chrome
+     while keeping its soft-corner radial accent vibe. */
   background:
-    radial-gradient(ellipse at 0% 0%, rgba(61,139,253,0.08) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 100%, rgba(61,139,253,0.06) 0%, transparent 55%),
+    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
     linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
   border: 1px solid var(--border-light);
   border-radius: 14px;
   padding: 10px 12px 12px;
   overflow: hidden;
   box-shadow: 0 6px 18px rgba(0,0,0,0.32);
-  max-width: 960px;
-  margin-left: auto;
-  margin-right: auto;
+  /* Fill the parent so the HUD bubble aligns with the sub-tab nav above
+     it instead of capping at 960px and floating in dead space. */
+  width: 100%;
 }
 .hudConsole::before {
   content: '';
@@ -157,10 +160,11 @@
   box-shadow: 0 0 5px rgba(255,255,255,0.7);
 }
 
-/* ── Plots grid: two HUD canvases side-by-side ── */
+/* ── Plots grid: three HUD canvases side-by-side
+       (Movement · Location · Release Point) ── */
 .hudPlotsGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
 }
@@ -213,8 +217,11 @@
   overflow: hidden;
 }
 .hudPlotCanvas svg {
+  /* Each plot SVG fills its grid column so the three plots together
+     span the full HUD bubble. The 380px cap was leaving big gutters
+     between plots when the bubble was wide. */
   width: 100%;
-  max-width: 380px;
+  max-width: 100%;
   height: auto;
   display: block;
   margin: 0 auto;
@@ -223,8 +230,9 @@
 /* ── Shared readout bar (mirrors .readoutBar in Swing tab) ── */
 .hudReadoutBar {
   position: relative;
+  /* Was blue-tinted; re-toned to neutral graphite glow. */
   background:
-    radial-gradient(ellipse at 100% 100%, rgba(61,139,253,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.07) 0%, transparent 55%),
     linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
   border: 1px solid var(--border-light);
   border-radius: 10px;
@@ -285,7 +293,12 @@
   box-shadow: 0 0 8px rgba(255,255,255,0.15);
 }
 
+@media (max-width: 1200px) {
+  /* Drop to 2 columns on mid-width screens (tablets / smaller laptops) */
+  .hudPlotsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
+  /* Single column on phones */
   .hudPlotsGrid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {

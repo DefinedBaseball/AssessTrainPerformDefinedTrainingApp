@@ -123,6 +123,73 @@
     0 2px 6px rgba(0,0,0,0.4);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT THEME — opt-in via <html data-theme="light">. Re-tunes the
+   core palette tokens (bg / surface / text / border / shadows) for
+   a light background. Most components reference these variables, so
+   they adapt automatically. Inline-styled rgba(255,255,255,...)
+   overlays in individual components stay dark-tuned and may need
+   per-component tweaks if they look off in light mode.
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  /* ── Backgrounds ── */
+  --bg:           #f3f5f8;
+  --surface:      linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 60%, rgba(243,245,248,1) 100%);
+  --surface-solid: #ffffff;
+  --surface2:     #eaeef3;
+  --surface-light:#f8fafc;
+  --card:         rgba(0,0,0,0.02);
+  --card-hover:   rgba(0,0,0,0.04);
+
+  --card-gradient: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.01));
+  --card-bg: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,1)), #ffffff;
+
+  --card-elev:        linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%);
+  --card-elev-hover:  linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(245,247,251,1) 100%);
+  --card-elev-bg:     #ffffff;
+  --surface-bright:   #ffffff;
+
+  /* ── Text ── */
+  --text-bright:   #0a0d12;
+  --text:          #1a1f25;
+  --text-soft:     #404a52;
+  --text-secondary:#5a646c;
+  --text-muted:    #6e767d;
+  --faint:         #b0b8c0;
+
+  /* ── Accent (graphite on light) ── */
+  --accent:        #1a1f25;
+  --accent-light:  #2a3138;
+  --accent-dim:    rgba(0,0,0,0.06);
+
+  /* ── Graphite accent ── */
+  --graphite:      #5a646c;
+  --graphite-dim:  rgba(90,100,108,0.08);
+  --graphite-line: rgba(90,100,108,0.2);
+
+  /* ── Borders ── */
+  --border:        rgba(0,0,0,0.08);
+  --border-light:  rgba(0,0,0,0.12);
+  --border-strong: rgba(0,0,0,0.18);
+  --border-bright: rgba(0,0,0,0.28);
+
+  /* ── Shadows ── */
+  --shadow-card:    0 4px 14px rgba(15,20,30,0.06);
+  --shadow-card-hi: 0 1px 0 rgba(255,255,255,0.6) inset, 0 8px 18px rgba(15,20,30,0.10), 0 2px 4px rgba(15,20,30,0.06);
+  --shadow-hover:   0 1px 0 rgba(255,255,255,0.8) inset, 0 10px 22px rgba(15,20,30,0.12), 0 2px 6px rgba(15,20,30,0.08);
+  --shadow-btn:     0 1px 0 rgba(255,255,255,0.6) inset, 0 3px 8px rgba(15,20,30,0.08);
+  --shadow-btn-hi:  0 1px 0 rgba(255,255,255,0.9) inset, 0 4px 12px rgba(15,20,30,0.12);
+  --shadow-lg:      0 24px 48px rgba(15,20,30,0.16);
+
+  /* ── Accent aliases used by glow/edge effects ── */
+  --accent-bright: #1a1f25;
+  --accent-deep:   #2a3138;
+  --accent-glow:   rgba(26,31,37,0.18);
+
+  /* ── Edge gradients (was white-on-dark; now black-on-light) ── */
+  --grad-edge:     linear-gradient(90deg, transparent, rgba(0,0,0,0.16), transparent);
+}
+
 html { scroll-behavior: smooth; }
 
 html, body {
@@ -325,6 +392,19 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(255,255,255,0.06);
 }
 ::placeholder { color: var(--text-muted); }
+
+/* ── Score slider — hide the thumb when no value is set ──
+   Used by the Coach Diagnosis (Hitting) + Delivery Grades (Pitching)
+   sliders so an unscored row reads as truly empty. The thumb pops back
+   in the moment the user interacts with the track. */
+input[type="range"].scoreSliderEmpty::-webkit-slider-thumb {
+  opacity: 0;
+  pointer-events: none;
+}
+input[type="range"].scoreSliderEmpty::-moz-range-thumb {
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* ── Tables ── */
 table { width: 100%; border-collapse: collapse; }

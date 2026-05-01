@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, ScalePips, NotesBox, VideoPlaceholder,
-  ReportSelector, TabBarActions, AddReportButton,
+  ReportSelector, TabBarActions, AddReportButton, EditProfileButton,
 } from '@/components/assessment';
 import { generateDefensePdf } from '@/lib/pdf';
 import aStyles from '@/components/assessment/assessment.module.css';
@@ -12,7 +12,7 @@ import styles from '../page.module.css';
 import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
-  toScoutingGrade, GRADE_RANGES,
+  toScoutingGrade, GRADE_RANGES, scoreColor,
   getReportVideoIds, getReportContentVideos,
   type ReportSummary,
 } from '../helpers';
@@ -897,13 +897,16 @@ function SprayField({
         );
       })()}
 
-      {/* Bases — silver diamonds */}
+      {/* Bases — silver diamonds laid out at real diamond geometry:
+            • 1B / 3B at 90 ft, 45° off the foul line
+            • 2B at 90√2 ≈ 127 ft straight to center
+          Uses the same `scale` as the rest of the field so the diamond
+          stays accurate at every zoom level. */}
       {(() => {
-        const baseDist = 90 * scale * 0.72;
         const bases: [number, number, string][] = [
-          [FIELD_CX, FIELD_CY - baseDist, '2B'],
-          [FIELD_CX - baseDist * 0.7, FIELD_CY - baseDist * 0.5, '3B'],
-          [FIELD_CX + baseDist * 0.7, FIELD_CY - baseDist * 0.5, '1B'],
+          [...fieldXY(0, 90 * Math.SQRT2, scale), '2B'] as [number, number, string],
+          [...fieldXY(-45, 90, scale), '3B'] as [number, number, string],
+          [...fieldXY(45, 90, scale), '1B'] as [number, number, string],
         ];
         return bases.map(([bx, by, lbl]) => (
           <rect key={lbl} x={bx - 4} y={by - 4} width={8} height={8}
@@ -942,7 +945,10 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
   const L = gradeTone(leftGrade), MID = gradeTone(centerGrade), R = gradeTone(rightGrade);
   const CHIP_FONT = "Inter, 'Helvetica Neue', Arial, sans-serif";
   const VBOX_H = 540;          // extra 80 px below home plate for the block fan
-  const [twobX, twobY] = fieldXY(0, 90 * Math.SQRT2);
+  // Catching diagram now zooms to the infield (200 ft fills the same pixel
+  // canvas as the old 360 ft full field) so the throw line and bases read
+  // bigger. 2B bag pixel position has to use the same scale.
+  const [twobX, twobY] = fieldXY(0, 90 * Math.SQRT2, IF_SCALE);
 
   const BlockChip = ({ x, y, label, grade, dir, t }: {
     x: number; y: number; label: string; grade: number | null; dir: -1 | 0 | 1;
@@ -981,7 +987,7 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
   return (
     <svg viewBox={`0 0 ${FIELD_W} ${VBOX_H}`} preserveAspectRatio="xMidYMid meet"
          style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 560, margin: '0 auto', filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.55))' }}>
-      <SprayField uid="catch" />
+      <SprayField uid="catch" scale={IF_SCALE} distArcs={[60, 120, 200]} />
 
       {/* Throwing line — home → 2B-bag, dashed */}
       <line x1={FIELD_CX} y1={FIELD_CY - 8} x2={twobX} y2={twobY + 4}
@@ -1150,7 +1156,7 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 18, borderRight: '1px solid var(--border)' }}>
         <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.20em', color: 'var(--text-muted)' }}>Phase</span>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.20em', color: 'var(--text-bright)' }}>Phase</span>
           <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</span>
         </div>
       </div>
@@ -1164,7 +1170,7 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
                 background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)', borderRadius: 10,
                 padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
               }}>
-                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-muted)' }}>{c.label}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-bright)' }}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
                   <span style={{ fontSize: 24, fontWeight: 800, color: has ? 'var(--text)' : 'var(--faint)',
                     letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
@@ -1183,7 +1189,7 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
                 background: 'rgba(255,255,255,0.025)', border: '1px solid var(--border)', borderRadius: 10,
                 padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
               }}>
-                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-muted)' }}>{c.label}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-bright)' }}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontSize: 24, fontWeight: 800, color: valueColor,
                     letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
@@ -1213,12 +1219,10 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, statsRows }: {
   return (
     <Section>
       <SectionHeader icon="🧤" iconColor="teal" title={title} subtitle={subtitle} />
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18,
-        padding: '20px 24px',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px rgba(0,0,0,0.35)',
-        display: 'flex', flexDirection: 'column', gap: 18,
-      }}>
+      <div
+        className={aStyles.profilePanel}
+        style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
+      >
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(0, 1fr)', gap: 28, alignItems: 'stretch' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
@@ -1242,7 +1246,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, statsRows }: {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0 4px', borderTop: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-muted)' }}>Underlying Stats</span>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-bright)' }}>Underlying Stats</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Full breakdown</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>{statsRows}</div>
@@ -1255,8 +1259,8 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, statsRows }: {
    SUB-TAB: CATCHING
    ═══════════════════════════════════════════ */
 
-function CatchingSubTab({
-  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, reports, videos: playerVideos,
+export function CatchingSubTab({
+  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
@@ -1286,6 +1290,7 @@ function CatchingSubTab({
     <>
       <TabBarActions>
         <AddReportButton onClick={onNewReport} show={isCoach} />
+        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={['CATCHING']}
@@ -1442,8 +1447,8 @@ function CatchingSubTab({
    SUB-TAB: INFIELD
    ═══════════════════════════════════════════ */
 
-function InfieldSubTab({
-  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, reports, videos: playerVideos,
+export function InfieldSubTab({
+  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   const defMetrics = getTabMetrics(topMetrics, TAB_METRICS.defense);
@@ -1463,6 +1468,7 @@ function InfieldSubTab({
     <>
       <TabBarActions>
         <AddReportButton onClick={onNewReport} show={isCoach} />
+        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={['INFIELD']}
@@ -1491,61 +1497,59 @@ function InfieldSubTab({
             <SectionHeader icon="🧤" iconColor="teal" title="Infielder Snapshot"
               subtitle="A field map showing range coverage and arm strength to 1B, with the glove and footwork breakdown beneath it."
             />
-            <div style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 18,
-              padding: '28px 32px 24px',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px rgba(0,0,0,0.35)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 28,
-            }}>
-              {/* TOP — Field, full width */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
-                }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
-                    Range &amp; Arm
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    {positionDot.label} · throw to 1B
-                  </span>
+            <div
+              className={aStyles.profilePanel}
+              style={{ display: 'flex', flexDirection: 'column', gap: 28 }}
+            >
+              {/* TOP — Field on the left, Hands & Range bars on the right.
+                  The field shrinks (maxWidth 460 → 460px-ish) so the bars
+                  fit beside it on wide screens; on narrow screens the row
+                  reflows so bars stack below. */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 1fr)',
+                gap: 24,
+                alignItems: 'flex-start',
+              }} className={styles.fieldRow}>
+                {/* Field column */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
+                      Range &amp; Arm
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {positionDot.label} · throw to 1B
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <PositionFieldDiagram
+                      mode="infield"
+                      positionDot={positionDot}
+                      rangeLeft={rangeLeft}
+                      rangeRight={rangeRight}
+                      rangeIn={rangeIn}
+                      rangeBack={rangeBack}
+                      armGrade={armGrade}
+                      armVelo={armVelo}
+                      maxWidth={460}
+                    />
+                  </div>
                 </div>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                  <PositionFieldDiagram
-                    mode="infield"
-                    positionDot={positionDot}
-                    rangeLeft={rangeLeft}
-                    rangeRight={rangeRight}
-                    rangeIn={rangeIn}
-                    rangeBack={rangeBack}
-                    armGrade={armGrade}
-                    armVelo={armVelo}
-                    maxWidth={680}
-                  />
-                </div>
-              </div>
 
-              {/* MIDDLE — Glove & Footwork bars, full width below */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
-                }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
-                    Glove &amp; Footwork
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>20-80 sub-scores</span>
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                  gap: 28,
-                  alignItems: 'flex-start',
-                }}>
+                {/* Bars column — Hands & Glove + Range & Footwork */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
+                      Glove &amp; Footwork
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>20-80 sub-scores</span>
+                  </div>
                   <GloveFootworkBars
                     gloveTitle="Hands & Glove"
                     gloveItems={HANDS_SKILLS.map(({ key, label }) => ({
@@ -1563,7 +1567,7 @@ function InfieldSubTab({
 
               {/* BOTTOM — Underlying stats */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-bright)' }}>
                   Underlying Stats
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Full breakdown</span>
@@ -1603,6 +1607,7 @@ function InfieldSubTab({
                   const m = defMetrics[key];
                   if (!m) return null;
                   const level = getBadgeLevel(key, m.value);
+                  const grade = GRADE_RANGES[key] ? toScoutingGrade(m.value, key) : null;
                   return (
                     <KpiCard
                       key={key}
@@ -1611,6 +1616,7 @@ function InfieldSubTab({
                       unit={m.unit}
                       badge={getBadgeText(level) || undefined}
                       badgeLevel={level}
+                      color={grade !== null ? scoreColor(grade) : undefined}
                     />
                   );
                 })}
@@ -1645,7 +1651,7 @@ function InfieldSubTab({
         <Section>
           <SectionHeader icon="📊" iconColor="green" title="Infield Grades" subtitle="20-80 Scale" />
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)' }}>
               <span>Tool</span>
               <span style={{ textAlign: 'center' }}>Value</span>
               <span style={{ textAlign: 'center' }}>Grade</span>
@@ -1728,8 +1734,8 @@ function InfieldSubTab({
    SUB-TAB: OUTFIELD
    ═══════════════════════════════════════════ */
 
-function OutfieldSubTab({
-  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, reports, videos: playerVideos,
+export function OutfieldSubTab({
+  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   const defMetrics = getTabMetrics(topMetrics, TAB_METRICS.defense);
@@ -1749,6 +1755,7 @@ function OutfieldSubTab({
     <>
       <TabBarActions>
         <AddReportButton onClick={onNewReport} show={isCoach} />
+        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={['OUTFIELD']}
@@ -1777,61 +1784,58 @@ function OutfieldSubTab({
             <SectionHeader icon="🧤" iconColor="teal" title="Outfielder Snapshot"
               subtitle="A field map showing range coverage and arm strength to home, with the glove and footwork breakdown beneath it."
             />
-            <div style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 18,
-              padding: '28px 32px 24px',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px rgba(0,0,0,0.35)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 28,
-            }}>
-              {/* TOP — Field, full width */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
-                }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
-                    Range &amp; Arm
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    {positionDot.label} · throw to home
-                  </span>
+            <div
+              className={aStyles.profilePanel}
+              style={{ display: 'flex', flexDirection: 'column', gap: 28 }}
+            >
+              {/* TOP — Field on the left, Routes & Reads bars on the right.
+                  Same 2-column treatment as the Infield sub-tab; reflows
+                  to a single column under 1100px. */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 1fr)',
+                gap: 24,
+                alignItems: 'flex-start',
+              }} className={styles.fieldRow}>
+                {/* Field column */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
+                      Range &amp; Arm
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {positionDot.label} · throw to home
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <PositionFieldDiagram
+                      mode="outfield"
+                      positionDot={positionDot}
+                      rangeLeft={rangeLeft}
+                      rangeRight={rangeRight}
+                      rangeIn={rangeIn}
+                      rangeBack={rangeBack}
+                      armGrade={armGrade}
+                      armVelo={armVelo}
+                      maxWidth={460}
+                    />
+                  </div>
                 </div>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                  <PositionFieldDiagram
-                    mode="outfield"
-                    positionDot={positionDot}
-                    rangeLeft={rangeLeft}
-                    rangeRight={rangeRight}
-                    rangeIn={rangeIn}
-                    rangeBack={rangeBack}
-                    armGrade={armGrade}
-                    armVelo={armVelo}
-                    maxWidth={680}
-                  />
-                </div>
-              </div>
 
-              {/* MIDDLE — Glove & Footwork bars below the field */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                  gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
-                }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
-                    Glove &amp; Footwork
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>20-80 sub-scores</span>
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                  gap: 28,
-                  alignItems: 'flex-start',
-                }}>
+                {/* Bars column — Glove + Routes & Reads */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
+                      Glove &amp; Footwork
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>20-80 sub-scores</span>
+                  </div>
                   <GloveFootworkBars
                     gloveTitle="Glove"
                     gloveItems={[
@@ -1852,7 +1856,7 @@ function OutfieldSubTab({
 
               {/* BOTTOM — Underlying stats */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: 'var(--text-bright)' }}>
                   Underlying Stats
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Full breakdown</span>
@@ -1887,6 +1891,7 @@ function OutfieldSubTab({
                   const m = defMetrics[key];
                   if (!m) return null;
                   const level = getBadgeLevel(key, m.value);
+                  const grade = GRADE_RANGES[key] ? toScoutingGrade(m.value, key) : null;
                   return (
                     <KpiCard
                       key={key}
@@ -1895,6 +1900,7 @@ function OutfieldSubTab({
                       unit={m.unit}
                       badge={getBadgeText(level) || undefined}
                       badgeLevel={level}
+                      color={grade !== null ? scoreColor(grade) : undefined}
                     />
                   );
                 })}
@@ -1929,7 +1935,7 @@ function OutfieldSubTab({
         <Section>
           <SectionHeader icon="📊" iconColor="green" title="Outfield Grades" subtitle="20-80 Scale" />
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)' }}>
               <span>Tool</span>
               <span style={{ textAlign: 'center' }}>Value</span>
               <span style={{ textAlign: 'center' }}>Grade</span>
@@ -2012,6 +2018,45 @@ function OutfieldSubTab({
    MAIN DEFENSE TAB (WITH SUB-TABS)
    ═══════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════
+   Top-level position tabs — each only renders
+   when the player has that position. Page-level
+   tab list wires these in directly so coaches
+   pick "Catching" / "Infield" / "Outfield" from
+   the main nav instead of through a parent
+   "Defense" tab + sub-tab nav.
+   ═══════════════════════════════════════════ */
+export function CatchingTab(props: TabProps) {
+  return (
+    <>
+      <CatchingSubTab {...props} />
+      <CustomCharts section="DEFENSE" playerId={props.player.id} />
+    </>
+  );
+}
+
+export function InfieldTab(props: TabProps) {
+  return (
+    <>
+      <InfieldSubTab {...props} />
+      <CustomCharts section="DEFENSE" playerId={props.player.id} />
+    </>
+  );
+}
+
+export function OutfieldTab(props: TabProps) {
+  return (
+    <>
+      <OutfieldSubTab {...props} />
+      <CustomCharts section="DEFENSE" playerId={props.player.id} />
+    </>
+  );
+}
+
+/** @deprecated The combined Defense tab + sub-tab nav has been split into
+ *  three position-specific top-level tabs (CatchingTab / InfieldTab /
+ *  OutfieldTab). Kept around for back-compat with anything still importing
+ *  the old name. */
 export function DefenseTab(props: TabProps) {
   // Filter sub-tabs to only those matching the player's selected positions.
   // C → Catching, INF → Infield, OF → Outfield, UTIL → Utility.

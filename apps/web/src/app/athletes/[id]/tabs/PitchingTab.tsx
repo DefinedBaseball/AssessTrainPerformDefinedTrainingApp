@@ -3,12 +3,18 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   SectionHeader, Section,
-  NotesBox, VideoPlaceholder, ReportSelector, AddReportButton,
+  NotesBox, VideoPlaceholder, ReportSelector, AddReportButton, EditProfileButton,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import hud from './PitchingTab.module.css';
-import { TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport, type ReportSummary } from '../helpers';
+import {
+  TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport,
+  getPitchingGrades, PITCHING_GRADE_SECTIONS, pitchingGradeKey,
+  scoreColor,
+  type ReportSummary, type PitchingGrades, type PitchingGradeEntry,
+  type PitchingGradeItemConfig, type PitchingGradeSectionConfig,
+} from '../helpers';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import type { TrackmanPitch } from '@/lib/api';
@@ -143,7 +149,7 @@ function ArsenalCard({ row }: { row: ArsenalRow }) {
       background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
       padding: '9px 11px', flex: 1, minWidth: 108,
     }}>
-      <div style={{ fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 5 }}>
+      <div style={{ fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 5 }}>
         {PITCH_DISPLAY[row.pitchType] || row.pitchType}
       </div>
       {hasData ? (
@@ -203,12 +209,12 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
   ];
   return (
     <>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>
+      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 4 }}>
         Selected Pitch
       </div>
       {items.map(([label, val, color]) => (
         <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 9, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>{label}</span>
+          <span style={{ fontSize: 9, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)' }}>{label}</span>
           <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono', monospace", color }}>{val}</span>
         </div>
       ))}
@@ -464,7 +470,7 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 8px 8px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 4 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-bright)', textAlign: 'center', marginBottom: 4 }}>
         Release Point Plot {isLefty ? '(LHP)' : '(RHP)'}
       </div>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
@@ -765,19 +771,19 @@ function PitchLocationPlot({
 /* ── Arsenal Table ── */
 const thStyle: React.CSSProperties = {
   textAlign: 'left', padding: '8px 10px', fontSize: 10, fontWeight: 600,
-  textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)',
+  textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)',
 };
 const tdBase: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)' };
 const tdMono: React.CSSProperties = { ...tdBase, fontFamily: "'DM Mono', monospace", fontWeight: 600 };
 
 function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
   const cols = '70px 1fr 1fr 1fr';
-  const headerStyle: React.CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'center' };
+  const headerStyle: React.CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
   const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: 'var(--text)' };
 
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 8 }}>
         Release &amp; Extension
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -816,7 +822,7 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)' }}>
         Velocity Range by Pitch
       </div>
       {rows.filter(r => r.maxVelo > 0).map(r => {
@@ -846,12 +852,12 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
 /* ── Break & Spin Table ── */
 function BreakTable({ rows }: { rows: ArsenalRow[] }) {
   const cols = '70px 1fr 1fr 1fr 1fr 1fr';
-  const headerStyle: React.CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', textAlign: 'center' };
+  const headerStyle: React.CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
   const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: 'var(--text)' };
 
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 8 }}>
         Break &amp; Spin
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -897,7 +903,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Main PitchingTab ── */
 export function PitchingTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport,
+  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile,
 }: TabProps) {
   const { user } = useAuth();
   const [pitches, setPitches] = useState<TrackmanPitch[]>([]);
@@ -969,6 +975,61 @@ export function PitchingTab({
       .finally(() => setLoading(false));
   }, [player?.id, refreshKey, reportUploadIds]);
 
+  // ── Sub-tab nav: Pitch Metrics (existing content) vs Mechanical Coach
+  // Grades (new). Mirrors HittingTab's pattern so the UX is consistent.
+  type PitchingSubTab = 'metrics' | 'mechanics';
+  const [subTab, setSubTab] = useState<PitchingSubTab>('metrics');
+
+  const activePitchingReport = selectedReport ?? latestPitching;
+  // Mechanical Grades panel reads the same pitchingGrades the report modal
+  // writes — so the 7-section delivery checkpoints surface directly on the
+  // profile tab. Switching reports refreshes the in-memory edit copy.
+  const persistedPitchingGrades = useMemo(
+    () => getPitchingGrades(activePitchingReport),
+    [activePitchingReport],
+  );
+  const [pitchingGrades, setPitchingGrades] = useState<PitchingGrades>(persistedPitchingGrades);
+  useEffect(() => { setPitchingGrades(persistedPitchingGrades); }, [persistedPitchingGrades]);
+  const [savingMech, setSavingMech] = useState(false);
+  const [mechSaveOk, setMechSaveOk] = useState(false);
+  const [mechSaveError, setMechSaveError] = useState<string | null>(null);
+  const mechDirty = JSON.stringify(pitchingGrades) !== JSON.stringify(persistedPitchingGrades);
+
+  async function saveMechanicalScores() {
+    if (!user || !activePitchingReport) {
+      setMechSaveError(activePitchingReport ? 'Not signed in.' : 'No pitching report to attach scores to. Create one first.');
+      return;
+    }
+    setSavingMech(true);
+    setMechSaveError(null);
+    setMechSaveOk(false);
+    try {
+      const userId = (user as any).id || (user as any).sub;
+      let prev: Record<string, any> = {};
+      if (activePitchingReport.content) {
+        try { prev = JSON.parse(activePitchingReport.content) || {}; } catch { /* ignore */ }
+      }
+      const newContent = {
+        ...prev,
+        // Save into pitchingGrades (same shape the modal writes) so the
+        // modal's edit view shows in-place edits made on this tab.
+        pitchingGrades: {
+          ...pitchingGrades,
+          updatedAt: new Date().toISOString(),
+          updatedBy: userId,
+        },
+      };
+      await api.updateReport(activePitchingReport.id, { content: JSON.stringify(newContent) });
+      setMechSaveOk(true);
+      onRefresh?.();
+    } catch (e) {
+      setMechSaveError((e as Error).message || 'Save failed');
+    } finally {
+      setSavingMech(false);
+      setTimeout(() => setMechSaveOk(false), 2200);
+    }
+  }
+
   const hasPitchData = pitches.length > 0;
   const arsenal = hasPitchData ? computeArsenal(pitches) : [];
 
@@ -991,6 +1052,7 @@ export function PitchingTab({
       {/* ── Report Selector + Add Report + Download (portaled into TabBar) ── */}
       <TabBarActions>
         <AddReportButton onClick={onNewReport} show={isCoach} />
+        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={['PITCHING']}
@@ -1004,6 +1066,66 @@ export function PitchingTab({
           onDownload={(r) => generatePitchingPdf(player, [r])}
         />
       </TabBarActions>
+
+      {/* ── Sub-tab nav: Pitch Metrics · Mechanical Grades ── */}
+      <div style={{
+        display: 'flex', gap: 6, padding: 4, borderRadius: 9,
+        background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+        marginBottom: 14,
+      }}>
+        {([
+          { key: 'metrics' as const,    label: 'Pitch Metrics' },
+          { key: 'mechanics' as const,  label: 'Mechanical Grades' },
+        ]).map(t => {
+          const active = subTab === t.key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setSubTab(t.key)}
+              style={{
+                flex: 1,
+                padding: '8px 14px',
+                borderRadius: 7,
+                background: active
+                  ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
+                  : 'transparent',
+                border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid transparent',
+                color: active ? '#cfe0ff' : 'var(--text-muted)',
+                fontSize: 12.5, fontWeight: 700, letterSpacing: '0.06em',
+                textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+                boxShadow: active ? '0 0 12px rgba(126,182,255,0.18) inset' : 'none',
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── MECHANICAL GRADES SUB-TAB ──
+          Renders the same 7-section delivery taxonomy that the report modal
+          writes (content.pitchingGrades). Coaches can edit + save inline;
+          non-coaches see a read-only display of the saved grades + tags. */}
+      {subTab === 'mechanics' && (
+        <MechanicalGradesPanel
+          grades={pitchingGrades}
+          setGrades={setPitchingGrades}
+          isCoach={isCoach}
+          dirty={mechDirty}
+          saving={savingMech}
+          saveOk={mechSaveOk}
+          saveError={mechSaveError}
+          hasReport={!!activePitchingReport}
+          onSave={saveMechanicalScores}
+          onReset={() => setPitchingGrades(persistedPitchingGrades)}
+        />
+      )}
+
+      {/* ── PITCH METRICS SUB-TAB ── (existing pitching content) */}
+      {subTab === 'metrics' && (
+      <>
 
       {/* Loading */}
       {loading && (
@@ -1039,9 +1161,12 @@ export function PitchingTab({
             <span className={hud.hudSubTitle}>
               <span className={hud.hudSubTitleDot} /> Location &middot; Catcher&rsquo;s View
             </span>
+            <span className={hud.hudSubTitle}>
+              <span className={hud.hudSubTitleDot} /> Release Point &middot; Pitcher&rsquo;s View
+            </span>
           </div>
 
-          {/* Plots side by side */}
+          {/* Plots side by side: Movement · Location · Release Point */}
           <div className={hud.hudPlotsGrid}>
             <div className={hud.hudPlotPane}>
               <div className={hud.hudPlotCanvas}>
@@ -1051,6 +1176,11 @@ export function PitchingTab({
             <div className={hud.hudPlotPane}>
               <div className={hud.hudPlotCanvas}>
                 <PitchLocationPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+              </div>
+            </div>
+            <div className={hud.hudPlotPane}>
+              <div className={hud.hudPlotCanvas}>
+                <ReleasePointPlot pitches={pitches} />
               </div>
             </div>
           </div>
@@ -1090,7 +1220,7 @@ export function PitchingTab({
                     'var(--text)'],
                 ] as [string, string, string][]).map(([label, val, color]) => (
                   <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 7.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                    <span style={{ fontSize: 7.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-bright)', fontFamily: "'DM Mono', monospace" }}>
                       {label}
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1101,6 +1231,12 @@ export function PitchingTab({
               </div>
             </div>
           </div>
+
+          {/* ── Mechanical Grades summary — section aggregates + descriptor
+              tags from the active pitching report. Sits between the Movement
+              Plot and the Notes so coaches see the rolled-up delivery
+              read-out without leaving the Pitch Metrics view. */}
+          <MechanicalSummaryStrip grades={pitchingGrades} />
 
           {/* ── Coaching notes — beneath Movement + Location plots ── */}
           <div style={{
@@ -1274,6 +1410,510 @@ export function PitchingTab({
 
       <CustomCharts section="PITCHING" playerId={player.id} />
 
+      </>
+      )}{/* /metrics sub-tab */}
+
     </>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MechanicalGradesPanel — renders the 7-section pitching delivery taxonomy
+   (PITCHING_GRADE_SECTIONS) for the active PITCHING report. Reads from and
+   writes to content.pitchingGrades, the same storage the report modal uses,
+   so grades populate here directly from the report upload form.
+   ───────────────────────────────────────────────────────────────────────── */
+function MechanicalGradesPanel({
+  grades, setGrades, isCoach, dirty, saving, saveOk, saveError,
+  hasReport, onSave, onReset,
+}: {
+  grades: PitchingGrades;
+  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
+  isCoach: boolean;
+  dirty: boolean;
+  saving: boolean;
+  saveOk: boolean;
+  saveError: string | null;
+  hasReport: boolean;
+  onSave: () => void;
+  onReset: () => void;
+}) {
+  const totalItems = PITCHING_GRADE_SECTIONS.reduce((n, s) => n + s.items.length, 0);
+  // An item counts as "graded" if it has a score OR at least one tag picked.
+  const filled = PITCHING_GRADE_SECTIONS.reduce((n, s) => {
+    return n + s.items.filter((it) => {
+      const e = grades[pitchingGradeKey(s.key, it.key)];
+      return !!e && (e.score != null || (e.options?.length ?? 0) > 0);
+    }).length;
+  }, 0);
+  const allScores = Object.values(grades)
+    .map((g) => g?.score)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const avg = allScores.length === 0
+    ? null
+    : Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length);
+
+  return (
+    <Section>
+      <div className={aStyles.profilePanel}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <SectionHeader icon="✍️" iconColor="teal" title="Mechanical Grades" subtitle="20-80 scale · delivery checkpoints" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-bright)', letterSpacing: '0.10em', textTransform: 'uppercase', fontWeight: 600 }}>
+              {filled} / {totalItems} graded
+            </span>
+            <span style={{
+              fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 28,
+              color: avg !== null ? scoreColor(avg) : 'var(--text-muted)', lineHeight: 1, letterSpacing: '-0.02em',
+            }}>
+              {avg ?? '—'}
+            </span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-bright)', letterSpacing: '0.16em', fontWeight: 600 }}>AVG</span>
+          </div>
+        </div>
+
+        {!hasReport && isCoach && (
+          <div style={{
+            padding: '10px 12px', borderRadius: 8,
+            background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.35)',
+            color: '#fde68a', fontSize: 12,
+          }}>
+            No Pitching Report yet — add one (or upload TrackMan data) to attach grades.
+          </div>
+        )}
+
+        {/* One sub-panel per delivery section. Coaches edit inline; non-coaches
+            see the saved grade + tags read-only. */}
+        {PITCHING_GRADE_SECTIONS.map((section) => (
+          <DeliverySectionPanel
+            key={section.key}
+            section={section}
+            grades={grades}
+            setGrades={setGrades}
+            isCoach={isCoach}
+          />
+        ))}
+
+        {/* Save bar — only meaningful for coaches with an attached report */}
+        {isCoach && hasReport && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10,
+          }}>
+            {saveError && <span style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</span>}
+            {saveOk && <span style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>Saved</span>}
+            {dirty && (
+              <button type="button" onClick={onReset}
+                style={{
+                  background: 'rgba(255,255,255,0.06)', color: 'var(--text)',
+                  border: '1px solid var(--border)', borderRadius: 8,
+                  padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}>
+                Reset
+              </button>
+            )}
+            <button type="button" onClick={onSave} disabled={!dirty || saving}
+              style={{
+                background: dirty && !saving ? 'var(--accent)' : 'rgba(255,255,255,0.06)',
+                color: dirty && !saving ? '#000' : 'var(--text-muted)',
+                border: '1px solid var(--border)', borderRadius: 8,
+                padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: dirty && !saving ? 'pointer' : 'default',
+                opacity: !dirty || saving ? 0.6 : 1,
+              }}>
+              {saving ? 'Saving...' : 'Save Grades'}
+            </button>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MechanicalSummaryStrip — compact read-only view of the 7 delivery sections,
+   rendered inline on the Pitch Metrics sub-tab between the Movement Plot
+   and the Coaching Notes. Each card shows the section title, its aggregate
+   score (avg of every populated item score), and the selected descriptor
+   tags. Skips entirely when no pitchingGrades are saved.
+   ───────────────────────────────────────────────────────────────────────── */
+function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
+  const hasAnyData = Object.values(grades)
+    .some((g) => g && (g.score != null || (g.options?.length ?? 0) > 0));
+  if (!hasAnyData) return null;
+  return (
+    <div style={{
+      margin: '10px 0 0',
+      padding: '12px 14px',
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        fontSize: 10.5, fontWeight: 700, letterSpacing: '0.22em',
+        textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
+      }}>
+        <span style={{
+          display: 'inline-block', width: 7, height: 7, borderRadius: 4,
+          background: '#7eb6ff', boxShadow: '0 0 6px rgba(126,182,255,0.6)',
+        }} />
+        Mechanical Grades
+      </span>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 8,
+      }}>
+        {PITCHING_GRADE_SECTIONS.map((section) => {
+          const sectionScores = section.items
+            .map((it) => grades[pitchingGradeKey(section.key, it.key)]?.score)
+            .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+          const avg = sectionScores.length === 0
+            ? null
+            : Math.round(sectionScores.reduce((a, b) => a + b, 0) / sectionScores.length);
+          const tone = avg !== null ? scoreColor(avg) : '#475569';
+          const pct = avg !== null ? Math.max(0, Math.min(100, ((avg - 20) / 60) * 100)) : 0;
+          // Flatten every selected descriptor across the section's items so
+          // coaches see the read-out at a glance — the granular per-item
+          // breakdown lives on the Mechanical Grades sub-tab.
+          const selectedTags = section.items.flatMap((it) => {
+            const e = grades[pitchingGradeKey(section.key, it.key)];
+            return e?.options ?? [];
+          });
+          return (
+            <div key={section.key} style={{
+              padding: '7px 9px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13 }}>{section.icon}</span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: 'var(--text-bright)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {section.title}
+                  </span>
+                </span>
+                <span style={{
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 17,
+                  color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+                }}>
+                  {avg ?? '—'}
+                </span>
+              </div>
+              <div style={{
+                height: 4, borderRadius: 2,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--border)',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: `${pct}%`, height: '100%',
+                  background: tone, transition: 'width 0.18s ease',
+                }} />
+              </div>
+              {selectedTags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {selectedTags.map((tag, i) => (
+                    <span key={`${tag}-${i}`} style={{
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      fontSize: 9.5,
+                      fontWeight: 600,
+                      background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
+                      border: '1px solid rgba(126,182,255,0.40)',
+                      color: '#cfe0ff',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DeliverySectionPanel({
+  section, grades, setGrades, isCoach,
+}: {
+  section: PitchingGradeSectionConfig;
+  grades: PitchingGrades;
+  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
+  isCoach: boolean;
+}) {
+  // Section aggregate = average of every populated item score in this
+  // section. Items with no score are excluded so a partially-graded section
+  // still surfaces a useful average rather than dragging itself toward null.
+  const sectionScores = section.items
+    .map((it) => grades[pitchingGradeKey(section.key, it.key)]?.score)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const sectionAvg = sectionScores.length === 0
+    ? null
+    : Math.round(sectionScores.reduce((a, b) => a + b, 0) / sectionScores.length);
+  const sectionTone = sectionAvg !== null ? scoreColor(sectionAvg) : '#475569';
+  const sectionPct = sectionAvg !== null ? Math.max(0, Math.min(100, ((sectionAvg - 20) / 60) * 100)) : 0;
+
+  return (
+    <div style={{
+      padding: '12px 14px',
+      background: 'rgba(255,255,255,0.018)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      {/* Section header — title on the left, aggregate grade + score bar
+          on the right. The aggregate averages every populated item in this
+          section so coaches see the rolled-up checkpoint score at a glance. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 16 }}>{section.icon}</span>
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--text-bright)',
+          whiteSpace: 'nowrap',
+        }}>
+          {section.title}
+        </span>
+        <div style={{ flex: 1, minWidth: 60, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            flex: 1,
+            height: 4, borderRadius: 2,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--border)',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${sectionPct}%`, height: '100%',
+              background: sectionTone, transition: 'width 0.18s ease',
+            }} />
+          </div>
+          <span style={{
+            fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 18,
+            color: sectionTone, lineHeight: 1, letterSpacing: '-0.02em',
+            minWidth: 26, textAlign: 'right',
+          }}>
+            {sectionAvg ?? '—'}
+          </span>
+        </div>
+      </div>
+      <div style={{
+        display: 'grid',
+        // Tightened card minimum so 4-5 fit per row at typical widths.
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: 8,
+      }}>
+        {section.items.map((item) => {
+          const k = pitchingGradeKey(section.key, item.key);
+          const entry = grades[k] || { score: null, options: [] };
+          return (
+            <DeliveryGradeItem
+              key={k}
+              item={item}
+              entry={entry}
+              isCoach={isCoach}
+              onChange={(next) => setGrades((prev) => ({ ...prev, [k]: next }))}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DeliveryGradeItem({
+  item, entry, isCoach, onChange,
+}: {
+  item: PitchingGradeItemConfig;
+  entry: PitchingGradeEntry;
+  isCoach: boolean;
+  onChange: (next: PitchingGradeEntry) => void;
+}) {
+  const value = entry.score;
+  const tone = value !== null ? scoreColor(value) : '#475569';
+  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
+  // Pencil-toggle inline-edit, mirroring SwingTab's ManualScoreCard. The
+  // slider + numeric input stay hidden until the coach explicitly opens
+  // edit mode — the default profile view is just label + grade + bar +
+  // saved tags, so it reads at a glance.
+  const [editing, setEditing] = useState(false);
+
+  const toggleOption = (opt: string) => {
+    const has = entry.options.includes(opt);
+    const next = has ? entry.options.filter((o) => o !== opt) : [...entry.options, opt];
+    onChange({ ...entry, options: next });
+  };
+
+  return (
+    <div style={{
+      position: 'relative',
+      padding: '7px 9px',
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      {/* Pencil toggle in top-right corner (coach only) */}
+      {isCoach && (
+        <button
+          type="button"
+          onClick={() => setEditing((e) => !e)}
+          title={editing ? 'Done editing' : 'Edit grade'}
+          style={{
+            position: 'absolute', top: 5, right: 5,
+            width: 18, height: 18, borderRadius: 4,
+            background: editing ? 'rgba(126,182,255,0.18)' : 'rgba(255,255,255,0.04)',
+            border: editing
+              ? '1px solid rgba(126,182,255,0.55)'
+              : '1px solid var(--border)',
+            color: editing ? 'var(--accent-light)' : 'var(--text-muted)',
+            fontSize: 10, lineHeight: 1, padding: 0,
+            cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+          }}
+        >
+          {editing ? '✓' : (
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11.5 2.5l2 2-8 8H3.5v-2z" />
+              <path d="M10 4l2 2" />
+            </svg>
+          )}
+        </button>
+      )}
+
+      {/* Label + score readout */}
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
+        paddingRight: isCoach ? 22 : 0, // leave room for edit button
+      }}>
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+          textTransform: 'uppercase', color: 'var(--text-bright)',
+        }}>
+          {item.label}
+        </span>
+        <span style={{
+          fontWeight: 800, fontSize: 17,
+          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+        }}>
+          {value ?? '—'}
+        </span>
+      </div>
+
+      {/* Score bar (always visible) */}
+      <div style={{
+        height: 4, borderRadius: 2,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid var(--border)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${pct}%`, height: '100%',
+          background: tone, transition: 'width 0.18s ease',
+        }} />
+      </div>
+
+      {/* Multi-select chips:
+          - Editing (coach + edit mode): every option toggleable
+          - Default: only the saved tags as read-only pills, hidden when none */}
+      {isCoach && editing ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {item.options.map((opt) => {
+            const active = entry.options.includes(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => toggleOption(opt)}
+                style={{
+                  padding: '4px 9px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
+                  background: active
+                    ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
+                    : 'rgba(255,255,255,0.04)',
+                  color: active ? '#cfe0ff' : 'var(--text-muted)',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+                }}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      ) : entry.options.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {entry.options.map((tag) => (
+            <span key={tag} style={{
+              padding: '1px 6px',
+              borderRadius: 4,
+              fontSize: 9.5,
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
+              border: '1px solid rgba(126,182,255,0.40)',
+              color: '#cfe0ff',
+              whiteSpace: 'nowrap',
+            }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Slider + numeric input + clear — only when editing (coach) */}
+      {isCoach && editing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="range"
+            min={20} max={80} step={5}
+            value={value ?? 50}
+            onChange={(e) => onChange({ ...entry, score: Number(e.target.value) })}
+            style={{ flex: 1 }}
+          />
+          <input
+            type="number"
+            min={20} max={80} step={5}
+            value={value ?? ''}
+            placeholder="—"
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === '') return onChange({ ...entry, score: null });
+              const n = Number(v);
+              if (!Number.isFinite(n)) return;
+              onChange({ ...entry, score: Math.max(20, Math.min(80, Math.round(n / 5) * 5)) });
+            }}
+            style={{
+              width: 56, padding: '4px 6px', fontSize: 12, fontWeight: 700,
+              background: 'rgba(0,0,0,0.25)', color: 'var(--text)',
+              border: '1px solid var(--border)', borderRadius: 6, textAlign: 'center',
+            }}
+          />
+          {(value !== null || entry.options.length > 0) && (
+            <button type="button" onClick={() => onChange({ score: null, options: [] })}
+              style={{
+                background: 'transparent', color: 'var(--text-muted)',
+                border: '1px solid var(--border)', borderRadius: 6,
+                padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+              }} title="Clear this checkpoint">x</button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -11,19 +11,19 @@ import styles from '../page.module.css';
 import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
-  toScoutingGrade, GRADE_RANGES,
+  toScoutingGrade, GRADE_RANGES, scoreColor,
   getReportUploadIds,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
 import { generateStrengthPdf } from '@/lib/pdf';
 import { CustomCharts } from '@/components/CustomCharts';
-import { TabBarActions, AddReportButton } from '@/components/assessment';
+import { TabBarActions, AddReportButton, EditProfileButton } from '@/components/assessment';
 
 const REPORT_TYPES = ['STRENGTH'];
 
 export function StrengthConditioningTab({
-  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport,
+  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport, onEditProfile,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
@@ -98,6 +98,7 @@ export function StrengthConditioningTab({
       {/* ── Report Selector + Download (portaled into TabBar) ── */}
       <TabBarActions>
         <AddReportButton onClick={onNewReport} show={isCoach} />
+        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}
@@ -122,6 +123,7 @@ export function StrengthConditioningTab({
                 const m = scMetrics[key];
                 if (!m) return null;
                 const level = getBadgeLevel(key, m.value);
+                const grade = GRADE_RANGES[key] ? toScoutingGrade(m.value, key) : null;
                 return (
                   <KpiCard
                     key={key}
@@ -130,6 +132,7 @@ export function StrengthConditioningTab({
                     unit={m.unit}
                     badge={getBadgeText(level) || undefined}
                     badgeLevel={level}
+                    color={grade !== null ? scoreColor(grade) : undefined}
                   />
                 );
               })}
@@ -178,7 +181,7 @@ export function StrengthConditioningTab({
         <Section>
           <SectionHeader icon="📊" iconColor="green" title="Athletic Grades" subtitle="20-80 Scale" />
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)' }}>
               <span>Tool</span>
               <span style={{ textAlign: 'center' }}>Value</span>
               <span style={{ textAlign: 'center' }}>Grade</span>
@@ -210,12 +213,14 @@ export function StrengthConditioningTab({
             {strengthKeys.map(key => {
               const m = scMetrics[key];
               if (!m) return null;
+              const grade = GRADE_RANGES[key] ? toScoutingGrade(m.value, key) : null;
               return (
                 <KpiCard
                   key={key}
                   label={METRIC_LABELS[key] || key}
                   value={m.value.toFixed(0)}
                   unit={m.unit}
+                  color={grade !== null ? scoreColor(grade) : undefined}
                 />
               );
             })}
@@ -231,12 +236,14 @@ export function StrengthConditioningTab({
             {bodyKeys.map(key => {
               const m = scMetrics[key];
               if (!m) return null;
+              const grade = GRADE_RANGES[key] ? toScoutingGrade(m.value, key) : null;
               return (
                 <KpiCard
                   key={key}
                   label={METRIC_LABELS[key] || key}
                   value={key === 'body_fat_pct' ? `${m.value.toFixed(1)}%` : m.value.toFixed(0)}
                   unit={key === 'body_fat_pct' ? undefined : m.unit}
+                  color={grade !== null ? scoreColor(grade) : undefined}
                 />
               );
             })}

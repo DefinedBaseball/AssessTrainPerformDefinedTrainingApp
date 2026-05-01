@@ -42,8 +42,8 @@ export class ReportsController {
 
   @Patch(':id')
   @Roles('COACH')
-  @ApiOperation({ summary: 'Update report content or notes (COACH only)' })
-  update(@Param('id') id: string, @Body() dto: { content?: string; notes?: string; videoIds?: string }) {
+  @ApiOperation({ summary: 'Update report title, content, notes, or videos (COACH only)' })
+  update(@Param('id') id: string, @Body() dto: { title?: string; content?: string; notes?: string; videoIds?: string }) {
     return this.reportsService.update(id, dto);
   }
 

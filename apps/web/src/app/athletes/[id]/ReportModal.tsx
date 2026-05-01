@@ -7,20 +7,30 @@ import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import rs from '@/components/assessment/report-form.module.css';
 import styles from './page.module.css';
-import { type ManualSwingScores, getManualSwingScores, scoreColor } from './helpers';
+import {
+  type ManualSwingScores, getManualSwingScores,
+  type ManualSwingOptions, getManualSwingOptions,
+  type PitchingGrades, type PitchingGradeEntry, getPitchingGrades,
+  type PitchingGradeItemConfig, type PitchingGradeSectionConfig,
+  PITCHING_GRADE_SECTIONS, pitchingGradeKey,
+  scoreColor,
+} from './helpers';
 
 /* ── Constants ── */
 
 const REPORT_TYPES = [
+  // HITTING is the consolidated hitting report — it carries the swing
+  // (blast/fullswing) section AND a swing-decision (at-bat) section in a single
+  // form. The standalone AT_BAT_RESULTS chip was retired in favor of this.
+  // SUMMARY is no longer a chip — it's reachable via the "Edit Profile"
+  // button in the modal header. The branch still exists in render/submit.
   { id: 'HITTING', label: 'Hitting', icon: '🏏' },
-  { id: 'AT_BAT_RESULTS', label: 'At-Bat Results', icon: '📊' },
   { id: 'PITCHING', label: 'Pitching', icon: '⚾' },
+  { id: 'STRENGTH', label: 'S & C', icon: '💪' },
+  // Defense cluster — Infield · Outfield · Catching grouped at the end
   { id: 'INFIELD', label: 'Infield', icon: '🧤' },
   { id: 'OUTFIELD', label: 'Outfield', icon: '🏃' },
   { id: 'CATCHING', label: 'Catching', icon: '🎯' },
-  { id: 'STRENGTH', label: 'S & C', icon: '💪' },
-  { id: 'COGNITION', label: 'Cognition', icon: '🧠' },
-  { id: 'SUMMARY', label: 'Summary', icon: '📋' },
 ];
 
 const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'];
@@ -65,16 +75,15 @@ function heightToInches(h: string): number | null {
   return parseInt(m[1]) * 12 + parseInt(m[2]);
 }
 
-interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; }
+interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; group?: 'swing' | 'decision'; }
 
 const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
+  // The HITTING report now bundles both swing and swing-decision data. The
+  // `group` tag drives which subsection a slot renders in (swing / decision).
   HITTING: [
-    { key: 'blast', label: 'Swing Metrics', subtitle: 'Blast Motion CSV', vendor: 'Blast Motion' },
-    { key: 'fullswing', label: 'Batted Ball Metrics', subtitle: 'Full Swing CSV', vendor: 'Full Swing' },
-  ],
-  AT_BAT_RESULTS: [
-    { key: 'atbat', label: 'At-Bat Assessment', subtitle: 'At-Bat Assessment XLSX', vendor: 'AtBat' },
-    { key: 'fullswing', label: 'Full Swing Data', subtitle: 'Full Swing CSV', vendor: 'Full Swing' },
+    { key: 'blast',     label: 'Swing Metrics',        subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing' },
+    { key: 'fullswing', label: 'Batted Ball Metrics',  subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing' },
+    { key: 'atbat',     label: 'At-Bat Assessment',    subtitle: 'At-Bat Assessment XLSX',   vendor: 'AtBat',        group: 'decision' },
   ],
   PITCHING: [{ key: 'trackman', label: 'Pitch Data', subtitle: 'TrackMan CSV', vendor: 'TrackMan' }],
   /* INFIELD uses a dedicated form — no CSV slots */
@@ -92,11 +101,22 @@ const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
 
 interface UploadResult { status: 'success' | 'error' | 'processing'; message: string; rows?: number; metrics?: number; }
 
-function CsvUploadCard({ slot, file, uploadResult, onSelect, onRemove }: {
+/** Shape of a previously-saved CSV upload, persisted into a report's
+ *  content.csvUploads[slotKey] entry. We surface it in edit mode so the coach
+ *  sees what's already attached and can remove or replace it. */
+interface ExistingUpload { vendor: string; rows?: number; metrics?: number; uploadId?: string; atBats?: number; playerName?: string; error?: string; }
+
+function CsvUploadCard({ slot, file, uploadResult, existingUpload, onSelect, onRemove, onRemoveExisting }: {
   slot: CsvSlot; file: File | null; uploadResult: UploadResult | null;
+  existingUpload?: ExistingUpload | null;
   onSelect: (f: File) => void; onRemove: () => void;
+  onRemoveExisting?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Edit mode + previously-saved upload, no new pending file → show the saved
+  // state (file name from API metadata isn't available, so we summarize the
+  // vendor + row/metric counts that were stored at upload time).
+  const showExisting = !file && !!existingUpload;
   return (
     <div className={rs.csvCard}>
       <div className={rs.csvCardHeader}>
@@ -106,16 +126,7 @@ function CsvUploadCard({ slot, file, uploadResult, onSelect, onRemove }: {
         </div>
         <span className={rs.csvVendorBadge}>{slot.vendor}</span>
       </div>
-      {!file ? (
-        <div className={rs.dropZone} onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && /\.(csv|xlsx?)$/i.test(f.name)) onSelect(f); }}
-          onClick={() => inputRef.current?.click()}>
-          <span className={rs.dropIcon}>📄</span>
-          <span className={rs.dropText}>Drop CSV here or click to browse</span>
-          <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) onSelect(f); e.target.value = ''; }} />
-        </div>
-      ) : (
+      {file ? (
         <div className={rs.fileInfo}>
           <div className={rs.fileName}>
             <span className={rs.fileIcon}>✅</span>{file.name}
@@ -128,12 +139,60 @@ function CsvUploadCard({ slot, file, uploadResult, onSelect, onRemove }: {
             </div>
           )}
         </div>
+      ) : (
+        <>
+          {/* Saved upload row (edit mode) — shows above the drop zone so the
+              coach can see what's already attached, remove it, or upload a
+              fresh file (which replaces the saved entry on save). */}
+          {showExisting && (
+            <div className={rs.fileInfo} style={{ marginBottom: 8 }}>
+              <div className={rs.fileName}>
+                <span className={rs.fileIcon}>📎</span>
+                {existingUpload!.vendor} CSV
+                <span className={rs.fileSize}>
+                  {existingUpload!.atBats != null
+                    ? `(${existingUpload!.atBats} at-bats)`
+                    : existingUpload!.rows != null
+                      ? `(${existingUpload!.rows} rows · ${existingUpload!.metrics ?? 0} metrics)`
+                      : '(saved)'}
+                </span>
+              </div>
+              <button type="button" className={rs.removeBtn} onClick={() => onRemoveExisting?.()}>Remove</button>
+            </div>
+          )}
+          {/* Drop zone — always visible, even when a saved CSV is already on
+              file. Selecting/dropping a new file replaces the saved entry on
+              save (since each slot holds a single CSV). */}
+          <div className={rs.dropZone} onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const f = e.dataTransfer.files[0];
+              if (f && /\.(csv|xlsx?)$/i.test(f.name)) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
+            }}
+            onClick={() => inputRef.current?.click()}>
+            <span className={rs.dropIcon}>📄</span>
+            <span className={rs.dropText}>
+              {showExisting ? 'Drop CSV to replace, or click to browse' : 'Drop CSV here or click to browse'}
+            </span>
+            <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
+                e.target.value = '';
+              }} />
+          </div>
+        </>
       )}
     </div>
   );
 }
 
 interface VideoEntry { id: string; file: File; }
+/** A video that's already been uploaded and attached to the report (edit
+ *  mode). Remove it to drop the link from this report on save.
+ *  `section` tags which subsection of a HITTING report the video belongs to —
+ *  legacy entries without the field default to the swing subsection. */
+interface ExistingVideo { id?: string; name: string; size: number; url?: string; section?: 'swing' | 'decision'; }
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -141,7 +200,10 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function VideoSection({ videos, setVideos }: { videos: VideoEntry[]; setVideos: (v: VideoEntry[]) => void }) {
+function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: {
+  videos: VideoEntry[]; setVideos: (v: VideoEntry[]) => void;
+  existingVideos?: ExistingVideo[]; setExistingVideos?: (v: ExistingVideo[]) => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
@@ -149,15 +211,28 @@ function VideoSection({ videos, setVideos }: { videos: VideoEntry[]; setVideos: 
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, file: f,
     }))]);
   };
+  const existing = existingVideos ?? [];
+  const totalCount = existing.length + videos.length;
   return (
     <div className={rs.section}>
       <div className={rs.sectionHeader}>
         <span className={rs.sectionIcon}>🎬</span>
         <span className={rs.sectionTitle}>Videos</span>
-        {videos.length > 0 && <span className={rs.sectionCount}>{videos.length} {videos.length === 1 ? 'file' : 'files'}</span>}
+        {totalCount > 0 && <span className={rs.sectionCount}>{totalCount} {totalCount === 1 ? 'file' : 'files'}</span>}
       </div>
-      {videos.length > 0 && (
+      {totalCount > 0 && (
         <div className={rs.videoList}>
+          {existing.map((v, i) => (
+            <div key={v.id || `existing-${i}`} className={rs.videoItem}>
+              <span className={rs.videoFileIcon}>📎</span>
+              <div className={rs.videoFileInfo}>
+                <div className={rs.videoFileName}>{v.name}</div>
+                <div className={rs.videoFileMeta}>{formatFileSize(v.size)} · saved</div>
+              </div>
+              <button type="button" className={rs.videoRemove}
+                onClick={() => setExistingVideos?.(existing.filter((_, idx) => idx !== i))}>x</button>
+            </div>
+          ))}
           {videos.map(v => (
             <div key={v.id} className={rs.videoItem}>
               <span className={rs.videoFileIcon}>🎥</span>
@@ -491,6 +566,12 @@ interface GradeRow {
   notes: string;
 }
 
+/** Strike-zone cell color: 0=red (bad), 1=white (avg), 2=green (good).
+ *  9 cells fill the inner strike zone (top-to-bottom, left-to-right);
+ *  16 cells fill the border ring around it (top row, bottom row,
+ *  then left column rows 1-3, then right column rows 1-3). */
+type ZoneVal = 0 | 1 | 2;
+
 interface CatchingFormData {
   throwing: {
     popTime2B: ThrowingRow;
@@ -500,16 +581,21 @@ interface CatchingFormData {
     overallGrade: string;
   };
   receiving: {
-    topOfZone: GradeRow;
-    bottomOfZone: GradeRow;
-    gloveSide: GradeRow;
-    armSide: GradeRow;
+    /** Click-to-shade per-zone quality — drives the dashboard's strike-zone
+     *  heat map. 9 inner cells + 16 border cells (5x5 grid total). */
+    zoneColors: ZoneVal[];        // length 9
+    borderZoneColors: ZoneVal[];  // length 16
     quietHands: GradeRow;
     stanceSetup: GradeRow;
     overallGrade: string;
   };
   blocking: {
-    range: GradeRow;
+    /** Positional blocking range grades — replaces the single "range" entry
+     *  with Block Left / Block Center / Block Right (mirrors the dashboard's
+     *  positional blocking annotations). */
+    blockLeft: GradeRow;
+    blockCenter: GradeRow;
+    blockRight: GradeRow;
     accuracy: GradeRow;
     gloveBodyAngle: GradeRow;
     recoverySpeed: GradeRow;
@@ -530,16 +616,18 @@ function emptyCatchingForm(): CatchingFormData {
       overallGrade: '',
     },
     receiving: {
-      topOfZone: { ...EMPTY_GRADE_ROW },
-      bottomOfZone: { ...EMPTY_GRADE_ROW },
-      gloveSide: { ...EMPTY_GRADE_ROW },
-      armSide: { ...EMPTY_GRADE_ROW },
+      // Default every zone cell to "average" (1) so the grid renders
+      // legibly before the coach has shaded any cell.
+      zoneColors: Array(9).fill(1) as ZoneVal[],
+      borderZoneColors: Array(16).fill(1) as ZoneVal[],
       quietHands: { ...EMPTY_GRADE_ROW },
       stanceSetup: { ...EMPTY_GRADE_ROW },
       overallGrade: '',
     },
     blocking: {
-      range: { ...EMPTY_GRADE_ROW },
+      blockLeft: { ...EMPTY_GRADE_ROW },
+      blockCenter: { ...EMPTY_GRADE_ROW },
+      blockRight: { ...EMPTY_GRADE_ROW },
       accuracy: { ...EMPTY_GRADE_ROW },
       gloveBodyAngle: { ...EMPTY_GRADE_ROW },
       recoverySpeed: { ...EMPTY_GRADE_ROW },
@@ -582,16 +670,22 @@ function buildCatchingContent(data: CatchingFormData) {
       overallGrade: data.throwing.overallGrade ? parseInt(data.throwing.overallGrade) || null : null,
     },
     receiving: {
-      topOfZone: parseGrade(data.receiving.topOfZone),
-      bottomOfZone: parseGrade(data.receiving.bottomOfZone),
-      gloveSide: parseGrade(data.receiving.gloveSide),
-      armSide: parseGrade(data.receiving.armSide),
+      // Strike-zone shading drives the dashboard's heat map. The 9 inner
+      // cells map to the strike zone; the 16 border cells map to balls
+      // around the zone.
+      zoneColors: data.receiving.zoneColors,
+      borderZoneColors: data.receiving.borderZoneColors,
       quietHands: parseGrade(data.receiving.quietHands),
       stanceSetup: parseGrade(data.receiving.stanceSetup),
       overallGrade: data.receiving.overallGrade ? parseInt(data.receiving.overallGrade) || null : null,
     },
+    // Positional blocking grades — Block Left / Center / Right replace the
+    // single "range" entry. Other blocking skills (accuracy / glove-body
+    // angle / recovery speed) stay as-is.
     blocking: {
-      range: parseGrade(data.blocking.range),
+      blockLeft: parseGrade(data.blocking.blockLeft),
+      blockCenter: parseGrade(data.blocking.blockCenter),
+      blockRight: parseGrade(data.blocking.blockRight),
       accuracy: parseGrade(data.blocking.accuracy),
       gloveBodyAngle: parseGrade(data.blocking.gloveBodyAngle),
       recoverySpeed: parseGrade(data.blocking.recoverySpeed),
@@ -630,6 +724,135 @@ const overallRowStyle: React.CSSProperties = {
   padding: '12px 16px', background: 'rgba(32,128,141,0.08)', borderRadius: 8,
   border: '1px solid rgba(32,128,141,0.2)',
 };
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CatchingZoneEditor — 5×5 interactive strike-zone shading grid for the
+   catching report. Inner 3×3 = strike zone (zoneColors[9]); outer 16 cells
+   = border / ball zones (borderZoneColors[16]). Click any cell to cycle
+   Avg → Good → Bad. Mirrors the dashboard's StrikeZoneHeatMap5x5 visual.
+   ───────────────────────────────────────────────────────────────────────── */
+const ZONE_FILLS_LOCAL: Record<ZoneVal, string> = {
+  0: '#F87171', // bad — red
+  1: 'rgba(255,255,255,0.18)', // average — neutral
+  2: '#4ADE80', // good — green
+};
+const ZONE_TONE: Record<ZoneVal, string> = { 0: 'Bad', 1: 'Avg', 2: 'Good' };
+
+function CatchingZoneEditor({
+  zoneColors, borderZoneColors, onToggleInner, onToggleBorder,
+}: {
+  zoneColors: ZoneVal[];
+  borderZoneColors: ZoneVal[];
+  onToggleInner: (idx: number) => void;
+  onToggleBorder: (idx: number) => void;
+}) {
+  const W = 320, H = 360;
+  const cellW = 56, cellH = 64;
+  const gridW = cellW * 5, gridH = cellH * 5;
+  const ox = (W - gridW) / 2;
+  const oy = 20;
+
+  // Map (row, col) in the 5×5 grid to either the inner zoneColors slot or
+  // the borderZoneColors slot (top row → bottom row → left col → right col).
+  const slotAt = (row: number, col: number): { kind: 'inner' | 'border'; idx: number } => {
+    const isStrike = row >= 1 && row <= 3 && col >= 1 && col <= 3;
+    if (isStrike) {
+      return { kind: 'inner', idx: (row - 1) * 3 + (col - 1) };
+    }
+    let idx = -1;
+    if (row === 0) idx = col;
+    else if (row === 4) idx = 5 + col;
+    else if (col === 0) idx = 10 + (row - 1);
+    else /* col === 4 */ idx = 13 + (row - 1);
+    return { kind: 'border', idx };
+  };
+
+  const cells: React.ReactNode[] = [];
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const { kind, idx } = slotAt(r, c);
+      const v = (kind === 'inner' ? zoneColors[idx] : borderZoneColors[idx]) ?? 1;
+      const x = ox + c * cellW;
+      const y = oy + r * cellH;
+      const isStrike = kind === 'inner';
+      const onClick = () => kind === 'inner' ? onToggleInner(idx) : onToggleBorder(idx);
+      cells.push(
+        <g key={`${r}-${c}`} onClick={onClick} style={{ cursor: 'pointer' }}>
+          <rect
+            x={x} y={y} width={cellW} height={cellH}
+            fill={ZONE_FILLS_LOCAL[v as ZoneVal]}
+            stroke="rgba(255,255,255,0.10)"
+            strokeWidth={isStrike ? 0.7 : 0.5}
+            rx={2}
+            opacity={isStrike ? 0.95 : 0.55}
+          />
+          <text
+            x={x + cellW / 2}
+            y={y + cellH / 2 + 4}
+            textAnchor="middle"
+            fontSize={10}
+            fontFamily="'DM Mono', monospace"
+            fontWeight={700}
+            fill="rgba(255,255,255,0.55)"
+            letterSpacing="0.06em"
+          >
+            {ZONE_TONE[v as ZoneVal]}
+          </text>
+        </g>,
+      );
+    }
+  }
+
+  return (
+    <div style={{
+      padding: '10px 12px',
+      // Was near-black; re-toned to a softer graphite so the strike-zone
+      // editor reads with the neutral profile palette.
+      background: 'rgba(110,118,125,0.10)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+           style={{ display: 'block', width: '100%', height: 'auto', maxWidth: 360, margin: '0 auto' }}>
+        {cells}
+        {/* Bold strike-zone outline around the inner 3×3 */}
+        <rect
+          x={ox + cellW * 1} y={oy + cellH * 1}
+          width={cellW * 3} height={cellH * 3}
+          fill="none"
+          stroke="rgba(255,255,255,0.85)"
+          strokeWidth={2}
+          rx={2}
+          pointerEvents="none"
+        />
+        {/* Strike-zone label inside outline (top center) */}
+        <text x={W / 2} y={oy + cellH + 14} textAnchor="middle"
+              fontSize={9} fontFamily="'DM Mono', monospace" fontWeight={700}
+              fill="rgba(255,255,255,0.70)" letterSpacing="0.22em" pointerEvents="none">
+          STRIKE ZONE
+        </text>
+      </svg>
+
+      {/* Legend + click hint */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, fontSize: 11 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--text-muted)' }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: ZONE_FILLS_LOCAL[2], opacity: 0.9 }} />
+          Good
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--text-muted)' }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: ZONE_FILLS_LOCAL[1], opacity: 0.6, border: '1px solid rgba(255,255,255,0.18)' }} />
+          Average
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--text-muted)' }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: ZONE_FILLS_LOCAL[0], opacity: 0.9 }} />
+          Bad
+        </span>
+        <span style={{ color: 'var(--faint)', fontSize: 10, marginLeft: 8 }}>Click cells to cycle</span>
+      </div>
+    </div>
+  );
+}
 
 function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: CatchingFormData) => void }) {
   const updateThrowing = (key: keyof CatchingFormData['throwing'], field: Partial<ThrowingRow>) => {
@@ -677,21 +900,36 @@ function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: 
     { key: 'velocity', label: 'Velocity — mph', mlbAvg: '~75–80' },
   ];
 
+  // Receiving rows now only cover skill-based grades — spatial zone
+  // grading happens via the interactive 5×5 strike zone above.
   const receivingRows: { key: keyof CatchingFormData['receiving']; label: string }[] = [
-    { key: 'topOfZone', label: 'Receiving — Top of Zone' },
-    { key: 'bottomOfZone', label: 'Receiving — Bottom of Zone' },
-    { key: 'gloveSide', label: 'Receiving — Glove Side' },
-    { key: 'armSide', label: 'Receiving — Arm Side' },
     { key: 'quietHands', label: 'Quiet Hands / Presentation' },
     { key: 'stanceSetup', label: 'Stance & Setup' },
   ];
 
+  // Blocking rows include the three positional Range grades + the existing
+  // technique grades.
   const blockingRows: { key: keyof CatchingFormData['blocking']; label: string }[] = [
-    { key: 'range', label: 'Blocking Range' },
-    { key: 'accuracy', label: 'Blocking Accuracy' },
+    { key: 'blockLeft',      label: 'Blocking Range — Left' },
+    { key: 'blockCenter',    label: 'Blocking Range — Center' },
+    { key: 'blockRight',     label: 'Blocking Range — Right' },
+    { key: 'accuracy',       label: 'Blocking Accuracy' },
     { key: 'gloveBodyAngle', label: 'Glove / Body Angle' },
-    { key: 'recoverySpeed', label: 'Recovery Speed' },
+    { key: 'recoverySpeed',  label: 'Recovery Speed' },
   ];
+
+  // Cycle a strike-zone cell's value: 1 (avg) → 2 (good) → 0 (bad) → 1 ...
+  const cycle = (v: ZoneVal): ZoneVal => (v === 1 ? 2 : v === 2 ? 0 : 1);
+  const updateInnerZone = (idx: number) => {
+    const next = [...data.receiving.zoneColors];
+    next[idx] = cycle(next[idx] ?? 1);
+    setData({ ...data, receiving: { ...data.receiving, zoneColors: next } });
+  };
+  const updateBorderZone = (idx: number) => {
+    const next = [...data.receiving.borderZoneColors];
+    next[idx] = cycle(next[idx] ?? 1);
+    setData({ ...data, receiving: { ...data.receiving, borderZoneColors: next } });
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -757,7 +995,18 @@ function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: 
       {/* ── RECEIVING ── */}
       <div>
         <div style={sectionTitleStyle}>
-          <span>🧤</span> Receiving — Scouting Grades (20–80)
+          <span>🧤</span> Receiving — Strike-Zone Heat Map
+        </div>
+        {/* Interactive 5×5 grid — 9 inner strike-zone cells + 16 border
+            cells around them. Click a cell to cycle Avg → Good → Bad. */}
+        <CatchingZoneEditor
+          zoneColors={data.receiving.zoneColors}
+          borderZoneColors={data.receiving.borderZoneColors}
+          onToggleInner={updateInnerZone}
+          onToggleBorder={updateBorderZone}
+        />
+        <div style={{ ...sectionTitleStyle, marginTop: 16 }}>
+          <span>🧤</span> Receiving — Skill Grades (20–80)
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, padding: '0 0 4px' }}>
@@ -1364,11 +1613,19 @@ interface ReportModalProps {
   /** When provided, the modal opens in EDIT mode for this existing report —
    *  prefills reportType / title / notes and saves via PATCH instead of POST. */
   existingReport?: import('./helpers').ReportSummary | null;
+  /** Opens the modal at a specific report-type tab on first render.
+   *  Used for the player-side "Edit Profile" entry point — passing
+   *  'SUMMARY' lands directly on the personal-details form. */
+  initialReportType?: string;
+  /** When true, hides the report-type chip row and the modal title flips
+   *  to "Edit Profile" — used by the player-side entry point so non-coaches
+   *  can edit their personal details without seeing the report flow. */
+  profileOnly?: boolean;
 }
 
-export function ReportModal({ player, userId, onClose, onSaved, existingReport }: ReportModalProps) {
+export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly }: ReportModalProps) {
   const isEdit = !!existingReport;
-  const [reportType, setReportType] = useState(existingReport?.reportType || 'HITTING');
+  const [reportType, setReportType] = useState(existingReport?.reportType || initialReportType || 'HITTING');
   const [csvFiles, setCsvFiles] = useState<Record<string, File | null>>({});
   const [csvResults, setCsvResults] = useState<Record<string, UploadResult | null>>({});
   const [reportTitle, setReportTitle] = useState(existingReport?.title || '');
@@ -1376,6 +1633,45 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
   const [videos, setVideos] = useState<VideoEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // ── Edit-mode prefill: surface previously-attached CSV uploads + videos so
+  // the coach can see what's saved and remove or replace it. Both pieces of
+  // state are mutated by the form (Remove clicks) and then re-merged in
+  // handleSubmit so anything the user kept is preserved.
+  const parseExistingContent = (): Record<string, any> => {
+    if (!existingReport?.content) return {};
+    try { return JSON.parse(existingReport.content) || {}; } catch { return {}; }
+  };
+  const [existingCsvUploads, setExistingCsvUploads] = useState<Record<string, ExistingUpload>>(() => {
+    const c = parseExistingContent();
+    return (c.csvUploads && typeof c.csvUploads === 'object') ? { ...c.csvUploads } : {};
+  });
+  // Top-section videos (Swing) — anything not tagged 'decision' lands here.
+  const [existingVideos, setExistingVideos] = useState<ExistingVideo[]>(() => {
+    const c = parseExistingContent();
+    if (Array.isArray(c.videos)) return c.videos.filter((v: ExistingVideo) => v.section !== 'decision');
+    // No content.videos array — fall back to deriving from videoIds (older
+    // reports that pre-date the content.videos field).
+    if (existingReport?.videoIds) {
+      return existingReport.videoIds.split(',').map(s => s.trim()).filter(Boolean)
+        .map(id => ({ id, name: `Video ${id.slice(0, 8)}`, size: 0 }));
+    }
+    return [];
+  });
+  // Bottom-section videos (Swing Decision) — only entries explicitly tagged
+  // 'decision' appear here. New uploads in this section get tagged on save.
+  const [existingSwingDecisionVideos, setExistingSwingDecisionVideos] = useState<ExistingVideo[]>(() => {
+    const c = parseExistingContent();
+    if (Array.isArray(c.videos)) return c.videos.filter((v: ExistingVideo) => v.section === 'decision');
+    return [];
+  });
+  // Swing-decision sub-section state (HITTING reports only). Notes saved at
+  // content.swingDecisionNotes; staged videos uploaded + tagged on save.
+  const [swingDecisionNotes, setSwingDecisionNotes] = useState<string>(() => {
+    const c = parseExistingContent();
+    return typeof c.swingDecisionNotes === 'string' ? c.swingDecisionNotes : '';
+  });
+  const [swingDecisionVideos, setSwingDecisionVideos] = useState<VideoEntry[]>([]);
 
   const emptySummary: SummaryData = {
     firstName: '', lastName: '', positions: [], bats: '', throws: '',
@@ -1396,6 +1692,21 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
       forwardMove: null, posture: null, stability: null, direction: null,
       stretch: null, core: null, slot: null, timing: null,
     }
+  );
+  // Multi-select option tags paired with each manual score (descriptive
+  // labels like "Drift" / "Tall" / "+Stack"). Stored at content.manualOptions.
+  const [manualOptions, setManualOptions] = useState<ManualSwingOptions>(() =>
+    isEdit && existingReport ? getManualSwingOptions(existingReport) : {
+      forwardMove: [], posture: [], stability: [], direction: [],
+      stretch: [], core: [], slot: [], timing: [],
+    }
+  );
+
+  // Pitching grades (PITCHING reports). When editing, prefill from the
+  // report's content.pitchingGrades; otherwise start empty so each row reads
+  // "—" until the coach grades it.
+  const [pitchingGrades, setPitchingGrades] = useState<PitchingGrades>(() =>
+    isEdit && existingReport ? getPitchingGrades(existingReport) : {}
   );
 
   // Pre-fill summary from player
@@ -1473,31 +1784,59 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
             uploadSummary[slot.key] = { vendor: slot.vendor, error: err?.message };
           }
         }
-        // Upload video files
-        const uploadedVideoIds: string[] = [];
-        const uploadedVideos: { name: string; size: number; id?: string; url?: string }[] = [];
-        for (const v of videos) {
-          try {
-            const result = await api.uploadVideo(v.file, player.id, v.file.name.replace(/\.[^.]+$/, ''), reportType);
-            uploadedVideoIds.push(result.id);
-            uploadedVideos.push({ name: v.file.name, size: v.file.size, id: result.id, url: result.originalUrl || undefined });
-          } catch (err: any) {
-            console.error('Video upload failed:', err);
-            uploadedVideos.push({ name: v.file.name, size: v.file.size });
+        // Upload video files. HITTING reports have a second pool of pending
+        // videos staged in the Swing Decision sub-section — those get tagged
+        // section: 'decision' so we can split them apart on the next edit.
+        type SavedVideo = { name: string; size: number; id?: string; url?: string; section?: 'swing' | 'decision' };
+        const uploadVideos = async (entries: VideoEntry[], section: 'swing' | 'decision') => {
+          const ids: string[] = [];
+          const saved: SavedVideo[] = [];
+          for (const v of entries) {
+            try {
+              const result = await api.uploadVideo(v.file, player.id, v.file.name.replace(/\.[^.]+$/, ''), reportType);
+              ids.push(result.id);
+              saved.push({ name: v.file.name, size: v.file.size, id: result.id, url: result.originalUrl || undefined, section });
+            } catch (err: any) {
+              console.error('Video upload failed:', err);
+              saved.push({ name: v.file.name, size: v.file.size, section });
+            }
           }
-        }
+          return { ids, saved };
+        };
+        const swingUpload    = await uploadVideos(videos, 'swing');
+        const decisionUpload = reportType === 'HITTING'
+          ? await uploadVideos(swingDecisionVideos, 'decision')
+          : { ids: [], saved: [] };
+        const uploadedVideoIds = [...swingUpload.ids, ...decisionUpload.ids];
 
         // In edit mode, MERGE the new content keys over the existing report's
         // content JSON so we don't drop fields the modal doesn't manage
         // (manualScores, diagnosisNotes, etc. saved by other UIs).
+        // CSV / video MERGE rules:
+        //  - Start with the existing entries the user *kept* (they may have
+        //    removed slots/videos in the form — those are gone now).
+        //  - Layer newly-uploaded CSV slots over the kept existing slots
+        //    (a Replace action drops the existing entry first, so the new
+        //     upload simply takes its slot).
+        //  - Tag every video with its section so the next edit can split them
+        //    back into the Swing vs Swing Decision lists.
         let prevContent: Record<string, any> = {};
         if (isEdit && existingReport?.content) {
           try { prevContent = JSON.parse(existingReport.content) || {}; } catch { /* ignore */ }
         }
+        const mergedCsvUploads = { ...existingCsvUploads, ...uploadSummary };
+        const tagSwing    = (v: ExistingVideo): SavedVideo => ({ ...v, section: 'swing' });
+        const tagDecision = (v: ExistingVideo): SavedVideo => ({ ...v, section: 'decision' });
+        const mergedVideos: SavedVideo[] = [
+          ...existingVideos.map(tagSwing),
+          ...(reportType === 'HITTING' ? existingSwingDecisionVideos.map(tagDecision) : []),
+          ...swingUpload.saved,
+          ...decisionUpload.saved,
+        ];
         const newContent = {
           ...prevContent,
-          ...(Object.keys(uploadSummary).length > 0 ? { csvUploads: { ...(prevContent.csvUploads || {}), ...uploadSummary } } : {}),
-          ...(uploadedVideos.length > 0 ? { videos: [...(prevContent.videos || []), ...uploadedVideos] } : {}),
+          ...(Object.keys(mergedCsvUploads).length > 0 ? { csvUploads: mergedCsvUploads } : { csvUploads: undefined }),
+          ...(mergedVideos.length > 0 ? { videos: mergedVideos } : { videos: undefined }),
           ...(atBatData ? { atBatAssessment: atBatData } : {}),
           ...(reportType === 'CATCHING' ? { catchingAssessment: buildCatchingContent(catchingData) } : {}),
           ...(reportType === 'INFIELD' ? { infieldAssessment: buildInfieldContent(infieldData) } : {}),
@@ -1515,17 +1854,37 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
               updatedAt:   new Date().toISOString(),
               updatedBy:   userId,
             },
+            // Multi-select descriptive tags for each Coach Diagnosis category
+            // (e.g. forwardMove: ['Drift']). Always written so removals stick.
+            manualOptions: { ...manualOptions },
+            // Swing Decision sub-section notes — empty string clears the field.
+            swingDecisionNotes: swingDecisionNotes || undefined,
+          } : {}),
+          ...(reportType === 'PITCHING' ? {
+            // 7-section delivery grades (score + multi-select tags per item).
+            // Saved every submit so removed entries propagate cleanly.
+            pitchingGrades: {
+              ...pitchingGrades,
+              updatedAt: new Date().toISOString(),
+              updatedBy: userId,
+            },
           } : {}),
         };
         const content = JSON.stringify(newContent);
         if (isEdit && existingReport) {
-          // Combine previously-saved videoIds with any newly uploaded ones
-          const prevIds = (existingReport.videoIds || '').split(',').map(s => s.trim()).filter(Boolean);
-          const combinedIds = [...prevIds, ...uploadedVideoIds];
+          // videoIds = kept-existing video IDs (both sections) + newly-uploaded IDs.
+          // (We don't fall back to existingReport.videoIds — anything the user
+          // removed in the form is intentionally dropped from the link.)
+          const keptIds = [
+            ...existingVideos.map(v => v.id).filter((x): x is string => !!x),
+            ...(reportType === 'HITTING' ? existingSwingDecisionVideos.map(v => v.id).filter((x): x is string => !!x) : []),
+          ];
+          const combinedIds = [...keptIds, ...uploadedVideoIds];
           await api.updateReport(existingReport.id, {
+            title: reportTitle || undefined,
             content,
             notes: notes || undefined,
-            videoIds: combinedIds.length > 0 ? combinedIds.join(',') : undefined,
+            videoIds: combinedIds.length > 0 ? combinedIds.join(',') : '',
           });
         } else {
           await api.createReport({
@@ -1553,24 +1912,73 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
     <div className={styles.modalOverlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
-          <h2 className={styles.modalTitle}>New Report — {player.firstName} {player.lastName}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h2 className={styles.modalTitle}>
+              {reportType === 'SUMMARY' ? 'Edit Profile' : 'New Report'} — {player.firstName} {player.lastName}
+            </h2>
+            {/* Edit Profile toggles to/from the Summary form. The chip was
+                removed from REPORT_TYPES, so this is the only entry point.
+                Hidden in profileOnly mode (player edit-profile entry) since
+                the player shouldn't see the report flow at all. */}
+            {!profileOnly && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (reportType === 'SUMMARY') {
+                    setReportType('HITTING');
+                  } else {
+                    setReportType('SUMMARY');
+                    setNotes(''); setVideos([]); setExistingCsvUploads({}); setExistingVideos([]);
+                    setSwingDecisionNotes(''); setSwingDecisionVideos([]); setExistingSwingDecisionVideos([]);
+                  }
+                }}
+                style={{
+                  background: reportType === 'SUMMARY' ? 'var(--accent)' : 'rgba(255,255,255,0.06)',
+                  color: reportType === 'SUMMARY' ? '#000' : 'var(--text)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                title={reportType === 'SUMMARY' ? 'Back to report upload' : 'Edit player profile information'}
+              >
+                {reportType === 'SUMMARY' ? '← Back to Reports' : 'Edit Profile'}
+              </button>
+            )}
+          </div>
           <button type="button" className={styles.modalClose} onClick={onClose}>x</button>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.modalBody}>
-          {/* Report type chips — cleaner, segmented row */}
+          {/* Report type chips — cleaner, segmented row.
+              Hidden entirely in profileOnly mode so the player only sees
+              the SUMMARY form fields. */}
+          {!profileOnly && (
           <div className={rs.fieldGroup}>
             <label className={rs.label}>Report Type</label>
             <div className={rs.chipRow}>
               {REPORT_TYPES.map(t => (
                 <button key={t.id} type="button"
                   className={`${rs.chip} ${reportType === t.id ? rs.chipActive : ''}`}
-                  onClick={() => { setReportType(t.id); setNotes(''); setVideos([]); }}>
+                  onClick={() => {
+                    setReportType(t.id);
+                    setNotes(''); setVideos([]); setExistingCsvUploads({}); setExistingVideos([]);
+                    setSwingDecisionNotes(''); setSwingDecisionVideos([]); setExistingSwingDecisionVideos([]);
+                    setPitchingGrades({});
+                    setManualOptions({
+                      forwardMove: [], posture: [], stability: [], direction: [],
+                      stretch: [], core: [], slot: [], timing: [],
+                    });
+                  }}>
                   <span className={rs.chipIcon}>{t.icon}</span>{t.label}
                 </button>
               ))}
             </div>
           </div>
+          )}
 
           {/* Report Name */}
           {reportType !== 'SUMMARY' && (
@@ -1598,7 +2006,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
                 <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Overall catching assessment notes, areas to develop..." rows={4} />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
             </>
           ) : reportType === 'INFIELD' ? (
             <>
@@ -1608,7 +2016,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
                 <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Infield defensive assessment notes, areas to develop..." rows={4} />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
             </>
           ) : reportType === 'OUTFIELD' ? (
             <>
@@ -1618,33 +2026,99 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
                 <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Outfield defensive assessment notes, areas to develop..." rows={4} />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
             </>
           ) : (
             <>
               {reportType === 'HITTING' && (
-                <CoachDiagnosisSliders scores={manualScores} setScores={setManualScores} />
+                <CoachDiagnosisSliders
+                  scores={manualScores} setScores={setManualScores}
+                  options={manualOptions} setOptions={setManualOptions}
+                />
+              )}
+              {reportType === 'PITCHING' && (
+                <PitchingGradesSections grades={pitchingGrades} setGrades={setPitchingGrades} />
               )}
               <div className={rs.section}>
                 <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>Notes</span></div>
                 <textarea className={rs.notesArea} value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Session observations, development notes, drill recommendations..." rows={4} />
               </div>
-              <div className={rs.section}>
-                <div className={rs.sectionHeader}>
-                  <span className={rs.sectionIcon}>📊</span>
-                  <span className={rs.sectionTitle}>Data Imports</span>
-                  <span className={rs.sectionCount}>{csvSlots.length} {csvSlots.length === 1 ? 'source' : 'sources'}</span>
-                </div>
-                <div className={rs.csvGrid}>
-                  {csvSlots.map(slot => (
-                    <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
-                      onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
-                      onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }} />
-                  ))}
-                </div>
-              </div>
-              <VideoSection videos={videos} setVideos={setVideos} />
+              {/* HITTING reports split CSV slots into two visual groups —
+                  Swing (Blast / Full Swing) and Swing Decision (At-Bat).
+                  Other report types render a single Data Imports group. */}
+              {(() => {
+                const swingGroup = reportType === 'HITTING'
+                  ? csvSlots.filter(s => s.group !== 'decision')
+                  : csvSlots;
+                if (swingGroup.length === 0) return null;
+                return (
+                  <div className={rs.section}>
+                    <div className={rs.sectionHeader}>
+                      <span className={rs.sectionIcon}>📊</span>
+                      <span className={rs.sectionTitle}>Data Imports</span>
+                      <span className={rs.sectionCount}>{swingGroup.length} {swingGroup.length === 1 ? 'source' : 'sources'}</span>
+                    </div>
+                    <div className={rs.csvGrid}>
+                      {swingGroup.map(slot => (
+                        <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
+                          existingUpload={existingCsvUploads[slot.key] || null}
+                          onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
+                          onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }}
+                          onRemoveExisting={() => setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; })} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
+
+              {/* ── Swing Decision sub-section (HITTING only) ──
+                  Has its OWN notes textarea, At-Bat XLSX slot, and video list.
+                  Saved into the same HITTING report — videos get tagged with
+                  section: 'decision' so the modal can split them apart on
+                  next edit. */}
+              {reportType === 'HITTING' && (() => {
+                const decisionGroup = csvSlots.filter(s => s.group === 'decision');
+                return (
+                  <>
+                    <div style={{ height: 1, background: 'var(--border)', margin: '12px 0 4px' }} />
+                    <div className={rs.section} style={{ paddingTop: 8 }}>
+                      <div className={rs.sectionHeader}>
+                        <span className={rs.sectionIcon}>🎯</span>
+                        <span className={rs.sectionTitle}>Swing Decision</span>
+                      </div>
+                    </div>
+                    <div className={rs.section}>
+                      <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>Notes</span></div>
+                      <textarea className={rs.notesArea} value={swingDecisionNotes} onChange={e => setSwingDecisionNotes(e.target.value)}
+                        placeholder="At-bat approach, plate discipline, decision quality..." rows={4} />
+                    </div>
+                    {decisionGroup.length > 0 && (
+                      <div className={rs.section}>
+                        <div className={rs.sectionHeader}>
+                          <span className={rs.sectionIcon}>📊</span>
+                          <span className={rs.sectionTitle}>Data Imports</span>
+                          <span className={rs.sectionCount}>{decisionGroup.length} {decisionGroup.length === 1 ? 'source' : 'sources'}</span>
+                        </div>
+                        <div className={rs.csvGrid}>
+                          {decisionGroup.map(slot => (
+                            <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
+                              existingUpload={existingCsvUploads[slot.key] || null}
+                              onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
+                              onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }}
+                              onRemoveExisting={() => setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; })} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <VideoSection
+                      videos={swingDecisionVideos} setVideos={setSwingDecisionVideos}
+                      existingVideos={existingSwingDecisionVideos} setExistingVideos={setExistingSwingDecisionVideos}
+                    />
+                  </>
+                );
+              })()}
             </>
           )}
 
@@ -1666,25 +2140,27 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport }
    player on each Hitting Report. The same data feeds the Coach Diagnosis bar
    in the Hitting Snapshot bubble on the player's profile.
    ─────────────────────────────────────────────────────────────────────────── */
-const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: string }[] = [
-  { key: 'forwardMove', label: 'Forward Move', hint: 'Lower-half load → directional intent toward the pitcher.' },
-  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.' },
-  { key: 'stability',   label: 'Stability',    hint: 'Balance and base — head-still through finish.' },
-  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.' },
-  { key: 'stretch',     label: 'Stretch',      hint: 'Length & separation between hips and shoulders at launch.' },
-  { key: 'core',        label: 'Core',         hint: 'Trunk strength & sequencing through contact.' },
-  { key: 'slot',        label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.' },
-  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.' },
+const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; options: string[] }[] = [
+  { key: 'forwardMove', label: 'Forward Move', hint: 'Lower-half load → directional intent toward the pitcher.', options: ['Stuck', 'Stable', 'Drift'] },
+  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
+  { key: 'stability',   label: 'Stability',    hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
+  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
+  { key: 'stretch',     label: 'Stretch',      hint: 'Length & separation between hips and shoulders at launch.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
+  { key: 'core',        label: 'Core',         hint: 'Trunk strength & sequencing through contact.',              options: ['Connected', 'Disconnected', 'Weak'] },
+  { key: 'slot',        label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.',         options: ['Steep', 'Flat', 'Uphill'] },
+  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
 ];
 
 function CoachDiagnosisSliders({
-  scores,
-  setScores,
+  scores, setScores,
+  options, setOptions,
 }: {
   scores: ManualSwingScores;
   setScores: React.Dispatch<React.SetStateAction<ManualSwingScores>>;
+  options: ManualSwingOptions;
+  setOptions: React.Dispatch<React.SetStateAction<ManualSwingOptions>>;
 }) {
-  const filledCount = COACH_DIAG_KEYS.filter(k => scores[k.key] != null).length;
+  const filledCount = COACH_DIAG_KEYS.filter(k => scores[k.key] != null || (options[k.key]?.length ?? 0) > 0).length;
   return (
     <div className={rs.section}>
       <div className={rs.sectionHeader}>
@@ -1697,13 +2173,20 @@ function CoachDiagnosisSliders({
         gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: 12,
       }}>
-        {COACH_DIAG_KEYS.map(({ key, label, hint }) => (
+        {COACH_DIAG_KEYS.map(({ key, label, hint, options: opts }) => (
           <CoachDiagnosisRow
             key={key}
             label={label}
             hint={hint}
             value={scores[key]}
             onChange={(v) => setScores(prev => ({ ...prev, [key]: v }))}
+            optionList={opts}
+            selectedOptions={options[key] || []}
+            onToggleOption={(opt) => setOptions(prev => {
+              const cur = prev[key] || [];
+              const next = cur.includes(opt) ? cur.filter(o => o !== opt) : [...cur, opt];
+              return { ...prev, [key]: next };
+            })}
           />
         ))}
       </div>
@@ -1713,11 +2196,15 @@ function CoachDiagnosisSliders({
 
 function CoachDiagnosisRow({
   label, hint, value, onChange,
+  optionList, selectedOptions, onToggleOption,
 }: {
   label: string;
   hint: string;
   value: number | null;
   onChange: (v: number | null) => void;
+  optionList: string[];
+  selectedOptions: string[];
+  onToggleOption: (opt: string) => void;
 }) {
   const tone = value !== null ? scoreColor(value) : '#475569';
   const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
@@ -1746,6 +2233,37 @@ function CoachDiagnosisRow({
         </span>
       </div>
 
+      {/* Multi-select option chips — saved alongside the score and surfaced
+          on the Hitting Report read side under the Coach Diagnosis row. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+        {optionList.map(opt => {
+          const active = selectedOptions.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => onToggleOption(opt)}
+              style={{
+                padding: '4px 9px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
+                background: active
+                  ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
+                  : 'rgba(255,255,255,0.04)',
+                color: active ? '#cfe0ff' : 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+                transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+              }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{
         height: 5, borderRadius: 3,
         background: 'rgba(255,255,255,0.04)',
@@ -1763,6 +2281,12 @@ function CoachDiagnosisRow({
           type="range"
           min={20} max={80} step={5}
           value={value ?? 50}
+          // Hide the thumb when this row is unscored so coaches don't
+          // think "50" is already picked. First interaction snaps to 50
+          // (or wherever they click via native onChange) and the thumb
+          // reappears.
+          className={value === null ? 'scoreSliderEmpty' : undefined}
+          onPointerDown={() => { if (value === null) onChange(50); }}
           onChange={(e) => onChange(Number(e.target.value))}
           style={{ flex: 1 }}
         />
@@ -1806,6 +2330,209 @@ function CoachDiagnosisRow({
       <span style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.45 }}>
         {hint}
       </span>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PITCHING report — graded delivery checkpoints
+   The 7-section taxonomy (PITCHING_GRADE_SECTIONS) is defined in helpers.ts
+   so the player profile's Mechanical Grades panel can render the same data.
+   Each item carries a 20-80 score PLUS multi-select descriptive tags, saved
+   as content.pitchingGrades keyed by `${section}.${item}`.
+   ───────────────────────────────────────────────────────────────────────── */
+/** Total item count across all sections — drives the "X / N graded" header. */
+const PITCHING_GRADE_TOTAL_ITEMS = PITCHING_GRADE_SECTIONS.reduce((n, s) => n + s.items.length, 0);
+
+function PitchingGradesSections({
+  grades, setGrades,
+}: {
+  grades: PitchingGrades;
+  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
+}) {
+  const filledCount = Object.values(grades)
+    .filter(g => g && (g.score != null || (g.options?.length ?? 0) > 0)).length;
+  return (
+    <>
+      <div className={rs.section}>
+        <div className={rs.sectionHeader}>
+          <span className={rs.sectionIcon}>✍️</span>
+          <span className={rs.sectionTitle}>Delivery Grades</span>
+          <span className={rs.sectionCount}>{filledCount} / {PITCHING_GRADE_TOTAL_ITEMS} graded</span>
+        </div>
+      </div>
+      {PITCHING_GRADE_SECTIONS.map(sec => (
+        <PitchingGradeSection key={sec.key} section={sec} grades={grades} setGrades={setGrades} />
+      ))}
+    </>
+  );
+}
+
+function PitchingGradeSection({
+  section, grades, setGrades,
+}: {
+  section: PitchingGradeSectionConfig;
+  grades: PitchingGrades;
+  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
+}) {
+  return (
+    <div className={rs.section}>
+      <div className={rs.sectionHeader}>
+        <span className={rs.sectionIcon}>{section.icon}</span>
+        <span className={rs.sectionTitle}>{section.title}</span>
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: 12,
+      }}>
+        {section.items.map(item => {
+          const k = pitchingGradeKey(section.key, item.key);
+          const entry = grades[k] || { score: null, options: [] };
+          return (
+            <PitchingGradeItem
+              key={k}
+              item={item}
+              entry={entry}
+              onChange={(next) => setGrades(prev => ({ ...prev, [k]: next }))}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PitchingGradeItem({
+  item, entry, onChange,
+}: {
+  item: PitchingGradeItemConfig;
+  entry: PitchingGradeEntry;
+  onChange: (next: PitchingGradeEntry) => void;
+}) {
+  const value = entry.score;
+  const tone = value !== null ? scoreColor(value) : '#475569';
+  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
+
+  const toggleOption = (opt: string) => {
+    const has = entry.options.includes(opt);
+    const next = has ? entry.options.filter(o => o !== opt) : [...entry.options, opt];
+    onChange({ ...entry, options: next });
+  };
+
+  return (
+    <div style={{
+      padding: '12px 14px',
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      display: 'flex', flexDirection: 'column', gap: 9,
+    }}>
+      {/* Label + score readout */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{
+          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--text-muted)',
+        }}>
+          {item.label}
+        </span>
+        <span style={{
+          fontWeight: 800, fontSize: 22,
+          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+        }}>
+          {value ?? '—'}
+        </span>
+      </div>
+
+      {/* Multi-select chips */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+        {item.options.map(opt => {
+          const active = entry.options.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => toggleOption(opt)}
+              style={{
+                padding: '4px 9px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
+                background: active
+                  ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
+                  : 'rgba(255,255,255,0.04)',
+                color: active ? '#cfe0ff' : 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+                transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+              }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Score bar */}
+      <div style={{
+        height: 5, borderRadius: 3,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid var(--border)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${pct}%`, height: '100%',
+          background: tone, transition: 'width 0.18s ease',
+        }} />
+      </div>
+
+      {/* Slider + numeric input + clear */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range"
+          min={20} max={80} step={5}
+          value={value ?? 50}
+          // Hide the thumb when this checkpoint hasn't been graded so
+          // coaches don't think "50" is already picked. First interaction
+          // snaps to 50 (or to the clicked position) and the thumb
+          // reappears.
+          className={value === null ? 'scoreSliderEmpty' : undefined}
+          onPointerDown={() => { if (value === null) onChange({ ...entry, score: 50 }); }}
+          onChange={(e) => onChange({ ...entry, score: Number(e.target.value) })}
+          style={{ flex: 1 }}
+        />
+        <input
+          type="number"
+          min={20} max={80} step={5}
+          value={value ?? ''}
+          placeholder="—"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '') return onChange({ ...entry, score: null });
+            const n = Number(v);
+            if (!Number.isFinite(n)) return;
+            onChange({ ...entry, score: Math.max(20, Math.min(80, Math.round(n / 5) * 5)) });
+          }}
+          style={{
+            width: 56, padding: '4px 6px', fontSize: 12, fontWeight: 700,
+            background: 'rgba(0,0,0,0.25)', color: 'var(--text)',
+            border: '1px solid var(--border)', borderRadius: 6, textAlign: 'center',
+          }}
+        />
+        {(value !== null || entry.options.length > 0) && (
+          <button
+            type="button"
+            onClick={() => onChange({ score: null, options: [] })}
+            title="Clear this checkpoint"
+            style={{
+              background: 'transparent', color: 'var(--text-muted)',
+              border: '1px solid var(--border)', borderRadius: 6,
+              padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+            }}
+          >x</button>
+        )}
+      </div>
     </div>
   );
 }

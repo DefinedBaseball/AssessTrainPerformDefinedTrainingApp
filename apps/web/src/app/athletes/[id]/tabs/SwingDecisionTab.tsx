@@ -130,6 +130,7 @@ export function SwingDecisionTab({
                       value={`${m.value.toFixed(1)}%`}
                       badge={grade !== null ? `Grade ${grade}` : (getBadgeText(level) || undefined)}
                       badgeLevel={level}
+                      color={grade !== null ? scoreColor(grade) : undefined}
                     />
                   );
                 })}
@@ -178,6 +179,7 @@ export function SwingDecisionTab({
                     value={`${m.value.toFixed(1)}%`}
                     badge={grade !== null ? `Grade ${grade}` : (getBadgeText(level) || undefined)}
                     badgeLevel={level}
+                    color={grade !== null ? scoreColor(grade) : undefined}
                   />
                 );
               })}
@@ -215,7 +217,7 @@ function CompositeHero({
       borderRadius: 14, alignItems: 'center',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.30em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.30em', textTransform: 'uppercase', color: 'var(--text-bright)' }}>
           {label}
         </span>
         <div style={{ fontSize: 64, fontWeight: 800, lineHeight: 1, color: tone, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em' }}>

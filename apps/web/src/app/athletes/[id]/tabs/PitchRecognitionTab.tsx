@@ -12,7 +12,7 @@ import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
   getReportVideoIds, getReportContentVideos,
-  getReportUploadIds,
+  getReportUploadIds, metricToGrade, scoreColor,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -471,7 +471,7 @@ export function PitchRecognitionTab({
                     textAlign: 'center',
                     borderRight: i < available.length - 1 ? '1px solid var(--border)' : 'none',
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)', marginBottom: 6 }}>
                       {stat.label}
                     </div>
                     <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: statColor, lineHeight: 1 }}>
@@ -662,6 +662,7 @@ export function PitchRecognitionTab({
               const m = recMetrics[key];
               if (!m) return null;
               const level = getBadgeLevel(key, m.value);
+              const grade = metricToGrade(recMetrics, key);
               return (
                 <KpiCard
                   key={key}
@@ -670,6 +671,7 @@ export function PitchRecognitionTab({
                   unit={key === 'ab_iq' ? 'grade' : undefined}
                   badge={getBadgeText(level) || undefined}
                   badgeLevel={level}
+                  color={grade !== null ? scoreColor(grade) : undefined}
                 />
               );
             })}

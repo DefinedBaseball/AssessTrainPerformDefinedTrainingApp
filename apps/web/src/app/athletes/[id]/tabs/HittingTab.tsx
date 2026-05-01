@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SwingTab, HittingGradeStack, type SharedHittingState } from './SwingTab';
 import { SwingDecisionTab } from './SwingDecisionTab';
-import { TabBarActions, AddReportButton, Section, SectionHeader, ReportSelector } from '@/components/assessment';
+import { TabBarActions, AddReportButton, EditProfileButton, Section, SectionHeader, ReportSelector } from '@/components/assessment';
+import aStyles from '@/components/assessment/assessment.module.css';
 import { SprayChartView } from '../components/SprayChartView';
 import { generateHittingPdf } from '@/lib/pdf';
 import {
   TabProps,
-  getLatestReport, getReportUploadIds, getManualSwingScores,
+  getLatestReport, getReportUploadIds, getManualSwingScores, getManualSwingOptions,
   metricToGrade,
   type ManualSwingScores,
+  type ManualSwingOptions,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -47,10 +49,16 @@ export function HittingTab(props: TabProps) {
   const latestHitting = useMemo(() => getLatestReport(reports, ['HITTING']), [reports]);
   const activeHittingReport = selectedHittingReport ?? latestHitting;
   const persistedManual = useMemo(() => getManualSwingScores(activeHittingReport), [activeHittingReport]);
+  // Multi-select option tags ("Drift" / "+Stack" / "Tall"...) saved with each
+  // manual score on the active HITTING report — edited inline in the Coach
+  // Grades section so coaches can pick descriptive labels alongside the bars.
+  const persistedManualOptions = useMemo(() => getManualSwingOptions(activeHittingReport), [activeHittingReport]);
   const reportUploadIds = useMemo(() => getReportUploadIds(activeHittingReport), [activeHittingReport]);
 
   const [manual, setManual] = useState<ManualSwingScores>(persistedManual);
   useEffect(() => { setManual(persistedManual); }, [persistedManual]);
+  const [manualOptions, setManualOptions] = useState<ManualSwingOptions>(persistedManualOptions);
+  useEffect(() => { setManualOptions(persistedManualOptions); }, [persistedManualOptions]);
 
   const persistedDiagnosisNotes = useMemo(() => {
     if (!activeHittingReport?.content) return '';
@@ -133,12 +141,72 @@ export function HittingTab(props: TabProps) {
     return () => { cancelled = true; };
   }, [player?.id, refreshKey, hittingReports]);
 
+  // ── At-Bat Results data extraction ──
+  // The At-Bat XLSX is parsed on the frontend and stored as JSON inside a
+  // report's content.atBatAssessment (NOT as individual metric records). The
+  // consolidated HITTING report now bundles this — but we still fall back to
+  // legacy standalone AT_BAT_RESULTS reports so older data keeps populating.
+  // We pick whichever report (HITTING or AT_BAT_RESULTS) carries the most
+  // recent atBatAssessment block, then translate its camelCase keys into
+  // snake_case for the rest of the tab.
+  const atBatMetrics = useMemo(() => {
+    const result: Record<string, { value: number; unit: string; recordedAt: string }> = {};
+    const candidates = reports
+      .filter(r => r.reportType === 'AT_BAT_RESULTS' || r.reportType === 'HITTING')
+      .filter(r => {
+        if (!r.content) return false;
+        try { return !!JSON.parse(r.content)?.atBatAssessment?.metrics; } catch { return false; }
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (candidates.length === 0) return result;
+    const latest = candidates[0];
+    if (!latest.content) return result;
+    let m: any;
+    try { m = JSON.parse(latest.content)?.atBatAssessment?.metrics; } catch { return result; }
+    if (!m || typeof m !== 'object') return result;
+    const KEY_MAP: Record<string, string> = {
+      fbBarrelPct:        'fb_barrel_pct',
+      fbWhiffPct:         'fb_whiff_pct',
+      fbInZoneSwingPct:   'fb_in_zone_swing_pct',
+      fbChasePct:         'fb_chase_pct',
+      osBarrelPct:        'os_barrel_pct',
+      osWhiffPct:         'os_whiff_pct',
+      osInZoneSwingPct:   'os_in_zone_swing_pct',
+      osChasePct:         'os_chase_pct',
+      overallBarrelPct:   'overall_barrel_pct',
+      overallBbPct:       'overall_bb_pct',
+      overallKPct:        'overall_k_pct',
+      avgEv:              'avg_exit_velo',
+    };
+    for (const [camel, snake] of Object.entries(KEY_MAP)) {
+      const v = m[camel];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        result[snake] = { value: v, unit: '%', recordedAt: latest.createdAt };
+      }
+    }
+    // Synthesize "Total" rates as the simple mean of FB + OS where the
+    // shape only carries FB/OS pieces. Coaches expect to see them in the
+    // Swing Decision row's Whiff / Chase / Zone Sw aggregates.
+    const synth = (snakeKey: string, fbCamel: string, osCamel: string) => {
+      if (snakeKey in result) return; // overall already provided
+      const fb = m[fbCamel];
+      const os = m[osCamel];
+      if (typeof fb === 'number' && typeof os === 'number' && Number.isFinite(fb) && Number.isFinite(os)) {
+        result[snakeKey] = { value: (fb + os) / 2, unit: '%', recordedAt: latest.createdAt };
+      }
+    };
+    synth('overall_whiff_pct',         'fbWhiffPct',       'osWhiffPct');
+    synth('overall_chase_pct',         'fbChasePct',       'osChasePct');
+    synth('overall_in_zone_swing_pct', 'fbInZoneSwingPct', 'osInZoneSwingPct');
+    return result;
+  }, [reports]);
+
   /** Carry-forward chain: starting at the active report and walking back
    *  through older HITTING reports, take the first non-missing value per key.
-   *  No fallback to all-time topMetrics — if no report has the metric, the
-   *  key stays absent and the UI renders "—". Miss% is layered on top. */
+   *  Layers on top of: at-bat assessment (lowest priority) → carry-forward
+   *  HITTING values (override) → Miss% (highest). */
   const topMetricsWithMiss = useMemo(() => {
-    const base: Record<string, { value: number; unit: string; recordedAt: string }> = {};
+    const base: Record<string, { value: number; unit: string; recordedAt: string }> = { ...atBatMetrics };
     if (activeHittingReport) {
       const activeIdx = hittingReports.findIndex(r => r.id === activeHittingReport.id);
       if (activeIdx >= 0) {
@@ -146,7 +214,7 @@ export function HittingTab(props: TabProps) {
           const m = perReportMetrics.get(hittingReports[i].id);
           if (!m) continue;
           for (const [k, v] of Object.entries(m)) {
-            if (!(k in base)) base[k] = v;
+            base[k] = v;
           }
         }
       }
@@ -157,7 +225,7 @@ export function HittingTab(props: TabProps) {
       };
     }
     return base;
-  }, [activeHittingReport, hittingReports, perReportMetrics, fullSwingMissPct]);
+  }, [activeHittingReport, hittingReports, perReportMetrics, fullSwingMissPct, atBatMetrics]);
 
   const metricGrades: Record<string, number | null> = useMemo(() => {
     const out: Record<string, number | null> = {};
@@ -174,8 +242,12 @@ export function HittingTab(props: TabProps) {
     const manualDirty = (Object.keys(persistedManual) as (keyof ManualSwingScores)[])
       .some(k => persistedManual[k] !== manual[k]);
     const notesDirty = diagnosisNotes !== persistedDiagnosisNotes;
-    return manualDirty || notesDirty;
-  }, [persistedManual, manual, diagnosisNotes, persistedDiagnosisNotes]);
+    // Compare option arrays by stringified content — order-stable since both
+    // come from the same source (the report's saved order or empty []).
+    const optionsDirty = (Object.keys(persistedManualOptions) as (keyof ManualSwingOptions)[])
+      .some(k => JSON.stringify(persistedManualOptions[k] ?? []) !== JSON.stringify(manualOptions[k] ?? []));
+    return manualDirty || notesDirty || optionsDirty;
+  }, [persistedManual, manual, diagnosisNotes, persistedDiagnosisNotes, persistedManualOptions, manualOptions]);
 
   async function saveManual() {
     if (!user) { setSaveError('Not signed in.'); return; }
@@ -202,6 +274,9 @@ export function HittingTab(props: TabProps) {
           updatedAt:   new Date().toISOString(),
           updatedBy:   userId,
         },
+        // Multi-select option tags for each Coach Grade — saved with the
+        // scores so removals propagate cleanly into content.manualOptions.
+        manualOptions: { ...manualOptions },
         diagnosisNotes,
       };
       await api.createReport({
@@ -224,6 +299,7 @@ export function HittingTab(props: TabProps) {
 
   const shared: SharedHittingState = {
     manual, setManual, persistedManual,
+    manualOptions, setManualOptions,
     diagnosisNotes, setDiagnosisNotes,
     topMetricsWithMiss, metricGrades, reportUploadIds,
     dirty, saving, saveOk, saveError, saveManual,
@@ -280,6 +356,7 @@ export function HittingTab(props: TabProps) {
     <>
       <TabBarActions>
         <AddReportButton onClick={props.onNewReport} show={isCoach} />
+        <EditProfileButton onClick={props.onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={['HITTING']}
@@ -297,14 +374,10 @@ export function HittingTab(props: TabProps) {
       {/* ── Top row: Spray Chart (left) + shared big bubble (right) ── */}
       <Section>
         {/* Outer bubble wrapping the Hitting Snapshot header + spray chart +
-            grade bars + diagnosis notes — header sits INSIDE the bubble. */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
-          border: '1px solid var(--border)',
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
-        }}>
+            grade bars + diagnosis notes — header sits INSIDE the bubble.
+            Uses the shared profilePanel chrome so every player-profile
+            tab reads with the same elevated-card treatment. */}
+        <div className={aStyles.profilePanel}>
         <SectionHeader
           icon="🏏"
           iconColor="gold"

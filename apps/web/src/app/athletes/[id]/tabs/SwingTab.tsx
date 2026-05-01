@@ -5,14 +5,15 @@ import {
   KpiCard, SectionHeader, Section,
   NotesBox,
 } from '@/components/assessment';
+import aStyles from '@/components/assessment/assessment.module.css';
 import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
   toScoutingGrade, GRADE_RANGES,
-  getLatestReport, getManualSwingScores, averageGrades,
+  getLatestReport, getManualSwingScores, getManualSwingOptions, averageGrades,
   metricToGrade, scoreColor,
   getReportUploadIds,
-  type ManualSwingScores,
+  type ManualSwingScores, type ManualSwingOptions,
 } from '../helpers';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -52,16 +53,17 @@ const SCORE_LABEL_OVERRIDES: Record<string, string> = {
   rotational_acceleration:'Rotation Score',
 };
 
-/** Manual coach-entered score keys (the "Coach Diagnosis" row) */
-const MANUAL_KEYS: { key: keyof ManualSwingScores; label: string; hint: string }[] = [
-  { key: 'forwardMove', label: 'Forward Move', hint: 'Lower-half load → directional intent toward the pitcher.' },
-  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.' },
-  { key: 'stability',   label: 'Stability',    hint: 'Balance and base — head-still through finish.' },
-  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.' },
-  { key: 'stretch',     label: 'Stretch',      hint: 'Length & separation between hips and shoulders at launch.' },
-  { key: 'core',        label: 'Core',         hint: 'Trunk strength & sequencing through contact.' },
-  { key: 'slot',        label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.' },
-  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.' },
+/** Manual coach-entered score keys (the "Coach Diagnosis" row) — each
+ *  category has a multi-select option list rendered as chips on the card. */
+const MANUAL_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; options: string[] }[] = [
+  { key: 'forwardMove', label: 'Forward Move', hint: 'Lower-half load → directional intent toward the pitcher.', options: ['Stuck', 'Stable', 'Drift'] },
+  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
+  { key: 'stability',   label: 'Stability',    hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
+  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
+  { key: 'stretch',     label: 'Stretch',      hint: 'Length & separation between hips and shoulders at launch.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
+  { key: 'core',        label: 'Core',         hint: 'Trunk strength & sequencing through contact.',              options: ['Connected', 'Disconnected', 'Weak'] },
+  { key: 'slot',        label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.',         options: ['Steep', 'Flat', 'Uphill'] },
+  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
 ];
 
 /** State and derived values shared between SwingTab + HittingTab's bubble. */
@@ -69,6 +71,10 @@ export interface SharedHittingState {
   manual: ManualSwingScores;
   setManual: React.Dispatch<React.SetStateAction<ManualSwingScores>>;
   persistedManual: ManualSwingScores;
+  /** Multi-select option tags paired with each manual score. Edited inline
+   *  on each ManualScoreCard; saved alongside scores via saveManual. */
+  manualOptions: ManualSwingOptions;
+  setManualOptions: React.Dispatch<React.SetStateAction<ManualSwingOptions>>;
   diagnosisNotes: string;
   setDiagnosisNotes: React.Dispatch<React.SetStateAction<string>>;
   topMetricsWithMiss: Record<string, { value: number; unit: string; recordedAt: string }>;
@@ -85,6 +91,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
   const { player, topMetrics, reports, isCoach, refreshKey, shared } = props;
   const {
     manual, setManual, persistedManual,
+    manualOptions, setManualOptions,
     topMetricsWithMiss, metricGrades, reportUploadIds,
     dirty, saving, saveOk, saveError, saveManual,
   } = shared;
@@ -99,14 +106,9 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           HITTING INPUTS — Full Swing + Blast Motion + Coach Grades in one bubble
           ───────────────────────────────────────────────────────────────── */}
       <Section>
-        {/* Outer bubble wrapping Coach Grades + Full Swing + Blast Motion */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.012))',
-          border: '1px solid var(--border)',
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
-        }}>
+        {/* Outer bubble wrapping Coach Grades + Full Swing + Blast Motion —
+            shared profilePanel chrome (matches Player Summary). */}
+        <div className={aStyles.profilePanel}>
         {/* ── COACH GRADES — moved above Full Swing / Blast Motion ── */}
         <SectionHeader
           icon="✍️"
@@ -122,8 +124,9 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: 14,
         }}>
-          {MANUAL_KEYS.map(({ key, label, hint }) => {
+          {MANUAL_KEYS.map(({ key, label, hint, options }) => {
             const value = manual[key];
+            const selectedOpts = manualOptions[key] || [];
             return (
               <ManualScoreCard
                 key={key}
@@ -132,6 +135,13 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                 value={value}
                 isCoach={isCoach}
                 onChange={(v) => setManual(prev => ({ ...prev, [key]: v }))}
+                optionList={options}
+                selectedOptions={selectedOpts}
+                onToggleOption={(opt) => setManualOptions(prev => {
+                  const cur = prev[key] || [];
+                  const next = cur.includes(opt) ? cur.filter(o => o !== opt) : [...cur, opt];
+                  return { ...prev, [key]: next };
+                })}
               />
             );
           })}
@@ -230,7 +240,10 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   <div key={k} style={metricRowItemStyle}>
                     <KpiCard
                       label={label}
-                      value={f.unit ? `${f.display} ${f.unit}` : f.display}
+                      // Pass unit separately so KpiCard renders it via
+                      // .kpiUnit (smaller) instead of inline at .kpiVal size.
+                      value={f.display}
+                      unit={f.unit}
                       color={grade !== null ? scoreColor(grade) : undefined}
                     />
                   </div>
@@ -276,18 +289,23 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                 if (k === 'plane_angle' || k === 'attack_angle') return `${m.value.toFixed(1)}°`;
                 return m.value.toFixed(1);
               })();
-              // Angles already have ° baked into the display; otherwise inline the unit
-              // with a space — but skip pure-symbol units that would look weird with a gap.
+              // Angles bake the ° into the display so it stays attached to
+              // the number. Pure-symbol units (°, %) also stay inline.
+              // Word units (mph, ft) route through the smaller .kpiUnit slot.
               const isAngle = k === 'plane_angle' || k === 'attack_angle';
               const symbolUnit = m.unit === '°' || m.unit === '%';
-              const valueWithUnit = isAngle || !m.unit
+              const inlineValue = isAngle || !m.unit
                 ? display
-                : symbolUnit ? `${display}${m.unit}` : `${display} ${m.unit}`;
+                : symbolUnit ? `${display}${m.unit}` : display;
+              const smallUnit = isAngle || !m.unit || symbolUnit
+                ? undefined
+                : m.unit;
               return (
                 <div key={k} style={metricRowItemStyle}>
                   <KpiCard
                     label={label}
-                    value={valueWithUnit}
+                    value={inlineValue}
+                    unit={smallUnit}
                     color={grade !== null ? scoreColor(grade) : undefined}
                   />
                 </div>
@@ -540,7 +558,7 @@ function NoteBlock({
     }}>
       <span style={{
         fontSize: 9.5, fontWeight: 700, letterSpacing: '0.22em',
-        textTransform: 'uppercase', color: 'var(--text-muted)',
+        textTransform: 'uppercase', color: 'var(--text-bright)',
       }}>
         {label}
       </span>
@@ -556,7 +574,7 @@ function NoteBlock({
             color: 'var(--text)',
             padding: '10px 12px',
             borderRadius: 7,
-            fontSize: 12,
+            fontSize: 14,
             lineHeight: 1.55,
             resize: fill ? 'none' : 'vertical',
             fontFamily: 'inherit',
@@ -568,7 +586,7 @@ function NoteBlock({
         />
       ) : (
         <div style={{
-          fontSize: 12, lineHeight: 1.55,
+          fontSize: 14, lineHeight: 1.55,
           color: value ? 'var(--text)' : 'var(--text-muted)',
           fontStyle: value ? 'normal' : 'italic',
           padding: fill ? '10px 12px' : '6px 2px',
@@ -615,7 +633,7 @@ function GradeRow({
       }}>
         <span style={{
           fontSize: 10.5, fontWeight: 700, letterSpacing: '0.20em',
-          textTransform: 'uppercase', color: 'var(--text-muted)',
+          textTransform: 'uppercase', color: 'var(--text-bright)',
         }}>
           {label}
         </span>
@@ -676,7 +694,7 @@ function GradeRow({
               }}>
               <span style={{
                 fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em',
-                color: 'var(--text-muted)', whiteSpace: 'nowrap',
+                color: 'var(--text-bright)', whiteSpace: 'nowrap',
                 fontFamily: "'DM Mono', ui-monospace, monospace",
               }}>
                 {c.label}
@@ -724,7 +742,7 @@ function CompositeHero({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{
           fontSize: 10, fontWeight: 700, letterSpacing: '0.30em',
-          textTransform: 'uppercase', color: 'var(--text-muted)',
+          textTransform: 'uppercase', color: 'var(--text-bright)',
         }}>
           {label}
         </span>
@@ -794,12 +812,18 @@ function CompositeHero({
    ─────────────────────────────────────────────────────────────────────────── */
 function ManualScoreCard({
   label, hint, value, isCoach, onChange,
+  optionList, selectedOptions, onToggleOption,
 }: {
   label: string;
   hint: string;
   value: number | null;
   isCoach: boolean;
   onChange: (v: number | null) => void;
+  /** Multi-select options for this category (e.g. ['Stuck','Stable','Drift']).
+   *  Coaches can toggle when editing; non-coaches see active chips read-only. */
+  optionList: string[];
+  selectedOptions: string[];
+  onToggleOption: (opt: string) => void;
 }) {
   const tone = value !== null ? scoreColor(value) : '#475569';
   const pct = value !== null ? ((value - 20) / 60) * 100 : 0;
@@ -850,7 +874,7 @@ function ManualScoreCard({
       }}>
         <span style={{
           fontSize: 10.5, fontWeight: 700, letterSpacing: '0.18em',
-          textTransform: 'uppercase', color: 'var(--text-muted)',
+          textTransform: 'uppercase', color: 'var(--text-bright)',
         }}>
           {label}
         </span>
@@ -873,6 +897,57 @@ function ManualScoreCard({
           background: tone, transition: 'width 0.25s ease',
         }} />
       </div>
+
+      {/* Multi-select option chips:
+          - Editing (coach): every option toggleable
+          - Display: only the currently-selected chips, read-only, hidden when none */}
+      {isCoach && editing ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {optionList.map(opt => {
+            const active = selectedOptions.includes(opt);
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onToggleOption(opt)}
+                style={{
+                  padding: '4px 9px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
+                  background: active
+                    ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
+                    : 'rgba(255,255,255,0.04)',
+                  color: active ? '#cfe0ff' : 'var(--text-muted)',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
+                }}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      ) : selectedOptions.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {selectedOptions.map(tag => (
+            <span key={tag} style={{
+              padding: '2px 8px',
+              borderRadius: 5,
+              fontSize: 10.5,
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
+              border: '1px solid rgba(126,182,255,0.40)',
+              color: '#cfe0ff',
+              whiteSpace: 'nowrap',
+            }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {isCoach && editing ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -920,10 +995,6 @@ function ManualScoreCard({
           )}
         </div>
       ) : null}
-
-      <span style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.45 }}>
-        {hint}
-      </span>
     </div>
   );
 }

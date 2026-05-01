@@ -31,6 +31,7 @@ class UpdatePlayerDto {
   pbrState?: number | null;
   pbrPosition?: number | null;
   pgScore?: number | null;
+  developmentNotes?: string | null;
 }
 
 @ApiTags('players')

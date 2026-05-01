@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import styles from './Sidebar.module.css';
 
 interface NavItem {
@@ -103,6 +104,9 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: '/videos',
     label: 'Videos',
+    // Coaches only — players access video via the Videos tab on their
+    // own profile, so the global library entry is redundant for them.
+    coachOnly: true,
     // Play triangle inside an angular display frame
     icon: (
       <svg viewBox="0 0 24 24">
@@ -130,6 +134,7 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, isCoach, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   if (!user && pathname !== '/login') return null;
   if (pathname === '/login') return null;
@@ -177,9 +182,31 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* ── Bottom stack: settings / sign-out ── */}
+      {/* ── Bottom stack: theme toggle / settings / sign-out ── */}
       {user && (
         <div className={styles.account}>
+          {/* Theme toggle — sun in dark mode, moon in light mode (the
+              icon previews what you'd switch TO). */}
+          <button
+            type="button"
+            className={styles.themeBtn}
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? (
+              // Sun
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+              </svg>
+            ) : (
+              // Moon
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" />
+              </svg>
+            )}
+          </button>
           <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
           <button
             className={styles.logoutBtn}
