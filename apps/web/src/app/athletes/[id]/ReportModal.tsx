@@ -854,6 +854,226 @@ function CatchingZoneEditor({
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   DefenseGradeSlider — shared "quick slider" row used by Catching / Infield /
+   Outfield report forms. Mirrors the slider feel of the Hitting CoachDiagnosis
+   and Pitching grade items (20-80 scouting scale, snap-on-mousedown to 50,
+   tone bar coloured by grade, dedicated notes line) but skips multi-select
+   chips since defense skill rows don't carry descriptive option lists.
+   ───────────────────────────────────────────────────────────────────────── */
+function DefenseGradeSlider({
+  label, grade, notes, onGradeChange, onNotesChange,
+}: {
+  label: string;
+  grade: string;
+  notes: string;
+  onGradeChange: (s: string) => void;
+  onNotesChange: (s: string) => void;
+}) {
+  const value: number | null = grade === '' ? null : (() => {
+    const n = parseInt(grade, 10);
+    return Number.isFinite(n) ? n : null;
+  })();
+  const tone = value !== null ? scoreColor(value) : '#475569';
+  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
+  return (
+    <div style={{
+      padding: '10px 12px',
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+          textTransform: 'uppercase', color: 'var(--text-bright)',
+        }}>
+          {label}
+        </span>
+        <span style={{
+          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 18,
+          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+        }}>
+          {value ?? '—'}
+        </span>
+      </div>
+      <div style={{
+        height: 5, borderRadius: 3,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid var(--border)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${pct}%`, height: '100%',
+          background: tone, transition: 'width 0.18s ease',
+        }} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range"
+          min={20} max={80} step={5}
+          value={value ?? 50}
+          className={value === null ? 'scoreSliderEmpty' : undefined}
+          onPointerDown={() => { if (value === null) onGradeChange('50'); }}
+          onChange={(e) => onGradeChange(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <input
+          type="number"
+          min={20} max={80} step={5}
+          value={value ?? ''}
+          placeholder="—"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '') { onGradeChange(''); return; }
+            const n = Number(v);
+            if (!Number.isFinite(n)) return;
+            const clamped = Math.max(20, Math.min(80, Math.round(n / 5) * 5));
+            onGradeChange(String(clamped));
+          }}
+          style={{
+            width: 56,
+            background: 'rgba(20,24,32,0.85)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            padding: '4px 7px',
+            borderRadius: 6,
+            fontSize: 12, fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            textAlign: 'center',
+          }}
+        />
+        {value !== null && (
+          <button
+            type="button"
+            onClick={() => onGradeChange('')}
+            title="Clear"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: 13, padding: '0 4px',
+            }}
+          >×</button>
+        )}
+      </div>
+      <input
+        type="text"
+        value={notes}
+        placeholder="Notes..."
+        onChange={(e) => onNotesChange(e.target.value)}
+        style={{
+          width: '100%',
+          background: 'rgba(20,24,32,0.85)',
+          border: '1px solid var(--border)',
+          color: 'var(--text)',
+          padding: '5px 8px',
+          borderRadius: 6,
+          fontSize: 12,
+        }}
+      />
+    </div>
+  );
+}
+
+/* DefenseOverallSlider — variant for "Overall ___ Grade" rows (no notes line). */
+function DefenseOverallSlider({
+  label, grade, onGradeChange,
+}: {
+  label: string;
+  grade: string;
+  onGradeChange: (s: string) => void;
+}) {
+  const value: number | null = grade === '' ? null : (() => {
+    const n = parseInt(grade, 10);
+    return Number.isFinite(n) ? n : null;
+  })();
+  const tone = value !== null ? scoreColor(value) : '#475569';
+  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
+  return (
+    <div style={{
+      padding: '10px 12px',
+      background: 'linear-gradient(135deg, rgba(126,182,255,0.08) 0%, rgba(126,182,255,0.02) 100%)',
+      border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
+      borderRadius: 10,
+      display: 'flex', flexDirection: 'column', gap: 6,
+      marginTop: 8,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{
+          fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
+          textTransform: 'uppercase', color: 'var(--accent-light)',
+        }}>
+          {label}
+        </span>
+        <span style={{
+          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 22,
+          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+        }}>
+          {value ?? '—'}
+        </span>
+      </div>
+      <div style={{
+        height: 5, borderRadius: 3,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid var(--border)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${pct}%`, height: '100%',
+          background: tone, transition: 'width 0.18s ease',
+        }} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range"
+          min={20} max={80} step={5}
+          value={value ?? 50}
+          className={value === null ? 'scoreSliderEmpty' : undefined}
+          onPointerDown={() => { if (value === null) onGradeChange('50'); }}
+          onChange={(e) => onGradeChange(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <input
+          type="number"
+          min={20} max={80} step={5}
+          value={value ?? ''}
+          placeholder="—"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === '') { onGradeChange(''); return; }
+            const n = Number(v);
+            if (!Number.isFinite(n)) return;
+            const clamped = Math.max(20, Math.min(80, Math.round(n / 5) * 5));
+            onGradeChange(String(clamped));
+          }}
+          style={{
+            width: 56,
+            background: 'rgba(20,24,32,0.85)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            padding: '4px 7px',
+            borderRadius: 6,
+            fontSize: 12, fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            textAlign: 'center',
+          }}
+        />
+        {value !== null && (
+          <button
+            type="button"
+            onClick={() => onGradeChange('')}
+            title="Clear"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: 13, padding: '0 4px',
+            }}
+          >×</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: CatchingFormData) => void }) {
   const updateThrowing = (key: keyof CatchingFormData['throwing'], field: Partial<ThrowingRow>) => {
     if (key === 'overallGrade') return;
@@ -979,17 +1199,11 @@ function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: 
             </tbody>
           </table>
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Throwing Grade
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.throwing.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, throwing: { ...data.throwing, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Throwing Grade"
+          grade={data.throwing.overallGrade}
+          onGradeChange={(v) => setData({ ...data, throwing: { ...data.throwing, overallGrade: v } })}
+        />
       </div>
 
       {/* ── RECEIVING ── */}
@@ -1008,42 +1222,26 @@ function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: 
         <div style={{ ...sectionTitleStyle, marginTop: 16 }}>
           <span>🧤</span> Receiving — Skill Grades (20–80)
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, padding: '0 0 4px' }}>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Skill</span>
-            <span style={headerCellStyle}>Grade</span>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Notes</span>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {receivingRows.map(row => {
             const rowData = data.receiving[row.key] as GradeRow;
             return (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, alignItems: 'center' }}>
-                <span style={metricLabelStyle}>{row.label}</span>
-                <input
-                  type="number" min="20" max="80" step="5" style={gradeInputStyle}
-                  value={rowData.grade} placeholder="—"
-                  onChange={e => updateReceiving(row.key, { grade: e.target.value })}
-                />
-                <input
-                  type="text" style={notesInputStyle}
-                  value={rowData.notes} placeholder="Notes..."
-                  onChange={e => updateReceiving(row.key, { notes: e.target.value })}
-                />
-              </div>
+              <DefenseGradeSlider
+                key={row.key}
+                label={row.label}
+                grade={rowData.grade}
+                notes={rowData.notes}
+                onGradeChange={(v) => updateReceiving(row.key, { grade: v })}
+                onNotesChange={(v) => updateReceiving(row.key, { notes: v })}
+              />
             );
           })}
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Receiving Grade
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.receiving.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, receiving: { ...data.receiving, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Receiving Grade"
+          grade={data.receiving.overallGrade}
+          onGradeChange={(v) => setData({ ...data, receiving: { ...data.receiving, overallGrade: v } })}
+        />
       </div>
 
       {/* ── BLOCKING ── */}
@@ -1051,42 +1249,26 @@ function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: 
         <div style={sectionTitleStyle}>
           <span>🛡️</span> Blocking — Scouting Grades (20–80)
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, padding: '0 0 4px' }}>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Skill</span>
-            <span style={headerCellStyle}>Grade</span>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Notes</span>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {blockingRows.map(row => {
             const rowData = data.blocking[row.key] as GradeRow;
             return (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, alignItems: 'center' }}>
-                <span style={metricLabelStyle}>{row.label}</span>
-                <input
-                  type="number" min="20" max="80" step="5" style={gradeInputStyle}
-                  value={rowData.grade} placeholder="—"
-                  onChange={e => updateBlocking(row.key, { grade: e.target.value })}
-                />
-                <input
-                  type="text" style={notesInputStyle}
-                  value={rowData.notes} placeholder="Notes..."
-                  onChange={e => updateBlocking(row.key, { notes: e.target.value })}
-                />
-              </div>
+              <DefenseGradeSlider
+                key={row.key}
+                label={row.label}
+                grade={rowData.grade}
+                notes={rowData.notes}
+                onGradeChange={(v) => updateBlocking(row.key, { grade: v })}
+                onNotesChange={(v) => updateBlocking(row.key, { notes: v })}
+              />
             );
           })}
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Blocking Grade
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.blocking.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, blocking: { ...data.blocking, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Blocking Grade"
+          grade={data.blocking.overallGrade}
+          onGradeChange={(v) => setData({ ...data, blocking: { ...data.blocking, overallGrade: v } })}
+        />
       </div>
     </div>
   );
@@ -1294,42 +1476,26 @@ function InfieldForm({ data, setData }: { data: InfieldFormData; setData: (d: In
         <div style={sectionTitleStyle}>
           <span>🏃</span> Range & Footwork — Scouting Grades (20–80)
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, padding: '0 0 4px' }}>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Skill</span>
-            <span style={headerCellStyle}>Grade</span>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Notes</span>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rangeRows.map(row => {
             const rowData = data.rangeFootwork[row.key] as GradeRow;
             return (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, alignItems: 'center' }}>
-                <span style={metricLabelStyle}>{row.label}</span>
-                <input
-                  type="number" min="20" max="80" step="5" style={gradeInputStyle}
-                  value={rowData.grade} placeholder="—"
-                  onChange={e => updateRange(row.key, { grade: e.target.value })}
-                />
-                <input
-                  type="text" style={notesInputStyle}
-                  value={rowData.notes} placeholder="Notes..."
-                  onChange={e => updateRange(row.key, { notes: e.target.value })}
-                />
-              </div>
+              <DefenseGradeSlider
+                key={row.key}
+                label={row.label}
+                grade={rowData.grade}
+                notes={rowData.notes}
+                onGradeChange={(v) => updateRange(row.key, { grade: v })}
+                onNotesChange={(v) => updateRange(row.key, { notes: v })}
+              />
             );
           })}
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Range / Footwork
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.rangeFootwork.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, rangeFootwork: { ...data.rangeFootwork, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Range / Footwork"
+          grade={data.rangeFootwork.overallGrade}
+          onGradeChange={(v) => setData({ ...data, rangeFootwork: { ...data.rangeFootwork, overallGrade: v } })}
+        />
       </div>
 
       {/* ── HANDS & GLOVE WORK ── */}
@@ -1337,42 +1503,26 @@ function InfieldForm({ data, setData }: { data: InfieldFormData; setData: (d: In
         <div style={sectionTitleStyle}>
           <span>🧤</span> Hands & Glove Work — Scouting Grades (20–80)
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, padding: '0 0 4px' }}>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Skill</span>
-            <span style={headerCellStyle}>Grade</span>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Notes</span>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {handsRows.map(row => {
             const rowData = data.handsGlove[row.key] as GradeRow;
             return (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, alignItems: 'center' }}>
-                <span style={metricLabelStyle}>{row.label}</span>
-                <input
-                  type="number" min="20" max="80" step="5" style={gradeInputStyle}
-                  value={rowData.grade} placeholder="—"
-                  onChange={e => updateHands(row.key, { grade: e.target.value })}
-                />
-                <input
-                  type="text" style={notesInputStyle}
-                  value={rowData.notes} placeholder="Notes..."
-                  onChange={e => updateHands(row.key, { notes: e.target.value })}
-                />
-              </div>
+              <DefenseGradeSlider
+                key={row.key}
+                label={row.label}
+                grade={rowData.grade}
+                notes={rowData.notes}
+                onGradeChange={(v) => updateHands(row.key, { grade: v })}
+                onNotesChange={(v) => updateHands(row.key, { notes: v })}
+              />
             );
           })}
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Hands / Glove
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.handsGlove.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, handsGlove: { ...data.handsGlove, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Hands / Glove"
+          grade={data.handsGlove.overallGrade}
+          onGradeChange={(v) => setData({ ...data, handsGlove: { ...data.handsGlove, overallGrade: v } })}
+        />
       </div>
     </div>
   );
@@ -1544,17 +1694,11 @@ function OutfieldForm({ data, setData }: { data: OutfieldFormData; setData: (d: 
             </tbody>
           </table>
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Arm Grade
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.arm.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, arm: { ...data.arm, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Arm Grade"
+          grade={data.arm.overallGrade}
+          onGradeChange={(v) => setData({ ...data, arm: { ...data.arm, overallGrade: v } })}
+        />
       </div>
 
       {/* ── ROUTES, RANGE, READS & GLOVE ── */}
@@ -1562,42 +1706,26 @@ function OutfieldForm({ data, setData }: { data: OutfieldFormData; setData: (d: 
         <div style={sectionTitleStyle}>
           <span>🏃</span> Routes, Range, Reads & Glove — Scouting Grades (20–80)
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, padding: '0 0 4px' }}>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Skill</span>
-            <span style={headerCellStyle}>Grade</span>
-            <span style={{ ...headerCellStyle, textAlign: 'left' }}>Notes</span>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {routesRows.map(row => {
             const rowData = data.routesReads[row.key] as GradeRow;
             return (
-              <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 8, alignItems: 'center' }}>
-                <span style={metricLabelStyle}>{row.label}</span>
-                <input
-                  type="number" min="20" max="80" step="5" style={gradeInputStyle}
-                  value={rowData.grade} placeholder="—"
-                  onChange={e => updateRoutes(row.key, { grade: e.target.value })}
-                />
-                <input
-                  type="text" style={notesInputStyle}
-                  value={rowData.notes} placeholder="Notes..."
-                  onChange={e => updateRoutes(row.key, { notes: e.target.value })}
-                />
-              </div>
+              <DefenseGradeSlider
+                key={row.key}
+                label={row.label}
+                grade={rowData.grade}
+                notes={rowData.notes}
+                onGradeChange={(v) => updateRoutes(row.key, { grade: v })}
+                onNotesChange={(v) => updateRoutes(row.key, { notes: v })}
+              />
             );
           })}
         </div>
-        <div style={overallRowStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Overall Routes / Reads
-          </span>
-          <input
-            type="number" min="20" max="80" step="5" style={gradeInputStyle}
-            value={data.routesReads.overallGrade} placeholder="20-80"
-            onChange={e => setData({ ...data, routesReads: { ...data.routesReads, overallGrade: e.target.value } })}
-          />
-          <span style={{ fontSize: 10, color: 'var(--faint)' }}>20-80 scouting scale</span>
-        </div>
+        <DefenseOverallSlider
+          label="Overall Routes / Reads"
+          grade={data.routesReads.overallGrade}
+          onGradeChange={(v) => setData({ ...data, routesReads: { ...data.routesReads, overallGrade: v } })}
+        />
       </div>
     </div>
   );

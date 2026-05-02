@@ -23,6 +23,69 @@ const SUB_TABS = [
   { key: 'decision', label: 'Swing Decision' },
 ] as const;
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   HittingSnapshotIcon — inline SVG of crossed baseball bats + baseball,
+   used as the section icon for the Hitting Snapshot header.
+   Sized to fill the 36×36 .sectionIcon slot.
+   ───────────────────────────────────────────────────────────────────────── */
+function HittingSnapshotIcon() {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="Hitting"
+      style={{ display: 'block' }}
+    >
+      {/* White rounded tile background to match brand-mark presentation */}
+      <rect x="0" y="0" width="100" height="100" rx="14" fill="#fff" />
+      {/* Baseball at the top center — outer circle + a couple of seam arcs */}
+      <g>
+        <circle cx="50" cy="20" r="8" fill="#000" />
+        <path d="M 44 16.5 Q 50 18.5 56 16.5"
+          stroke="#fff" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+        <path d="M 44 23.5 Q 50 21.5 56 23.5"
+          stroke="#fff" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+      </g>
+      {/* Crossed bats — two tapered shapes rotated to form an X.
+          Each bat: thick barrel at top, narrow handle at bottom, knob at end. */}
+      {/* LEFT bat (rotated -22°) */}
+      <g transform="rotate(-22 50 60)">
+        {/* barrel + handle as a single tapered path */}
+        <path
+          d="M 44 12
+             L 56 12
+             Q 56 24 54 40
+             L 53 80
+             Q 53 88 50 88
+             Q 47 88 47 80
+             L 46 40
+             Q 44 24 44 12 Z"
+          fill="#000"
+        />
+        {/* knob */}
+        <circle cx="50" cy="89" r="5" fill="#000" />
+      </g>
+      {/* RIGHT bat (rotated +22°) */}
+      <g transform="rotate(22 50 60)">
+        <path
+          d="M 44 12
+             L 56 12
+             Q 56 24 54 40
+             L 53 80
+             Q 53 88 50 88
+             Q 47 88 47 80
+             L 46 40
+             Q 44 24 44 12 Z"
+          fill="#000"
+        />
+        <circle cx="50" cy="89" r="5" fill="#000" />
+      </g>
+    </svg>
+  );
+}
+
 type SubTabKey = (typeof SUB_TABS)[number]['key'];
 
 const SWING_METRIC_KEYS = [
@@ -379,7 +442,7 @@ export function HittingTab(props: TabProps) {
             tab reads with the same elevated-card treatment. */}
         <div className={aStyles.profilePanel}>
         <SectionHeader
-          icon="🏏"
+          icon={<HittingSnapshotIcon />}
           iconColor="gold"
           title="Hitting Snapshot"
         />

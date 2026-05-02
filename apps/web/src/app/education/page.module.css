@@ -37,21 +37,17 @@
 }
 .addBtn:hover { background: rgba(255,255,255,0.85); }
 
-/* ── Sport Tabs — Movement-Plot tone ── */
+/* ── Sport Tabs — lighter graphite (reversed scheme) ── */
 .sportTabs {
   display: flex;
   gap: 4px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: 14px;
   padding: 4px;
   margin-bottom: 24px;
   overflow-x: auto;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 18px rgba(0, 0, 0, 0.30);
+  box-shadow: var(--shadow-card);
 }
 .sportTab {
   padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 600;
@@ -66,13 +62,9 @@
 .pill {
   padding: 6px 14px;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 16px rgba(0, 0, 0, 0.30);
+  border: 1px solid var(--border-light);
+  background: var(--card-elev), var(--card-elev-bg);
+  box-shadow: var(--shadow-card);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
@@ -93,27 +85,19 @@
 /* Each class card uses Movement-Plot tone */
 .classCard {
   position: relative;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: 14px;
   padding: 18px;
   display: flex;
   gap: 14px;
   transition: all .15s;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-card);
 }
 .classCard:hover {
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--accent);
   transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    inset 0 0 28px rgba(0, 0, 0, 0.4),
-    0 6px 14px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-card-hi);
 }
 .classThumb { width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; }
 .classBody { flex: 1; min-width: 0; }
@@ -134,10 +118,8 @@
 
 /* Drill cards — Movement-Plot tone */
 .drillCard {
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
   padding: 14px 16px;
   display: flex;
@@ -145,11 +127,9 @@
   margin-bottom: 8px;
   transition: border-color .15s, box-shadow .15s;
   position: relative;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-card);
 }
-.drillCard:hover { border-color: rgba(255, 255, 255, 0.22); }
+.drillCard:hover { border-color: var(--accent); box-shadow: var(--shadow-card-hi); }
 .drillCard:hover .cardActions { opacity: 1; }
 .colorBar { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 36px; }
 .cardBody { flex: 1; min-width: 0; }
@@ -172,14 +152,10 @@
   flex-wrap: wrap;
   margin-bottom: 24px;
   padding: 16px 20px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: 14px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 18px rgba(0, 0, 0, 0.30);
+  box-shadow: var(--shadow-card);
 }
 .mlbFilterGroup { display: flex; flex-direction: column; gap: 6px; }
 .mlbFilterLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
@@ -188,19 +164,15 @@
 
 .playerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .playerCard {
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
   transition: all .2s;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-card);
 }
-.playerCard:hover { border-color: rgba(255, 255, 255, 0.22); transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.3); }
+.playerCard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-card-hi); }
 .playerThumb { height: 100px; display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; }
 .playerPosBadge { position: absolute; bottom: 8px; right: 8px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 24px; text-transform: uppercase; letter-spacing: .04em; }
 .playerInfo { padding: 14px; }
@@ -233,19 +205,15 @@
 .searchInput {
   width: 100%;
   max-width: 320px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: 12px;
   padding: 8px 12px;
   font-size: 13px;
   color: var(--text);
   outline: none;
   transition: border-color .15s, box-shadow .15s;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 16px rgba(0, 0, 0, 0.30);
+  box-shadow: var(--shadow-card);
 }
 .searchInput:focus { border-color: var(--accent); }
 .searchInput::placeholder { color: var(--faint); }

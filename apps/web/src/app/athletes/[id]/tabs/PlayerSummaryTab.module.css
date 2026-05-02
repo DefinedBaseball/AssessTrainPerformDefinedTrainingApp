@@ -40,45 +40,35 @@
 }
 
 /* ════════════════════════════════════════════════
-   Panel — matches master's elevated card treatment
-   (subtle white-highlight + graphite tint over the
-   page gradient, rounded 24px, master's card shadow).
+   Panel — Summary page outer bubble. Reversed scheme:
+   uses the dark Movement-Plot tone (matching the shared
+   aStyles.profilePanel and the spray chart / HUD plot
+   canvases) so every outer bubble across the app reads
+   uniformly. NO directional ::before / ::after fades —
+   a single centered radial highlight only.
    ════════════════════════════════════════════════ */
 .panel {
   position: relative;
   overflow: hidden;
-  background: var(--card-elev), var(--card-elev-bg);
-  border: 1px solid var(--border-light);
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-lg);
   padding: 1.4rem;
-  box-shadow: var(--shadow-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-/* White hairline up top — very subtle accent to match the
-   soft-light rim master uses on elevated surfaces. */
-.panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 8%;
-  right: 8%;
-  height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.22) 50%,
-    transparent 100%);
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Bottom-right vignette — same as the master player card. */
-.panel::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 90% 100%, rgba(0, 0, 0, 0.35) 0%, transparent 55%);
-  pointer-events: none;
-}
+/* Decorative top hairline + bottom-right vignette removed for the
+   reversed (dark) scheme — they introduced a light→dark directional
+   fade that didn't match the uniform Movement-Plot canvas look. */
+.panel::before,
+.panel::after { content: none; }
 
 /* ════════════════════════════════════════════════
    Section title + tiny label
@@ -288,36 +278,25 @@
   gap: 0.45rem;
   padding: 0.7rem 0.85rem 0.75rem;
   border-radius: 12px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.25);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .toolBarRow:hover {
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.46);
+  background: var(--card-elev-hover), var(--card-elev-bg);
 }
 
 .toolBarRow:focus-visible {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.22);
+  border-color: var(--accent);
 }
 
 .toolBarRowActive {
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 0 24px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 4px 12px rgba(0, 0, 0, 0.3);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card-hi);
 }
 
 .toolBarRow + .toolBarRow {
@@ -561,15 +540,11 @@
   position: relative;
   padding: 1rem 1.1rem 1rem 1.25rem;
   border-radius: 12px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   box-shadow:
     inset 3px 0 0 0 var(--section-tone, #94a3b8),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.25);
+    var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
@@ -577,12 +552,10 @@
 }
 .devSection:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.20);
+  border-color: var(--accent);
   box-shadow:
     inset 3px 0 0 0 var(--section-tone, #94a3b8),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    inset 0 0 28px rgba(0, 0, 0, 0.4),
-    0 6px 14px rgba(0, 0, 0, 0.3);
+    var(--shadow-card-hi);
 }
 .devSectionHead {
   display: flex;
@@ -672,13 +645,9 @@
   position: relative;
   padding: 0.5rem 0.65rem;
   border-radius: 10px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 18px rgba(0, 0, 0, 0.30);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
@@ -932,14 +901,9 @@
   position: relative;
   padding: 1rem;
   border-radius: 12px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.25);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
 }
 
 .kpiLabel {
@@ -985,14 +949,9 @@
   margin-top: 0.5rem;
   padding: 8px;
   border-radius: 12px;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 24px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.25);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
 }
 
 .chartWrapTall {

@@ -24,9 +24,14 @@
   --card-bg: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)), rgba(255,255,255,0.015);
 
   /* ── Elevated cards (higher contrast) ── */
-  /* Card backgrounds — match the player profile card: layered white highlight + graphite tint over the page gradient */
-  --card-elev:        linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%), linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
-  --card-elev-hover:  linear-gradient(180deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.035) 40%, rgba(255,255,255,0.015) 100%), linear-gradient(140deg, rgba(104,108,114,0.16) 0%, transparent 55%);
+  /* Card backgrounds — flattened (no diagonal) and brightened. The
+     previous version layered a 180° vertical fade with a 140° diagonal
+     graphite tint, which produced a light-top-left → dark-bottom-right
+     gradient. The diagonal is removed and the vertical delta kept tiny
+     so cards read uniform; opacity bumped so interior bubbles sit
+     visibly lighter against the dark Movement-Plot outer panels. */
+  --card-elev:        linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.055) 100%);
+  --card-elev-hover:  linear-gradient(180deg, rgba(255,255,255,0.110) 0%, rgba(255,255,255,0.080) 100%);
   --card-elev-bg:     transparent;
   --surface-bright:   #14161c;
 

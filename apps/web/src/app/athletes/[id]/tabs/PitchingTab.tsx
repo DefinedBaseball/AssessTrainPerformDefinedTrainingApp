@@ -429,8 +429,10 @@ function MovementPlot({
 }
 
 /* ── Release Point Plot (fixed grid, handedness-aware) ── */
-function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
+function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 360 }: {
   pitches: TrackmanPitch[];
+  selected: TrackmanPitch | null;
+  onSelect: (p: TrackmanPitch | null) => void;
   width?: number;
   height?: number;
 }) {
@@ -444,11 +446,21 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
   );
 
   if (valid.length === 0) {
+    // Match the bare-SVG return shape used by MovementPlot / PitchLocationPlot
+    // — the parent HUD plot canvas already provides the bubble chrome, so
+    // wrapping in our own innerPanel created a doubled, lighter bubble.
     return (
-      <div className={aStyles.innerPanel} style={{ padding: 20, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>Release Point Plot</div>
-        <div style={{ fontSize: 13, color: 'var(--faint)' }}>No data available</div>
-      </div>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
+        style={{ display: 'block' }}>
+        <text x={width / 2} y={height / 2 - 6} textAnchor="middle"
+          fontSize={12} fontWeight={600} fill="var(--text-muted)">
+          Release Point Plot
+        </text>
+        <text x={width / 2} y={height / 2 + 14} textAnchor="middle"
+          fontSize={13} fill="var(--faint)">
+          No data available
+        </text>
+      </svg>
     );
   }
 
@@ -474,19 +486,25 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
   const types = [...new Set(valid.map(p => p.pitchType))];
 
   return (
-    <div className={aStyles.innerPanel} style={{ padding: '12px 8px 8px' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-bright)', textAlign: 'center', marginBottom: 4 }}>
-        Release Point Plot {isLefty ? '(LHP)' : '(RHP)'}
-      </div>
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    /* Bare SVG (no outer innerPanel wrapper) so this plot sits inside the
+       parent HUD plot canvas at the same depth as Movement / Location. The
+       little (LHP/RHP) handedness chip is rendered as an SVG text element
+       so we don't need a header div above the plot. */
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}
+      style={{ cursor: 'default', display: 'block' }}>
+        {/* Transparent click-to-deselect surface — matches Movement /
+            Location plots so clicking empty space clears selection. */}
+        <rect width={width} height={height} fill="transparent"
+          onClick={() => onSelect(null)} />
         {/* Grid lines */}
         {xTicks.map((v, i) => (
           <g key={`x${i}`}>
             <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
               stroke={v === 0 ? 'var(--text-muted)' : 'var(--border)'}
               strokeWidth={v === 0 ? 1 : 0.5}
-              opacity={v === 0 ? 0.5 : 1} />
-            <text x={sx(v)} y={height - 6} textAnchor="middle" fontSize={9} fill="var(--text-muted)">{v}</text>
+              opacity={v === 0 ? 0.5 : 1}
+              pointerEvents="none" />
+            <text x={sx(v)} y={height - 6} textAnchor="middle" fontSize={9} fill="var(--text-muted)" pointerEvents="none">{v}</text>
           </g>
         ))}
         {yTicks.map((v, i) => (
@@ -513,21 +531,49 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
           {isLefty ? 'LHP Side' : ''}
         </text>
 
-        {/* Data points — flip X for lefties so they appear on the right side */}
+        {/* Data points — flip X for lefties so they appear on the right side.
+            Clickable, with a halo + bright ring on the selected pitch and
+            dimming on the rest, mirroring the Movement / Location plots. */}
         {valid.map((p, i) => {
           const rawSide = p.relSide as number;
           // Right-handers: data naturally plots on left (negative side)
           // Left-handers: flip sign so data plots on right (positive side)
           const plotSide = isLefty ? -rawSide : rawSide;
+          const cx = sx(plotSide);
+          const cy = sy(p.relHeight as number);
+          const isSelected = !!selected && p.id === selected.id;
+          const dim = !!selected && !isSelected;
           return (
-            <circle key={i} cx={sx(plotSide)} cy={sy(p.relHeight as number)}
-              r={5} fill={getPitchColor(p.pitchType)} opacity={0.85}
-              stroke="rgba(0,0,0,0.3)" strokeWidth={0.5} />
+            <g key={p.id ?? i}
+              style={{ cursor: 'pointer' }}
+              onClick={(e) => { e.stopPropagation(); onSelect(isSelected ? null : p); }}>
+              {/* Halo for selected pitch */}
+              {isSelected && (
+                <circle cx={cx} cy={cy} r={11}
+                  fill={getPitchColor(p.pitchType)} opacity={0.30} pointerEvents="none" />
+              )}
+              <circle cx={cx} cy={cy}
+                r={isSelected ? 7 : 5}
+                fill={getPitchColor(p.pitchType)}
+                opacity={dim ? 0.25 : (isSelected ? 1 : 0.85)}
+                stroke={isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)'}
+                strokeWidth={isSelected ? 1.5 : 0.5} />
+            </g>
           );
         })}
 
         {/* Border */}
         <rect x={pad.left} y={pad.top} width={plotW} height={plotH} fill="none" stroke="var(--border)" strokeWidth={1} />
+
+        {/* Handedness chip — replaces the header div that lived above the
+            old wrapping bubble. Sits in the top-center of the SVG. */}
+        <text x={width / 2} y={16} textAnchor="middle"
+          fontSize={10} fontWeight={600}
+          letterSpacing="0.1em"
+          fill="var(--text-bright)"
+          style={{ textTransform: 'uppercase' }}>
+          Release Point {isLefty ? '(LHP)' : '(RHP)'}
+        </text>
 
         {/* Legend */}
         {types.map((t, i) => (
@@ -537,7 +583,6 @@ function ReleasePointPlot({ pitches, width = 380, height = 360 }: {
           </g>
         ))}
       </svg>
-    </div>
   );
 }
 
@@ -1185,7 +1230,7 @@ export function PitchingTab({
             </div>
             <div className={hud.hudPlotPane}>
               <div className={hud.hudPlotCanvas}>
-                <ReleasePointPlot pitches={pitches} />
+                <ReleasePointPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
               </div>
             </div>
           </div>

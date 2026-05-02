@@ -21,6 +21,88 @@ import { SprayChartView } from '../components/SprayChartView';
 
 const HITTING_REPORT_TYPES = ['HITTING'];
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Vendor logos — inline SVGs so we don't have to ship binary assets.
+   Sized to fit the SectionHeader's 36×36 .sectionIcon slot; both render on a
+   white tile to match each brand's standard treatment.
+   ───────────────────────────────────────────────────────────────────────── */
+function FullSwingLogo() {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="Full Swing"
+      style={{ display: 'block' }}
+    >
+      {/* Black tile background */}
+      <rect x="0" y="0" width="100" height="100" rx="6" fill="#000" />
+      {/* "FS" mark — bold, slightly squared */}
+      <text
+        x="50" y="62"
+        textAnchor="middle"
+        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        fontSize="58"
+        fontWeight="900"
+        letterSpacing="-2"
+        fill="#fff"
+      >FS</text>
+      {/* "FULL SWING" footer */}
+      <text
+        x="50" y="86"
+        textAnchor="middle"
+        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        fontSize="11"
+        fontWeight="700"
+        letterSpacing="1.5"
+        fill="#fff"
+      >FULL SWING</text>
+    </svg>
+  );
+}
+
+function BlastLogo() {
+  // Black circle outline + 4-node sensor pattern: a top dot, a hub
+  // mid-circle with a horizontal cross-arm, and two dots fanning out
+  // diagonally below the hub. Mirrors the Blast Motion brand mark.
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="Blast Motion"
+      style={{ display: 'block' }}
+    >
+      {/* White tile background to match brand presentation */}
+      <rect x="0" y="0" width="100" height="100" rx="50" fill="#fff" />
+      {/* Outer ring */}
+      <circle cx="50" cy="50" r="36" fill="none" stroke="#000" strokeWidth="6" />
+      {/* Connecting lines */}
+      <g stroke="#000" strokeWidth="3.5" strokeLinecap="round">
+        {/* top spoke */}
+        <line x1="50" y1="50" x2="50" y2="32" />
+        {/* horizontal cross-arm */}
+        <line x1="34" y1="50" x2="66" y2="50" />
+        {/* lower-left diagonal */}
+        <line x1="50" y1="50" x2="38" y2="68" />
+        {/* lower-right diagonal */}
+        <line x1="50" y1="50" x2="62" y2="68" />
+      </g>
+      {/* Sensor nodes */}
+      <g fill="#000">
+        <circle cx="50" cy="50" r="4.5" />
+        <circle cx="50" cy="32" r="4" />
+        <circle cx="34" cy="50" r="4" />
+        <circle cx="66" cy="50" r="4" />
+        <circle cx="38" cy="68" r="4" />
+        <circle cx="62" cy="68" r="4" />
+      </g>
+    </svg>
+  );
+}
+
 /** Single horizontal row of KpiCards — cards grow to fill the bubble width.
  *  Used by both the Full Swing and Blast Motion bubbles, which span the same
  *  width as the Hitting Snapshot row above them. */
@@ -194,7 +276,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
 
         <SectionHeader
-          icon="📊"
+          icon={<FullSwingLogo />}
           iconColor="gold"
           title="Full Swing"
           subtitle="Outcome metrics from Full Swing / HitTrax — feeds the Quality of Contact grade"
@@ -257,7 +339,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
 
         <SectionHeader
-          icon="📐"
+          icon={<BlastLogo />}
           iconColor="teal"
           title="Blast Motion"
           subtitle="Blast Motion captures + age-adjusted bat speed — feeds the Swing grade"

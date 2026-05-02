@@ -85,33 +85,27 @@
 
 .tab {
   padding: 8px 20px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md, 14px);
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
+  background: var(--card-elev), var(--card-elev-bg);
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    inset 0 0 24px rgba(0,0,0,0.35),
-    0 1px 2px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow-card);
 }
 
 .tab:hover {
-  color: var(--text-secondary, var(--text));
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-light));
 }
 
 .tabActive {
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.10) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.55);
-  color: #f1f4f6;
-  border-color: rgba(255,255,255,0.22);
+  background: var(--card-elev-hover), var(--card-elev-bg);
+  color: var(--text-bright);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card-hi);
 }
 
 .noYears {
@@ -148,18 +142,16 @@
   width: 100%;
   padding: 10px 14px;
   padding-right: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md, 12px);
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
   background-image:
-    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
+    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%),
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23A0A6AE' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
-  background-color: rgba(10, 14, 20, 0.38);
-  background-repeat: no-repeat, no-repeat;
-  background-position: 0 0, right 12px center;
-  color: #f1f4f6;
+  background-color: var(--card-elev-bg);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: 0 0, 0 0, right 12px center;
+  color: var(--text);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -168,27 +160,23 @@
   -moz-appearance: none;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    inset 0 0 24px rgba(0,0,0,0.35),
-    0 1px 2px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow-card);
 }
 
 .filterSelect:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, rgba(255,255,255,0.18));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-light));
 }
 
 .filterSelect:focus {
   border-color: var(--accent);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    inset 0 0 24px rgba(0,0,0,0.35),
+    var(--shadow-card),
     0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .filterSelect option {
-  background: #0d1218;
-  color: #f1f4f6;
+  background: var(--card-elev-bg, #0d1218);
+  color: var(--text);
 }
 
 /* ── Metric Chips ── */
@@ -203,19 +191,14 @@
 .metricChip {
   padding: 6px 14px;
   border-radius: var(--radius-full, 100px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
+  border: 1px solid var(--border-light);
+  background: var(--card-elev), var(--card-elev-bg);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    inset 0 0 18px rgba(0,0,0,0.30),
-    0 1px 2px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow-card);
 }
 
 .metricChip:hover {
@@ -233,16 +216,11 @@
 
 .tableWrap {
   position: relative;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
-    rgba(10, 14, 20, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-lg, 18px);
   overflow: hidden;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    inset 0 0 24px rgba(0,0,0,0.35),
-    0 1px 2px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow-card);
 }
 
 /* ── Loading ── */
