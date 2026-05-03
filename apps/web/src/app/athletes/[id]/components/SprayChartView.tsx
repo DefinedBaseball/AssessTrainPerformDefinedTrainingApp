@@ -405,9 +405,11 @@ export function SprayChartView({
         )}
       </div>
 
-      {/* Chart frame — Movement-Plot interior bubble. */}
+      {/* Chart frame — transparent container so the SVG sits directly
+          on the outer "Spray Chart" bubble's gray surface. The previous
+          .innerPanel wrapper was producing a doubled, lighter bubble
+          layer over the chart that the user doesn't want. */}
       <div
-        className={aStyles.innerPanel}
         style={{
           position: 'relative',
           overflow: 'hidden',

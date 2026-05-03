@@ -302,3 +302,26 @@
   .hudReadoutBar { grid-template-columns: minmax(0, 1fr); }
   .hudReadoutHead { border-right: none; padding-right: 0; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — neutralise the white-overlay highlights so
+   the HUD console + plot canvases read on a light background.
+   ════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .hudConsole {
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(0, 0, 0, 0.025) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(0, 0, 0, 0.020) 0%, transparent 55%),
+    #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 6px 18px rgba(15, 20, 30, 0.08);
+}
+[data-theme="light"] .hudConsole::before {
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.18), transparent);
+}
+[data-theme="light"] .hudPlotCanvas,
+[data-theme="light"] .hudReadoutBar {
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(15, 20, 30, 0.04);
+}

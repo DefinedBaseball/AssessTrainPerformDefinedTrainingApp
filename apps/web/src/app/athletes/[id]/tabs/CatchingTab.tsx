@@ -91,16 +91,16 @@ const THROWING_CARDS: {
 */
 function gradeColor(grade: number | null): string {
   if (grade === null) return 'var(--faint)';
-  if (grade >= 60) return '#22C55E'; // green
-  if (grade >= 40) return '#F1F5F9'; // white (average band)
-  return '#60A5FA';                   // blue (low band)
+  if (grade >= 60) return '#22C55E'; // green  (60–80, good)
+  if (grade >= 40) return '#EAB308'; // yellow (40–60, average)
+  return '#EF4444';                   // red    (20–40, bad)
 }
 
 function gradeBg(grade: number | null): string {
   if (grade === null) return 'transparent';
   if (grade >= 60) return 'rgba(34,197,94,0.10)';   // green
-  if (grade >= 40) return 'rgba(255,255,255,0.08)'; // white (average band)
-  return 'rgba(59,130,246,0.12)';                    // blue (low band)
+  if (grade >= 40) return 'rgba(234,179,8,0.10)';   // yellow
+  return 'rgba(239,68,68,0.12)';                     // red
 }
 
 /* Map a 20-80 scouting score to a 0-100% bar fill. */

@@ -46,10 +46,14 @@
   z-index: 0;
 }
 
+/* Soft full-width hairline — sits at the exact midpoint of the gap
+   between the Player Name bubble and the first bubble of each tab. The
+   gap is 1.25rem (20px, set by .tabPanel padding-top), so bottom: -10px
+   centers the line in the middle of that whitespace. */
 .heroOuter::after {
   content: '';
   position: absolute;
-  left: 0; right: 0; bottom: -1px;
+  left: 0; right: 0; bottom: -0.625rem;
   height: 1px;
   background: var(--grad-edge);
   opacity: 0.5;
@@ -111,13 +115,21 @@
   grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.85fr);
   gap: 20px;
   padding: 20px 26px 18px;
+  /* Match the dark Movement-Plot tone used by every outer profile panel
+     across the app — a single centered radial highlight over rgba(10,14,20)
+     with a 1px white-rim border and the standard inner-shadow stack. The
+     decorative corner glow + beacon bar pseudo-elements still layer on top. */
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.05) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 100%, rgba(61,139,253,0.06) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.010) 100%);
-  border: 1px solid var(--border-light);
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 28px;
-  box-shadow: var(--shadow-bubble-dark);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
   /* Clip decorative pseudo-elements to the rounded silhouette. */
   overflow: hidden;
 }
@@ -664,4 +676,67 @@
 
 @media (max-width: 640px) {
   .contentWrap { padding: 0 0 32px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — invert hero command deck + Mason Brown name
+   gradient + decorative beacon glows for legibility on light.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Command deck — invert Movement-Plot dark tone to a clean white panel. */
+[data-theme="light"] .commandDeck {
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(0, 0, 0, 0.02) 0%,
+      transparent 60%),
+    #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 8px 22px rgba(15, 20, 30, 0.08);
+}
+/* Soften the corner blue glow — the dark theme version was 0.28 alpha. */
+[data-theme="light"] .commandDeck::before {
+  background: radial-gradient(circle at 0 0, rgba(61, 139, 253, 0.16) 0%, transparent 65%);
+}
+/* Replace the bright white beacon bar with a graphite gradient so it's
+   visible on a white background. */
+[data-theme="light"] .commandDeck::after {
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(26, 31, 37, 0.40) 15%,
+    rgba(26, 31, 37, 0.65) 50%,
+    rgba(26, 31, 37, 0.40) 85%,
+    transparent 100%);
+}
+
+/* Mason Brown name — silver gradient (white→silver→grey) becomes invisible
+   on white. Flip the firstName gradient to dark graphite, keep the
+   lastName italic blue (already dark enough). */
+[data-theme="light"] .megaName {
+  background: linear-gradient(180deg,
+    #1a1f25 0%,
+    #2a3138 40%,
+    #404a52 85%,
+    #5a646c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+[data-theme="light"] .megaName .lastName {
+  background: linear-gradient(180deg,
+    #3D8BFD 0%,
+    #1F5FD1 55%,
+    #143C82 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* HUD cells / telemetry strip dashed border was rgba(255,255,255,0.06) —
+   invisible on white. Flip to a dark hairline. */
+[data-theme="light"] .telemetryStrip {
+  border-bottom-color: rgba(0, 0, 0, 0.10);
 }

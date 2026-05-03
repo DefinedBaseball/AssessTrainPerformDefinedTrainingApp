@@ -225,18 +225,20 @@ const ZONE_LABELS_C = ['Bad', 'Average', 'Good'] as const;
    SHARED GRADE HELPERS
    ═══════════════════════════════════════════ */
 
+/* Three flat bands matching scoreColor() and the rest of the app:
+     20–40 → red, 40–60 → yellow, 60–80 → green. */
 function gradeColor(grade: number | null): string {
   if (grade === null) return 'var(--faint)';
-  if (grade >= 60) return '#4ADE80';
-  if (grade >= 50) return '#FBBF24';
-  return '#F87171';
+  if (grade >= 60) return '#22C55E'; // green
+  if (grade >= 40) return '#EAB308'; // yellow
+  return '#EF4444';                   // red
 }
 
 function gradeBg(grade: number | null): string {
   if (grade === null) return 'transparent';
-  if (grade >= 60) return 'rgba(74,222,128,0.10)';
-  if (grade >= 50) return 'rgba(251,191,36,0.10)';
-  return 'rgba(248,113,113,0.10)';
+  if (grade >= 60) return 'rgba(34,197,94,0.10)';
+  if (grade >= 40) return 'rgba(234,179,8,0.10)';
+  return 'rgba(239,68,68,0.12)';
 }
 
 function gradeLabel(grade: number | null): string {
@@ -689,12 +691,16 @@ function BlockingRangeVisual({ rangeFeet }: { rangeFeet: number | null }) {
    SHARED SNAPSHOT helpers — used by Catching, Infield, and Outfield
    ════════════════════════════════════════════════════════════════ */
 
-/* Tone-color map for a 20-80 grade */
+/* Tone-color map for a 20-80 grade — three flat bands matching the
+   shared scoreColor() helper:
+     20–40 → red    (bad)
+     40–60 → yellow (average)
+     60–80 → green  (good) */
 function gradeTone(g: number | null): { stroke: string; fill: string; text: string } {
   if (g === null) return { stroke: 'rgba(255,255,255,0.18)', fill: 'rgba(255,255,255,0.04)', text: 'rgba(255,255,255,0.40)' };
-  if (g >= 60)    return { stroke: '#22C55E', fill: 'rgba(34,197,94,0.16)',   text: '#22C55E' };
-  if (g >= 40)    return { stroke: 'rgba(255,255,255,0.65)', fill: 'rgba(255,255,255,0.10)', text: '#F1F5F9' };
-  return                  { stroke: '#60A5FA', fill: 'rgba(96,165,250,0.16)', text: '#60A5FA' };
+  if (g >= 60)    return { stroke: '#22C55E', fill: 'rgba(34,197,94,0.16)',  text: '#22C55E' }; // green
+  if (g >= 40)    return { stroke: '#EAB308', fill: 'rgba(234,179,8,0.16)',  text: '#EAB308' }; // yellow
+  return                  { stroke: '#EF4444', fill: 'rgba(239,68,68,0.16)', text: '#EF4444' }; // red
 }
 
 /* Single horizontal bar inside GloveFootworkBars */
@@ -956,19 +962,24 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
   // position has to use the same scale.
   const [twobX, twobY] = fieldXY(0, 90 * Math.SQRT2, CATCH_SCALE);
 
-  const BlockChip = ({ x, y, label, grade, dir, t }: {
-    x: number; y: number; label: string; grade: number | null; dir: -1 | 0 | 1;
+  const BlockChip = ({ x, y, label, grade, t }: {
+    x: number; y: number; label: string; grade: number | null;
     t: ReturnType<typeof gradeTone>;
   }) => {
-    const arrow = dir === -1 ? '◀' : dir === 1 ? '▶' : '▼';
     return (
       <g transform={`translate(${x}, ${y})`}>
-        <rect x="-34" y="-22" width="68" height="44" rx="7" fill={t.fill} stroke={t.stroke} strokeWidth="1.2" />
-        <text x="0" y="-9" textAnchor="middle" fontSize="8" fontFamily={CHIP_FONT} fontWeight="600"
-          fill="rgba(255,255,255,0.62)" letterSpacing="0.06em">{label}</text>
-        <text x="0" y="8" textAnchor="middle" fontSize="15" fontFamily={CHIP_FONT} fontWeight="700"
-          fill={t.text} fontVariantNumeric="tabular-nums">{grade !== null ? grade : '—'}</text>
-        <text x="0" y="18" textAnchor="middle" fontSize="9" fill={t.stroke}>{arrow}</text>
+        {/* Same dimensions + neutral fill/stroke as the Pop Time / Velocity /
+            Exchange chips above (144 × 46, dark neutral). The grade itself
+            still reads in its tone color so the rating is communicated by
+            the number, not the chip background. */}
+        <rect x="-72" y="-23" width="144" height="46" rx="9"
+          fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
+        <text x="0" y="-5" textAnchor="middle" fontSize="10" fontFamily={CHIP_FONT} fontWeight="600"
+          fill="rgba(255,255,255,0.65)" letterSpacing="0.12em">{label}</text>
+        <text x="0" y="15" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
+          fill={t.text} fontVariantNumeric="tabular-nums" letterSpacing="-0.01em">
+          {grade !== null ? grade : '—'}
+        </text>
       </g>
     );
   };
@@ -977,15 +988,17 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
     y: number; label: string; value: number | null; unit: string;
   }) => (
     <g transform={`translate(${FIELD_CX}, ${y})`}>
-      <rect x="-54" y="-14" width="108" height="28" rx="6"
-        fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
-      <text x="-46" y="-2" textAnchor="start" fontSize="8" fontFamily={CHIP_FONT} fontWeight="600"
-        fill="rgba(255,255,255,0.55)" letterSpacing="0.10em">{label}</text>
-      <text x="-46" y="10" textAnchor="start" fontSize="13" fontFamily={CHIP_FONT} fontWeight="700"
+      {/* Bigger chip: 144 × 46 (was 108 × 28) — centered on FIELD_CX so
+          label + value both anchor to middle for a crisp readout. */}
+      <rect x="-72" y="-23" width="144" height="46" rx="9"
+        fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
+      <text x="0" y="-5" textAnchor="middle" fontSize="10" fontFamily={CHIP_FONT} fontWeight="600"
+        fill="rgba(255,255,255,0.65)" letterSpacing="0.12em">{label}</text>
+      <text x="0" y="15" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
         fill="#F1F5F9" fontVariantNumeric="tabular-nums" letterSpacing="-0.01em">
         {value !== null ? (unit === 'mph' ? value.toFixed(0) : value.toFixed(2)) : '—'}
-        <tspan fontSize="9" fontFamily={CHIP_FONT} fontWeight="500"
-               fill="rgba(255,255,255,0.55)" letterSpacing="0.04em" dx="3">{unit}</tspan>
+        <tspan fontSize="11" fontFamily={CHIP_FONT} fontWeight="500"
+               fill="rgba(255,255,255,0.60)" letterSpacing="0.04em" dx="4">{unit}</tspan>
       </text>
     </g>
   );
@@ -1001,17 +1014,24 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
       <polygon points={`${twobX - 6},${twobY + 6} ${twobX + 6},${twobY + 6} ${twobX},${twobY - 2}`}
         fill="rgba(255,255,255,0.70)" />
 
-      {/* Stat chips spaced along the throw */}
-      <StatChip y={235} label="POP TIME" value={popTime} unit="s" />
-      <StatChip y={325} label="VELOCITY" value={velocity} unit="mph" />
+      {/* Stat chips spaced along the throw — Y values driven by actual
+          field distances (fieldXY at center / 0°) so they line up with
+          the same-distance arcs on the catching field:
+            • Pop Time → 120 ft (top arc, just under 2B / Center)
+            • Velocity → 60 ft (mid-throw)
+            • Exchange → stays close to home plate */}
+      <StatChip y={fieldXY(0, 120, CATCH_SCALE)[1]} label="POP TIME" value={popTime} unit="s" />
+      <StatChip y={fieldXY(0, 60,  CATCH_SCALE)[1]} label="VELOCITY" value={velocity} unit="mph" />
       <StatChip y={400} label="EXCHANGE" value={exchange} unit="s" />
 
-      {/* Block fan beneath home plate */}
-      <path d={`M ${FIELD_CX - 130} 480 Q ${FIELD_CX} 520 ${FIELD_CX + 130} 480`}
+      {/* Block fan beneath home plate — wider spacing to fit the larger
+          144-wide chips without overlap. Outer chips lifted slightly so
+          the trio reads as a fan around the (lower) center chip. */}
+      <path d={`M ${FIELD_CX - 160} 480 Q ${FIELD_CX} 520 ${FIELD_CX + 160} 480`}
         fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="2 4" />
-      <BlockChip x={FIELD_CX - 130} y={482} label="BLOCK L" grade={leftGrade}   dir={-1} t={L} />
-      <BlockChip x={FIELD_CX}        y={500} label="BLOCK C" grade={centerGrade} dir={0}  t={MID} />
-      <BlockChip x={FIELD_CX + 130} y={482} label="BLOCK R" grade={rightGrade}  dir={1}  t={R} />
+      <BlockChip x={FIELD_CX - 160} y={482} label="BLOCK LEFT"   grade={leftGrade}   t={L} />
+      <BlockChip x={FIELD_CX}        y={500} label="BLOCK CENTER" grade={centerGrade} t={MID} />
+      <BlockChip x={FIELD_CX + 160} y={482} label="BLOCK RIGHT"  grade={rightGrade}  t={R} />
 
       <text x={FIELD_CX} y={VBOX_H - 8} textAnchor="middle" fontSize="11" fontFamily={CHIP_FONT} fontWeight="600"
         fill="rgba(255,255,255,0.40)" fontStyle="italic">Blocking coverage behind home plate</text>
@@ -1043,16 +1063,20 @@ function PositionFieldDiagram({ mode, positionDot, rangeLeft, rangeRight, rangeI
   const inUx = fwdX / fwdMag, inUy = fwdY / fwdMag;
   const rightUx = inUy, rightUy = -inUx;
 
-  const ARROW_LEN = 44;
+  // Horizontal chips (Left/Right) need more room because the 144-wide
+  // chips would overlap the position dot at a shorter offset. Vertical
+  // chips (In/Back) only need the chip-half-height of clearance, so
+  // they sit much closer to the position dot.
+  const ARROW_LEN_H = 100;
+  const ARROW_LEN_V = 50;
   const ArrowChip = ({ dir, grade }: { dir: 'L' | 'R' | 'I' | 'B'; grade: number | null }) => {
     const t = gradeTone(grade);
     let dx = 0, dy = 0;
-    if (dir === 'L') { dx = -rightUx * ARROW_LEN; dy = -rightUy * ARROW_LEN; }
-    if (dir === 'R') { dx =  rightUx * ARROW_LEN; dy =  rightUy * ARROW_LEN; }
-    if (dir === 'I') { dx =  inUx    * ARROW_LEN; dy =  inUy    * ARROW_LEN; }
-    if (dir === 'B') { dx = -inUx    * ARROW_LEN; dy = -inUy    * ARROW_LEN; }
-    const arrow = dir === 'L' ? '◀' : dir === 'R' ? '▶' : dir === 'I' ? '▼' : '▲';
-    const dirLabel = dir === 'L' ? 'LEFT' : dir === 'R' ? 'RIGHT' : dir === 'I' ? 'IN' : 'BACK';
+    if (dir === 'L') { dx = -rightUx * ARROW_LEN_H; dy = -rightUy * ARROW_LEN_H; }
+    if (dir === 'R') { dx =  rightUx * ARROW_LEN_H; dy =  rightUy * ARROW_LEN_H; }
+    if (dir === 'I') { dx =  inUx    * ARROW_LEN_V; dy =  inUy    * ARROW_LEN_V; }
+    if (dir === 'B') { dx = -inUx    * ARROW_LEN_V; dy = -inUy    * ARROW_LEN_V; }
+    const dirLabel = dir === 'L' ? 'RANGE LEFT' : dir === 'R' ? 'RANGE RIGHT' : dir === 'I' ? 'RANGE IN' : 'RANGE BACK';
     const tipX = positionDot.x + dx;
     const tipY = positionDot.y + dy;
     return (
@@ -1060,13 +1084,14 @@ function PositionFieldDiagram({ mode, positionDot, rangeLeft, rangeRight, rangeI
         <line x1={positionDot.x} y1={positionDot.y} x2={tipX} y2={tipY}
           stroke={t.stroke} strokeWidth="1.3" strokeDasharray="3 2" />
         <g transform={`translate(${tipX}, ${tipY})`}>
-          <rect x="-22" y="-14" width="44" height="28" rx="5.5" fill={t.fill} stroke={t.stroke} strokeWidth="1.2" />
-          <text x="-13" y="-3" textAnchor="middle" fontSize="7" fontFamily={CHIP_FONT} fontWeight="700"
-            fill="rgba(255,255,255,0.55)">{arrow}</text>
-          <text x="6" y="-3" textAnchor="middle" fontSize="7" fontFamily={CHIP_FONT} fontWeight="600"
-            fill="rgba(255,255,255,0.55)">{dirLabel}</text>
-          <text x="0" y="10" textAnchor="middle" fontSize="14" fontFamily={CHIP_FONT} fontWeight="700"
-            fill={t.text} fontVariantNumeric="tabular-nums">
+          {/* Match the Catching Pop Time chip — 144 × 46, neutral fill +
+              stroke, 10px centered label + 18px centered value. */}
+          <rect x="-72" y="-23" width="144" height="46" rx="9"
+            fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
+          <text x="0" y="-5" textAnchor="middle" fontSize="10" fontFamily={CHIP_FONT} fontWeight="600"
+            fill="rgba(255,255,255,0.65)" letterSpacing="0.12em">{dirLabel}</text>
+          <text x="0" y="15" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
+            fill={t.text} fontVariantNumeric="tabular-nums" letterSpacing="-0.01em">
             {grade !== null ? grade : '—'}
           </text>
         </g>
@@ -1091,13 +1116,15 @@ function PositionFieldDiagram({ mode, positionDot, rangeLeft, rangeRight, rangeI
       <line x1={positionDot.x} y1={positionDot.y} x2={armTargetX} y2={armTargetY}
         stroke={armToneObj.stroke} strokeWidth="1.7" strokeDasharray="6 4" opacity="0.85" />
       <g transform={`translate(${armMidX}, ${armMidY})`}>
-        <rect x="-36" y="-14" width="72" height="28" rx="6"
-          fill="rgba(20,24,32,0.92)" stroke={armToneObj.stroke} strokeWidth="1.2" />
-        <text x="0" y="-3" textAnchor="middle" fontSize="7.5" fontFamily={CHIP_FONT} fontWeight="600"
-          fill="rgba(255,255,255,0.60)" letterSpacing="0.04em">
+        {/* Match the Catching Pop Time chip — 144 × 46, neutral fill +
+            stroke, 10px centered label + 18px centered value. */}
+        <rect x="-72" y="-23" width="144" height="46" rx="9"
+          fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
+        <text x="0" y="-5" textAnchor="middle" fontSize="10" fontFamily={CHIP_FONT} fontWeight="600"
+          fill="rgba(255,255,255,0.65)" letterSpacing="0.12em">
           ARM {armTargetLabel.toUpperCase()}
         </text>
-        <text x="0" y="10" textAnchor="middle" fontSize="13" fontFamily={CHIP_FONT} fontWeight="700"
+        <text x="0" y="15" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
           fill={armToneObj.text} fontVariantNumeric="tabular-nums" letterSpacing="-0.01em">
           {armVelo !== null ? `${armVelo.toFixed(0)} mph` : armGrade !== null ? armGrade : '—'}
         </text>
@@ -1170,24 +1197,43 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {cells.map((c, i) => {
+          /* Each underlying-stat cell uses the same dark slate chrome as
+             the Catching Pop Time / Velocity / Exchange chips so the
+             whole "underlying stats" strip reads as a row of spotlight
+             chips. Hardcoded light text keeps it readable in both themes. */
+          const slateChip: React.CSSProperties = {
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            background: 'rgba(20, 24, 32, 0.92)',
+            border: '1px solid rgba(255, 255, 255, 0.22)',
+            borderRadius: 10,
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.25)',
+          };
+          const slateLabel: React.CSSProperties = {
+            fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.16em', color: 'rgba(255, 255, 255, 0.65)',
+          };
+          const slateUnit: React.CSSProperties = {
+            fontFamily: MONO, fontSize: 10, fontWeight: 600,
+            color: 'rgba(255, 255, 255, 0.55)', letterSpacing: '0.10em',
+          };
+          const slateRating: React.CSSProperties = {
+            fontSize: 11, color: 'rgba(255, 255, 255, 0.55)', fontStyle: 'italic',
+          };
           if (c.kind === 'metric') {
             const has = c.value !== null && c.value !== undefined;
             const decimals = c.decimals ?? (c.unit === 'mph' ? 0 : 2);
             return (
-              <div
-                key={i}
-                className={aStyles.innerPanel}
-                style={{
-                  padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
-                }}
-              >
-                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-bright)' }}>{c.label}</span>
+              <div key={i} style={slateChip}>
+                <span style={slateLabel}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                  <span style={{ fontSize: 24, fontWeight: 800, color: has ? 'var(--text)' : 'var(--faint)',
+                  <span style={{ fontSize: 24, fontWeight: 800, color: has ? '#F1F5F9' : 'rgba(255,255,255,0.40)',
                     letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                     {has ? c.value!.toFixed(decimals) : '—'}
                   </span>
-                  <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.10em' }}>{c.unit}</span>
+                  <span style={slateUnit}>{c.unit}</span>
                 </span>
               </div>
             );
@@ -1196,22 +1242,14 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
             const valueColor = gradeColor(grade);
             const ratingLabel = grade !== null ? gradeLabel(grade) : 'Not graded';
             return (
-              <div
-                key={i}
-                className={aStyles.innerPanel}
-                style={{
-                  padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
-                }}
-              >
-                <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--text-bright)' }}>{c.label}</span>
+              <div key={i} style={slateChip}>
+                <span style={slateLabel}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontSize: 24, fontWeight: 800, color: valueColor,
                     letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                     {grade !== null ? grade : '—'}
                   </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    {ratingLabel}
-                  </span>
+                  <span style={slateRating}>{ratingLabel}</span>
                 </span>
               </div>
             );

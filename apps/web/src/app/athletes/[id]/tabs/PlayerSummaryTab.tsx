@@ -722,8 +722,10 @@ function MetricTrendPanel({
     <>
       <div className={styles.sectionTitle}>
         <div>
-          <div className={styles.tiny}>Metric trend</div>
-          <h2>{current ? current.metric.label : 'Historical averages'}</h2>
+          {/* Swapped — "Metric Trend" leads as the big italic title and
+              the populated metric label sits below it as the small eyebrow. */}
+          <h2>Metric Trend</h2>
+          <div className={styles.tiny}>{current ? current.metric.label : 'Historical averages'}</div>
         </div>
         <select
           className={styles.chartSelect}
@@ -976,7 +978,7 @@ export function PlayerSummaryTab({
             coaches don't have to scroll past every card to save edits. */}
         <div className={`${styles.panel} ${styles.noteCard}`}>
           <div className={styles.devHeader}>
-            <div className={styles.eyebrow}>Development snapshot</div>
+            <h2 className={styles.panelTitle}>Development Snapshot</h2>
             {/* Save controls live inline (coach only). Reset is hidden
                 when nothing's been edited so the bar stays tight.
                 The overall total score was retired in favor of per-section
@@ -1031,7 +1033,7 @@ export function PlayerSummaryTab({
         <div className={`${styles.panel} ${styles.toolBubble}`}>
           <div className={styles.toolBubbleHead}>
             <div>
-              <div className={styles.tiny}>Tool grades</div>
+              <h2 className={styles.panelTitle}>Tool Grades</h2>
             </div>
             <div className={styles.legendInline}>
               <span>20-80 Scale</span>
@@ -1128,14 +1130,18 @@ export function PlayerSummaryTab({
           </div>
         </div>
 
-        {/* Selected-section detail card — driven by the Tool-Grades bubble. */}
+        {/* Selected-section detail card — driven by the Tool-Grades bubble.
+            Title row reads left-to-right: "Sub-grade breakdown" leads as
+            the main h2, and the section-specific qualifier ("Hitting
+            Detail", "Pitching Detail", "Catching Detail", etc.) sits to
+            its right as the small eyebrow. */}
         <div className={`${styles.panel} ${styles.playerCard}`}>
           <div className={styles.sectionTitle}>
-            <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0 }}>Sub-grade breakdown</h2>
               <div className={styles.tiny}>
                 {(selectedSection?.label ?? 'Section')} detail
               </div>
-              <h2>Sub-grade breakdown</h2>
             </div>
             <div className={styles.chips}>
               <span className={styles.chip}>
@@ -1147,57 +1153,66 @@ export function PlayerSummaryTab({
             </div>
           </div>
 
-          {/* Bubbles are now flex-proportional so each group card spans
-              exactly over its own sub-metric columns in the chart below.
-              Horizontal padding matches the chart's YAxis gutter (≈60px)
-              and right-side margin (12px) so columns line up. */}
-          <div className={styles.kpiRow}>
+          {/* Bar graph leads — sub-metric columns visible up top. */}
+          <div className={styles.chartWrap}>
+            <SectionBarsChart section={selectedSection} />
+          </div>
+
+          {/* One bubble per bar group (Coach Grades / Swing Decision /
+              Quality of Contact / Swing for hitting; analogous splits
+              for the other sections). Each bubble spans exactly over
+              its own chart columns above (flex-weighted by sub-metric
+              count) and stacks:
+                Top    — every sub-metric label that group covers
+                Middle — the bar/group label (e.g. "Swing")
+                Bottom — that group's score */}
+          <div className={styles.coachGradesRow}>
             {(selectedSection?.bars ?? []).map((bar) => {
-              const grade = bar.score;
-              let trendCopy = 'Awaiting data';
-              let bad = false;
-              if (grade != null) {
-                if (grade >= 60) trendCopy = 'Above program average';
-                else if (grade >= 50) trendCopy = 'Trending steady';
-                else if (grade >= 40) trendCopy = 'Needs tighter spread';
-                else { trendCopy = 'Below desired band'; bad = true; }
-              }
-              // Width weight = number of leaf sub-metrics in this bar.
-              // Fallback to 1 so groups without sub-metrics still render.
               const weight = Math.max(1, bar.subMetrics.length);
-              // Unified scoreColor for the group score, matching the chart bars
-              // and Tool-Grades bubble.
-              const kpiColor = grade != null ? scoreColor(grade) : undefined;
+              const grade = bar.score;
+              const tone = grade != null ? scoreColor(grade) : undefined;
               return (
                 <div
                   key={bar.key}
-                  className={styles.kpi}
+                  className={styles.coachGradesBubble}
                   style={{ flex: `${weight} ${weight} 0` }}
                 >
-                  <label className={styles.kpiLabel}>{bar.label}</label>
-                  <strong
-                    className={styles.kpiValue}
-                    style={kpiColor ? { color: kpiColor } : undefined}
-                  >
-                    {grade ?? '—'}
-                  </strong>
-                  <div className={`${styles.kpiTrend}${bad ? ' ' + styles.kpiTrendBad : ''}`}>
-                    {trendCopy}
+                  <div className={styles.coachGradesLabels}>
+                    {bar.subMetrics.length > 0 ? (
+                      bar.subMetrics.map((sm) => (
+                        <span key={sm.key} className={styles.coachGradesLabel}>
+                          {sm.label}
+                        </span>
+                      ))
+                    ) : (
+                      <span className={styles.coachGradesLabel}>—</span>
+                    )}
+                  </div>
+                  <div className={styles.coachGradesGroupTitle}>
+                    {bar.label}
+                  </div>
+                  <div className={styles.coachGradesScoreRow}>
+                    <strong
+                      className={styles.coachGradesScore}
+                      style={tone ? { color: tone } : undefined}
+                    >
+                      {grade ?? '—'}
+                    </strong>
                   </div>
                 </div>
               );
             })}
             {(!selectedSection || selectedSection.bars.length === 0) && (
-              <div className={styles.kpi} style={{ flex: '1 1 0' }}>
-                <label className={styles.kpiLabel}>No sub-grades</label>
-                <strong className={styles.kpiValue}>—</strong>
-                <div className={styles.kpiTrend}>Awaiting assessment</div>
+              <div className={styles.coachGradesBubble} style={{ flex: '1 1 0' }}>
+                <div className={styles.coachGradesLabels}>
+                  <span className={styles.coachGradesLabel}>—</span>
+                </div>
+                <div className={styles.coachGradesGroupTitle}>No sub-grades</div>
+                <div className={styles.coachGradesScoreRow}>
+                  <strong className={styles.coachGradesScore}>—</strong>
+                </div>
               </div>
             )}
-          </div>
-
-          <div className={styles.chartWrap}>
-            <SectionBarsChart section={selectedSection} />
           </div>
         </div>
 
@@ -1216,8 +1231,11 @@ export function PlayerSummaryTab({
         <div className={styles.panel}>
           <div className={styles.sectionTitle}>
             <div>
-              <div className={styles.tiny}>Sub-grade compare</div>
-              <h2>Physical vs {COMPARE_OPTIONS.find((o) => o.key === compareDomain)?.label ?? '—'}</h2>
+              {/* Swapped — "Sub-Grade Compare" leads as the big italic title
+                  and the populated comparison sits below it as the small
+                  eyebrow. */}
+              <h2>Sub-Grade Compare</h2>
+              <div className={styles.tiny}>Physical vs {COMPARE_OPTIONS.find((o) => o.key === compareDomain)?.label ?? '—'}</div>
             </div>
             <select
               className={styles.chartSelect}

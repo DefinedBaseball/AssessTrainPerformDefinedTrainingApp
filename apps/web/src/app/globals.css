@@ -216,6 +216,8 @@ a:hover { color: var(--text); opacity: 0.85; }
 ::-webkit-scrollbar-track { background: var(--surface-solid); }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.30); }
 
 /* ── Cards ── */
 .card {
@@ -235,6 +237,9 @@ a:hover { color: var(--text); opacity: 0.85; }
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
   pointer-events: none;
+}
+[data-theme="light"] .card::before {
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.12), transparent);
 }
 .card:hover {
   background: var(--card-elev-hover), var(--card-elev-bg);
@@ -398,6 +403,33 @@ input:focus, select:focus, textarea:focus {
 }
 ::placeholder { color: var(--text-muted); }
 
+/* ── Dropdown <option> contrast ──
+   Browsers render the open <select> list with native OS styling that often
+   ignores our dark theme — producing white-on-white or near-invisible text
+   in the open list. Force a solid dark surface + white text on every option
+   (and on the selected one when checked) so the dropdown is always legible.
+   The light-theme override below handles the inverse for [data-theme="light"]. */
+select option,
+select optgroup {
+  background-color: #0d1218;
+  color: #f1f4f6;
+}
+select option:checked,
+select option:hover {
+  background-color: #1a2330;
+  color: #ffffff;
+}
+[data-theme="light"] select option,
+[data-theme="light"] select optgroup {
+  background-color: #ffffff;
+  color: #1a1d22;
+}
+[data-theme="light"] select option:checked,
+[data-theme="light"] select option:hover {
+  background-color: #eef1f6;
+  color: #0a0c10;
+}
+
 /* ── Score slider — hide the thumb when no value is set ──
    Used by the Coach Diagnosis (Hitting) + Delivery Grades (Pitching)
    sliders so an unscored row reads as truly empty. The thumb pops back
@@ -423,6 +455,9 @@ th {
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   background: rgba(255,255,255,0.02);
+}
+[data-theme="light"] th {
+  background: rgba(0,0,0,0.025);
 }
 td {
   padding: 10px 16px;

@@ -46,7 +46,7 @@
    so the section header reads as a sub-banner across each tab. */
 .sectionTitle {
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 23px;
   font-weight: 800;
   letter-spacing: -0.025em;
   line-height: 1.05;
@@ -360,16 +360,25 @@
   flex-shrink: 0;
 }
 
-/* ── TAB BAR ── */
+/* ── TAB BAR ──
+   Reversed to match the dark Movement-Plot tone of every outer panel
+   across the app (Player Summary card, Hitting Snapshot, etc.) so the
+   tab strip reads as a sibling outer surface. */
 .tabBarOuter {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
-    linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%);
-  border: 1px solid var(--border);
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   margin-bottom: 18px;
   padding: 0 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .tabBarInner {
@@ -499,7 +508,10 @@
 }
 
 .tabPanel {
-  padding-top: 32px;
+  /* Same vertical rhythm as the gap between sections inside each tab
+     (1.25rem ≈ 20px) so the space below the player-name hero matches
+     the space between e.g. "Development Snapshot" and "Tool Grades". */
+  padding-top: 1.25rem;
   animation: fadeIn 0.2s ease;
 }
 
@@ -1489,4 +1501,74 @@
   .reportSelectorRow .reportSelector {
     width: 100%;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES
+   The dark-tuned classes in this module hardcode rgba values that were
+   chosen for the dark Movement-Plot scheme. Each block below inverts
+   those choices when [data-theme="light"] is on the <html>, leaving
+   the dark theme behavior untouched.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Outer panel — invert the Movement-Plot dark tone to a clean white card. */
+[data-theme="light"] .profilePanel {
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(0, 0, 0, 0.02) 0%,
+      transparent 60%),
+    #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 4px 14px rgba(15, 20, 30, 0.06);
+}
+
+/* Inner KPI bubble — flip the gradient + remove text-clip on the value
+   number so the silver-gradient white doesn't disappear on a white card. */
+[data-theme="light"] .kpi {
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(15, 20, 30, 0.04);
+}
+[data-theme="light"] .kpi:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card-hi);
+}
+[data-theme="light"] .kpiVal {
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: currentColor;
+  background-clip: initial;
+  color: var(--text-bright);
+}
+[data-theme="light"] .kpiLabel {
+  color: var(--text-soft);
+}
+
+/* Section titles — flip white to dark and dim the soft white shadow. */
+[data-theme="light"] .sectionTitleFirst,
+[data-theme="light"] .sectionTitleAccent {
+  color: #1a1f25;
+}
+
+/* Tab bar — invert dark Movement-Plot tone to a light card surface. */
+[data-theme="light"] .tabBarOuter {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 4px 14px rgba(15, 20, 30, 0.06);
+}
+[data-theme="light"] .tabBtn {
+  color: var(--text-soft);
+}
+[data-theme="light"] .tabActive {
+  color: var(--text-bright);
+}
+
+/* Score-bar header / labels were retoned for dark backgrounds. */
+[data-theme="light"] .scoreBarHeader {
+  color: var(--text);
 }

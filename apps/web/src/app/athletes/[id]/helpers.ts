@@ -737,16 +737,23 @@ export function computeAggregateScores(
   // here from the real data (topMetrics + latest HITTING report's manual
   // scores) so the Summary view matches what the coach sees on the tab.
   if (hasNonPitcher) {
-    /* Same key sets as SwingTab.HittingGradeStack — keep them mirrored so
-       the Summary's bars roll up the same numbers. */
+    /* Locked sub-metric lists per group — these labels populate the
+       Sub-Grade Breakdown bubbles regardless of whether the player
+       has data for every metric (missing metrics render with no
+       grade). Mirrors the exact taxonomy the user requested. */
     const SWING_KEYS_LOCAL = [
-      'attack_angle', 'plane_angle', 'avg_bat_speed', 'time_to_contact',
-      'on_plane_efficiency', 'connection_at_contact', 'rotational_acceleration',
+      'attack_angle',
+      'plane_angle',
+      'avg_bat_speed',
+      'time_to_contact',
+      'on_plane_efficiency',
     ];
     const QOC_KEYS_LOCAL = [
-      'avg_exit_velo', 'squared_up_pct', 'smash_factor',
-      'full_swing_miss_pct', 'overall_barrel_pct',
-      'launch_angle', 'distance',
+      'avg_exit_velo',
+      'squared_up_pct',
+      'smash_factor',
+      'launch_angle',
+      'distance',
     ];
     /* Swing Decision sub-metrics roll up to four aggregate buckets in the
        Sub-Grade Breakdown: Barrel %, Whiff %, Chase %, In Zone Swing %.
@@ -773,23 +780,26 @@ export function computeAggregateScores(
       { key: 'timing',      label: 'Timing' },
     ];
 
-    /* For metric-keyed bars, build sub-metrics with their per-key grade so
-       the Section detail card renders one bar per leaf metric (matching
-       what the Hitting tab's KPI rows show). */
+    /* For metric-keyed bars, build sub-metrics with their per-key grade
+       so the Section detail card renders one entry per leaf metric.
+       Keys without recorded data still surface so each group bubble
+       always shows its full label set (Swing: Attack Angle / Plane
+       Angle / etc.) — missing metrics simply have no grade. */
     const metricSubs = (keys: string[]): AggregateSubMetric[] =>
-      keys
-        .filter((k) => _topMetrics[k])
-        .map((k) => {
-          const m = _topMetrics[k];
-          const grade = toScoutingGrade(m.value, k) ?? undefined;
-          return {
-            key: k,
-            label: METRIC_LABELS[k] || k,
-            value: m.value,
-            unit: m.unit,
-            grade,
-          };
-        });
+      keys.map((k) => {
+        const m = _topMetrics[k];
+        if (!m) {
+          return { key: k, label: METRIC_LABELS[k] || k };
+        }
+        const grade = toScoutingGrade(m.value, k) ?? undefined;
+        return {
+          key: k,
+          label: METRIC_LABELS[k] || k,
+          value: m.value,
+          unit: m.unit,
+          grade,
+        };
+      });
 
     const swingSubs    = metricSubs(SWING_KEYS_LOCAL);
     const qocSubs      = metricSubs(QOC_KEYS_LOCAL);

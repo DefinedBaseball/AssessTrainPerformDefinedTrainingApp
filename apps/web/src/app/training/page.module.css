@@ -1132,3 +1132,31 @@
   .athleteBar { flex-direction: column; align-items: stretch; gap: 6px; }
   .tab { padding: 6px 8px; font-size: 10px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Spillover days — dark Movement-Plot tone is too heavy for light theme.
+   Use a tinted off-white so the spillover days still recede behind the
+   active month grid but stay legible. */
+[data-theme="light"] .dayCellOther {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(0, 0, 0, 0.025) 0%, transparent 60%),
+    #e9edf2;
+  opacity: 0.85;
+}
+[data-theme="light"] .dayCellOther:hover {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(0, 0, 0, 0.035) 0%, transparent 60%),
+    #dde2e9;
+}
+
+/* "Today" cell — accent ring stays but the soft blue tint fades against
+   white. Use a slightly stronger accent fill for the highlight. */
+[data-theme="light"] .dayCellToday {
+  background:
+    linear-gradient(180deg, rgba(61, 139, 253, 0.10) 0%, rgba(61, 139, 253, 0.03) 100%),
+    #ffffff;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}

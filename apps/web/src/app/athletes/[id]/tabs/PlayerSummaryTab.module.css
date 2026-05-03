@@ -36,7 +36,9 @@
   color: var(--ps-text);
   display: grid;
   gap: 1.25rem;
-  padding: 0.25rem 0 1.5rem;
+  /* Top padding zeroed so the gap below the player-name hero is exactly
+     the .tabPanel padding-top (1.25rem), matching the inter-section gap. */
+  padding: 0 0 1.5rem;
 }
 
 /* ════════════════════════════════════════════════
@@ -84,12 +86,19 @@
   flex-wrap: wrap;
 }
 
-.sectionTitle h2 {
+/* Use the same display font + italic Brown treatment as the shared
+   SectionHeader titles so every panel header across Summary reads in
+   the same identity. */
+.sectionTitle h2,
+.panelTitle {
   margin: 0;
-  font-size: clamp(1.125rem, 1.02rem + 0.6vw, 1.4rem);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--ps-text);
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: #ffffff;
 }
 
 .tiny {
@@ -256,10 +265,16 @@
 
 .toolBubbleHead h2 {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--ps-text);
-  letter-spacing: -0.01em;
+  /* Match the shared .sectionTitle h2 / .panelTitle Brown italic
+     treatment so "Tool Grades" reads at the same size + style as
+     every other section title across Summary. */
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 600;
+  font-style: italic;
+  color: #ffffff;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
 }
 
 .toolBarList {
@@ -630,46 +645,55 @@
   letter-spacing: -0.02em;
 }
 
-/* Best Tool / Biggest Weakness inner bubbles — pair of small callout
-   cards inside each section. They share the section's --section-tone
-   so they read as part of the parent card, just visually pulled out. */
+/* Best Tool / Biggest Weakness inner bubbles — stacked vertically so
+   "Best Tool" sits above "Biggest Weakness" inside each section card.
+   They share the section's --section-tone so they read as part of the
+   parent card, just visually pulled out. */
 .devBubbleRow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
-@media (max-width: 540px) {
-  .devBubbleRow { grid-template-columns: minmax(0, 1fr); }
-}
+/* Two-line layout (no surrounding chrome):
+     Row 1 — [LABEL]
+     Row 2 — [Value]                     [Score]
+   The previous bubble background / border / shadow were retired so
+   "Best Tool" and "Biggest Weakness" sit naturally inside their parent
+   section card (Hitting / Pitching / Defense / S&C) rather than being
+   wrapped in their own separate chip. */
 .devBubble {
   position: relative;
-  padding: 0.5rem 0.65rem;
-  border-radius: 10px;
-  background: var(--card-elev), var(--card-elev-bg);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-card);
+  padding: 0.25rem 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.55rem;
+  row-gap: 0.18rem;
   min-width: 0;
 }
 .devBubbleLabel {
-  font-size: 0.6rem;
+  flex: 0 0 100%;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-bright);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .devBubbleValue {
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .devBubbleScore {
   font-family: 'DM Mono', monospace;
@@ -678,7 +702,8 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   line-height: 1;
-  margin-top: 0.05rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .devNotesInput {
   width: 100%;
@@ -804,10 +829,13 @@
   margin-bottom: 0.25rem;
 }
 .playerCard .sectionTitle h2 {
-  font-size: clamp(0.95rem, 0.9rem + 0.35vw, 1.1rem);
+  /* Override removed — let the shared .sectionTitle h2 rule above
+     supply the 23px Brown italic treatment so "Sub-grade breakdown"
+     matches the rest of the section titles. */
+  font-size: 23px;
 }
 .playerCard .tiny {
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   letter-spacing: 0.14em;
 }
 .playerCard .chip {
@@ -870,6 +898,78 @@
   .kpiGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* Row of per-bar bubbles — sits inside the same panel as the bar chart,
+   just below it. Each bubble (.coachGradesBubble) spans over its own
+   chart columns (flex-weighted by sub-metric count, with the same
+   60px / 12px gutter the chart uses for YAxis + right margin).
+   Each bubble stacks:
+     Top    — every sub-metric label that group covers (Attack Angle,
+              Plane Angle, Avg Bat Speed, etc. for the Swing bubble)
+     Middle — the bar/group label (Swing / Quality of Contact / etc.)
+     Bottom — that group's 20–80 score */
+.coachGradesRow {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.85rem;
+  padding: 0 12px 0 60px;
+  display: flex;
+  gap: 0.55rem;
+}
+.coachGradesBubble {
+  position: relative;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.coachGradesLabels {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 0.45rem;
+  justify-content: center;
+}
+.coachGradesLabel {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--text-bright);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.coachGradesGroupTitle {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+}
+.coachGradesScoreRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.coachGradesScore {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text-bright);
+  line-height: 1;
 }
 
 /* Proportional KPI row — each bubble spans over its matching group of
@@ -1046,4 +1146,75 @@
   font-size: 0.85rem;
   padding: 0 0.25rem;
   text-align: center;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — flip dark Movement-Plot tones, white
+   text-clip gradients, and white-on-dark overlays so the Summary tab
+   reads clearly on a light background.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Outer panel — same shape as the shared profilePanel light override. */
+[data-theme="light"] .panel {
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(0, 0, 0, 0.02) 0%,
+      transparent 60%),
+    #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 4px 14px rgba(15, 20, 30, 0.06);
+}
+
+/* Inner sub-bubbles inside the panel — Tool-grades rows + dev sections
+   + dev next-step bubbles + chart wraps + KPIs. They were toned for the
+   dark scheme; flip to a light card surface. */
+[data-theme="light"] .toolBarRow,
+[data-theme="light"] .devSection,
+[data-theme="light"] .devBubble,
+[data-theme="light"] .chartWrap,
+[data-theme="light"] .kpi {
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(15, 20, 30, 0.04);
+}
+
+/* Section title h2 / panel title — drop the white color. */
+[data-theme="light"] .sectionTitle h2,
+[data-theme="light"] .panelTitle {
+  color: var(--text-bright);
+}
+
+/* The score-track strips (.barWell etc.) used a soft white overlay that
+   barely shows on white. Replace with a tinted neutral track. */
+[data-theme="light"] .toolBarRow,
+[data-theme="light"] .toolBarRow:hover {
+  background: var(--card-elev), var(--card-elev-bg);
+}
+[data-theme="light"] .devSection {
+  background: var(--card-elev), var(--card-elev-bg);
+}
+[data-theme="light"] .devBubble {
+  background: var(--card-elev), var(--card-elev-bg);
+}
+[data-theme="light"] .chartWrap {
+  background: var(--card-elev), var(--card-elev-bg);
+}
+[data-theme="light"] .kpi {
+  background: var(--card-elev), var(--card-elev-bg);
+}
+
+/* dev-bubble text was bumped to var(--text-bright) which is already
+   light-aware so it should follow. Quad outline cards picked tinted
+   gradients with a tail of rgba(255,255,255,...) — invert on light. */
+[data-theme="light"] .quadGood {
+  background: linear-gradient(180deg, rgba(109, 170, 69, 0.08), rgba(0, 0, 0, 0.015));
+}
+[data-theme="light"] .quadWarn {
+  background: linear-gradient(180deg, rgba(232, 175, 52, 0.10), rgba(0, 0, 0, 0.015));
+}
+[data-theme="light"] .quadBad {
+  background: linear-gradient(180deg, rgba(221, 105, 116, 0.10), rgba(0, 0, 0, 0.015));
 }

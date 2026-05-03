@@ -162,18 +162,23 @@ export default function PlayerProfilePage() {
 
   /* ── Visible tabs (position-driven) ──
      Defense was split into three position-specific tabs — each shows only
-     when the player carries that position code on their profile. */
+     when the player carries that position code on their profile.
+     Position groups mirror the Training Calendar's helper so a player
+     marked LF/CF/RF (or umbrella OF) counts as an outfielder, and a
+     player marked 1B/2B/3B/SS (or umbrella INF) counts as an infielder. */
   const visibleTabs = useMemo(() => {
     if (!player) return TABS;
     const positions = (player.positions || '')
       .split(',')
       .map((p) => p.trim())
       .filter(Boolean);
+    const INFIELD_CODES  = ['1B', '2B', '3B', 'SS', 'INF'];
+    const OUTFIELD_CODES = ['LF', 'CF', 'RF', 'OF'];
     const hasNonPitcher = positions.some((p) => p !== 'P');
-    const isPitcher = positions.includes('P');
+    const isPitcher    = positions.includes('P');
     const isCatcher    = positions.includes('C');
-    const isInfielder  = positions.includes('INF');
-    const isOutfielder = positions.includes('OF');
+    const isInfielder  = positions.some((p) => INFIELD_CODES.includes(p));
+    const isOutfielder = positions.some((p) => OUTFIELD_CODES.includes(p));
 
     return TABS.filter((t) => {
       if (t.key === 'summary') return true;
