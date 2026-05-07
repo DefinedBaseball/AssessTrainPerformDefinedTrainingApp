@@ -50,7 +50,6 @@ export default function AthletesPage() {
         eyebrow="Roster"
         title="Athlete"
         titleAccent="Hub"
-        subtitle="Search, filter, and jump into any athlete's development profile."
         actions={
           <div style={{
             display: 'inline-flex',

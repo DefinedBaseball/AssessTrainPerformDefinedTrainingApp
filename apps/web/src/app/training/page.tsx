@@ -74,19 +74,19 @@ const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; t
     'Machine':          { dot: '#2E6DB5', bg: 'rgba(46,109,181,0.13)',  text: '#2E6DB5' },
     'Live':             { dot: '#1B4F8A', bg: 'rgba(27,79,138,0.15)',   text: '#1B4F8A' },
   },
-  /* Pitching — Reds: pink → salmon → red → dark red → maroon */
+  /* Pitching — Oranges: peach → tangerine → orange → burnt → ember */
   pitching: {
-    'Movement Prep': { dot: '#F8B8B8', bg: 'rgba(248,184,184,0.13)', text: '#F8B8B8' },
-    'Drills':        { dot: '#E88282', bg: 'rgba(232,130,130,0.13)', text: '#E88282' },
-    'Bullpen':       { dot: '#D44A4A', bg: 'rgba(212,74,74,0.13)',   text: '#D44A4A' },
-    'Live':          { dot: '#B52E2E', bg: 'rgba(181,46,46,0.15)',   text: '#B52E2E' },
-    'Post-Throw':    { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
+    'Movement Prep': { dot: '#FDD9A8', bg: 'rgba(253,217,168,0.13)', text: '#FDD9A8' },
+    'Drills':        { dot: '#F8B85E', bg: 'rgba(248,184,94,0.13)',  text: '#F8B85E' },
+    'Bullpen':       { dot: '#F59E0B', bg: 'rgba(245,158,11,0.13)',  text: '#F59E0B' },
+    'Live':          { dot: '#C77A09', bg: 'rgba(199,122,9,0.15)',   text: '#C77A09' },
+    'Post-Throw':    { dot: '#8B4F08', bg: 'rgba(139,79,8,0.18)',    text: '#8B4F08' },
   },
-  /* Catching — Teal-greens (cool side of the green family) */
+  /* Catching — Turquoise / teal-greens, lightest → darkest */
   catching: {
     'Movement Prep': { dot: '#A0E8D8', bg: 'rgba(160,232,216,0.13)', text: '#A0E8D8' },
     'Drills':        { dot: '#5FD4B5', bg: 'rgba(95,212,181,0.13)',  text: '#5FD4B5' },
-    'Machine':       { dot: '#1FB58E', bg: 'rgba(31,181,142,0.13)',  text: '#1FB58E' },
+    'Machine':       { dot: '#14B8A6', bg: 'rgba(20,184,166,0.13)',  text: '#14B8A6' },
     'Live':          { dot: '#0E8E70', bg: 'rgba(14,142,112,0.15)',  text: '#0E8E70' },
   },
   /* Infield — True greens: mint → light green → green → forest */
@@ -103,11 +103,11 @@ const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; t
     'Machine':       { dot: '#88B838', bg: 'rgba(136,184,56,0.13)',  text: '#88B838' },
     'Live':          { dot: '#5A8418', bg: 'rgba(90,132,24,0.15)',   text: '#5A8418' },
   },
-  /* S&C — Oranges: peach → light orange → orange → burnt */
+  /* S&C — Reds: pink → salmon → red → maroon */
   strength: {
-    'Movement Prep': { dot: '#FDE0A8', bg: 'rgba(253,224,168,0.13)', text: '#FDE0A8' },
-    'Exercises':     { dot: '#F0A830', bg: 'rgba(240,168,48,0.13)',   text: '#F0A830' },
-    'Cool Down':     { dot: '#C07818', bg: 'rgba(192,120,24,0.15)',   text: '#C07818' },
+    'Movement Prep': { dot: '#F8B8B8', bg: 'rgba(248,184,184,0.13)', text: '#F8B8B8' },
+    'Exercises':     { dot: '#EF4444', bg: 'rgba(239,68,68,0.13)',   text: '#EF4444' },
+    'Cool Down':     { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
   },
 };
 
@@ -133,13 +133,15 @@ function hexToRgba(hex: string, alpha: number): string {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+/* Single-day-view tab badge colors — unified app-wide palette:
+     Hitting blue, Pitching red, Catching orange, IF/OF green, S&C yellow. */
 const TAB_COLORS: Record<string, { bg: string; text: string }> = {
-  hitting:  { bg: 'rgba(59,130,210,0.15)',  text: '#3B82D2' },
-  pitching: { bg: 'rgba(220,70,70,0.15)',   text: '#DC4646' },
-  catching: { bg: 'rgba(31,181,142,0.15)',  text: '#1FB58E' },
-  infield:  { bg: 'rgba(56,168,80,0.15)',   text: '#38A850' },
-  outfield: { bg: 'rgba(136,184,56,0.15)',  text: '#88B838' },
-  strength: { bg: 'rgba(234,146,48,0.15)',  text: '#EA9230' },
+  hitting:  { bg: 'rgba(59,130,246,0.15)',  text: '#3B82F6' },
+  pitching: { bg: 'rgba(245,158,11,0.15)',  text: '#F59E0B' },
+  catching: { bg: 'rgba(20,184,166,0.15)',  text: '#14B8A6' },
+  infield:  { bg: 'rgba(34,197,94,0.15)',   text: '#22C55E' },
+  outfield: { bg: 'rgba(34,197,94,0.15)',   text: '#22C55E' },
+  strength: { bg: 'rgba(239,68,68,0.15)',   text: '#EF4444' },
 };
 
 const TAB_LABELS: Record<string, string> = {
@@ -165,19 +167,19 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
     { key: 'h-mac', label: 'Machine',           dbCategory: 'Machine',           color: '#2E6DB5' },
     { key: 'h-lv',  label: 'Live',              dbCategory: 'Live',              color: '#1B4F8A' },
   ],
-  /* Pitching dropdowns — lightest → darkest */
+  /* Pitching dropdowns — oranges, lightest → darkest */
   pitching: [
-    { key: 'p-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#F8B8B8' },
-    { key: 'p-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#E88282' },
-    { key: 'p-bp',  label: 'Bullpen',       dbCategory: 'Bullpen',       color: '#D44A4A' },
-    { key: 'p-lv',  label: 'Live',          dbCategory: 'Live',          color: '#B52E2E' },
-    { key: 'p-pt',  label: 'Post-Throw',    dbCategory: 'Post-Throw',    color: '#8B1C2C' },
+    { key: 'p-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#FDD9A8' },
+    { key: 'p-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#F8B85E' },
+    { key: 'p-bp',  label: 'Bullpen',       dbCategory: 'Bullpen',       color: '#F59E0B' },
+    { key: 'p-lv',  label: 'Live',          dbCategory: 'Live',          color: '#C77A09' },
+    { key: 'p-pt',  label: 'Post-Throw',    dbCategory: 'Post-Throw',    color: '#8B4F08' },
   ],
-  /* Catching dropdowns — teal-greens, lightest → darkest */
+  /* Catching dropdowns — turquoise / teal-greens, lightest → darkest */
   catching: [
     { key: 'c-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#A0E8D8' },
     { key: 'c-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#5FD4B5' },
-    { key: 'c-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#1FB58E' },
+    { key: 'c-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#14B8A6' },
     { key: 'c-lv',  label: 'Live',          dbCategory: 'Live',          color: '#0E8E70' },
   ],
   /* Infield dropdowns — true greens, lightest → darkest */
@@ -194,11 +196,11 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
     { key: 'o-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#88B838' },
     { key: 'o-lv',  label: 'Live',          dbCategory: 'Live',          color: '#5A8418' },
   ],
-  /* S&C dropdowns — lightest → darkest */
+  /* S&C dropdowns — reds, lightest → darkest */
   strength: [
-    { key: 's-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#FDE0A8' },
-    { key: 's-ex',  label: 'Exercises',     dbCategory: 'Exercises',     color: '#F0A830' },
-    { key: 's-cd',  label: 'Cool Down',     dbCategory: 'Cool Down',     color: '#C07818' },
+    { key: 's-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#F8B8B8' },
+    { key: 's-ex',  label: 'Exercises',     dbCategory: 'Exercises',     color: '#EF4444' },
+    { key: 's-cd',  label: 'Cool Down',     dbCategory: 'Cool Down',     color: '#8B1C2C' },
   ],
 };
 
@@ -263,6 +265,22 @@ export default function TrainingPage() {
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
   }, [authLoading, user, router]);
+
+  /* Reset back to the default month view + "All" category tab when the
+     user clicks the Training sidebar link while already on this route. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { href: string } | undefined;
+      if (detail?.href === '/training') {
+        setView('month');
+        setActiveTab('all');
+        setShowModal(false);
+        setViewingDrill(null);
+      }
+    };
+    window.addEventListener('sidebar-nav-home', handler);
+    return () => window.removeEventListener('sidebar-nav-home', handler);
+  }, []);
 
   // Load players for coach
   useEffect(() => {
@@ -461,7 +479,7 @@ export default function TrainingPage() {
             : 'Training'
         }
         subtitle={isCoach
-          ? 'Build and schedule drills for each athlete\u2019s weekly plan.'
+          ? undefined
           : 'Your weekly drill schedule and training history.'}
         readout={todayDateStr}
       />

@@ -8,12 +8,18 @@ import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
+/* Unified app-wide section identity palette:
+     Hitting  → Blue, Pitching → Orange,
+     Catching → Turquoise, Infield → Green, Outfield → Green,
+     S&C → Red, Cognition → Yellow.                                   */
 const SPORTS = [
-  { id: 'hitting', label: 'Hitting', color: '#3B82D2' },
-  { id: 'pitching', label: 'Pitching', color: '#DC4646' },
-  { id: 'defense', label: 'Defense', color: '#38A850' },
-  { id: 'strength', label: 'S&C', color: '#EA9230' },
-  { id: 'vision', label: 'Cognition', color: '#DAC328' },
+  { id: 'hitting',  label: 'Hitting',   color: '#3B82F6' },
+  { id: 'pitching', label: 'Pitching',  color: '#F59E0B' },
+  { id: 'catching', label: 'Catching',  color: '#14B8A6' },
+  { id: 'infield',  label: 'Infield',   color: '#22C55E' },
+  { id: 'outfield', label: 'Outfield',  color: '#22C55E' },
+  { id: 'strength', label: 'S&C',       color: '#EF4444' },
+  { id: 'vision',   label: 'Cognition', color: '#EAB308' },
 ];
 
 const LEVELS = [
@@ -26,7 +32,9 @@ const LEVELS = [
 const DRILL_CATS: Record<string, { id: string; label: string }[]> = {
   hitting: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Batting Practice', label: 'Batting Practice' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
   pitching: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Bullpen', label: 'Bullpen' }, { id: 'Live', label: 'Live' }, { id: 'Post-Throw', label: 'Post-Throw' }],
-  defense: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
+  catching: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
+  infield:  [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
+  outfield: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
   strength: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Exercises', label: 'Exercises' }, { id: 'Cool Down', label: 'Cool Down' }],
   vision: [{ id: 'Vizual Edge', label: 'Vizual Edge' }, { id: 'Drills', label: 'Drills' }, { id: 'Live', label: 'Live' }],
 };
@@ -70,6 +78,23 @@ export default function EducationPage() {
     api.getDrills().then(setDrills).catch(() => {});
     api.getMlbPlayers().then(setMlbPlayers).catch(() => {});
   }, [user]);
+
+  /* Reset to landing whenever the user clicks the Education sidebar
+     link while already on this route (Sidebar fires a 'sidebar-nav-home'
+     custom event with the target href). */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { href: string } | undefined;
+      if (detail?.href === '/education') {
+        setPage('landing');
+        setSearch('');
+        setCurrentPlayer(null);
+        setCurrentClass(null);
+      }
+    };
+    window.addEventListener('sidebar-nav-home', handler);
+    return () => window.removeEventListener('sidebar-nav-home', handler);
+  }, []);
 
   const goTo = (p: Page, id?: string) => {
     setPage(p);

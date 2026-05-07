@@ -65,13 +65,6 @@ export function CoverPage({ player, reportTitle, reportDate }: CoverPageProps) {
   const weightStr = player.weightLbs ? `${player.weightLbs} lb` : '—';
   const btStr = `${player.bats || '—'} / ${player.throws || '—'}`;
   const gradStr = player.gradYear ? String(player.gradYear) : '—';
-  const fmtBirth = (() => {
-    if (!player.birthDate) return null;
-    try {
-      const d = new Date(player.birthDate);
-      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    } catch { return null; }
-  })();
 
   return (
     <Page
@@ -134,7 +127,10 @@ export function CoverPage({ player, reportTitle, reportDate }: CoverPageProps) {
           {positions}
         </Text>
 
-        {/* Personal info grid — six stat tiles, three per row */}
+        {/* Personal info grid — five stat tiles in the requested order:
+            Height · Weight · Bats/Throws · Grad Year · Age. Position
+            already lives in the uppercase subtitle directly under the
+            player name, so it's omitted from this row. */}
         <View style={{
           flexDirection: 'row',
           flexWrap: 'wrap',
@@ -143,12 +139,11 @@ export function CoverPage({ player, reportTitle, reportDate }: CoverPageProps) {
           marginTop: 22,
           width: '100%',
         }}>
-          <StatTile label="Grad Year" value={gradStr} />
-          <StatTile label="Age"        value={ageStr} />
-          <StatTile label="Height"     value={heightStr} />
-          <StatTile label="Weight"     value={weightStr} />
+          <StatTile label="Height"        value={heightStr} />
+          <StatTile label="Weight"        value={weightStr} />
           <StatTile label="Bats / Throws" value={btStr} />
-          <StatTile label="Birth Date" value={fmtBirth || '—'} />
+          <StatTile label="Grad Year"     value={gradStr} />
+          <StatTile label="Age"           value={ageStr} />
         </View>
 
         {/* Affiliations + commit */}

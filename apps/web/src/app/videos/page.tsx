@@ -4,9 +4,10 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import type { Player, VideoWithPlayer } from '@/lib/api';
+import type { Player, VideoWithPlayer, Metric } from '@/lib/api';
 import VideoThumbnail from '@/components/VideoThumbnail';
 import { PageHeader } from '@/components/PageHeader';
+import { CoachingStudio } from '@/app/athletes/[id]/tabs/CoachingStudio';
 import styles from './page.module.css';
 
 /* ── Constants ── */
@@ -455,10 +456,35 @@ export default function VideosPage() {
   // Video player
   const [playingVideo, setPlayingVideo] = useState<VideoWithPlayer | null>(null);
 
+  /* ── Top-level tab: "library" (default download/browse view) vs
+        "studio" (CoachingStudio with annotations + voiceovers). */
+  const [activeView, setActiveView] = useState<'library' | 'studio'>('library');
+
+  /* When the user opens the Coaching Studio for a specific athlete the
+     CoachingStudio component expects the full Player record (with metrics
+     attached). Fetch it on demand so we don't pay the cost on the
+     library tab. */
+  const [studioPlayer, setStudioPlayer] = useState<(Player & { metrics: Metric[] }) | null>(null);
+  const [studioVideos, setStudioVideos] = useState<VideoWithPlayer[]>([]);
+  const [studioLoading, setStudioLoading] = useState(false);
+
   // Auth guard
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
   }, [isLoading, user, router]);
+
+  /* Reset back to the Library tab when the user clicks the Video
+     sidebar link while already on this route. */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { href: string } | undefined;
+      if (detail?.href === '/videos') {
+        setActiveView('library');
+      }
+    };
+    window.addEventListener('sidebar-nav-home', handler);
+    return () => window.removeEventListener('sidebar-nav-home', handler);
+  }, []);
 
   // For players, auto-lock to their own playerId
   useEffect(() => {
@@ -498,6 +524,32 @@ export default function VideosPage() {
     setDateTo(to);
   }, []);
 
+  /* Lazy-load the full Player record + that player's videos when the
+     user lands on the Coaching Studio view with a selected athlete. The
+     CoachingStudio component needs `Player & { metrics: Metric[] }` and
+     a list of videos to scrub through. */
+  const studioPlayerId = effectivePlayerId;
+  useEffect(() => {
+    if (activeView !== 'studio') return;
+    if (!studioPlayerId) {
+      setStudioPlayer(null);
+      setStudioVideos([]);
+      return;
+    }
+    let cancelled = false;
+    setStudioLoading(true);
+    Promise.all([
+      api.getPlayer(studioPlayerId).catch(() => null),
+      api.browseVideos({ playerId: studioPlayerId }).catch(() => [] as VideoWithPlayer[]),
+    ]).then(([p, vids]) => {
+      if (cancelled) return;
+      setStudioPlayer(p);
+      setStudioVideos(vids);
+      setStudioLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [activeView, studioPlayerId]);
+
   // Count active filters
   const activeFilters = [
     category !== 'all',
@@ -515,10 +567,32 @@ export default function VideosPage() {
         title={isCoach ? 'Video' : 'My Video'}
         titleAccent="Library"
         subtitle={isCoach ? 'Browse, play, and download player video.' : 'View and download your videos.'}
-        readout={videos.length > 0 ? `${videos.length} video${videos.length !== 1 ? 's' : ''}` : undefined}
+        readout={activeView === 'library' && videos.length > 0
+          ? `${videos.length} video${videos.length !== 1 ? 's' : ''}`
+          : undefined}
       />
 
-      {/* ── Athlete Selector (Coach Only) ── */}
+      {/* ── Top-level view tabs: Library (default) | Coaching Studio ── */}
+      <div className={styles.viewTabs}>
+        <button
+          type="button"
+          className={`${styles.viewTab} ${activeView === 'library' ? styles.viewTabActive : ''}`}
+          onClick={() => setActiveView('library')}
+        >
+          <span className={styles.viewTabIcon} aria-hidden>🎬</span>
+          Library
+        </button>
+        <button
+          type="button"
+          className={`${styles.viewTab} ${activeView === 'studio' ? styles.viewTabActive : ''}`}
+          onClick={() => setActiveView('studio')}
+        >
+          <span className={styles.viewTabIcon} aria-hidden>✏️</span>
+          Coaching Studio
+        </button>
+      </div>
+
+      {/* ── Athlete Selector (Coach Only) — shared across both views ── */}
       {isCoach && (
         <AthleteDropdown
           players={players}
@@ -527,6 +601,41 @@ export default function VideosPage() {
         />
       )}
 
+      {activeView === 'studio' ? (
+        /* ── COACHING STUDIO VIEW ── */
+        !studioPlayerId ? (
+          <div className={styles.empty}>
+            <span className={styles.emptyIcon}>✏️</span>
+            <p className={styles.emptyTitle}>Pick an athlete to open the Coaching Studio</p>
+            <p className={styles.emptyHint}>
+              Use the athlete dropdown above to load a player&apos;s videos and start
+              annotating, side-by-side comparing, or recording voiceovers.
+            </p>
+          </div>
+        ) : studioLoading || !studioPlayer ? (
+          <div className={styles.loadingWrap}>
+            <div className={styles.spinner} />
+            <p>Loading studio…</p>
+          </div>
+        ) : (
+          <CoachingStudio
+            player={studioPlayer}
+            videos={studioVideos as any /* VideoWithPlayer[] is structurally compatible with Video[] for studio's needs */}
+            topMetrics={{}}
+            progressData={{}}
+            reports={[]}
+            isCoach={isCoach}
+            onSaved={() => { /* no-op — saving handled internally */ }}
+            onRefresh={() => {
+              // Re-fetch the player + videos so freshly-saved sessions show up.
+              if (!studioPlayerId) return;
+              api.getPlayer(studioPlayerId).then(setStudioPlayer).catch(() => {});
+              api.browseVideos({ playerId: studioPlayerId }).then(setStudioVideos).catch(() => {});
+            }}
+          />
+        )
+      ) : (
+      <>
       {/* ── Filters Row ── */}
       <div className={styles.filtersRow}>
         {/* Category chips */}
@@ -608,6 +717,8 @@ export default function VideosPage() {
             />
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* ── Video Player Modal ── */}

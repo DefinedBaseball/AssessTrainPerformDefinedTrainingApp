@@ -326,17 +326,30 @@
 }
 
 .toolBarLabel {
+  /* Position absolute so the label vertically centers across the entire
+     bubble (main bar row + sub-bars row) instead of just the main row.
+     The grid still reserves its 120px column so the track + score stay
+     in the same horizontal position. */
+  position: absolute;
+  left: 0.85rem;
+  top: 0;
+  bottom: 0;
+  width: 120px;
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  font-size: 0.82rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--ps-text);
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .toolBarTrack {
   position: relative;
+  /* Pinned to grid column 2 (the 1fr track column) so it stays put
+     after .toolBarLabel was removed from grid flow via position:absolute. */
+  grid-column: 2;
   height: 10px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.07));
@@ -371,6 +384,9 @@
 }
 
 .toolBarScore {
+  /* Pinned to grid column 3 (the 46px score column) for the same reason
+     .toolBarTrack pins to column 2. */
+  grid-column: 3;
   font-family: 'DM Mono', monospace;
   font-size: 1rem;
   font-weight: 800;
@@ -835,8 +851,8 @@
   font-size: 23px;
 }
 .playerCard .tiny {
-  font-size: 0.85rem;
-  letter-spacing: 0.14em;
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
 }
 .playerCard .chip {
   padding: 0.25rem 0.55rem;
@@ -898,6 +914,88 @@
   .kpiGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* Per-group mini bar chart grid — replaces the single full-width bar
+   chart with one mini chart per bar group (Swing / Quality of Contact /
+   Swing Decision / Coach Grades for hitting). Each card shows the group
+   label + group score in its header and only that group's sub-metrics
+   in its chart.
+   Wide layouts: 3 columns on top row (Swing / QoC / Swing Decision)
+   with the 4th card (Coach Grades — 8 bars) spanning the full second row.
+   Narrow layouts (<880px): 2 columns. Mobile (<720px): single column. */
+.subGradeChartsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.subGradeChartsGrid > .subGradeChartCard:nth-child(4) {
+  grid-column: 1 / -1;
+}
+@media (max-width: 880px) {
+  .subGradeChartsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .subGradeChartsGrid > .subGradeChartCard:nth-child(4) { grid-column: auto; }
+}
+@media (max-width: 720px) {
+  .subGradeChartsGrid { grid-template-columns: minmax(0, 1fr); }
+}
+.subGradeChartCard {
+  position: relative;
+  /* Tiny bottom padding so the angled X-axis labels have a hair of
+     breathing room from the card's bottom edge without leaving a big
+     gap. */
+  padding: 0.5rem 0.55rem 0.4rem;
+  border-radius: 10px;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  /* Bumped from 0.2rem so the section header (e.g. "Swing 50") and
+     the chart's top tick ("80") don't crowd each other. */
+  gap: 0.7rem;
+  min-width: 0;
+}
+.subGradeChartHead {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0 0.15rem 0.2rem;
+  border-bottom: 1px solid var(--border-light);
+}
+.subGradeChartTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-bright);
+  text-align: center;
+}
+.subGradeChartScore {
+  /* Score absolutely pinned to the right so the title can sit dead-
+     center horizontally without being pushed off-axis by the score
+     width. */
+  position: absolute;
+  right: 0.15rem;
+  top: 0;
+  font-family: 'DM Mono', monospace;
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text-bright);
+  line-height: 1;
+}
+/* Mini chart sized so the angled X-axis labels sit flush against the
+   bottom of the card with no leftover whitespace beneath them. */
+.subGradeChartWrap {
+  height: 200px;
+  min-height: 200px;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 0;
 }
 
 /* Row of per-bar bubbles — sits inside the same panel as the bar chart,

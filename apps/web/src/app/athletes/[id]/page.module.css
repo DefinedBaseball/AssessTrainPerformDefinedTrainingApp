@@ -46,19 +46,9 @@
   z-index: 0;
 }
 
-/* Soft full-width hairline — sits at the exact midpoint of the gap
-   between the Player Name bubble and the first bubble of each tab. The
-   gap is 1.25rem (20px, set by .tabPanel padding-top), so bottom: -10px
-   centers the line in the middle of that whitespace. */
-.heroOuter::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: -0.625rem;
-  height: 1px;
-  background: var(--grad-edge);
-  opacity: 0.5;
-  pointer-events: none;
-}
+/* Decorative hairline retired — the gap below the player name now reads
+   as clean whitespace. */
+.heroOuter::after { content: none; }
 
 .heroEyebrowRow {
   position: relative;
@@ -256,13 +246,12 @@
   background-clip: text;
 }
 
-/* ── Metrics column (RIGHT column) — gauge + radar ── */
+/* ── Metrics column (RIGHT column) — overall-score gauge only.
+   Distribution radar retired; gauge centers itself in the column. */
 .metricsCol {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
   align-items: center;
-  justify-items: center;
+  justify-content: center;
   min-width: 0;
 }
 

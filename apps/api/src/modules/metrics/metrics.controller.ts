@@ -58,8 +58,9 @@ export class MetricsController {
   getProgress(
     @Param('playerId') playerId: string,
     @Param('metricType') metricType: string,
+    @Query('source') source?: string,
   ) {
-    return this.metricsService.getProgressData(playerId, metricType);
+    return this.metricsService.getProgressData(playerId, metricType, source);
   }
 
   @Get('dates/:source')

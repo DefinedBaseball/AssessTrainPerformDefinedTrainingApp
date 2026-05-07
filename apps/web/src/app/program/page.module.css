@@ -1,0 +1,574 @@
+/* ═══════════════════════════════════════════════
+   PROGRAM SCHEDULE — facility display board
+   ═══════════════════════════════════════════════ */
+
+.pageWrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+/* ── Filter Bar ─────────────────────────────────── */
+
+.filterBar {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 220px 1fr 360px;
+  gap: 14px;
+  padding: 10px 16px 12px;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 18px rgba(0,0,0,0.30);
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--text-muted);
+}
+
+.filterLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Inline row: [date input] [jump-to-next button] */
+.dateRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dateRow .dateInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.filterHint {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+.scheduleSelect,
+.dateInput {
+  width: 100%;
+  padding: 7px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--card-elev), var(--card-elev-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+  box-shadow: var(--shadow-card);
+}
+.scheduleSelect:hover,
+.dateInput:hover { border-color: var(--accent); }
+.scheduleSelect:focus,
+.dateInput:focus {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card), 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.eligibleCount {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.jumpBtn {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 7px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  text-transform: uppercase;
+}
+.jumpBtn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.jumpBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pickerLoading {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 10px 14px;
+}
+
+/* ── Athlete picker dropdown ────────────────────── */
+
+.pickerRoot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.pickerBtn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 7px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--card-elev), var(--card-elev-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  text-align: left;
+  box-shadow: var(--shadow-card);
+}
+.pickerBtn:hover { border-color: var(--accent); }
+.pickerBtnOpen { border-color: var(--accent); }
+
+.pickerIcon { font-size: 16px; line-height: 1; }
+.pickerLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickerArrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.pickerArrowOpen { transform: rotate(180deg); }
+
+.pickerPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-lg);
+  max-height: 360px;
+  overflow: hidden;
+}
+
+.pickerSearchRow {
+  display: flex;
+  gap: 6px;
+}
+
+.pickerSearch {
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.pickerSearch:focus { border-color: var(--accent); }
+
+.pickerClearBtn {
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pickerClearBtn:hover { color: var(--text); border-color: var(--accent); }
+
+.pickerCount {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--text-muted);
+  padding: 2px 6px;
+}
+
+.pickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.pickerItem {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.pickerItem:hover { background: rgba(0,0,0,0.04); }
+.pickerItem:disabled { opacity: 0.45; cursor: not-allowed; }
+.pickerItemActive {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.pickerCheck {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: var(--surface);
+}
+.pickerItemActive .pickerCheck {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.pickerItemName { font-weight: 600; }
+.pickerItemMeta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.pickerEmpty {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ── Empty board state ───────────────────────────── */
+
+.boardEmpty {
+  margin-top: 28px;
+  padding: 56px 24px;
+  border-radius: 14px;
+  border: 1px dashed var(--border-light);
+  background: var(--card-elev), var(--card-elev-bg);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.boardEmptyIcon {
+  font-size: 42px;
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+
+.boardEmptyTitle {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.boardEmptyHint {
+  margin: 0 auto;
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ── The board (athlete columns side-by-side) ────── */
+
+.board {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(var(--board-cols, 2), minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1100px) {
+  .board { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+}
+
+/* ── Athlete column card ─────────────────────────── */
+
+.athleteCard {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.athleteCardHead {
+  padding: 14px 14px 12px;
+  border-top: 4px solid var(--accent);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+}
+
+.athleteName {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.athleteLast {
+  font-weight: 600;
+  font-style: italic;
+  background: linear-gradient(180deg, #7EB6FF 0%, #3D8BFD 55%, #1F5FD1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.athletePositions {
+  margin-top: 4px;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.athleteCardBody {
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 220px;
+}
+
+.athleteEmpty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 24px 8px;
+  font-style: italic;
+}
+
+.athleteGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.athleteGroupHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+}
+
+.athleteGroupDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.athleteDrillList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.athleteDrillItem {
+  padding: 8px 10px 9px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.athleteDrillName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.athleteDrillMeta {
+  margin-top: 2px;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.athleteDrillDuration { color: var(--text-muted); }
+
+.athleteDrillNotes {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  font-style: italic;
+}
+
+/* ── Fullscreen presentation mode ───────────────── */
+
+/* Floating trigger pinned to the page's bottom-right corner. */
+.fullscreenBtn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--card-elev), var(--card-elev-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.fullscreenBtn:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.40),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* When the board is in native fullscreen the browser swaps the
+   :fullscreen pseudo to it. Take over the viewport with a clean
+   dark canvas, padded grid, and centered columns. */
+.board:fullscreen,
+.boardFullscreen {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
+    #06080c;
+  padding: 56px 48px 32px;
+  margin: 0;
+  overflow: auto;
+  align-content: start;
+}
+/* Preserve the column count via the same --board-cols variable. */
+.board:fullscreen { grid-template-columns: repeat(var(--board-cols, 2), minmax(0, 1fr)); }
+
+/* Bigger typography in presentation mode. */
+.board:fullscreen .athleteName       { font-size: 28px; }
+.board:fullscreen .athletePositions  { font-size: 13px; }
+.board:fullscreen .athleteGroupHead  { font-size: 13px; }
+.board:fullscreen .athleteDrillName  { font-size: 17px; }
+.board:fullscreen .athleteDrillMeta  { font-size: 13px; }
+.board:fullscreen .athleteDrillNotes { font-size: 14px; }
+.board:fullscreen .athleteCard {
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+/* Exit button — top-right of the fullscreen board. Hidden by default
+   so the presentation reads clean; reveals when the cursor moves over
+   it (or when keyboard focus lands on it for accessibility). */
+.exitFullscreenBtn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 5;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 24, 32, 0.85);
+  color: #f1f4f6;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease, transform 0.15s ease;
+}
+.exitFullscreenBtn:hover,
+.exitFullscreenBtn:focus-visible {
+  opacity: 1;
+  background: rgba(40, 46, 56, 0.95);
+  transform: scale(1.05);
+  outline: none;
+}
+
+/* ── Light theme overrides ──────────────────────── */
+
+[data-theme="light"] .filterBar {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(0,0,0,0.02) 0%, transparent 60%),
+    #ffffff;
+  border-color: rgba(0,0,0,0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,1),
+    0 4px 14px rgba(15,20,30,0.06);
+}
+[data-theme="light"] .pickerItem:hover { background: rgba(0,0,0,0.05); }
+[data-theme="light"] .athleteCardHead { background: #f6f8fb; }
+[data-theme="light"] .athleteDrillItem { background: #ffffff; }
+
+/* ── Responsive ─────────────────────────────────── */
+
+@media (max-width: 880px) {
+  .filterBar { grid-template-columns: 1fr; }
+}

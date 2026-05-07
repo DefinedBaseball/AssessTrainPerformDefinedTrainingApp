@@ -115,9 +115,14 @@ export class MetricsService {
     return metrics;
   }
 
-  async getProgressData(playerId: string, metricType: string) {
+  async getProgressData(playerId: string, metricType: string, source?: string) {
+    /* Optional `source` filter — when set, only metrics ingested by that
+       parser (e.g. 'HITTRAX' vs 'FULL_SWING') are returned. Lets the
+       Hitting tab read HitTrax-only progress for the HitTrax section
+       and Full Swing-only progress for the Full Swing section, even
+       though both vendors store the same metric_type names. */
     return this.prisma.metric.findMany({
-      where: { playerId, metricType },
+      where: { playerId, metricType, ...(source ? { source } : {}) },
       orderBy: { recordedAt: 'asc' },
       select: { value: true, recordedAt: true },
     });

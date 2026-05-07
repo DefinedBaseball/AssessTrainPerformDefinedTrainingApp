@@ -74,6 +74,21 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    href: '/program',
+    label: 'Program',
+    coachOnly: true,
+    // Clipboard with a roster of horizontal lines
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <rect x="5" y="4.5" width="14" height="16" rx="1" />
+        <rect x="9" y="2.5" width="6" height="3" rx="0.6" />
+        <path d="M8 10h8" />
+        <path d="M8 13h8" />
+        <path d="M8 16h5" />
+      </svg>
+    ),
+  },
+  {
     href: '/education',
     label: 'Education',
     // Open book with crisp spine and two page rules
@@ -170,6 +185,19 @@ export function Sidebar() {
               className={`${styles.navItem} ${isActive ? styles.active : ''}`}
               title={label}
               aria-label={label}
+              onClick={() => {
+                /* When the user is already on this section's path (e.g. on
+                   /education while drilled into Classes), fire a global
+                   "sidebar-nav-home" event so the page can reset its
+                   internal view state back to the section landing.
+                   Doing it on every click is a no-op for first-visits
+                   since the page is mounting fresh. */
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(
+                    new CustomEvent('sidebar-nav-home', { detail: { href: item.href } }),
+                  );
+                }
+              }}
             >
               <span className={styles.iconBox} aria-hidden="true">
                 {item.icon}

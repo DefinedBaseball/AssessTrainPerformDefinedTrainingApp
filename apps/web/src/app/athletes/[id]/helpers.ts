@@ -263,6 +263,84 @@ export function getManualSwingScores(report: ReportSummary | null): ManualSwingS
   } catch { return empty; }
 }
 
+/** Coach-entered batted-ball numbers for a HITTING report. Saved at
+ *  content.manualBattedBall when the coach uses the "Manual Entry"
+ *  toggle on the Full Swing CSV card instead of uploading a file. */
+export type ManualBattedBall = {
+  avg_exit_velo: number | null;
+  squared_up_pct: number | null;
+  smash_factor: number | null;
+  launch_angle: number | null;
+  distance: number | null;
+};
+
+/** Coach-entered Blast Motion swing numbers. Saved at
+ *  content.manualSwingMetrics when the coach uses the "Manual Entry"
+ *  toggle on the Blast CSV card. */
+export type ManualSwingMetrics = {
+  attack_angle: number | null;
+  plane_angle: number | null;
+  avg_bat_speed: number | null;
+  time_to_contact: number | null;
+  on_plane_efficiency: number | null;
+};
+
+/** Field configs the report-modal uses to render the manual entry inputs. */
+export const MANUAL_BATTED_BALL_FIELDS: { key: keyof ManualBattedBall; label: string; unit: string; step?: number }[] = [
+  { key: 'avg_exit_velo',  label: 'Avg Exit Velo',  unit: 'mph', step: 0.1 },
+  { key: 'squared_up_pct', label: 'Squared Up %',   unit: '%',   step: 0.1 },
+  { key: 'smash_factor',   label: 'Smash Factor',   unit: '',    step: 0.01 },
+  { key: 'launch_angle',   label: 'Launch Angle',   unit: '°',   step: 0.1 },
+  { key: 'distance',       label: 'Distance',       unit: 'ft',  step: 1 },
+];
+
+export const MANUAL_SWING_METRIC_FIELDS: { key: keyof ManualSwingMetrics; label: string; unit: string; step?: number }[] = [
+  { key: 'attack_angle',         label: 'Attack Angle',        unit: '°',   step: 0.1 },
+  { key: 'plane_angle',          label: 'Plane Angle',         unit: '°',   step: 0.1 },
+  { key: 'avg_bat_speed',        label: 'Avg Bat Speed',       unit: 'mph', step: 0.1 },
+  { key: 'time_to_contact',      label: 'Time to Contact',     unit: 's',   step: 0.001 },
+  { key: 'on_plane_efficiency',  label: 'On-Plane Efficiency', unit: '%',   step: 0.1 },
+];
+
+const EMPTY_MANUAL_BATTED_BALL: ManualBattedBall = {
+  avg_exit_velo: null, squared_up_pct: null, smash_factor: null,
+  launch_angle: null, distance: null,
+};
+const EMPTY_MANUAL_SWING: ManualSwingMetrics = {
+  attack_angle: null, plane_angle: null, avg_bat_speed: null,
+  time_to_contact: null, on_plane_efficiency: null,
+};
+
+function readManualNumberMap<T extends Record<string, number | null>>(
+  empty: T,
+  source: any,
+): T {
+  if (!source || typeof source !== 'object') return { ...empty };
+  const out: any = { ...empty };
+  for (const key of Object.keys(empty)) {
+    const raw = source[key];
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    out[key] = Number.isFinite(n) ? n : null;
+  }
+  return out as T;
+}
+
+export function getManualBattedBall(report: ReportSummary | null): ManualBattedBall {
+  if (!report?.content) return { ...EMPTY_MANUAL_BATTED_BALL };
+  try {
+    const parsed = JSON.parse(report.content);
+    return readManualNumberMap(EMPTY_MANUAL_BATTED_BALL, parsed?.manualBattedBall);
+  } catch { return { ...EMPTY_MANUAL_BATTED_BALL }; }
+}
+
+export function getManualSwingMetrics(report: ReportSummary | null): ManualSwingMetrics {
+  if (!report?.content) return { ...EMPTY_MANUAL_SWING };
+  try {
+    const parsed = JSON.parse(report.content);
+    return readManualNumberMap(EMPTY_MANUAL_SWING, parsed?.manualSwingMetrics);
+  } catch { return { ...EMPTY_MANUAL_SWING }; }
+}
+
 /** Average a sparse set of 20-80 grades, ignoring nulls. */
 export function averageGrades(values: (number | null | undefined)[]): number | null {
   const real = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
@@ -831,7 +909,7 @@ export function computeAggregateScores(
     sections.push({
       key: 'hitting',
       label: 'Hitting',
-      color: '#4ADE80',
+      color: '#3B82F6',
       bars: [
         { key: 'hit_swing',          label: 'Swing',              score: swingScore,    subMetrics: swingSubs },
         { key: 'hit_qoc',            label: 'Quality of Contact', score: qocScore,      subMetrics: qocSubs },
@@ -846,7 +924,7 @@ export function computeAggregateScores(
     sections.push({
       key: 'pitching',
       label: 'Pitching',
-      color: '#60A5FA',
+      color: '#F59E0B',
       bars: [
         { key: 'pit_mechanics', label: 'Mechanics', score: null, subMetrics: [] },
         { key: 'pit_movement', label: 'Movement', score: null, subMetrics: [] },
@@ -863,7 +941,7 @@ export function computeAggregateScores(
     sections.push({
       key: 'defense_infield',
       label: 'Infield',
-      color: '#F59E0B',
+      color: '#22C55E',
       bars: [
         { key: 'def_range', label: 'Range', score: null, subMetrics: [] },
         { key: 'def_routes', label: 'Routes', score: null, subMetrics: [] },
@@ -875,7 +953,7 @@ export function computeAggregateScores(
     sections.push({
       key: 'defense_catching',
       label: 'Catching',
-      color: '#F59E0B',
+      color: '#14B8A6',  /* unified Catching turquoise */
       bars: [
         {
           key: 'def_receiving',
@@ -916,7 +994,7 @@ export function computeAggregateScores(
     sections.push({
       key: 'defense_outfield',
       label: 'Outfield',
-      color: '#F59E0B',
+      color: '#22C55E',
       bars: [
         { key: 'def_range', label: 'Range', score: null, subMetrics: [] },
         { key: 'def_routes', label: 'Routes', score: null, subMetrics: [] },
@@ -932,7 +1010,7 @@ export function computeAggregateScores(
   sections.push({
     key: 'strength',
     label: 'S & C',
-    color: '#14B8A6',
+    color: '#EF4444',
     bars: [
       { key: 'sc_speed', label: 'Speed', score: null, subMetrics: [] },
       { key: 'sc_power', label: 'Power', score: null, subMetrics: [] },

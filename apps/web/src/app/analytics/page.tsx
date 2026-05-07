@@ -67,7 +67,6 @@ export default function AnalyticsPage() {
         eyebrow="Coach Workbench"
         title="Data"
         titleAccent="Analytics"
-        subtitle="Build custom charts and bubbles from any imported data, preview them against a live player, then pin them to the relevant profile tab."
         readout="Chart Builder"
       />
 

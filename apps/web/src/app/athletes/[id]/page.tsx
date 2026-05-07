@@ -316,7 +316,8 @@ export default function PlayerProfilePage() {
                 </div>
               </div>
 
-              {/* RIGHT: gauge + radar */}
+              {/* RIGHT: overall-score gauge — distribution radar retired,
+                  gauge now occupies the entire metrics column on its own. */}
               <div className={styles.metricsCol}>
                 {(() => {
                   // Gauge now follows the unified score bands: 20-40 red,
@@ -354,51 +355,6 @@ export default function PlayerProfilePage() {
                     </div>
                   );
                 })()}
-
-                <div className={styles.radarWrap}>
-                  <svg viewBox="0 0 170 170" aria-hidden="true">
-                    <defs>
-                      <radialGradient id="radarFill" cx="50%" cy="50%" r="60%">
-                        <stop offset="0%"  stopColor="rgba(255,255,255,0.32)" />
-                        <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
-                      </radialGradient>
-                    </defs>
-                    {[0.33, 0.66, 1].map((k) => (
-                      <polygon
-                        key={k}
-                        className={styles.radarGrid}
-                        points={axes.map((_, i) => {
-                          const theta = (-Math.PI / 2) + (2 * Math.PI * i) / axes.length;
-                          return `${cx + Math.cos(theta) * rx * k},${cy + Math.sin(theta) * rx * k}`;
-                        }).join(' ')}
-                      />
-                    ))}
-                    {axes.map((_, i) => {
-                      const theta = (-Math.PI / 2) + (2 * Math.PI * i) / axes.length;
-                      return (
-                        <line
-                          key={i}
-                          className={styles.radarSpoke}
-                          x1={cx} y1={cy}
-                          x2={cx + Math.cos(theta) * rx}
-                          y2={cy + Math.sin(theta) * rx}
-                        />
-                      );
-                    })}
-                    <polygon
-                      className={styles.radarShape}
-                      points={pts.map((p) => `${p.x},${p.y}`).join(' ')}
-                    />
-                    {pts.map((p, i) => (
-                      <circle key={i} className={styles.radarVertex} cx={p.x} cy={p.y} r="2.5" />
-                    ))}
-                    {pts.map((p, i) => (
-                      <text key={i} className={styles.radarLabel} x={p.lx} y={p.ly}>
-                        {p.label}
-                      </text>
-                    ))}
-                  </svg>
-                </div>
               </div>
             </div>
           </div>

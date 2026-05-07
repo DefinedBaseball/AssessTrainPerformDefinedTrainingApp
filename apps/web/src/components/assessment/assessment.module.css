@@ -508,10 +508,10 @@
 }
 
 .tabPanel {
-  /* Same vertical rhythm as the gap between sections inside each tab
-     (1.25rem ≈ 20px) so the space below the player-name hero matches
-     the space between e.g. "Development Snapshot" and "Tool Grades". */
-  padding-top: 1.25rem;
+  /* Hairline divider was retired so the section-gap-matching 1.25rem
+     felt loose; tightened to 0.65rem for a clean transition straight
+     into the first bubble of each tab. */
+  padding-top: 0.65rem;
   animation: fadeIn 0.2s ease;
 }
 

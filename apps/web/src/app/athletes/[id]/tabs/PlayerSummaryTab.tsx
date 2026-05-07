@@ -28,19 +28,23 @@ import styles from './PlayerSummaryTab.module.css';
    / teal section identity colors).
    ═══════════════════════════════════════════ */
 
+/* Unified app-wide section identity palette:
+     Hitting           → Blue
+     Pitching          → Orange
+     Infield/Outfield  → Green
+     Catching          → Turquoise
+     S & C             → Red                                              */
 const DOMAIN_PALETTE: Record<string, {
   main: string;
   soft: string;
   name: string;
 }> = {
-  hitting:           { main: '#4ADE80', soft: '#86efac', name: 'Hitting'  },
-  pitching:          { main: '#60A5FA', soft: '#93c5fd', name: 'Pitching' },
-  // Defense was split into per-position sections to mirror the player's
-  // top-level Infield / Catching / Outfield tabs.
-  defense_infield:   { main: '#F59E0B', soft: '#fcd34d', name: 'Infield'  },
-  defense_catching:  { main: '#F59E0B', soft: '#fcd34d', name: 'Catching' },
-  defense_outfield:  { main: '#F59E0B', soft: '#fcd34d', name: 'Outfield' },
-  strength:          { main: '#14B8A6', soft: '#5eead4', name: 'S & C'    },
+  hitting:           { main: '#3B82F6', soft: '#93c5fd', name: 'Hitting'  },
+  pitching:          { main: '#F59E0B', soft: '#fcd34d', name: 'Pitching' },
+  defense_infield:   { main: '#22C55E', soft: '#86efac', name: 'Infield'  },
+  defense_catching:  { main: '#14B8A6', soft: '#5eead4', name: 'Catching' },
+  defense_outfield:  { main: '#22C55E', soft: '#86efac', name: 'Outfield' },
+  strength:          { main: '#EF4444', soft: '#fca5a5', name: 'S & C'    },
 };
 
 /* ═══════════════════════════════════════════
@@ -403,24 +407,33 @@ function buildInsights(sections: AggregateSection[], overall: number | null) {
    ═══════════════════════════════════════════ */
 
 /** The non-physical comparison domain rendered alongside Strength &
- *  Conditioning ("Physical") in the modular sub-grade compare chart. */
-type CompareDomain = 'hitting' | 'pitching' | 'defense';
+ *  Conditioning ("Physical") in the modular sub-grade compare chart.
+ *  Each defense position is its own option so a Catcher gets
+ *  "Physical vs Catching", an Infielder gets "Physical vs Infield",
+ *  and an Outfielder gets "Physical vs Outfield" — instead of
+ *  collapsing all three into a single "Defense" rollup. */
+type CompareDomain =
+  | 'hitting'
+  | 'pitching'
+  | 'defense_infield'
+  | 'defense_catching'
+  | 'defense_outfield';
 
-const COMPARE_OPTIONS: { key: CompareDomain; label: string }[] = [
-  { key: 'hitting',  label: 'Hitting' },
-  { key: 'pitching', label: 'Pitching' },
-  { key: 'defense',  label: 'Defense' },
+const DOMAIN_LABELS: Record<CompareDomain, string> = {
+  hitting:           'Hitting',
+  pitching:          'Pitching',
+  defense_infield:   'Infield',
+  defense_catching:  'Catching',
+  defense_outfield:  'Outfield',
+};
+const DOMAIN_ORDER: CompareDomain[] = [
+  'hitting', 'pitching', 'defense_infield', 'defense_catching', 'defense_outfield',
 ];
 
 /** Pick the relevant aggregate sections for the chosen comparison domain.
- *  Defense pulls from every per-position split (defense_infield / catching /
- *  outfield) so the chart shows whatever the player carries. */
+ *  Now a 1-to-1 lookup since defense is split per-position. */
 function sectionsForDomain(sections: AggregateSection[], domain: CompareDomain): AggregateSection[] {
-  if (domain === 'hitting')  return sections.filter((s) => s.key === 'hitting');
-  if (domain === 'pitching') return sections.filter((s) => s.key === 'pitching');
-  return sections.filter((s) =>
-    s.key === 'defense_infield' || s.key === 'defense_catching' || s.key === 'defense_outfield',
-  );
+  return sections.filter((s) => s.key === domain);
 }
 
 function SubgradeCompareChart({
@@ -543,24 +556,31 @@ function SectionBarsChart({ section }: { section: AggregateSection | null }) {
     );
   }
 
-  /* With many sub-metrics, angle x-axis labels and shrink the bars so
-     everything fits without collisions. */
-  const many = data.length > 5;
-  const barSize = many ? Math.max(18, Math.round(260 / data.length)) : 44;
+  /* These mini charts are narrow (each lives in 1/3 of the panel width
+     for 3-up rows), so labels collide quickly. Angle them whenever
+     there's more than 3 bars and reserve enough bottom margin to fit
+     the longest tilted label. */
+  const many = data.length > 3;
+  const barSize = many ? Math.max(20, Math.round(280 / data.length)) : 44;
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 16, right: 12, bottom: many ? 36 : 8, left: 0 }}>
+      <BarChart data={data} margin={{ top: 14, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={tk.grid} vertical={false} />
         <XAxis
           dataKey="name"
           stroke={tk.axis}
-          fontSize={10}
+          fontSize={11}
+          fontWeight={600}
           tickLine={false}
           interval={0}
-          angle={many ? -28 : 0}
+          angle={many ? -32 : 0}
           textAnchor={many ? 'end' : 'middle'}
-          height={many ? 50 : 30}
+          /* Height is sized so the angled labels fit without leftover
+             whitespace below them (no extra bottom margin needed since
+             the X-axis "owns" its label area). */
+          height={many ? 56 : 22}
+          tickMargin={many ? 4 : 2}
         />
         <YAxis
           domain={[20, 80]}
@@ -610,12 +630,41 @@ function SectionBarsChart({ section }: { section: AggregateSection | null }) {
    per report date as a smooth area chart.
    ═══════════════════════════════════════════ */
 
+/** Per-pitch-type metrics shared across every pitching optgroup. The
+ *  Metric Trend selector groups these under each pitch type so a pitcher
+ *  sees "4-Seam Fastball → Max Velocity / Avg Velocity / H-Break / IVB
+ *  / Spin Rate / Spin Efficiency", "Slider → ...", etc. */
+const PITCH_TREND_METRICS = [
+  { suffix: 'max_velo', label: 'Max Velocity',    unit: 'mph' },
+  { suffix: 'avg_velo', label: 'Avg Velocity',    unit: 'mph' },
+  { suffix: 'h_break',  label: 'H-Break',         unit: 'in' },
+  { suffix: 'ivb',      label: 'IVB',             unit: 'in' },
+  { suffix: 'spin',     label: 'Spin',            unit: 'rpm' },
+  { suffix: 'spin_eff', label: 'Spin Efficiency', unit: '%' },
+] as const;
+
+/** Pitch types tracked in the Metric Trend dropdown. Keys mirror the
+ *  display names used by PITCH_DISPLAY in PitchingTab; backend can
+ *  populate progressData entries like `fastball_max_velo`,
+ *  `slider_avg_velo`, etc. and they'll appear automatically once the
+ *  player has historical points for that key. */
+const PITCH_TREND_TYPES: { label: string; keyPrefix: string }[] = [
+  { label: '4-Seam Fastball', keyPrefix: 'fastball' },
+  { label: 'Sinker',          keyPrefix: 'sinker' },
+  { label: 'Cutter',          keyPrefix: 'cutter' },
+  { label: 'Slider',          keyPrefix: 'slider' },
+  { label: 'Sweeper',         keyPrefix: 'sweeper' },
+  { label: 'Curveball',       keyPrefix: 'curveball' },
+  { label: 'Changeup',        keyPrefix: 'changeup' },
+  { label: 'Splitter',        keyPrefix: 'splitter' },
+];
+
 /** Domains the metric selector groups options under, plus a per-domain
  *  accent color the line + area shading uses. Keeps the selector readable
  *  for both coaches and athletes scanning a long metric list. */
 const TREND_DOMAINS: { label: string; accent: string; metrics: { key: string; label: string; unit: string }[] }[] = [
   {
-    label: 'Hitting', accent: '#4ADE80',
+    label: 'Hitting', accent: '#3B82F6',
     metrics: [
       { key: 'max_exit_velo', label: 'Max Exit Velo', unit: 'mph' },
       { key: 'avg_exit_velo', label: 'Avg Exit Velo', unit: 'mph' },
@@ -629,7 +678,7 @@ const TREND_DOMAINS: { label: string; accent: string; metrics: { key: string; la
     ],
   },
   {
-    label: 'Defense', accent: '#F59E0B',
+    label: 'Defense', accent: '#22C55E',
     metrics: [
       { key: 'infield_velo',  label: 'Infield Velo',  unit: 'mph' },
       { key: 'outfield_velo', label: 'Outfield Velo', unit: 'mph' },
@@ -638,15 +687,21 @@ const TREND_DOMAINS: { label: string; accent: string; metrics: { key: string; la
       { key: 'exchange_time', label: 'Exchange Time', unit: 's' },
     ],
   },
+  /* Each pitch type gets its own optgroup with the 6 standard pitch
+     metrics. Builds 8 × 6 = 48 entries; the populated filter only
+     surfaces ones with actual recorded history so the dropdown stays
+     compact for pitchers who only carry a couple of pitch types. */
+  ...PITCH_TREND_TYPES.map((pt) => ({
+    label: pt.label,
+    accent: '#F59E0B',
+    metrics: PITCH_TREND_METRICS.map((m) => ({
+      key: `${pt.keyPrefix}_${m.suffix}`,
+      label: m.label,
+      unit: m.unit,
+    })),
+  })),
   {
-    label: 'Pitching', accent: '#60A5FA',
-    metrics: [
-      { key: 'fb_max_velo', label: 'FB Max Velo', unit: 'mph' },
-      { key: 'spin_rate',   label: 'Spin Rate',   unit: 'rpm' },
-    ],
-  },
-  {
-    label: 'Physical', accent: '#14B8A6',
+    label: 'Physical', accent: '#EF4444',
     metrics: [
       { key: 'sprint_60',    label: '60-yd Sprint', unit: 's' },
       { key: 'jump_height',  label: 'Vert Jump',    unit: 'in' },
@@ -840,6 +895,96 @@ export function PlayerSummaryTab({
     [player, reports, topMetrics],
   );
 
+  /* ── Trackman pitch history for the Metric Trend per-pitch-type
+        options. Pulled once per player and rolled up into synthetic
+        progressData entries keyed by `<pitchTypePrefix>_<metric>`
+        (e.g. `fastball_max_velo`, `slider_avg_velo`) so the Metric
+        Trend dropdown can chart them without backend changes. */
+  const [pitchHistory, setPitchHistory] = useState<api.TrackmanPitch[]>([]);
+  useEffect(() => {
+    if (!player?.id) return;
+    let cancelled = false;
+    api.getTrackmanPitches(player.id)
+      .then((rows) => { if (!cancelled) setPitchHistory(rows); })
+      .catch(() => { if (!cancelled) setPitchHistory([]); });
+    return () => { cancelled = true; };
+  }, [player?.id]);
+
+  const pitchProgressData = useMemo(() => {
+    if (pitchHistory.length === 0) return {} as Record<string, { value: number; recordedAt: string }[]>;
+    /** TrackmanPitch.pitchType → key prefix used by TREND_DOMAINS. */
+    const TYPE_TO_PREFIX: Record<string, string> = {
+      Fastball:  'fastball',
+      Sinker:    'sinker',
+      Cutter:    'cutter',
+      Slider:    'slider',
+      Sweeper:   'sweeper',
+      Curveball: 'curveball',
+      ChangeUp:  'changeup',
+      Splitter:  'splitter',
+    };
+    /* Bucket pitches by (pitch type, calendar day). For each bucket
+       compute Max Velo, Avg Velo, Avg H-Break, Avg IVB, Avg Spin Rate.
+       Spin Efficiency isn't on TrackmanPitch (no gyro angle / active
+       spin field) so it stays empty until the backend provides it. */
+    type DayBucket = {
+      relSpeeds: number[];
+      hBreaks: number[];
+      ivbs: number[];
+      spins: number[];
+      day: string;
+    };
+    const byTypeDay = new Map<string, Map<string, DayBucket>>();
+    for (const p of pitchHistory) {
+      const prefix = TYPE_TO_PREFIX[p.pitchType];
+      if (!prefix) continue;
+      const day = (p.recordedAt || '').slice(0, 10);
+      if (!day) continue;
+      let dayMap = byTypeDay.get(prefix);
+      if (!dayMap) { dayMap = new Map(); byTypeDay.set(prefix, dayMap); }
+      let b = dayMap.get(day);
+      if (!b) { b = { relSpeeds: [], hBreaks: [], ivbs: [], spins: [], day }; dayMap.set(day, b); }
+      if (p.relSpeed != null) b.relSpeeds.push(p.relSpeed);
+      if (p.horzBreak != null) b.hBreaks.push(p.horzBreak);
+      if (p.inducedVertBreak != null) b.ivbs.push(p.inducedVertBreak);
+      if (p.spinRate != null) b.spins.push(p.spinRate);
+    }
+    const avg = (arr: number[]) => arr.reduce((s, n) => s + n, 0) / arr.length;
+    const out: Record<string, { value: number; recordedAt: string }[]> = {};
+    byTypeDay.forEach((dayMap, prefix) => {
+      const days = [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+      const max = (k: keyof DayBucket, days: DayBucket[]) =>
+        days.flatMap((d) => Array.isArray(d[k]) ? (d[k] as number[]) : []);
+      // Per-day max velo (best pitch that day)
+      out[`${prefix}_max_velo`] = days.flatMap((d) => d.relSpeeds.length > 0
+        ? [{ value: Math.max(...d.relSpeeds), recordedAt: d.day + 'T00:00:00.000Z' }]
+        : []);
+      out[`${prefix}_avg_velo`] = days.flatMap((d) => d.relSpeeds.length > 0
+        ? [{ value: +avg(d.relSpeeds).toFixed(1), recordedAt: d.day + 'T00:00:00.000Z' }]
+        : []);
+      out[`${prefix}_h_break`] = days.flatMap((d) => d.hBreaks.length > 0
+        ? [{ value: +avg(d.hBreaks).toFixed(1), recordedAt: d.day + 'T00:00:00.000Z' }]
+        : []);
+      out[`${prefix}_ivb`] = days.flatMap((d) => d.ivbs.length > 0
+        ? [{ value: +avg(d.ivbs).toFixed(1), recordedAt: d.day + 'T00:00:00.000Z' }]
+        : []);
+      out[`${prefix}_spin`] = days.flatMap((d) => d.spins.length > 0
+        ? [{ value: Math.round(avg(d.spins)), recordedAt: d.day + 'T00:00:00.000Z' }]
+        : []);
+      // Drop empty arrays (populated filter expects at least 1 entry)
+      void max; // silence unused-var if Prettier strips the helper
+    });
+    Object.keys(out).forEach((k) => { if (out[k].length === 0) delete out[k]; });
+    return out;
+  }, [pitchHistory]);
+
+  /* Merge backend-served progress data with the synthetic per-pitch-type
+     rollups so Metric Trend's `populated` filter sees both sources. */
+  const mergedProgressData = useMemo(() => ({
+    ...progressData,
+    ...pitchProgressData,
+  }), [progressData, pitchProgressData]);
+
   const insights = useMemo(
     () => buildInsights(aggregate.sections, aggregate.overall),
     [aggregate],
@@ -868,9 +1013,30 @@ export function PlayerSummaryTab({
   const [devSaveError, setDevSaveError] = useState<string | null>(null);
 
   /* Sub-grade compare panel — pick which non-physical domain to render
-     alongside Physical bars. Default to Hitting so position players see
-     something on first paint; pitchers can flip to Pitching. */
-  const [compareDomain, setCompareDomain] = useState<CompareDomain>('hitting');
+     alongside Physical bars. The dropdown only offers domains the player
+     actually carries (i.e. has a Tool Grades section for), so a Pitcher
+     only sees "Physical vs Pitching", a Catcher sees "Physical vs Hitting"
+     + "Physical vs Catching", an Infielder sees Hitting + Infield, etc. */
+  const availableCompareOptions = useMemo<{ key: CompareDomain; label: string }[]>(() => {
+    const present = new Set(
+      aggregate.sections.map((s) => s.key).filter((k) => k !== 'strength'),
+    );
+    return DOMAIN_ORDER
+      .filter((d) => present.has(d))
+      .map((d) => ({ key: d, label: DOMAIN_LABELS[d] }));
+  }, [aggregate.sections]);
+  const [compareDomain, setCompareDomain] = useState<CompareDomain>(
+    () => (availableCompareOptions[0]?.key ?? 'hitting'),
+  );
+  /* Auto-snap the selection to a domain that's actually present whenever
+     positions change (e.g. coach edits the player profile). Avoids leaving
+     the dropdown showing "Hitting" for a pitcher-only player. */
+  useEffect(() => {
+    if (availableCompareOptions.length === 0) return;
+    if (!availableCompareOptions.some((o) => o.key === compareDomain)) {
+      setCompareDomain(availableCompareOptions[0].key);
+    }
+  }, [availableCompareOptions, compareDomain]);
 
   /* Cross-card sync for the Development snapshot's "Next Steps" textareas.
      The user drags ONE card's resize handle freely (no live broadcast,
@@ -972,62 +1138,8 @@ export function PlayerSummaryTab({
 
       {/* ══════════ HERO ══════════ */}
       <section className={styles.hero}>
-        {/* Development snapshot — leads the hero. Header carries the
-            section-by-section "Best Tool / Biggest Weakness / Next Steps"
-            cards below. The Save controls sit inline with the eyebrow so
-            coaches don't have to scroll past every card to save edits. */}
-        <div className={`${styles.panel} ${styles.noteCard}`}>
-          <div className={styles.devHeader}>
-            <h2 className={styles.panelTitle}>Development Snapshot</h2>
-            {/* Save controls live inline (coach only). Reset is hidden
-                when nothing's been edited so the bar stays tight.
-                The overall total score was retired in favor of per-section
-                scores rendered inside each card below. */}
-            {isCoach && aggregate.sections.length > 0 && (
-              <div className={styles.devHeaderSave}>
-                {devSaveError && <span className={styles.devSaveError}>{devSaveError}</span>}
-                {devSaveOk && <span className={styles.devSaveOk}>Saved</span>}
-                {devDirty && (
-                  <button type="button" onClick={() => setDevNotes(persistedDevNotes)}
-                    className={styles.devResetBtn}>
-                    Reset
-                  </button>
-                )}
-                <button type="button" onClick={saveDevNotes} disabled={!devDirty || savingDev}
-                  className={styles.devSaveBtn}
-                  style={{ opacity: !devDirty || savingDev ? 0.6 : 1 }}>
-                  {savingDev ? 'Saving…' : 'Save Next Steps'}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className={styles.devGrid}>
-            {aggregate.sections.map((s) => {
-              const palette = DOMAIN_PALETTE[s.key] ?? { main: '#94a3b8', soft: '#cbd5e1', name: s.label };
-              const noteValue = devNotes[s.key] ?? '';
-              const persistedValue = persistedDevNotes[s.key] ?? '';
-              return (
-                <SectionDevelopmentCard
-                  key={s.key}
-                  section={s}
-                  palette={palette}
-                  notes={noteValue}
-                  dirty={noteValue !== persistedValue}
-                  isCoach={isCoach}
-                  onChange={(next) => setDevNotes((prev) => ({ ...prev, [s.key]: next }))}
-                  registerNotes={registerNotes}
-                  onNotesScroll={onNotesScroll}
-                  onNotesResizeEnd={syncNotesHeight}
-                />
-              );
-            })}
-            {aggregate.sections.length === 0 && (
-              <div style={{ color: 'var(--text-muted)', padding: 12, fontSize: 13 }}>
-                No Tool Grades sections yet — add a position to the player profile.
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Development Snapshot section retired — Tool Grades now leads
+            the hero stack. */}
 
         {/* Left: condensed tool grades bubble — compact multi-row bar graph */}
         <div className={`${styles.panel} ${styles.toolBubble}`}>
@@ -1131,16 +1243,16 @@ export function PlayerSummaryTab({
         </div>
 
         {/* Selected-section detail card — driven by the Tool-Grades bubble.
-            Title row reads left-to-right: "Sub-grade breakdown" leads as
-            the main h2, and the section-specific qualifier ("Hitting
-            Detail", "Pitching Detail", "Catching Detail", etc.) sits to
-            its right as the small eyebrow. */}
+            Title row reads left-to-right: "Sub-Grade Breakdown" leads as
+            the main h2, then a hyphen, then the selected section name
+            ("Hitting", "Pitching", "Catching", etc.) as the small eyebrow. */}
         <div className={`${styles.panel} ${styles.playerCard}`}>
           <div className={styles.sectionTitle}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
-              <h2 style={{ margin: 0 }}>Sub-grade breakdown</h2>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0 }}>Sub-Grade Breakdown</h2>
+              <span className={styles.tiny} aria-hidden="true">—</span>
               <div className={styles.tiny}>
-                {(selectedSection?.label ?? 'Section')} detail
+                {selectedSection?.label ?? 'Section'}
               </div>
             </div>
             <div className={styles.chips}>
@@ -1153,64 +1265,49 @@ export function PlayerSummaryTab({
             </div>
           </div>
 
-          {/* Bar graph leads — sub-metric columns visible up top. */}
-          <div className={styles.chartWrap}>
-            <SectionBarsChart section={selectedSection} />
-          </div>
-
-          {/* One bubble per bar group (Coach Grades / Swing Decision /
-              Quality of Contact / Swing for hitting; analogous splits
-              for the other sections). Each bubble spans exactly over
-              its own chart columns above (flex-weighted by sub-metric
-              count) and stacks:
-                Top    — every sub-metric label that group covers
-                Middle — the bar/group label (e.g. "Swing")
-                Bottom — that group's score */}
-          <div className={styles.coachGradesRow}>
+          {/* Per-group mini bar charts — one chart per bar group (Swing /
+              Quality of Contact / Swing Decision / Coach Grades for the
+              hitting section; analogous groupings for the other sections).
+              Each panel mirrors the original chart's setup but only shows
+              its own sub-metrics, with the group title + 20-80 score in
+              the panel header. Lays out as a responsive 2-col grid. */}
+          <div className={styles.subGradeChartsGrid}>
             {(selectedSection?.bars ?? []).map((bar) => {
-              const weight = Math.max(1, bar.subMetrics.length);
               const grade = bar.score;
               const tone = grade != null ? scoreColor(grade) : undefined;
+              // Synthetic single-bar section reusing the rest of the
+              // section's identity (key/label/color) so SectionBarsChart
+              // renders only this group's sub-metrics.
+              const singleBarSection = selectedSection
+                ? { ...selectedSection, bars: [bar] }
+                : null;
               return (
-                <div
-                  key={bar.key}
-                  className={styles.coachGradesBubble}
-                  style={{ flex: `${weight} ${weight} 0` }}
-                >
-                  <div className={styles.coachGradesLabels}>
-                    {bar.subMetrics.length > 0 ? (
-                      bar.subMetrics.map((sm) => (
-                        <span key={sm.key} className={styles.coachGradesLabel}>
-                          {sm.label}
-                        </span>
-                      ))
-                    ) : (
-                      <span className={styles.coachGradesLabel}>—</span>
-                    )}
-                  </div>
-                  <div className={styles.coachGradesGroupTitle}>
-                    {bar.label}
-                  </div>
-                  <div className={styles.coachGradesScoreRow}>
+                <div key={bar.key} className={styles.subGradeChartCard}>
+                  <div className={styles.subGradeChartHead}>
+                    <span className={styles.subGradeChartTitle}>{bar.label}</span>
                     <strong
-                      className={styles.coachGradesScore}
+                      className={styles.subGradeChartScore}
                       style={tone ? { color: tone } : undefined}
                     >
                       {grade ?? '—'}
                     </strong>
                   </div>
+                  {/* Chart sits directly on the card surface (no nested
+                      .chartWrap bubble) so the "Swing" header and the
+                      bars share the same lighter background. */}
+                  <div className={styles.subGradeChartWrap}>
+                    <SectionBarsChart section={singleBarSection} />
+                  </div>
                 </div>
               );
             })}
             {(!selectedSection || selectedSection.bars.length === 0) && (
-              <div className={styles.coachGradesBubble} style={{ flex: '1 1 0' }}>
-                <div className={styles.coachGradesLabels}>
-                  <span className={styles.coachGradesLabel}>—</span>
+              <div className={styles.subGradeChartCard}>
+                <div className={styles.subGradeChartHead}>
+                  <span className={styles.subGradeChartTitle}>No sub-grades</span>
+                  <strong className={styles.subGradeChartScore}>—</strong>
                 </div>
-                <div className={styles.coachGradesGroupTitle}>No sub-grades</div>
-                <div className={styles.coachGradesScoreRow}>
-                  <strong className={styles.coachGradesScore}>—</strong>
-                </div>
+                <div className={styles.subGradeChartWrap} />
               </div>
             )}
           </div>
@@ -1235,14 +1332,18 @@ export function PlayerSummaryTab({
                   and the populated comparison sits below it as the small
                   eyebrow. */}
               <h2>Sub-Grade Compare</h2>
-              <div className={styles.tiny}>Physical vs {COMPARE_OPTIONS.find((o) => o.key === compareDomain)?.label ?? '—'}</div>
+              <div className={styles.tiny}>Physical vs {availableCompareOptions.find((o) => o.key === compareDomain)?.label ?? '—'}</div>
             </div>
             <select
               className={styles.chartSelect}
               value={compareDomain}
               onChange={(e) => setCompareDomain(e.target.value as CompareDomain)}
+              disabled={availableCompareOptions.length === 0}
             >
-              {COMPARE_OPTIONS.map((o) => (
+              {availableCompareOptions.length === 0 && (
+                <option value="">No comparison available</option>
+              )}
+              {availableCompareOptions.map((o) => (
                 <option key={o.key} value={o.key}>Physical vs {o.label}</option>
               ))}
             </select>
@@ -1253,7 +1354,7 @@ export function PlayerSummaryTab({
         </div>
 
         <div className={styles.panel}>
-          <MetricTrendPanel progressData={progressData} />
+          <MetricTrendPanel progressData={mergedProgressData} />
         </div>
       </section>
 

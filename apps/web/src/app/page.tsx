@@ -268,7 +268,6 @@ export default function DashboardPage() {
         eyebrow="Coach Dashboard"
         title="Assess, Train,"
         titleAccent="Perform"
-        subtitle="Manage your athletes, upload data, and track development."
         readout="Live"
       />
 

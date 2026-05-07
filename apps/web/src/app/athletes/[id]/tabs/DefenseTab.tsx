@@ -1263,7 +1263,7 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
 /* Reusable Snapshot bubble — wraps a 2-pane grid + underlying stats rows */
 function SnapshotBubble({ title, subtitle, leftPane, rightPane, statsRows }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   leftPane: { title: string; hint: string; node: React.ReactNode };
   rightPane: { title: string; hint: string; node: React.ReactNode };
   statsRows: React.ReactNode;
@@ -1391,7 +1391,6 @@ export function CatchingSubTab({
         return (
           <SnapshotBubble
             title="Catching Snapshot"
-            subtitle="Charts + underlying breakdown for receiving, throwing, and blocking."
             leftPane={{
               title: 'Receiving Heat Map',
               hint: 'Strike zone & borders',
@@ -1558,9 +1557,7 @@ export function InfieldSubTab({
               className={aStyles.profilePanel}
               style={{ display: 'flex', flexDirection: 'column', gap: 28 }}
             >
-              <SectionHeader icon="🧤" iconColor="teal" title="Infielder Snapshot"
-                subtitle="A field map showing range coverage and arm strength to 1B, with the glove and footwork breakdown beneath it."
-              />
+              <SectionHeader icon="🧤" iconColor="teal" title="Infielder Snapshot" />
               {/* TOP — Field on the left, Hands & Range bars on the right.
                   The field shrinks (maxWidth 460 → 460px-ish) so the bars
                   fit beside it on wide screens; on narrow screens the row
@@ -1852,7 +1849,6 @@ export function OutfieldSubTab({
               style={{ display: 'flex', flexDirection: 'column', gap: 28 }}
             >
               <SectionHeader icon="🧤" iconColor="teal" title="Outfielder Snapshot"
-                subtitle="A field map showing range coverage and arm strength to home, with the glove and footwork breakdown beneath it."
               />
               {/* TOP — Field on the left, Routes & Reads bars on the right.
                   Same 2-column treatment as the Infield sub-tab; reflows

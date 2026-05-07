@@ -71,20 +71,80 @@ export class PlayersService {
   }
 
   async getTopMetrics(playerId: string) {
-    // Get the latest value for each metric type
+    // Get every metric for the player (sorted newest-first).
     const metrics = await this.prisma.metric.findMany({
       where: { playerId },
       orderBy: { recordedAt: 'desc' },
     });
 
-    // Group by metric type — keep the most recent value
-    const latest = new Map<string, { value: number; unit: string; recordedAt: Date }>();
+    /* Bucket by metric_type so we can aggregate across every row of the
+       same type — handles parsers that emit one row per batted ball
+       (Full Swing, Blast) the same as parsers that emit a single
+       session summary (HitTrax). */
+    const grouped = new Map<string, typeof metrics>();
     for (const m of metrics) {
-      if (!latest.has(m.metricType)) {
-        latest.set(m.metricType, { value: m.value, unit: m.unit, recordedAt: m.recordedAt });
-      }
+      const arr = grouped.get(m.metricType);
+      if (arr) arr.push(m);
+      else grouped.set(m.metricType, [m]);
     }
 
-    return Object.fromEntries(latest);
+    /* Aggregation rule per metric_type, deduced from the name:
+         - starts with `max_*` or ends with `_max`  → MAX
+         - starts with `avg_*` or ends with `_avg`  → AVG
+         - ends with `_pct`                          → AVG (per-row 0/100 flags average to a percentage)
+         - explicit AVG metrics (launch_angle, distance, etc.)
+         - everything else                           → latest (default, prior behavior)
+       Coach-graded scouting numbers (manual entries) keep "latest" so
+       the most recent grade wins, not an average across history. */
+    const AVG_METRICS = new Set([
+      'launch_angle', 'distance', 'spray_angle', 'pitch_speed',
+      'bat_speed', 'attack_angle', 'plane_angle',
+      'time_to_contact', 'on_plane_efficiency',
+      'connection_at_contact', 'rotational_acceleration',
+      'smash_factor',
+    ]);
+
+    const aggregateForType = (metricType: string): 'max' | 'avg' | 'latest' => {
+      if (metricType.startsWith('max_') || metricType.endsWith('_max')) return 'max';
+      if (metricType.startsWith('avg_') || metricType.endsWith('_avg')) return 'avg';
+      if (metricType.endsWith('_pct')) return 'avg';
+      if (AVG_METRICS.has(metricType)) return 'avg';
+      return 'latest';
+    };
+
+    const out: Record<string, { value: number; unit: string; recordedAt: Date }> = {};
+    grouped.forEach((rows, metricType) => {
+      const mode = aggregateForType(metricType);
+      const latest = rows[0]; // grouped insertion preserves desc order from the query
+      const values = rows.map(r => r.value);
+      let value: number;
+      if (mode === 'max') value = Math.max(...values);
+      else if (mode === 'avg') value = values.reduce((s, n) => s + n, 0) / values.length;
+      else value = latest.value;
+      out[metricType] = {
+        value: Math.round(value * 100) / 100,
+        unit: latest.unit,
+        recordedAt: latest.recordedAt,
+      };
+    });
+
+    /* ── Synthesized companions ──────────────────────────────────────
+       Both the Full Swing parser (`ExitSpeed`) and the legacy HitTrax
+       parser map per-batted-ball exit velo to `max_exit_velo`, so
+       `avg_exit_velo` may not exist as its own row even though the raw
+       data is sitting right there. Derive it from the per-row average
+       of `max_exit_velo` so the Hitting tab's "Avg Exit Velo" KPI
+       lights up regardless of which parser ingested the file. */
+    const exitVeloRows = grouped.get('max_exit_velo');
+    if (exitVeloRows && exitVeloRows.length > 0 && !out.avg_exit_velo) {
+      const avg = exitVeloRows.reduce((s, r) => s + r.value, 0) / exitVeloRows.length;
+      out.avg_exit_velo = {
+        value: Math.round(avg * 100) / 100,
+        unit: exitVeloRows[0].unit,
+        recordedAt: exitVeloRows[0].recordedAt,
+      };
+    }
+
+    return out;
   }
 }

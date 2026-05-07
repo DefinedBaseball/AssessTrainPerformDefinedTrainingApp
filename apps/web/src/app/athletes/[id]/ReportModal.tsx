@@ -10,6 +10,9 @@ import styles from './page.module.css';
 import {
   type ManualSwingScores, getManualSwingScores,
   type ManualSwingOptions, getManualSwingOptions,
+  type ManualBattedBall, getManualBattedBall,
+  type ManualSwingMetrics, getManualSwingMetrics,
+  MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
   type PitchingGrades, type PitchingGradeEntry, getPitchingGrades,
   type PitchingGradeItemConfig, type PitchingGradeSectionConfig,
   PITCHING_GRADE_SECTIONS, pitchingGradeKey,
@@ -81,9 +84,10 @@ const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   // The HITTING report now bundles both swing and swing-decision data. The
   // `group` tag drives which subsection a slot renders in (swing / decision).
   HITTING: [
-    { key: 'blast',     label: 'Swing Metrics',        subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing' },
-    { key: 'fullswing', label: 'Batted Ball Metrics',  subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing' },
-    { key: 'atbat',     label: 'At-Bat Assessment',    subtitle: 'At-Bat Assessment XLSX',   vendor: 'AtBat',        group: 'decision' },
+    { key: 'blast',     label: 'Swing Metrics',         subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing' },
+    { key: 'fullswing', label: 'Batted Ball Metrics',   subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing' },
+    { key: 'hittrax',   label: 'Batted Ball — HitTrax', subtitle: 'HitTrax CSV',              vendor: 'HitTrax',      group: 'swing' },
+    { key: 'atbat',     label: 'At-Bat Assessment',     subtitle: 'At-Bat Assessment XLSX',   vendor: 'AtBat',        group: 'decision' },
   ],
   PITCHING: [{ key: 'trackman', label: 'Pitch Data', subtitle: 'TrackMan CSV', vendor: 'TrackMan' }],
   /* INFIELD uses a dedicated form — no CSV slots */
@@ -106,17 +110,22 @@ interface UploadResult { status: 'success' | 'error' | 'processing'; message: st
  *  sees what's already attached and can remove or replace it. */
 interface ExistingUpload { vendor: string; rows?: number; metrics?: number; uploadId?: string; atBats?: number; playerName?: string; error?: string; }
 
-function CsvUploadCard({ slot, file, uploadResult, existingUpload, onSelect, onRemove, onRemoveExisting }: {
+function CsvUploadCard({
+  slot, file, uploadResult, existingUpload, onSelect, onRemove, onRemoveExisting,
+  manualMode, onToggleManual, manualNode,
+}: {
   slot: CsvSlot; file: File | null; uploadResult: UploadResult | null;
   existingUpload?: ExistingUpload | null;
   onSelect: (f: File) => void; onRemove: () => void;
   onRemoveExisting?: () => void;
+  /** When true, the card renders manualNode in place of the drop zone. */
+  manualMode?: boolean;
+  onToggleManual?: () => void;
+  manualNode?: React.ReactNode;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  // Edit mode + previously-saved upload, no new pending file → show the saved
-  // state (file name from API metadata isn't available, so we summarize the
-  // vendor + row/metric counts that were stored at upload time).
-  const showExisting = !file && !!existingUpload;
+  const showExisting = !file && !!existingUpload && !manualMode;
+  const supportsManual = !!onToggleManual;
   return (
     <div className={rs.csvCard}>
       <div className={rs.csvCardHeader}>
@@ -124,9 +133,36 @@ function CsvUploadCard({ slot, file, uploadResult, existingUpload, onSelect, onR
           <div className={rs.csvCardTitle}>{slot.label}</div>
           <div className={rs.csvCardSub}>{slot.subtitle}</div>
         </div>
-        <span className={rs.csvVendorBadge}>{slot.vendor}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {supportsManual && (
+            <button
+              type="button"
+              onClick={onToggleManual}
+              title={manualMode ? 'Switch back to CSV upload' : 'Type values in manually instead of uploading a CSV'}
+              style={{
+                padding: '4px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                borderRadius: 6,
+                border: `1px solid ${manualMode ? 'var(--accent)' : 'var(--border-light)'}`,
+                background: manualMode
+                  ? 'color-mix(in srgb, var(--accent) 22%, transparent)'
+                  : 'transparent',
+                color: manualMode ? 'var(--accent-light)' : 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              {manualMode ? '✓ Manual' : 'Manual Entry'}
+            </button>
+          )}
+          <span className={rs.csvVendorBadge}>{slot.vendor}</span>
+        </div>
       </div>
-      {file ? (
+      {manualMode ? (
+        <div style={{ marginTop: 8 }}>{manualNode}</div>
+      ) : file ? (
         <div className={rs.fileInfo}>
           <div className={rs.fileName}>
             <span className={rs.fileIcon}>✅</span>{file.name}
@@ -183,6 +219,71 @@ function CsvUploadCard({ slot, file, uploadResult, existingUpload, onSelect, onR
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* Bubble-styled manual-entry inputs for a single slot (Blast / Full Swing). */
+function ManualMetricBubbles<T extends Record<string, number | null>>({
+  fields, values, onChange,
+}: {
+  fields: { key: keyof T; label: string; unit: string; step?: number }[];
+  values: T;
+  onChange: (key: keyof T, raw: string) => void;
+}) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+      gap: 8,
+    }}>
+      {fields.map(f => (
+        <div key={String(f.key)} style={{
+          padding: '8px 10px',
+          background: 'rgba(20,24,32,0.55)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.10em', textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+          }}>{f.label}</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+            <input
+              type="number"
+              step={f.step ?? 0.1}
+              placeholder="—"
+              value={values[f.key] == null ? '' : String(values[f.key])}
+              onChange={e => onChange(f.key, e.target.value)}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-bright)',
+                fontSize: 18,
+                fontWeight: 800,
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '-0.02em',
+                outline: 'none',
+                padding: 0,
+                minWidth: 0,
+              }}
+            />
+            {f.unit && (
+              <span style={{
+                fontFamily: "'DM Mono', ui-monospace, monospace",
+                fontSize: 10, fontWeight: 600,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.06em',
+              }}>{f.unit}</span>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1837,6 +1938,35 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     isEdit && existingReport ? getPitchingGrades(existingReport) : {}
   );
 
+  /* Per-CSV-slot manual entry — coaches can flip an individual CSV
+     card into "Manual Entry" mode and fill in the same metrics directly.
+     Slots that opt-in: blast (Swing Metrics) → manualSwingMetrics,
+     fullswing (Batted Ball Metrics) → manualBattedBall. */
+  const [manualBattedBall, setManualBattedBall] = useState<ManualBattedBall>(() =>
+    isEdit && existingReport ? getManualBattedBall(existingReport) : {
+      avg_exit_velo: null, squared_up_pct: null, smash_factor: null,
+      launch_angle: null, distance: null,
+    },
+  );
+  const [manualSwingMetrics, setManualSwingMetrics] = useState<ManualSwingMetrics>(() =>
+    isEdit && existingReport ? getManualSwingMetrics(existingReport) : {
+      attack_angle: null, plane_angle: null, avg_bat_speed: null,
+      time_to_contact: null, on_plane_efficiency: null,
+    },
+  );
+  /* Per-slot toggle — true when the coach has flipped that card into
+     manual-entry mode. Auto-on in edit mode if any value is already
+     saved for that slot, so the form re-opens to the saved manual data. */
+  const [manualMode, setManualMode] = useState<Record<string, boolean>>(() => {
+    if (!isEdit || !existingReport) return {};
+    const bb = getManualBattedBall(existingReport);
+    const sw = getManualSwingMetrics(existingReport);
+    const out: Record<string, boolean> = {};
+    if (Object.values(bb).some(v => v != null)) out.fullswing = true;
+    if (Object.values(sw).some(v => v != null)) out.blast = true;
+    return out;
+  });
+
   // Pre-fill summary from player
   useEffect(() => {
     const inchesToHeight = (inches: number | null): string => {
@@ -1901,8 +2031,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
               continue;
             }
             const sourceMap: Record<string, string> = {
-              'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'TrackMan': 'TRACKMAN',
-              'VALD': 'VALD', 'Vizual Edge': 'VIZUAL_EDGE', 'Custom': 'AUTO_DETECT',
+              'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'HitTrax': 'HITTRAX',
+              'TrackMan': 'TRACKMAN', 'VALD': 'VALD', 'Vizual Edge': 'VIZUAL_EDGE',
+              'Custom': 'AUTO_DETECT',
             };
             const result = await api.uploadCSV(file, userId, sourceMap[slot.vendor], player.id);
             uploadSummary[slot.key] = { vendor: slot.vendor, rows: result.totalRows, metrics: result.metricsCreated, uploadId: result.uploadId };
@@ -1985,6 +2116,10 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             // Multi-select descriptive tags for each Coach Diagnosis category
             // (e.g. forwardMove: ['Drift']). Always written so removals stick.
             manualOptions: { ...manualOptions },
+            // Per-CSV-slot manual entries (Blast / Full Swing). Always
+            // written so cleared fields persist as nulls.
+            manualBattedBall:    { ...manualBattedBall },
+            manualSwingMetrics:  { ...manualSwingMetrics },
             // Swing Decision sub-section notes — empty string clears the field.
             swingDecisionNotes: swingDecisionNotes || undefined,
           } : {}),
@@ -2188,17 +2323,56 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                       <span className={rs.sectionCount}>{swingGroup.length} {swingGroup.length === 1 ? 'source' : 'sources'}</span>
                     </div>
                     <div className={rs.csvGrid}>
-                      {swingGroup.map(slot => (
-                        <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
-                          existingUpload={existingCsvUploads[slot.key] || null}
-                          onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
-                          onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }}
-                          onRemoveExisting={() => setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; })} />
-                      ))}
+                      {swingGroup.map(slot => {
+                        /* Only HITTING's Blast (swing metrics) + Full Swing
+                           (batted ball metrics) cards expose a Manual Entry
+                           toggle. Everything else stays CSV-only. */
+                        const supportsManual = reportType === 'HITTING'
+                          && (slot.key === 'blast' || slot.key === 'fullswing');
+                        const isManual = supportsManual && !!manualMode[slot.key];
+                        const setBb = (key: keyof ManualBattedBall, raw: string) =>
+                          setManualBattedBall(prev => ({
+                            ...prev,
+                            [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]),
+                          }));
+                        const setSw = (key: keyof ManualSwingMetrics, raw: string) =>
+                          setManualSwingMetrics(prev => ({
+                            ...prev,
+                            [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]),
+                          }));
+                        const manualNode = isManual
+                          ? (slot.key === 'blast' ? (
+                              <ManualMetricBubbles
+                                fields={MANUAL_SWING_METRIC_FIELDS}
+                                values={manualSwingMetrics}
+                                onChange={setSw}
+                              />
+                            ) : (
+                              <ManualMetricBubbles
+                                fields={MANUAL_BATTED_BALL_FIELDS}
+                                values={manualBattedBall}
+                                onChange={setBb}
+                              />
+                            ))
+                          : undefined;
+                        return (
+                          <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
+                            existingUpload={existingCsvUploads[slot.key] || null}
+                            onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
+                            onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }}
+                            onRemoveExisting={() => setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; })}
+                            manualMode={isManual}
+                            onToggleManual={supportsManual
+                              ? () => setManualMode(prev => ({ ...prev, [slot.key]: !prev[slot.key] }))
+                              : undefined}
+                            manualNode={manualNode} />
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })()}
+
               <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
 
               {/* ── Swing Decision sub-section (HITTING only) ──

@@ -217,9 +217,14 @@ export async function createMetric(playerId: string, data: {
   });
 }
 
-export async function getMetricProgress(playerId: string, metricType: string) {
+export async function getMetricProgress(
+  playerId: string,
+  metricType: string,
+  source?: string,
+) {
+  const qs = source ? `?source=${encodeURIComponent(source)}` : '';
   return request<{ value: number; recordedAt: string }[]>(
-    `/players/${playerId}/metrics/progress/${metricType}`,
+    `/players/${playerId}/metrics/progress/${metricType}${qs}`,
   );
 }
 

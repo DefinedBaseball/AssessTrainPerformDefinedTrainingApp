@@ -26,6 +26,115 @@ const HITTING_REPORT_TYPES = ['HITTING'];
    Sized to fit the SectionHeader's 36×36 .sectionIcon slot; both render on a
    white tile to match each brand's standard treatment.
    ───────────────────────────────────────────────────────────────────────── */
+/* Coach Grades icon — clipboard with three checked rows and an "A+"
+   stamp on the bottom-right. Renders on a dark rounded tile so it
+   reads consistently with the other vendor logos in the section
+   header (Full Swing / Blast Motion). */
+function CoachGradesIcon() {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="Coach Grades"
+      style={{ display: 'block' }}
+    >
+      {/* Dark rounded tile background */}
+      <rect x="0" y="0" width="100" height="100" rx="22" fill="#1a1f25" />
+      {/* Paper / clipboard body */}
+      <rect x="22" y="22" width="46" height="64" rx="3" fill="#ffffff" />
+      {/* Three checkbox rows: small square + check + line */}
+      <g stroke="#1a1f25" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        {/* Row 1 */}
+        <path d="M28 36 v6 h6" />
+        <path d="M30.5 39 l3 3 l5.5 -5.5" />
+        <line x1="42" y1="40" x2="63" y2="40" />
+        {/* Row 2 */}
+        <path d="M28 53 v6 h6" />
+        <path d="M30.5 56 l3 3 l5.5 -5.5" />
+        <line x1="42" y1="57" x2="63" y2="57" />
+        {/* Row 3 */}
+        <path d="M28 70 v6 h6" />
+        <path d="M30.5 73 l3 3 l5.5 -5.5" />
+        <line x1="42" y1="74" x2="63" y2="74" />
+      </g>
+      {/* A+ grade circle (bottom-right) */}
+      <circle cx="74" cy="62" r="18" fill="#ffffff" stroke="#1a1f25" strokeWidth="3" />
+      <text
+        x="71" y="69"
+        textAnchor="middle"
+        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        fontSize="22"
+        fontWeight="800"
+        fill="#1a1f25"
+        letterSpacing="-1"
+      >A</text>
+      <text
+        x="84" y="55"
+        textAnchor="middle"
+        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        fontSize="14"
+        fontWeight="800"
+        fill="#1a1f25"
+      >+</text>
+    </svg>
+  );
+}
+
+function HitTraxLogo() {
+  /* Charcoal rounded tile, "HT" wordmark in white with a red diagonal
+     swoosh through it, framed by chevrons (◀ ▶) on the sides and red
+     arrow points (▲ ▼) top + bottom — matches the HitTrax app icon. */
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="HitTrax"
+      style={{ display: 'block' }}
+    >
+      <defs>
+        <linearGradient id="ht-tile" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stopColor="#5a5e63" />
+          <stop offset="100%" stopColor="#3a3d42" />
+        </linearGradient>
+        <linearGradient id="ht-red" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#ff5b5b" />
+          <stop offset="100%" stopColor="#c92020" />
+        </linearGradient>
+      </defs>
+      {/* Charcoal tile */}
+      <rect x="0" y="0" width="100" height="100" rx="22" fill="url(#ht-tile)" />
+      {/* Top + bottom red arrow points */}
+      <polygon points="50,8 64,22 36,22" fill="url(#ht-red)" />
+      <polygon points="50,92 64,78 36,78" fill="url(#ht-red)" />
+      {/* Side chevrons */}
+      <polygon points="6,50 22,40 22,60" fill="url(#ht-red)" />
+      <polygon points="94,50 78,40 78,60" fill="url(#ht-red)" />
+      {/* "HT" wordmark — squared, bold */}
+      <g fill="#ffffff">
+        {/* H */}
+        <rect x="28" y="36" width="6" height="30" />
+        <rect x="44" y="36" width="6" height="30" />
+        <rect x="34" y="48" width="10" height="6" />
+        {/* T */}
+        <rect x="56" y="36" width="20" height="6" />
+        <rect x="63" y="36" width="6" height="30" />
+      </g>
+      {/* Red swoosh slashing through HT */}
+      <path
+        d="M 22 60 Q 50 34 80 50"
+        fill="none"
+        stroke="url(#ht-red)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function FullSwingLogo() {
   return (
     <svg
@@ -170,7 +279,7 @@ export interface SharedHittingState {
 }
 
 export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
-  const { player, topMetrics, reports, isCoach, refreshKey, shared } = props;
+  const { player, topMetrics, progressData, reports, isCoach, refreshKey, shared } = props;
   const {
     manual, setManual, persistedManual,
     manualOptions, setManualOptions,
@@ -178,6 +287,105 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     dirty, saving, saveOk, saveError, saveManual,
   } = shared;
   const latestHitting = useMemo(() => getLatestReport(reports, HITTING_REPORT_TYPES), [reports]);
+
+  /* HitTrax + Full Swing read from the same metric_type names but are
+     distinguished by the Metric.source field at the database level
+     (HitTrax = 'HITTRAX', Full Swing = 'FULL_SWING'). Fetch each
+     section's progress data filtered by source so they never bleed
+     into each other. */
+  const [hittraxVelos, setHittraxVelos] = useState<number[]>([]);
+  const [hittraxLAs, setHittraxLAs] = useState<number[]>([]);
+  const [hittraxDists, setHittraxDists] = useState<number[]>([]);
+  const [fullswingLAs, setFullswingLAs] = useState<number[]>([]);
+  const [fullswingDists, setFullswingDists] = useState<number[]>([]);
+  const [fullswingVelos, setFullswingVelos] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!player?.id) return;
+    let cancelled = false;
+    const fetchVals = (type: string, source: string) =>
+      api.getMetricProgress(player.id, type, source)
+        .then(rows => rows.map(r => r.value))
+        .catch(() => [] as number[]);
+    Promise.all([
+      fetchVals('max_exit_velo', 'HITTRAX'),
+      fetchVals('launch_angle',  'HITTRAX'),
+      fetchVals('distance',      'HITTRAX'),
+      fetchVals('max_exit_velo', 'FULL_SWING'),
+      fetchVals('launch_angle',  'FULL_SWING'),
+      fetchVals('distance',      'FULL_SWING'),
+    ]).then(([htV, htLA, htD, fsV, fsLA, fsD]) => {
+      if (cancelled) return;
+      setHittraxVelos(htV);
+      setHittraxLAs(htLA);
+      setHittraxDists(htD);
+      setFullswingVelos(fsV);
+      setFullswingLAs(fsLA);
+      setFullswingDists(fsD);
+    });
+    return () => { cancelled = true; };
+  }, [player?.id, refreshKey]);
+
+  const mean = (arr: number[]) => arr.reduce((s, n) => s + n, 0) / arr.length;
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  /* HitTrax-only session stats. */
+  const hitTraxValues: Record<string, { value: number; unit: string }> = useMemo(() => {
+    const out: Record<string, { value: number; unit: string }> = {};
+    if (hittraxVelos.length > 0) {
+      out.avg_exit_velo = { value: round(mean(hittraxVelos)), unit: 'mph' };
+      out.max_exit_velo = { value: round(Math.max(...hittraxVelos)), unit: 'mph' };
+    }
+    if (hittraxLAs.length > 0) {
+      out.launch_angle = { value: round(mean(hittraxLAs)), unit: 'deg' };
+    }
+    if (hittraxDists.length > 0) {
+      out.distance = { value: round(mean(hittraxDists)), unit: 'ft' };
+    }
+    return out;
+  }, [hittraxVelos, hittraxLAs, hittraxDists]);
+
+  /* Full Swing-only session stats — used to OVERRIDE topMetricsWithMiss
+     for the Full Swing card so HitTrax-source data never appears there. */
+  const fullswingOverride: Record<string, { value: number; unit: string }> = useMemo(() => {
+    const out: Record<string, { value: number; unit: string }> = {};
+    if (fullswingVelos.length > 0) {
+      out.avg_exit_velo = { value: round(mean(fullswingVelos)), unit: 'mph' };
+      out.max_exit_velo = { value: round(Math.max(...fullswingVelos)), unit: 'mph' };
+    }
+    if (fullswingLAs.length > 0) {
+      out.launch_angle = { value: round(mean(fullswingLAs)), unit: 'deg' };
+    }
+    if (fullswingDists.length > 0) {
+      out.distance = { value: round(mean(fullswingDists)), unit: 'ft' };
+    }
+    return out;
+  }, [fullswingVelos, fullswingLAs, fullswingDists]);
+
+  /* ── Per-section "has data" flags ──────────────────────────────────
+     Each sub-section (Coach Grades / Full Swing / Blast Motion /
+     HitTrax) hides itself entirely — header, body, and the divider
+     above it — unless the underlying data source has at least one
+     populated value. Dividers only render when both the section above
+     and below them are visible. */
+  const hasCoachGrades = MANUAL_KEYS.some(({ key }) => manual[key] != null)
+    || (manualOptions && Object.values(manualOptions).some(arr => (arr?.length ?? 0) > 0));
+  const hasFullSwing   = QOC_KEYS.some(k =>
+    fullswingOverride[k] !== undefined
+    /* Allow Full-Swing-only metrics that the override doesn't carry
+       (squared_up_pct, smash_factor, full_swing_miss_pct, etc.) to
+       still light up the section via topMetricsWithMiss. */
+    || (!['avg_exit_velo','max_exit_velo','launch_angle','distance'].includes(k as string)
+        && topMetricsWithMiss[k] !== undefined),
+  );
+  const hasBlast       = SWING_METRIC_KEYS.some(k => topMetricsWithMiss[k] !== undefined)
+    && Object.values(metricGrades).some(g => g !== null);
+  const hasHitTrax     = HITTRAX_KEYS.some(k => hitTraxValues[k] !== undefined);
+  const anySection     = hasCoachGrades || hasFullSwing || hasBlast || hasHitTrax;
+
+  /* Track which sections have rendered so the dividers know whether
+     there's anything above them to separate from. */
+  let renderedSections = 0;
 
   return (
     <>
@@ -191,14 +399,22 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {/* Outer bubble wrapping Coach Grades + Full Swing + Blast Motion —
             shared profilePanel chrome (matches Player Summary). */}
         <div className={aStyles.profilePanel}>
-        {/* ── COACH GRADES — moved above Full Swing / Blast Motion ── */}
+        {!anySection && (
+          <EmptyState
+            text="No hitting data yet."
+            hint={isCoach
+              ? 'Fill in Coach Grades from the report modal, or upload a Blast Motion / Full Swing / HitTrax CSV to start populating this tab.'
+              : 'Ask your coach to enter Coach Grades or upload swing data.'}
+          />
+        )}
+
+        {/* ── COACH GRADES — only when at least one manual score / option is set */}
+        {hasCoachGrades && (() => { renderedSections++; return (
+        <>
         <SectionHeader
-          icon="✍️"
+          icon={<CoachGradesIcon />}
           iconColor="green"
           title="Coach Grades"
-          subtitle={isCoach
-            ? 'Enter 20-80 grades for the manual inputs that feed the Swing grade.'
-            : '20-80 grades entered by the coaching staff.'}
         />
 
         <div style={{
@@ -271,31 +487,29 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             )}
           </div>
         )}
+        </>
+        ); })()}
 
-        {/* Sub-block divider */}
-        <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
+        {/* ── FULL SWING — only when QoC metrics have data */}
+        {hasFullSwing && (() => {
+          const showDivider = renderedSections > 0;
+          renderedSections++;
+          return (
+        <>
+        {showDivider && (
+          <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
+        )}
 
         <SectionHeader
           icon={<FullSwingLogo />}
           iconColor="gold"
           title="Full Swing"
-          subtitle="Outcome metrics from Full Swing / HitTrax — feeds the Quality of Contact grade"
         />
         {(() => {
-          const hasAnyQoc = QOC_KEYS.some(k => topMetricsWithMiss[k] !== undefined);
-          if (!hasAnyQoc) {
-            return (
-              <EmptyState
-                text="No Full Swing / HitTrax data on file yet."
-                hint={isCoach
-                  ? 'Upload a Full Swing CSV to populate exit velo, smash factor, launch angle, and distance.'
-                  : 'Ask your coach to upload Full Swing data.'}
-              />
-            );
-          }
           const fmt = (key: string, value: number): { display: string; unit?: string } => {
             switch (key) {
               case 'avg_exit_velo':       return { display: value.toFixed(1), unit: 'mph' };
+              case 'max_exit_velo':       return { display: value.toFixed(1), unit: 'mph' };
               case 'squared_up_pct':
               case 'full_swing_miss_pct':
               case 'overall_whiff_pct':
@@ -306,17 +520,31 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
               default:                    return { display: value.toFixed(1) };
             }
           };
+          /* For metrics that BOTH HitTrax and Full Swing emit
+             (avg_exit_velo / max_exit_velo / launch_angle / distance),
+             prefer the Full-Swing-source-only override so HitTrax data
+             never mixes in. For everything else (squared_up_pct,
+             smash_factor, etc., which only Full Swing emits), fall
+             through to topMetricsWithMiss. */
+          const fsResolve = (k: string): { value: number; unit: string } | undefined => {
+            if (fullswingOverride[k] !== undefined) return fullswingOverride[k];
+            return topMetricsWithMiss[k];
+          };
           return (
             <div style={metricRowStyle} className="metricRow">
               {QOC_KEYS.map(k => {
-                const m = topMetricsWithMiss[k];
+                const m = fsResolve(k);
                 const label = METRIC_LABELS[k] || k;
                 if (!m) return (
                   <div key={k} style={metricRowItemStyle}>
                     <KpiCard label={label} value="—" />
                   </div>
                 );
-                const grade = metricToGrade(topMetricsWithMiss, k);
+                /* Grade lookup uses the Full-Swing-only value too. */
+                const grade = metricToGrade(
+                  { [k]: { value: m.value, unit: m.unit, recordedAt: '' } } as any,
+                  k,
+                );
                 const f = fmt(k, m.value);
                 return (
                   <div key={k} style={metricRowItemStyle}>
@@ -334,24 +562,26 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             </div>
           );
         })()}
+        </>
+        ); })()}
 
-        {/* Sub-block divider */}
-        <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
+        {/* ── BLAST MOTION — only when at least one swing metric grade is set */}
+        {hasBlast && (() => {
+          const showDivider = renderedSections > 0;
+          renderedSections++;
+          return (
+        <>
+        {showDivider && (
+          <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
+        )}
 
         <SectionHeader
           icon={<BlastLogo />}
           iconColor="teal"
           title="Blast Motion"
-          subtitle="Blast Motion captures + age-adjusted bat speed — feeds the Swing grade"
         />
 
-        {Object.values(metricGrades).every(g => g === null) ? (
-          <EmptyState
-            text="No Blast Motion or Full Swing data yet."
-            hint={isCoach ? 'Upload a Blast Motion CSV to populate these metrics.' : 'Ask your coach to upload Blast Motion data.'}
-          />
-        ) : (
-          <div style={metricRowStyle}>
+        <div style={metricRowStyle}>
             {SWING_METRIC_KEYS.map(k => {
               // Carry-forward from the active HITTING report (and earlier
               // HITTING reports if the active one is missing the metric).
@@ -394,7 +624,70 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
               );
             })}
           </div>
+        </>
+        ); })()}
+
+        {/* ── HITTRAX — only when at least one HitTrax metric has data */}
+        {hasHitTrax && (() => {
+          const showDivider = renderedSections > 0;
+          renderedSections++;
+          return (
+        <>
+        {showDivider && (
+          <div style={{ height: 1, background: 'var(--border)', margin: '24px 0' }} />
         )}
+
+        <SectionHeader
+          icon={<HitTraxLogo />}
+          iconColor="red"
+          title="HitTrax"
+        />
+
+        {(() => {
+          /* Same number formatting as the Full Swing card so values read
+             consistently across both sections. */
+          const fmt = (key: string, value: number): { display: string; unit?: string } => {
+            switch (key) {
+              case 'avg_exit_velo':
+              case 'max_exit_velo':  return { display: value.toFixed(1), unit: 'mph' };
+              case 'launch_angle':   return { display: `${value.toFixed(1)}°` };
+              case 'distance':       return { display: value.toFixed(0), unit: 'ft' };
+              default:               return { display: value.toFixed(1) };
+            }
+          };
+          return (
+            <div style={metricRowStyle} className="metricRow">
+              {HITTRAX_KEYS.map(k => {
+                const m = hitTraxValues[k];
+                const label = METRIC_LABELS[k] || k;
+                if (!m) return (
+                  <div key={k} style={metricRowItemStyle}>
+                    <KpiCard label={label} value="—" />
+                  </div>
+                );
+                /* Build a synthetic single-entry topMetrics so metricToGrade
+                   sees the same averaged value the card displays. */
+                const grade = metricToGrade(
+                  { [k]: { value: m.value, unit: m.unit, recordedAt: '' } } as any,
+                  k,
+                );
+                const f = fmt(k, m.value);
+                return (
+                  <div key={k} style={metricRowItemStyle}>
+                    <KpiCard
+                      label={label}
+                      value={f.display}
+                      unit={f.unit}
+                      color={grade !== null ? scoreColor(grade) : undefined}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+        </>
+        ); })()}
 
         </div>{/* /outer Hitting Inputs bubble */}
       </Section>
@@ -411,6 +704,13 @@ const QOC_KEYS = [
   'avg_exit_velo', 'squared_up_pct', 'smash_factor',
   'full_swing_miss_pct', 'overall_barrel_pct',
   'launch_angle', 'distance',
+] as const;
+
+/* HitTrax-driven KPIs — single session-level summary metrics emitted by
+   the HitTrax CSV parser (and shared with whatever Full Swing happens
+   to populate). Rendered in their own section under Blast Motion. */
+const HITTRAX_KEYS = [
+  'avg_exit_velo', 'max_exit_velo', 'distance', 'launch_angle',
 ] as const;
 
 const DECISION_KEYS = [
