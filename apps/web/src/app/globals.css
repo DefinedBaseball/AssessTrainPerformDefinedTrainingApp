@@ -3,7 +3,7 @@
    All pages + components reference these tokens.
 */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Syne:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Syne:wght@500;600;700;800&display=swap');
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&f[]=clash-grotesk@500,600,700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -47,6 +47,10 @@
   --accent:        #FFFFFF;
   --accent-light:  #FFFFFF;
   --accent-dim:    rgba(255,255,255,0.06);
+  /* Text/icon color that sits ON an --accent-filled surface (primary
+     buttons, active pills, selected calendar days). Dark theme accent
+     is white, so on-accent text is near-black. Flips in light theme. */
+  --on-accent:     #0E1116;
 
   /* ── Graphite accent (for subtle UI elements) ── */
   --graphite:      #686c72;
@@ -58,6 +62,9 @@
   --green-dim:     rgba(109,170,69,0.13);
   --gold:          #E8AF34;
   --gold-dim:      rgba(232,175,52,0.13);
+  /* Gold that stays legible as TEXT on light surfaces (raw --gold is
+     too light on the light theme's pale panels). Same gold on dark. */
+  --gold-readable: #E8AF34;
   --red:           #DD6974;
   --red-dim:       rgba(221,105,116,0.13);
   --orange:        #FDAB43;
@@ -68,8 +75,12 @@
   --warning:       var(--orange);
   --error:         var(--red);
 
-  /* ── Borders ── */
-  --border:        rgba(255,255,255,0.1);
+  /* ── Borders ──
+     `--border` bumped 0.10 → 0.23 (matching `--tool-grades-line`)
+     per coach-spec so every section-title hairline, card border,
+     and 1-px divider across the app reads at the same prominent
+     weight as the Tool Grades title accent lines. */
+  --border:        rgba(255,255,255,0.23);
   --border-light:  rgba(255,255,255,0.14);
   --border-strong: rgba(255,255,255,0.2);
   --border-bright: rgba(255,255,255,0.32);
@@ -126,6 +137,163 @@
     0 1px 0 rgba(255,255,255,0.05) inset,
     0 24px 48px rgba(0,0,0,0.55),
     0 2px 6px rgba(0,0,0,0.4);
+
+  /* ── Bubble-chrome background ──
+     Theme-aware fill applied to every "movement-plot / pitch-report"
+     style bubble in the app — Spray Chart, Hitting metric readouts,
+     Swing / Quality of Contact / Coach Diagnosis / Coach Grades /
+     Full Swing / Blast Motion / HitTrax cards, Pitching ArsenalCards
+     (Fastball / Curveball / Slider / etc.), Movement Plot, Location
+     Plot, Release Plot, Coach Grades + Coach Reviews on the Pitching
+     tab, Break & Spin, Release & Extension tables. Defined here as
+     a CSS variable so the inline-style constants in SwingTab.tsx +
+     PitchingTab.tsx (`MOVEMENT_PLOT_BUBBLE_BG` / `PITCH_REPORT_
+     BUBBLE_BG`) can reference it via `var(--bubble-chrome-bg)` and
+     flip in lockstep when the theme toggles.
+     Dark theme: triple-layer radial + linear gradient (warm-grey
+     glass effect on dark backdrop).
+     Light theme: simple #f3f3f3 → #e5e5e5 top-to-bottom gradient
+     (off-white with tiny gradient, matching the Hitting Tool-Grades
+     card). */
+  --bubble-chrome-bg:
+    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
+
+  /* ── Defense-bubble palette ──
+     The Outfielder Snapshot uses inline-style constants
+     (`ofOuterBubbleStyle` / `ofInnerBubbleStyle` /
+     `ofPopTimeBubbleStyle` in DefenseTab.tsx) instead of the
+     shared `.profilePanel` / `.innerPanel` classes; those
+     inline styles short-circuit any class-level light-theme
+     override. Surface the same three layers as CSS variables
+     so the JS constants can reference them by name and pick
+     up the inverted light-theme palette automatically.
+
+     Infielder's `.innerPanel` carries a hard-coded
+     `rgba(20, 24, 32, 0.50)` dark-navy overlay on top of the
+     base graphite chrome; that overlay variable also lives
+     here so it can flip to the matching light-theme inner
+     bubble color cleanly. */
+  --defense-outer-bg:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  --defense-inner-bg:
+    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
+  --defense-poptime-bg: rgba(20, 24, 32, 0.92);
+  --defense-inner-overlay-bg: rgba(20, 24, 32, 0.50);
+
+  /* Report-modal shared outer-panel shadow. Dark theme: deep inset
+     stack giving the navy section panels (Pitching delivery groups,
+     Hitting Coach Diagnosis, Catching / Infield / Outfield snapshot
+     + Coach Grades) interior depth. Light theme overrides this to a
+     clean drop shadow (see the [data-theme="light"] block) so the
+     slate panels lift off the grey modal floor instead of carrying a
+     dark inner vignette. Referenced by `reportOuterBubbleStyle` in
+     ReportModal.tsx so every report form's main bubbles flip in
+     lockstep. */
+  --report-outer-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+
+  /* Player Model (silhouette stage) — the dark-navy "stage"
+     that holds the position silhouette in the Infielder /
+     Outfielder Snapshots. Stays dark-navy in BOTH themes per
+     coach-spec so the silhouette pops against a consistent
+     model backdrop regardless of light/dark mode. */
+  --defense-silhouette-bg: rgba(20, 24, 32, 0.92);
+
+  /* Callout-chip fill for the four metric chips (Arm Strength
+     / Glove / Range / First Step) anchored to the silhouette.
+     Dark theme keeps the dark-navy radial-tinted Command-Deck
+     look; light theme flips to `#ededed` — the same surface
+     as the Swing bubble in Hitting (and every other interior
+     sub-bubble across the profile). Surfaced as a flat color
+     so the SVG `<rect>` `fill` attribute can resolve the
+     variable directly. */
+  --defense-chip-bg: rgba(11, 14, 22, 0.95);
+
+  /* BIG metric-card fill for the four Underlying-Metrics cards
+     on the right pane of the Infielder / Outfielder Snapshot
+     (Arm Strength / Glove / Range / First Step). These cards
+     are larger than the silhouette callout chips above and
+     used to wear the same dark-navy radial-tinted Command-Deck
+     chrome via the `ofCommandDeckChipStyle` JS constant; per
+     coach-spec they now match the Swing bubble color in light
+     theme. Defined as a full `background` value so the dark-
+     theme radial highlight still composes (uses CSS background
+     syntax — unlike `--defense-chip-bg` which has to resolve
+     to a flat SVG fill). */
+  --defense-metric-card-bg:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+
+  /* ── Tool Grades section-title hairline ──
+     Color of the two accent lines on the Tool Grades panel:
+     (1) the inline "across" hairline that runs between the
+         "Tool Grades" h2 and the "20-80 Scale" legend chip on
+         the right, and
+     (2) the `.toolBubbleHead` border-bottom that closes the
+         title row above the section-card grid.
+     Bumped another 50 % darker — alpha 0.15 → 0.23 — per coach
+     refinement so the lines read as a clearly heavier edge
+     against the panel. */
+  --tool-grades-line: rgba(255, 255, 255, 0.23);
+
+  /* ── Spray-chart axis-label color ──
+     Color used for the LEFT / CENTER / RIGHT zone labels at the
+     top of the field and the -30° / -15° / 0° / +15° / +30°
+     angular labels around the angle ticks. Dark theme matches the
+     muted blue-grey used by the Exit Velocity color-axis title +
+     tick numerals (rgba(183,190,201,0.78)) so the entire spray-
+     chart label system reads in one consistent tone. Light theme
+     flips to a clean medium grey so the labels still read on the
+     off-white spray-chart bubble without going to solid black. */
+  --spray-label-color: rgba(183, 190, 201, 0.78);
+
+  /* Spray-chart GRIDLINE color — 30 % lighter than the label
+     color so the field geometry (foul rails, distance arcs,
+     angular ticks, distance-pill outlines) sits visually behind
+     the labels instead of competing with them. Alpha is
+     multiplied by 0.70 against the matching `--spray-label-
+     color` value per theme. */
+  --spray-gridline-color: rgba(183, 190, 201, 0.55);
+
+  /* ── Sub-tab-bar chrome ──
+     Theme-aware fill / border / shadow stack applied to the
+     inline-styled sub-tab bars in PlayerSummaryTab (Current
+     Grades / Trends) and StrengthConditioningTab (Strength and
+     Conditioning / Mobility Screen). Pulled into CSS variables
+     so the inline-style usages can reference `var(--subtab-bar-*)`
+     and flip in lockstep with theme without converting every
+     inline-styled bar into a CSS class.
+     Dark theme: dark-navy radial highlight + soft white-rim border
+     + inset shadow stack (canonical sub-nav look).
+     Light theme: neutral `--panel-bg-light` (#e6e6e6) fill, soft
+     black border, gentle drop shadow — matches the Strength
+     bubble + Tool Grades + Player Name in light mode. */
+  --subtab-bar-bg:
+    radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  --subtab-bar-border: var(--border-light);
+  --subtab-bar-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 0 24px rgba(0,0,0,0.35),
+    0 1px 2px rgba(0,0,0,0.25);
+
+  /* ── Notes-block surface ──
+     Background for the contenteditable / read-only Notes blocks
+     in `NoteBlock` + `RichEditableNote` (SwingTab.tsx). Dark mode
+     keeps the slightly heavier dark-navy chip so the editable
+     surface reads as a distinct input tile against the surrounding
+     bubble. Light mode flips to `--bubble-chrome-bg` so the Notes
+     block visually matches Swing / Quality of Contact / Coach
+     Diagnosis / Spray Chart / Metric Readout in the Hitting
+     Snapshot — one unified surface color across the snapshot. */
+  --notes-bg: rgba(20, 24, 32, 0.85);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -137,21 +305,142 @@
    per-component tweaks if they look off in light mode.
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
-  /* ── Backgrounds ── */
-  --bg:           #f3f5f8;
-  --surface:      linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 60%, rgba(243,245,248,1) 100%);
+  /* ── Backgrounds (three-tier palette) ──
+     Per coach-spec the entire light-theme app follows the
+     same layered palette the player profile uses:
+       • `--bg` (page floor) = `#aeaeae` (~68% lightness, medium
+         grey) — applied to `html, body, .app-main` so every
+         page automatically gets the grey base.
+       • `--panel-bg-light` (outer "frame" bubbles) = `#dee1e5`
+         (~88%, cool slate) — applied via `.profilePanel`,
+         `.panel`, `.commandDeck`, etc.
+       • `--bubble-chrome-bg` (interior sub-bubbles) = `#eaeaea`
+         (~92%, near-white) — applied via `movementPlotBubble-
+         Style`, `hittingSectionBubbleStyle`, `.innerPanel`,
+         etc.
+     Each layer steps ~20 points lighter than the one below
+     so the visual hierarchy reads as: dark page → lighter
+     frame → lightest interior. */
+  --bg:           #aeaeae;
+  --surface:      linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,248,248,1) 60%, rgba(240,240,240,1) 100%);
   --surface-solid: #ffffff;
-  --surface2:     #eaeef3;
-  --surface-light:#f8fafc;
+  --surface2:     #ececec;
+  --surface-light:#f5f5f5;
   --card:         rgba(0,0,0,0.02);
   --card-hover:   rgba(0,0,0,0.04);
+  /* Outer frame bubble color — applied to every `.profilePanel`
+     / `.panel` / `.commandDeck` instance via light-theme
+     overrides in the relevant CSS modules. */
+  --panel-bg-light: #dee1e5;
+
+  /* Bubble-chrome — light theme.
+     Per coach-spec the interior bubble color is now a flat
+     near-white `#eaeaea` (matching the Hitting Snapshot
+     interior palette). Cascades through every inline-styled
+     bubble across the app — Hitting Snapshot interiors,
+     Hitting Inputs sub-sections, Pitching Movement Plot,
+     Pitch Report Arsenal cards, Spray Chart inner chrome,
+     Notes, S&C Grey Metric Bubbles, etc. */
+  --bubble-chrome-bg: #eaeaea;
+
+  /* Sub-tab-bar chrome — light theme.
+     Matches the Strength bubble (.profilePanel) + Tool Grades
+     panel: neutral `--panel-bg-light` (#e6e6e6) fill, soft black
+     border, gentle drop shadow. Used by the inline-styled sub-tab
+     bars in PlayerSummaryTab (Current Grades / Trends) and
+     StrengthConditioningTab (Strength and Conditioning / Mobility
+     Screen) — they reference `var(--subtab-bar-*)`. */
+  --subtab-bar-bg: var(--panel-bg-light);
+  --subtab-bar-border: rgba(0, 0, 0, 0.10);
+  --subtab-bar-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+
+  /* Notes-block surface — light theme.
+     Flips to the same off-white `--bubble-chrome-bg` used by Swing
+     / Quality of Contact / Coach Diagnosis / Spray Chart / Metric
+     Readout so the Notes block reads as one continuous surface
+     with the rest of the Hitting Snapshot. */
+  --notes-bg: var(--bubble-chrome-bg);
+
+  /* Tool Grades section-title hairline — light theme.
+     Bumped another 50 % darker — alpha 0.12 → 0.18 — per coach
+     refinement so the line reads as a clearly heavier edge on
+     the off-white Tool Grades panel surface. */
+  --tool-grades-line: rgba(0, 0, 0, 0.18);
+
+  /* Spray-chart axis labels — light theme.
+     Medium grey at high opacity so the LEFT / CENTER / RIGHT
+     zone labels + angular degree labels read clearly on the
+     off-white spray-chart bubble (which is `--bubble-chrome-bg`
+     in light mode). Dark theme keeps the muted blue-grey
+     matching the Exit Velo color-axis label. */
+  --spray-label-color: rgba(80, 80, 80, 0.85);
+
+  /* Spray-chart GRIDLINE color (light theme) — 30 % lighter
+     than the label color so the gridlines sit behind the
+     labels visually. Alpha 0.85 * 0.70 ≈ 0.60. */
+  --spray-gridline-color: rgba(80, 80, 80, 0.60);
+
+  /* Defense-bubble palette in LIGHT theme — flip the Outfielder
+     Snapshot's outer/inner/pop-time surfaces and the Infielder's
+     inner overlay to the same canonical two-layer palette every
+     other player-profile panel uses: outer = `--panel-bg-light`
+     (white-with-shine), inner = `--bubble-chrome-bg` (the
+     `#ededed` interior-bubble tone set on `.pageRoot`).
+
+     `--defense-silhouette-bg` does NOT flip — the Player Model
+     stage stays dark-navy in both themes per coach-spec so the
+     silhouette reads against a consistent backdrop.
+
+     `--defense-chip-bg` + `--defense-metric-card-bg` are now pinned
+     to `--panel-bg-light` (cool slate `#dee1e5`, the Infielder/
+     Outfielder Snapshot outer color + Player Name bubble color) so
+     the four metric chips (Arm Strength / Glove / Range / First
+     Step) — and the larger group cards in the Underlying Metrics
+     column — read as cool-slate chips sitting inside the now-
+     near-white Defensive Skills + Underlying Metrics frames above
+     them. This is the inverse of the prior recipe (chips white,
+     frames cool-slate) — coach-spec called for the frame to be the
+     lighter surface and the metric chips to wear the Player Name
+     bubble color. */
+  --defense-outer-bg: var(--panel-bg-light);
+  --defense-inner-bg: var(--bubble-chrome-bg);
+  --defense-poptime-bg: var(--bubble-chrome-bg);
+  --defense-inner-overlay-bg: var(--bubble-chrome-bg);
+  --defense-chip-bg: var(--panel-bg-light);
+  --defense-metric-card-bg: var(--panel-bg-light);
+
+  /* Light theme — report-modal outer panels drop the dark inset
+     vignette for a clean two-none drop shadow so the slate
+     (`--panel-bg-light`) section bubbles read like the Hitting
+     Snapshot lifting off the grey modal floor. */
+  --report-outer-shadow: 0 6px 18px rgba(15, 20, 30, 0.08);
+
+  /* Hitting-bubble palette (LIGHT theme) — per coach-spec the
+     Hitting Snapshot outer bubble (and ONLY that outer bubble;
+     the interior Swing / Quality of Contact / Coach Diagnosis
+     bubbles keep their white-shine recipe) renders as a FLAT
+     cool slate fill `#e3e6ea`. The value sits ABOVE the page-
+     surface grey (`#d9d9d9`) so the bubble lifts off the page
+     like every other panel; previous `#c7ccd2` was darker than
+     the page floor which made the Snapshot look "sunken". */
+  --hitting-bubble-bg: #dee1e5;
 
   --card-gradient: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.01));
   --card-bg: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,1)), #ffffff;
 
-  --card-elev:        linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%);
-  --card-elev-hover:  linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(245,247,251,1) 100%);
-  --card-elev-bg:     #ffffff;
+  /* Interior-bubble tokens — aligned with the canonical
+     `--bubble-chrome-bg` (`#eaeaea` in light theme) so every
+     `.innerPanel` / `.toolBarRow` / `.kpi` / `.devSection` /
+     etc. that reads `var(--card-elev)` or `var(--card-elev-bg)`
+     picks up the near-white interior color app-wide. The
+     flat gradient is a no-op (top and bottom stops match) so
+     callers that style `var(--card-elev)` as a `background-
+     image` still receive a valid gradient string. */
+  --card-elev:        linear-gradient(180deg, #eaeaea 0%, #eaeaea 100%);
+  --card-elev-hover:  linear-gradient(180deg, #f0f0f0 0%, #eaeaea 100%);
+  --card-elev-bg:     #eaeaea;
   --surface-bright:   #ffffff;
 
   /* ── Text ── */
@@ -159,21 +448,30 @@
   --text:          #1a1f25;
   --text-soft:     #404a52;
   --text-secondary:#5a646c;
-  --text-muted:    #6e767d;
+  --text-muted:    #565c63;
   --faint:         #b0b8c0;
 
   /* ── Accent (graphite on light) ── */
   --accent:        #1a1f25;
   --accent-light:  #2a3138;
   --accent-dim:    rgba(0,0,0,0.06);
+  /* Light-theme accent is dark graphite, so text on an accent-filled
+     surface must be white (was hardcoded #000 → black-on-dark before). */
+  --on-accent:     #ffffff;
+  /* Deeper gold for legible text on the pale light-theme panels. */
+  --gold-readable: #8a6a0c;
 
   /* ── Graphite accent ── */
   --graphite:      #5a646c;
   --graphite-dim:  rgba(90,100,108,0.08);
   --graphite-line: rgba(90,100,108,0.2);
 
-  /* ── Borders ── */
-  --border:        rgba(0,0,0,0.08);
+  /* ── Borders ──
+     `--border` bumped 0.08 → 0.18 (matching `--tool-grades-line`)
+     per coach-spec so every section-title hairline + 1-px divider
+     reads at the same prominent weight as the Tool Grades title
+     accent lines in light mode. */
+  --border:        rgba(0,0,0,0.18);
   --border-light:  rgba(0,0,0,0.12);
   --border-strong: rgba(0,0,0,0.18);
   --border-bright: rgba(0,0,0,0.28);
@@ -191,8 +489,13 @@
   --accent-deep:   #2a3138;
   --accent-glow:   rgba(26,31,37,0.18);
 
-  /* ── Edge gradients (was white-on-dark; now black-on-light) ── */
-  --grad-edge:     linear-gradient(90deg, transparent, rgba(0,0,0,0.16), transparent);
+  /* ── Edge gradients ──
+     Bumped the central opacity from 0.16 → 0.32 per coach-spec so
+     accent hairlines (the strike-through / underline lines on
+     section titles, card eyebrows, etc.) read as a noticeably
+     darker grey on the off-white bubble surfaces — they were
+     barely visible at the previous opacity. */
+  --grad-edge:     linear-gradient(90deg, transparent, rgba(0,0,0,0.32), transparent);
 }
 
 html { scroll-behavior: smooth; }
@@ -239,7 +542,11 @@ a:hover { color: var(--text); opacity: 0.85; }
   pointer-events: none;
 }
 [data-theme="light"] .card::before {
-  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.12), transparent);
+  /* Accent hairline at the top of every `.card` — bumped from
+     `rgba(0,0,0,0.12)` to `rgba(0,0,0,0.32)` so the line reads
+     as a noticeably darker grey against the off-white card
+     surface in light mode. */
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.32), transparent);
 }
 .card:hover {
   background: var(--card-elev-hover), var(--card-elev-bg);

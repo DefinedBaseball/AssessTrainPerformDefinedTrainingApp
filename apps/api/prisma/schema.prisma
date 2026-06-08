@@ -20,6 +20,7 @@ model User {
   player Player?
   createdReports Report[] @relation("ReportCreatedBy")
   posts          Post[]   @relation("PostAuthor")
+  liveSessionsCreated LiveSession[] @relation("LiveSessionCreatedBy")
 }
 
 // ─── Player Profile ──────────────────────────────────────────────
@@ -45,10 +46,17 @@ model Player {
   pbrState      Int?
   pbrPosition   Int?
   pgScore       Float?
-  // JSON map of `${aggregateSectionKey}: string` — coach-entered "Next
-  // Steps" notes per Tool Grades section, surfaced in the Player Summary
-  // tab's Development snapshot.
+  // JSON map of `${aggregateSectionKey}: string` — coach-entered free-text
+  // Notes shown under the Tool Grades bubble on the Player Summary tab.
+  // Keys mirror the aggregate section keys ('hitting', 'pitching',
+  // 'catching', 'infield', 'outfield', 'strength') so each Tool Grades
+  // card carries its own paired Notes bubble.
   developmentNotes String?
+  // When true, the seed's cleanup phase + any future delete-player flow
+  // will refuse to remove this player. Used for the long-lived
+  // "Jack Setterland" sandbox player so uploaded data sticks around
+  // through re-seeds.
+  isPermanent   Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -62,6 +70,12 @@ model Player {
 
   uploadedVideos Video[]  @relation("UploadedBy")
   posts              Post[]
+
+  // Live Session relations — see LiveSession / AtBat / TrainingClip
+  // model definitions below.
+  atBatsAsHitter  AtBat[]        @relation("AtBatHitter")
+  atBatsAsPitcher AtBat[]        @relation("AtBatPitcher")
+  trainingClips   TrainingClip[] @relation("TrainingClipPlayer")
 }
 
 // ─── Club Teams & Colleges (coach-curated lists) ─────────────────
@@ -89,7 +103,10 @@ model College {
 model Metric {
   id         String   @id @default(uuid())
   playerId   String
-  player     Player   @relation(fields: [playerId], references: [id])
+  // Cascade so deleting a Player wipes every Metric tied to them. Without
+  // this Prisma rejects the player delete (FK violation) and any partial
+  // delete leaves orphaned rows that pollute leaderboards/aggregates.
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   source     String   // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX" | "MANUAL"
   metricType String   // e.g., 'max_exit_velo', 'fb_max_velo', 'pop_time'
   value      Float
@@ -110,9 +127,11 @@ model Metric {
 model Video {
   id           String   @id @default(uuid())
   playerId     String
-  player       Player   @relation(fields: [playerId], references: [id])
+  // Cascade — see Metric. Annotations/VoiceOvers cascade off Video so the
+  // whole tree collapses cleanly when the focal Player is removed.
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   uploadedById String?
-  uploadedBy   Player?  @relation("UploadedBy", fields: [uploadedById], references: [id])
+  uploadedBy   Player?  @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
   title        String
   category     String   // "HITTING" | "PITCHING" | "FIELDING" | "CATCHING" | "GAME" | "WORKOUT_DEMO"
   originalUrl  String?  // S3 raw upload
@@ -124,6 +143,12 @@ model Video {
 
   annotations Annotation[]
   voiceOvers  VoiceOver[]
+  // Optional links back from Live Session artifacts. A Video may
+  // originate as an AtBat recording (LIVE mode) or as a training
+  // clip (TRAINING mode); these inverse relations let the API
+  // resolve a video's source without joining on every read.
+  atBatVideos       AtBat[]        @relation("AtBatVideo")
+  trainingClipVideos TrainingClip[] @relation("TrainingClipVideo")
 }
 
 // ─── Video Annotations (Drawing on video) ────────────────────────
@@ -131,7 +156,7 @@ model Video {
 model Annotation {
   id             String   @id @default(uuid())
   videoId        String
-  video          Video    @relation(fields: [videoId], references: [id])
+  video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   createdById    String
   frameTimestamp Float    // seconds into video
   strokeData     String   // serialized drawing paths (JSON or base64)
@@ -147,7 +172,7 @@ model Annotation {
 model VoiceOver {
   id             String   @id @default(uuid())
   videoId        String
-  video          Video    @relation(fields: [videoId], references: [id])
+  video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   createdById    String
   audioUrl       String   // S3 URL
   startTimestamp Float    // seconds into video where audio starts
@@ -160,9 +185,15 @@ model VoiceOver {
 model Report {
   id          String   @id @default(uuid())
   playerId    String
-  player      Player   @relation(fields: [playerId], references: [id])
-  createdById String
-  createdBy   User     @relation("ReportCreatedBy", fields: [createdById], references: [id])
+  // Cascade so deleting a Player drops their reports too — orphan reports
+  // can't render anyway since they reference a missing Player.
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdById String?
+  // SetNull on creator: if a coach account is removed we keep the report
+  // (athletes shouldn't lose history because of staff churn) but the
+  // createdBy link goes null. The FK column is nullable for the same
+  // reason.
+  createdBy   User?    @relation("ReportCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   reportType  String   // "HITTING" | "INFIELD" | "OUTFIELD" | "PITCHING" | "CATCHING"
   title       String?  // user-assigned report name
   content     String   // JSON — structured report data
@@ -170,6 +201,135 @@ model Report {
   videoIds    String?  // comma-separated video IDs
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Inverse links from Live Session artifacts. At-bats captured in a
+  // Live session can be saved to an existing Report (or a new one
+  // created by the save flow); training clips saved to a player's
+  // profile can also be attached to a specific Report.
+  atBats        AtBat[]
+  trainingClips TrainingClip[] @relation("TrainingClipReport")
+}
+
+// ─── Live Sessions ──────────────────────────────────────────────
+// A coach-led session captured live (in the field / cage / bullpen)
+// rather than via an after-the-fact CSV upload. Two modes:
+//   • TRAINING — pick a position + roster, then record per-player
+//     clips that get sorted to each athlete's profile on session
+//     end. One clip per athlete.
+//   • LIVE — pick rosters of pitchers + hitters, capture pitch-by-
+//     pitch outcomes for each at-bat, optionally record video per
+//     at-bat. Saved data feeds the Hitting tab's Swing-Decision
+//     bubble and the Pitching tab's new Live Results bubble.
+
+model LiveSession {
+  id          String   @id @default(uuid())
+  createdById String
+  createdBy   User     @relation("LiveSessionCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  mode        String   // "TRAINING" | "LIVE"
+  // Only set when mode == "TRAINING". Records which position the
+  // training session focused on so the saved clips can be filed
+  // under the correct tab (Hitting / Pitching / Infield / Outfield
+  // / Catching).
+  position    String?
+  status      String   @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "CANCELLED"
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  notes       String?
+
+  atBats        AtBat[]
+  trainingClips TrainingClip[]
+
+  @@index([createdById, startedAt])
+  @@index([status])
+}
+
+// One at-bat captured by a LIVE-mode session. Zero-to-many pitches
+// roll up into a single terminal `outcome`. The optional `videoId`
+// links to the recording the coach made for THIS at-bat (videos
+// are written first, then linked here on save).
+model AtBat {
+  id                String   @id @default(uuid())
+  liveSessionId     String?
+  liveSession       LiveSession? @relation(fields: [liveSessionId], references: [id], onDelete: SetNull)
+  hitterId          String
+  hitter            Player   @relation("AtBatHitter", fields: [hitterId], references: [id], onDelete: Cascade)
+  pitcherId         String?
+  pitcher           Player?  @relation("AtBatPitcher", fields: [pitcherId], references: [id], onDelete: SetNull)
+  // Snapshot of the pitcher's throwing hand AT TIME OF AT-BAT. The
+  // Pitcher's `throws` field may change later (rare, but possible
+  // for switch-pitchers or correction), so we copy it here for
+  // historical accuracy on filters like "vs LHP / vs RHP".
+  pitcherHandedness String?  // "L" | "R" | null
+  reportId          String?
+  report            Report?  @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  videoId           String?
+  video             Video?   @relation("AtBatVideo", fields: [videoId], references: [id], onDelete: SetNull)
+  // Final outcome of the at-bat — derived from the terminal pitch
+  // when the AB closes. Cached here so spray-chart / Live-Results
+  // queries can read without walking the pitch list.
+  outcome           String?  // "STRIKE_OUT_LOOKING" | "STRIKE_OUT_SWINGING" | "WALK" | "FLY_BALL" | "GROUND_BALL" | "LINE_DRIVE" | "BARREL" | null (in-progress)
+  // Spray-chart coordinates for in-play outcomes (BARREL / FLY_BALL /
+  // GROUND_BALL / LINE_DRIVE). Normalized to [0,1] where x is the
+  // horizontal axis (0 = pull-side foul line, 1 = oppo-side foul line)
+  // and y is the depth axis (0 = home plate, 1 = deepest outfield).
+  // Set by the coach via the in-tracker mini-field click; null for
+  // strikeouts, walks, and in-progress at-bats.
+  sprayX            Float?
+  sprayY            Float?
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+
+  pitches Pitch[]
+
+  @@index([hitterId, startedAt])
+  @@index([pitcherId, startedAt])
+  @@index([reportId])
+  @@index([liveSessionId])
+}
+
+// A single pitch within an at-bat. `pitchNumber` is the 1-based
+// index of this pitch WITHIN the parent AtBat (so the same number
+// repeats across different AtBats).
+model Pitch {
+  id             String   @id @default(uuid())
+  atBatId        String
+  atBat          AtBat    @relation(fields: [atBatId], references: [id], onDelete: Cascade)
+  pitchNumber    Int      // 1, 2, 3 … inside this at-bat
+  pitchType      String   // "FASTBALL" | "SINKER" | "CUTTER" | "SLIDER" | "CURVEBALL" | "SWEEPER" | "CHANGEUP" | "SPLITTER" | "KNUCKLEBALL"
+  // Umpire call — independent of the granular `result` below. A
+  // strike here can be looking OR swinging; the `result` column
+  // distinguishes them.
+  callBallStrike String?  // "BALL" | "STRIKE" | null
+  // Granular per-pitch outcome. Some values terminate the at-bat
+  // (STRIKE_OUT_LOOKING / STRIKE_OUT_SWINGING / WALK / FLY_BALL /
+  // GROUND_BALL / LINE_DRIVE / BARREL); others are mid-AB
+  // (STRIKE_LOOKING / STRIKE_SWINGING / FOUL / BALL).
+  result         String?  // see comment above
+  recordedAt     DateTime @default(now())
+
+  @@index([atBatId, pitchNumber])
+}
+
+// One training clip per athlete recorded inside a TRAINING-mode
+// session. While the session is ACTIVE the clip's video is being
+// recorded (or just finished); on session end the coach picks
+// which clips to actually save to the corresponding Player's
+// profile — saved clips get a non-null `videoId` (and optionally
+// a `savedToReportId` if the coach attached it to a report).
+model TrainingClip {
+  id              String       @id @default(uuid())
+  liveSessionId   String
+  liveSession     LiveSession  @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  playerId        String
+  player          Player       @relation("TrainingClipPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  videoId         String?
+  video           Video?       @relation("TrainingClipVideo", fields: [videoId], references: [id], onDelete: SetNull)
+  savedToReportId String?
+  savedToReport   Report?      @relation("TrainingClipReport", fields: [savedToReportId], references: [id], onDelete: SetNull)
+  recordedAt      DateTime     @default(now())
+
+  @@index([liveSessionId])
+  @@index([playerId])
 }
 
 // ─── Drill Library (Master list of all drills) ──────────────────
@@ -212,14 +372,21 @@ model EduClass {
 // ─── Education: MLB Video Library ────────────────────────────────
 
 model MlbPlayer {
-  id        String     @id @default(uuid())
-  name      String
-  positions String     // comma-separated: "Hitter,Outfield"
-  bats      String?    // "RHH" | "LHH" | "Switch"
-  throws    String?    // "RHP" | "LHP"
-  team      String?
-  emoji     String     @default("⚾")
-  createdAt DateTime   @default(now())
+  id            String     @id @default(uuid())
+  name          String
+  positions     String     // comma-separated: "Hitter,Outfield"
+  bats          String?    // "RHH" | "LHH" | "Switch"
+  throws        String?    // "RHP" | "LHP"
+  team          String?
+  emoji         String     @default("⚾")
+  // Cover photo for the MLB player card + detail-page avatar.
+  // Stored as a base64 data URL string (small image files only —
+  // expected size ≤ ~500 KB per player; ~150 MB total at the
+  // projected 300-player roster). Coaches upload via clicking
+  // the avatar/thumb in the Coaching App; nullable so existing
+  // players default to the emoji icon until a cover photo is set.
+  coverImageUrl String?
+  createdAt     DateTime   @default(now())
 
   videos MlbVideo[]
 
@@ -244,9 +411,18 @@ model MlbVideo {
 model ScheduledDrill {
   id        String   @id @default(uuid())
   playerId  String
-  player    Player   @relation(fields: [playerId], references: [id])
+  // Player cascade: if a player record is deleted, drop their schedule
+  // too — leaving orphan rows would silently break the calendar render.
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   drillId   String?
-  drill     Drill?   @relation(fields: [drillId], references: [id])
+  // Drill set-null: when a coach deletes a Drill from the library we
+  // don't want to silently nuke every athlete's calendar entry that
+  // referenced it. Instead the drillId clears; the row keeps `name`,
+  // `tab`, `category` (denormalised at scheduling time) so the calendar
+  // still renders the slot — just without the linked drill object's
+  // description / video. Pairs with the UI's `ev.drill?` chained access
+  // so the read side already handles null.
+  drill     Drill?   @relation(fields: [drillId], references: [id], onDelete: SetNull)
   tab       String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
   category  String
   name      String
@@ -319,7 +495,11 @@ model LeaderboardEntry {
   gradYear   Int
   metricType String
   playerId   String
-  player     Player   @relation(fields: [playerId], references: [id])
+  // Cascade: deleting a player removes their leaderboard rows so they
+  // can't outrank live players from beyond the grave. Recompute will
+  // also reorder the surviving entries' ranks on the next CSV upload
+  // or manual trigger.
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   value      Float
   rank       Int
   computedAt DateTime @default(now())
@@ -369,6 +549,9 @@ model ChartConfig {
   pbDirection   String?         // PERSONAL_BEST: "MAX" | "MIN"
   zoneGrid      String?         // STRIKE_ZONE_HEAT: "3x3" | "5x5"
   zoneMetric    String?         // STRIKE_ZONE_HEAT: "COUNT" | "AVG" | "WHIFF"
+  // Cohort overlay — adds "class average" comparison series at evaluate time
+  cohortEnabled Boolean? @default(false)  // when true, append peer-average series
+  cohortMode    String?         // "GRAD_YEAR" | "POSITION" | "ALL"
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

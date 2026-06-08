@@ -2,14 +2,83 @@
    Design system matching the Summer Pro Assessment template.
 */
 
-/* ── SECTION ── */
-.section { margin-bottom: 48px; }
+/* ── VideoBundleCard bubble ──
+   Each video card carries two inline CSS custom properties set
+   from `getVideoCategoryColors`:
+     • `--video-bubble-bg` — the subtle `rgba(...,0.13)` dark-
+                             theme tint (Hitting pastel blue,
+                             Pitching peach, etc.).
+     • `--video-bubble-color` — the saturated dot color used as
+                             the color-mix source for the light-
+                             theme override.
+   Dark mode keeps the subtle tint. Light mode bumps the bubble
+   to a 50 %-opacity color-mix of the saturated color over
+   transparent so the category hue actually reads against the
+   off-white page surface — the previous 13 % alpha was nearly
+   invisible. Mirrors the drill-card treatment in
+   PlayerSummaryTab.module.css. */
+.videoBubble {
+  background: var(--video-bubble-bg, transparent);
+}
+/* Light-theme video bubble — WHITE fill with a SPORT-COLORED border
+   (Hitting blue, Pitching orange, Catching teal, Infield/Outfield
+   green, S&C red). Coach-spec called for the bubble to read as a
+   white tile against the surrounding off-white panel, with the
+   category cue moved from a soft 50% wash on the fill to a saturated
+   2px outline. `border-color` uses `!important` because the inline
+   `border: 2px solid var(--border)` (for regular clips) or
+   `border: 2px solid <category-color>` (for Coach Reviews) on the
+   element would otherwise win on specificity. */
+[data-theme="light"] .videoBubble {
+  background: #ffffff;
+  border-color: var(--video-bubble-color, #3B82F6) !important;
+}
 
+/* Coach Review bubble — INVERTED light-theme treatment. Where
+   regular clips wear white-fill + sport-color border, Coach
+   Reviews wear sport-color FILL + WHITE border. This makes a
+   coach's narrated review pop visibly distinct from the
+   surrounding gallery of regular clips at a glance, even when
+   all six tiles in a row share the same category. The double-
+   class selector (`.videoBubble.videoBubbleCoachReview`) outranks
+   the plain `.videoBubble` rule above on specificity, so the
+   override lands without needing yet more !important stacking.
+   The colored label text is flipped to white in JS (see
+   `outerTextColor` in VideoBundleCard.tsx) so the label stays
+   readable on the now-saturated bg. */
+[data-theme="light"] .videoBubble.videoBubbleCoachReview {
+  background: var(--video-bubble-color, #3B82F6);
+  border-color: #ffffff !important;
+}
+
+/* ── SECTION ──
+   Spacing reduced from 48px → 20px so every consecutive dark-blue
+   main bubble across the app (Tool Grades + Sub-Grade Breakdown +
+   Sub-Grade Compare + Metric Trend + Upcoming Drills + Videos on
+   the Summary page; Hitting Snapshot + Video on Hitting; Infield/
+   Catching/Outfield Snapshots + their Videos on Defense; Pitch
+   Report + Break & Spin + Video on Pitching) sits the SAME distance
+   apart as the Tool Grades → Sub-Grade Breakdown gap (which is set
+   by the Summary page's `.hero { gap: 1.25rem; }` flex column). */
+.section { margin-bottom: 20px; }
+
+/* Section header rhythm mirrors the Player Summary's Tool Grades
+   bubble exactly: title block aligned to the row's flex-end so the
+   baseline sits just above the accent line; 0.7rem padding below the
+   title; full-width 1px accent line (border-bottom) edge-to-edge of
+   the section header row. The accent → first inner content gap is
+   OWNED BY THE PARENT FLEX CONTAINER (each affected bubble uses
+   `gap: 14`, mirroring `.toolBubble { gap: 0.85rem }` in
+   PlayerSummaryTab.module.css). The header itself carries NO
+   margin-bottom — when both header and parent provide bottom
+   spacing, they stack and the gap blows out past Tool Grades. */
 .sectionHeader {
+  position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
-  margin-bottom: 20px;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .sectionIcon {
@@ -40,20 +109,41 @@
 .iconRed   { background: linear-gradient(180deg, rgba(221,105,116,0.22), rgba(221,105,116,0.05)); border-color: rgba(221,105,116,0.35); }
 .iconGreen { background: linear-gradient(180deg, rgba(109,170,69,0.22), rgba(109,170,69,0.05)); border-color: rgba(109,170,69,0.35); }
 
-/* Section titles mirror the Mason Brown player-hero name treatment:
-   first word in silver gradient + display typeface, second word italic
-   in the blue lastName gradient. Sizes here are smaller than the hero
-   so the section header reads as a sub-banner across each tab. */
+/* Section titles match the Player Summary's `.panelTitle` exactly so
+   every dark-blue bubble's heading reads in the same "Brown italic"
+   display treatment as Tool Grades. Weight bumped 800 → 600, italic
+   added so the typography matches Summary tab one-for-one. The two
+   nested spans below (`sectionTitleFirst` / `sectionTitleAccent`)
+   inherit these values. */
 .sectionTitle {
   font-family: var(--font-display);
-  font-size: 23px;
-  font-weight: 800;
+  /* 15.84px = matched to the Pitch Report header (`.hudHead`) after it
+     was trimmed a further 10% (20.7 → 17.6 → 15.84), so every main
+     report title (Hitting / Catching / Infielder / Outfielder Report +
+     Pitch/Pitching Report) reads at one identical size. */
+  font-size: 15.84px;
+  font-weight: 600;
+  font-style: italic;
   letter-spacing: -0.025em;
   line-height: 1.05;
+  /* All blue-bubble titles render in uppercase — Hitting Snapshot,
+     Catching Snapshot, Infielder Snapshot, Outfielder Snapshot,
+     plus Video sections and Outfield Metrics / Outfield Grades /
+     Infield Metrics that ride on the same SectionHeader chrome.
+     Pairs with the matching uppercase override on `.panelTitle`
+     (Player Summary tab) and `.hudHead` (Pitch Report) so the
+     entire app's section titles read consistently. */
+  text-transform: uppercase;
 }
 
-/* Both spans share the Brown italic display treatment but render in solid
-   white so titles read crisply on every background. */
+/* Snapshot title spans — both spans share the same italic
+   display treatment + solid `--text-bright` color, matching
+   the Tool Grades `.panelTitle` style in PlayerSummaryTab.
+   The two-tone Mason/Brown gradient that briefly lived here
+   was retired per coach-spec — every Snapshot title (Hitting
+   Snapshot, Pitch Report, Infielder Snapshot, etc.) now
+   reads as a single solid color that flips per theme
+   (white in dark, near-black in light). */
 .sectionTitleFirst,
 .sectionTitleAccent {
   font-weight: 600;
@@ -65,18 +155,70 @@
   color: #ffffff;
 }
 
+/* Compact variant — swaps the title typography down to the
+   grey-bubble-title voice: inherited Satoshi (Font D family),
+   UPRIGHT, 1rem, weight 600, -0.025em, uppercase, bright white.
+   Used for branded sub-section headers (Coach Grades, Full Swing,
+   Blast Motion, HitTrax) that sit one tier below the top-level
+   italic Snapshot titles. Both the family AND italic-style need
+   explicit overrides because the base `.sectionTitle` rule sets
+   Brown italic display. */
+/* Compact headers vertically center the icon + title cluster on the
+   accent hairlines instead of bottom-aligning them. This makes the
+   left/right hairlines visually run THROUGH the middle of the icon
+   and through the title's vertical midline. */
+.sectionHeaderCompact {
+  align-items: center;
+}
+
+/* `align='left'` opt-out — pins a specific compact header back to
+   left-aligned (icon → title → trailing hairline) instead of the
+   centered cluster. Used for Blast Motion's compact header. */
+.sectionHeaderCompactLeft {
+  justify-content: flex-start;
+}
+
+.sectionHeaderCompact .sectionTitle {
+  /* Matches the Break & Spin title in PitchingTab.tsx exactly so
+     every compact branded sub-section header (Coach Grades / Full
+     Swing / Blast Motion / HitTrax) AND every GradeRow label
+     (Swing / Quality of Contact / Coach Diagnosis) reads at the
+     same 1rem (16 px) / weight 600 / -0.025em / line-height 1.05
+     / upright Satoshi uppercase voice. Previously 17.6 px — now
+     trimmed to 16 px per coach-spec for Break & Spin parity. */
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+.sectionHeaderCompact .sectionTitleFirst,
+.sectionHeaderCompact .sectionTitleAccent {
+  /* Belt-and-braces: pin size + weight + style on the inner spans
+     too so no upstream rule can override the Break & Spin match. */
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
 .sectionSub {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 2px;
 }
 
-.sectionDivider {
-  margin-left: auto;
-  height: 1px;
-  flex: 1;
-  background: linear-gradient(90deg, var(--border-light), transparent);
-}
+/* `.sectionDivider` retired — the section header now carries a
+   full-width 1px accent line via its own `border-bottom`, so the
+   in-row partial-gradient hairline is no longer needed. The
+   `<div className={styles.sectionDivider}>` node has been deleted
+   from `SectionHeader.tsx` to match. */
 
 /* ── KPI CARDS ── */
 .kpiGrid {
@@ -88,62 +230,47 @@
 
 .kpi {
   position: relative;
-  /* Reversed scheme — interior KPI bubble now uses the lighter graphite
-     chrome so it reads as the inner (light) layer inside a darker outer
-     bubble. */
-  background: var(--card-elev), var(--card-elev-bg);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  /* Bubble chrome retired — KPI cards now sit transparently on the
+     inner blue bubble that wraps them (the same way the chips inside
+     the Swing GradeRow's inner blue bubble float without their own
+     containers). Padding kept so each tile still has breathing room
+     within the parent grid. */
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   padding: 18px 18px 16px;
-  transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
-  box-shadow: var(--shadow-card);
+  transition: background var(--transition), border-color var(--transition);
   overflow: hidden;
 }
 
-/* top hairline shine */
-.kpi::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 12%; right: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-  pointer-events: none;
-}
-
-/* subtle corner glow */
-.kpi::after {
-  content: '';
-  position: absolute;
-  top: -30px; right: -30px;
-  width: 120px; height: 120px;
-  background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--transition);
-}
+/* Decorations retired — `.kpi::before` (top hairline shine) and
+   `.kpi::after` (corner glow) are gone so the chip surface reads
+   flat, just like the Pitching Fastball bubble. */
+.kpi::before { content: none; }
+.kpi::after { content: none; }
 
 .kpi:hover {
-  background: var(--card-elev-hover), var(--card-elev-bg);
   border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card-hi);
 }
-.kpi:hover::after { opacity: 1; }
 
 .kpiLabel {
   position: relative;
   z-index: 1;
-  font-family: 'DM Mono', monospace;
-  /* Bumped a touch (10 → 12px) so the title stands out as the card's
-     headline. Stays uniform across every KpiCard so the row reads
-     evenly even when labels differ in length. */
-  font-size: 12px;
-  font-weight: 700;
+  /* Font D — small all-caps Satoshi eyebrow that matches the Break
+     & Spin "Pitch" column header (the canonical grey-bubble
+     secondary-label voice). KPI cards drive the Full Swing / Blast
+     Motion / HitTrax metric grids under the Hitting Snapshot.
+     Centered so the label sits horizontally aligned with the numeric
+     value below it. */
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 600;
   color: var(--text-bright);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.05em;
   margin-bottom: 10px;
   text-transform: uppercase;
-  line-height: 1;
+  text-align: center;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -157,13 +284,20 @@
   z-index: 1;
   display: flex;
   align-items: baseline;
+  /* Centered so the value (+ optional unit) sits horizontally aligned
+     under the centered `.kpiLabel` above. */
+  justify-content: center;
   gap: 5px;
   flex-wrap: nowrap;
   min-width: 0;
 }
 
 .kpiVal {
-  font-family: 'Clash Grotesk', 'Satoshi', sans-serif;
+  /* Switched from Clash Grotesk to inherited Satoshi so the value
+     reads in the same Font D family as every other grey-bubble
+     content across the app. The numeric weight stays at 600 + the
+     gradient text fill so it still pops as the card's hero number. */
+  font-family: inherit;
   /* Reduced 30 → 24px so the number doesn't overpower the card. */
   font-size: 24px;
   font-weight: 600;
@@ -178,7 +312,9 @@
 }
 
 .kpiUnit {
-  font-family: 'DM Mono', monospace;
+  /* Switched from DM Mono to inherited Satoshi so the unit reads
+     in the same Font D family as every other grey-bubble content. */
+  font-family: inherit;
   /* Smaller than the value, baseline-aligned beside it. */
   font-size: 11px;
   font-weight: 500;
@@ -194,7 +330,8 @@
   display: inline-flex;
   align-items: center;
   margin-top: 10px;
-  font-family: 'DM Mono', monospace;
+  /* Inherited Satoshi (Font D family) instead of DM Mono. */
+  font-family: inherit;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -251,6 +388,19 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     inset 0 0 24px rgba(0, 0, 0, 0.35),
     0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Light-theme override ──
+   Page bg is white; every `.profilePanel` (Hitting Snapshot,
+   Pitching Pitch Report, Catching / Infield / Outfield snapshots,
+   Strength / Speed / Mobility big-blue panels, etc.) flips to
+   the canonical 15%-greyer-than-white bubble fill from
+   `--panel-bg-light` so the whole app's bubble system reads
+   consistently in light mode. */
+[data-theme="light"] .profilePanel {
+  background: var(--panel-bg-light);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 /* Decorative top hairline + bottom-right vignette intentionally removed
    for the dark scheme — they introduced a light→dark directional fade
@@ -326,6 +476,11 @@
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
   pointer-events: none;
 }
+/* Light-theme accent — darker grey gradient so the hairline at the
+   top of every `.notesBox` reads against the off-white surface. */
+[data-theme="light"] .notesBox::before {
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.32), transparent);
+}
 
 .notesLabel {
   font-family: 'DM Mono', monospace;
@@ -373,8 +528,29 @@
     rgba(10, 14, 20, 0.38);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  margin-bottom: 18px;
+  /* Constrained to the same 1200px max-width as `.contentWrap` (the
+     athlete page's body container) so the TabBarActions cluster on
+     the right (Videos icon + Download icon + Reports dropdown) sits
+     flush with the right edge of the Tool Grades bubble below — not
+     pushed all the way to the viewport edge.
+     `margin-top: 0` so the TabBar's top edge sits flush against the
+     Player Name bubble's bottom edge above it (the two read as ONE
+     continuous panel). `margin-bottom: 20` matches the shared
+     `.section` 20px so the gap from the TabBar (and therefore from
+     the Player Name bubble it's docked into) down to the first
+     section on each tab — Hitting Snapshot / Infield Snapshot /
+     Catching Snapshot / Outfield Snapshot / Pitch Report / the
+     Current Grades-Trends sub-tab bar on Summary — is identical
+     to the inter-section gap. The top corners are flattened
+     (border-top-radius: 0) and the top border is removed so the two
+     bubbles' borders don't double-stack — the Player Name bubble's
+     bottom border becomes the visible seam. */
+  max-width: 1200px;
+  margin: 0 auto 20px;
   padding: 0 10px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     inset 0 0 24px rgba(0, 0, 0, 0.35),
@@ -508,10 +684,14 @@
 }
 
 .tabPanel {
-  /* Hairline divider was retired so the section-gap-matching 1.25rem
-     felt loose; tightened to 0.65rem for a clean transition straight
-     into the first bubble of each tab. */
-  padding-top: 0.65rem;
+  /* `padding-top` retired so the gap from the TabBar's bottom margin
+     (20px) down to the first section of each tab — Hitting Snapshot,
+     Infield Snapshot, Catching Snapshot, Outfield Snapshot, Pitch
+     Report, the Current Grades / Trends sub-tab bar on Summary —
+     equals the 20px inter-section gap used everywhere else. Previously
+     the 0.65rem padding-top here added ~10px on top, making the gap
+     larger than every other section-to-section transition. */
+  padding-top: 0;
   animation: fadeIn 0.2s ease;
 }
 
@@ -521,28 +701,38 @@
 .videoPlaceholder {
   background: var(--surface2);
   border: 2px dashed var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   color: var(--faint);
-  font-size: 13px;
+  font-size: 11.5px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
   position: relative;
   overflow: hidden;
+  /* Square cards (was free-form rectangles with `height` only) so
+     the video gallery reads as a uniform grid. `aspect-ratio: 1`
+     locks each card to a 1:1 shape regardless of its parent
+     column width; the size classes below just set the WIDTH and
+     the height follows. */
+  aspect-ratio: 1 / 1;
 }
 .videoPlaceholder:hover {
   border-color: var(--accent);
   background: var(--accent-dim);
   color: var(--text-muted);
 }
-.videoSm { height: 160px; }
-.videoMd { height: 220px; }
-.videoLg { height: 280px; }
+/* Width-based sizing — cards are squares now, so width = height.
+   Each size is ~30 % smaller than the previous height-only sizes
+   (160 → 120, 220 → 160, 280 → 200) so the gallery fits more
+   tiles per row at a glance. */
+.videoSm { width: 120px; }
+.videoMd { width: 160px; }
+.videoLg { width: 200px; }
 
 .vpTag {
   position: absolute;
@@ -595,6 +785,53 @@
 .videoReady:hover .vpIconReady {
   transform: scale(1.1);
   background: var(--accent-light);
+}
+
+/* Actual video-preview thumbnail — sits behind the play icon + tag +
+   footer overlays. `object-fit: cover` crops to fill so the card is
+   always a clean rectangle regardless of the captured aspect ratio. */
+.vpPreview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+
+/* Footer strip pinned to the bottom of the placeholder when a real
+   preview is showing. Holds the clip title + subtitle on a translucent
+   black gradient so the text stays legible against any frame content. */
+.vpFooter {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.78) 100%);
+  pointer-events: none;
+  color: #ffffff;
+  text-align: center;
+}
+
+.vpFooterTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.vpFooterSub {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.04em;
 }
 
 /* ── CSV IMPORT BANNER ── */
@@ -668,6 +905,25 @@
   margin-bottom: 24px;
 }
 @media (max-width: 700px) { .twoCol { grid-template-columns: 1fr; } }
+
+/* ── Spray-chart light-theme label override ──
+   Per coach-spec: in LIGHT theme every label inside the spray
+   chart (LEFT / CENTER / RIGHT zone labels, angular degree
+   ticks, distance arc labels, Exit Velo header + tick numerals,
+   Metric Readout EV/LA/BS/DIST/SQ% column heads + values + units,
+   FILTERS header, slider labels, ≥ values + units) should all
+   render in the medium grey defined by `--spray-label-color`
+   (rgba(80, 80, 80, 0.85)) so the chart reads as a unified
+   subdued annotation layer over the white panel.
+
+   Dark theme keeps each element's original prominent color
+   (white for data values, muted blue-grey for labels) — this
+   class is `[data-theme="light"]`-only. Applies to both HTML
+   text (`color`) and SVG `<text>` elements (`fill`). */
+[data-theme="light"] .sprayLightText {
+  color: var(--spray-label-color) !important;
+  fill: var(--spray-label-color) !important;
+}
 
 /* ── SPRAY CHART PLACEHOLDER ── */
 .sprayWrap {
@@ -763,6 +1019,11 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
   pointer-events: none;
+}
+/* Light-theme accent — darker grey gradient so the hairline at the
+   top of every `.profileCard` reads against the off-white surface. */
+[data-theme="light"] .profileCard::before {
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.32), transparent);
 }
 .profileCard:hover {
   background: var(--card-elev-hover), var(--card-elev-bg);
@@ -983,7 +1244,7 @@
 
 .reportSelectorCount {
   font-size: 11px;
-  color: var(--faint);
+  color: var(--text-muted);
   white-space: nowrap;
   background: var(--surface2, rgba(255,255,255,0.06));
   padding: 3px 8px;
@@ -1056,17 +1317,19 @@
   font-style: italic;
 }
 
-/* "+ New Report" row inside the dropdown */
+/* "+ Report" row inside the dropdown — accent-blue treatment so it
+   shares the same chromatic family as the range-filter options and
+   selected report rows below it. */
 .reportSelectorNewRow {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 10px 16px;
-  background: rgba(34, 197, 94, 0.06);
+  background: rgba(126, 182, 255, 0.08);
   border: none;
   border-bottom: 1px solid var(--border);
-  color: #22C55E;
+  color: var(--accent-light);
   font-family: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -1076,8 +1339,8 @@
   transition: background 0.12s, color 0.12s;
 }
 .reportSelectorNewRow:hover {
-  background: rgba(34, 197, 94, 0.14);
-  color: #4ADE80;
+  background: rgba(126, 182, 255, 0.18);
+  color: #ffffff;
 }
 .reportSelectorNewIcon {
   display: inline-flex;
@@ -1086,7 +1349,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: rgba(34, 197, 94, 0.18);
+  background: rgba(126, 182, 255, 0.22);
   color: inherit;
   font-size: 14px;
   font-weight: 700;
@@ -1148,7 +1411,9 @@
   border-top: none;
   border-bottom-left-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-md);
-  max-height: 320px;
+  /* Stretch the dropdown to ~3/4 of the viewport so the report list
+     has plenty of room before scrolling. Was 320px fixed. */
+  max-height: 75vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
   z-index: 50;
@@ -1407,24 +1672,23 @@
 }
 .reportDeleteNo:hover { background: var(--surface2); }
 
-/* ── DOWNLOAD PDF BUTTON ── */
+/* ── DOWNLOAD PDF BUTTON ──
+   Icon-only square button. The visible label was retired in favor of
+   the SVG download glyph; the full "Download PDF" copy still lives on
+   the button's title/aria-label for accessibility. */
 .downloadPdfBtn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.025) 100%);
   border: 1px solid var(--border-light);
   color: var(--text-bright);
   border-radius: var(--radius-sm);
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   cursor: pointer;
   transition: all var(--transition);
-  white-space: nowrap;
   flex-shrink: 0;
   box-shadow: var(--shadow-btn);
 }
@@ -1513,15 +1777,67 @@
 
 /* Outer panel — invert the Movement-Plot dark tone to a clean white card. */
 [data-theme="light"] .profilePanel {
-  background:
-    radial-gradient(ellipse at 50% 35%,
-      rgba(0, 0, 0, 0.02) 0%,
-      transparent 60%),
-    #ffffff;
+  /* Per coach-spec, every `.profilePanel` (Hitting Snapshot,
+     Pitch Report, Catching / Infield / Outfield snapshots,
+     Strength / Speed / Mobility big bubbles, Training calendar
+     outer shell, etc.) renders on the canonical `--panel-bg-
+     light` (75 %-lightness neutral grey, defined in globals.css).
+     Shadow inherits the shared `--bubble-shadow` variable when
+     present (player profile, Athlete Hub, etc.), otherwise
+     falls back to a stand-alone prominent two-layer drop so
+     pages like Training — which use `.profilePanel` outside
+     of a `pageRoot` wrapper — still get a visible lift. */
+  background: var(--panel-bg-light);
   border-color: rgba(0, 0, 0, 0.10);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    0 4px 14px rgba(15, 20, 30, 0.06);
+  box-shadow: var(--bubble-shadow,
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 14px 30px rgba(15, 20, 30, 0.14));
+}
+
+/* Hitting frame bubbles — per coach-spec the three outer
+   "frame" bubbles in the Hitting tab (Hitting Snapshot, the
+   Hitting Inputs outer shell wrapping Coach Grades / Full
+   Swing / Blast Motion / HitTrax, and the Video gallery
+   bubble) all flip to the cool slate `--hitting-bubble-bg`
+   (`#e3e6ea`). The interior sub-bubbles inside the Snapshot
+   (Swing / Quality of Contact / Coach Diagnosis / Spray Chart
+   / Metric Readout) keep their white-shine recipe so they
+   pop against the slightly-darker cool-slate frame.
+
+   Scoped via `.profilePanel[data-pdf-section="..."]` so the
+   rule satisfies CSS Modules' "pure selector must contain a
+   local class" requirement and only fires for the three
+   tagged outer bubbles. */
+[data-theme="light"] .profilePanel[data-pdf-section="hitting-snapshot"],
+[data-theme="light"] .profilePanel[data-pdf-section="hitting-inputs"],
+[data-theme="light"] .profilePanel[data-pdf-section="hitting-video"] {
+  --panel-bg-light: var(--hitting-bubble-bg);
+}
+[data-theme="light"] .profilePanel[data-pdf-section="hitting-snapshot"],
+[data-theme="light"] .profilePanel[data-pdf-section="hitting-inputs"] {
+  /* Interior sub-bubbles render as a FLAT near-white `#f7f7f7`
+     (a barely-perceptible 3 % drop from pure `#ffffff` so the
+     bubbles don't read as overpoweringly bright). No radial
+     highlight, no gradient — clean flat cards against the
+     slate `#e3e6ea` frame.
+
+     Hitting Snapshot interior: Swing / Quality of Contact /
+     Coach Diagnosis / Spray Chart / Metric Readout.
+
+     Hitting Inputs interior: Coach Grades / Full Swing / Blast
+     Motion / HitTrax — these use `hittingSectionBubbleStyle`
+     in SwingTab.tsx which reads `MOVEMENT_PLOT_BUBBLE_BG` (=
+     `var(--bubble-chrome-bg)`). */
+  --bubble-chrome-bg: #eaeaea;
+}
+
+/* Hitting Snapshot bubble — stronger border than the default
+   `.profilePanel` `rgba(0, 0, 0, 0.10)` per coach-spec, so the
+   bubble's edge reads more defined against the surrounding
+   page surface in light theme. Alpha bumped 0.10 → 0.15 (5
+   percentage points). */
+[data-theme="light"] .profilePanel[data-pdf-section="hitting-snapshot"] {
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
 /* Inner KPI bubble — flip the gradient + remove text-clip on the value
@@ -1547,18 +1863,27 @@
   color: var(--text-soft);
 }
 
-/* Section titles — flip white to dark and dim the soft white shadow. */
+/* Section titles — solid near-black in light theme so every
+   Snapshot title (Hitting Snapshot, Pitch Report, Infielder
+   Snapshot, etc.) reads at the same visual weight as Tool
+   Grades' `.panelTitle` (which uses `var(--text-bright)` in
+   light theme). No gradient, no background-clip. */
 [data-theme="light"] .sectionTitleFirst,
 [data-theme="light"] .sectionTitleAccent {
-  color: #1a1f25;
+  color: var(--text-bright);
 }
 
-/* Tab bar — invert dark Movement-Plot tone to a light card surface. */
+/* Tab bar — wears the canonical `--panel-bg-light` so the page-
+   shell tab bar (Player Summary / Hitting / Pitching / Defense /
+   Physical / Vision / Videos) matches Tool Grades + Player Name
+   bubble + Current Grades sub-tab bar in light mode. Was
+   previously white; swapped per coach-spec so all four
+   top-of-page bubbles read in the same neutral grey. */
 [data-theme="light"] .tabBarOuter {
-  background: #ffffff;
+  background: var(--panel-bg-light);
   border-color: rgba(0, 0, 0, 0.08);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 1px 2px rgba(0, 0, 0, 0.06),
     0 4px 14px rgba(15, 20, 30, 0.06);
 }
 [data-theme="light"] .tabBtn {

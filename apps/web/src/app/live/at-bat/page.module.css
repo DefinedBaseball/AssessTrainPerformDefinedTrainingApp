@@ -1,0 +1,811 @@
+/* /live/at-bat — Phase 3 styles. Builds on /live/training's shared
+   panel chrome (imported in the TSX via the trainingStyles module).
+   Specific to this page:
+     • setupGrid     — two side-by-side roster pickers (Pitchers + Hitters)
+     • trackerLayout — three-column tracker (Pitcher col / Hitter col / AB panel)
+     • matchupRow    — large pitcher-vs-hitter banner at the top of the AB panel
+     • pickerBlock   — pitch-type, ball/strike, result button grids
+     • pitchLog      — running list of pitches in the current AB
+     • recentBlock   — historical at-bats panel (with Last 25/50/100 chips)
+   ─────────────────────────────────────────────────────────────────────── */
+
+.errorBanner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(221, 105, 116, 0.16);
+  border: 1px solid rgba(221, 105, 116, 0.55);
+  color: #ffdde0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* ── Step 1 — setup ────────────────────────────────────────────── */
+
+.setupGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+/* ── Step 2 — tracker layout ──────────────────────────────────── */
+
+.trackerLayout {
+  display: grid;
+  /* Four columns: Pitchers (narrow) | Hitters (narrow) | Pitches
+     (3rd, holds the matchup banner + pickers + pitch log) | Video
+     (4th, wider — fills ~60 % more horizontal space than Pitches so
+     the live preview frame and recordings list have room to breathe).
+     Pitchers / Hitters columns trimmed 20 % thinner (min 180→144,
+     max 220→176) so more horizontal space flows into the Pitches +
+     Video columns. */
+  grid-template-columns:
+    minmax(144px, 176px)
+    minmax(144px, 176px)
+    minmax(0, 1fr)
+    minmax(0, 1.6fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+@media (max-width: 980px) {
+  .trackerLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.trackerPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 1.4rem;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Sibling panel to `.trackerPanel` — same dark-navy chrome, lives in
+   the 4th grid column. Hosts the Phase-4 video capture UI (live
+   preview, record/stop controls, in-memory clip count). Lifted out
+   of the tracker panel so the pitches column stays focused on the
+   matchup banner + pickers + pitch log, and the video has its own
+   wider lane to breathe in. */
+.videoPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 1.4rem;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Matchup banner ───────────────────────────────────────────── */
+
+.matchupRow {
+  /* Two-row layout — top row is `Pitcher | vs | Hitter`, bottom row
+     is the running count + pitch number (centered, spans full width).
+     Previously the count sat in a 4th column on the right of the
+     same row; the user wants it dropped to its own row UNDER the
+     player names. The count cell uses `grid-column: 1 / -1` to span
+     all three top-row columns. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: auto auto;
+  row-gap: 10px;
+  column-gap: 18px;
+  align-items: center;
+  padding: 14px 16px;
+  background: rgba(126, 182, 255, 0.06);
+  border: 1px solid rgba(126, 182, 255, 0.22);
+  border-radius: 12px;
+}
+
+.matchupCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Center the eyebrow label + player name (and the optional pitcher
+     pitch-count sub-line) horizontally under each cell's column. */
+  align-items: center;
+  text-align: center;
+}
+
+/* Pitcher session pitch count — sub-line under the pitcher's name.
+   "P: N" where N is `pitchCountByPitcher[activePitcherId]`. Same
+   mono treatment as `.matchupCountSub` so it reads as a status
+   readout rather than a primary identity element. */
+.matchupPitchCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.matchupLabel {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.matchupName {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display);
+  /* Player name size reduced 22 → 17.6 px (~20 %) so the names sit
+     more comfortably next to the smaller eyebrow label and read as
+     part of a banner-row rather than dominating it. */
+  font-size: 17.6px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.matchupHand {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent-bright);
+  font-style: normal;
+}
+
+.matchupVs {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.matchupCount {
+  /* Drops to the matchup row's 2nd grid row and spans all three
+     columns so the count + pitch-number cluster sits CENTERED
+     directly under the `Pitcher | vs | Hitter` row above. */
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(126, 182, 255, 0.18);
+  font-family: var(--font-mono);
+  color: var(--text-bright);
+  text-align: center;
+}
+
+/* Big balls-strikes readout (e.g. "1-2") — primary count display. */
+.matchupCountBig {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text-bright);
+}
+
+/* Sub-line: "Pitch #N" tracker for the current AB. */
+.matchupCountSub {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Picker blocks (pitch type / ball-strike / result) ────────── */
+
+/* Each picker block (Pitch Type / Umpire Call / Result) now wears the
+   warm-grey Movement-Plot / Swing-bubble chrome — same triple-layer
+   gradient + white-rim border the Swing GradeRow uses over in the
+   Hitting tab. Each block reads as its own contained "card": label
+   eyebrow → white accent rule → picker buttons.
+   Vertical-rhythm pass: padding 12 → 6 top/bottom (horizontal kept
+   at 14 so picker buttons keep their breathing room), gap 10 → 6,
+   so each bubble takes ~40 % less vertical space without crowding
+   the buttons inside. */
+.pickerBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 14px;
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+}
+
+.pickerLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  /* White accent rule between the label and the picker buttons — same
+     `var(--border)` hairline the Swing GradeRow uses to separate its
+     title row from the chip table below. Padding-bottom trimmed
+     8 → 4 in step with the bubble shrinking vertically. */
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pickerHint {
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.10em;
+}
+
+.pickerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+/* Stacked rows for grouped pickers (pitch type / result). Each row
+   is a 4-column grid; buttons fill columns left-to-right. The widest
+   row (the in-play result row: Ground Ball / Fly Ball / Line Drive /
+   Barrel) sets the canonical button width, and every other row
+   inherits that exact cell width — so Ball, Strike — Looking,
+   Fastball, etc. all match Ground Ball regardless of label length.
+   Rows with fewer than 4 buttons leave empty grid cells on the right
+   instead of stretching the buttons to fill the row. */
+.pickerRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* `max-width: 80%` retired — the pitches column is now its own
+     dedicated 3rd grid column (narrower than the old 1-fr tracker
+     panel that also housed the video), so the picker rows expand to
+     the column's full width. Without this change the 4-column
+     button grid would be capped at 80 % of an already-narrow column,
+     squashing labels like "Curveball" / "Knuckleball" onto two
+     lines. */
+}
+
+.pickerRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+/* Umpire Call toggle uses the same 4-column grid so Ball/Strike
+   sit at Ground-Ball width. The two buttons occupy columns 1-2;
+   columns 3-4 stay empty. */
+.pickerToggle {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.pickerBtn {
+  /* 30% shorter height: padding-y 10 → 7. 20% narrower text padding:
+     14 → 11. Combined with the row max-width constraint above, the
+     resulting button is ~30% shorter and the row is ~20% shorter
+     than the original full-width grid layout. */
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.pickerBtn:hover:not(:disabled) {
+  border-color: rgba(126, 182, 255, 0.45);
+}
+
+.pickerBtnActive {
+  background: rgba(126, 182, 255, 0.18);
+  border-color: rgba(126, 182, 255, 0.65);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(126, 182, 255, 0.30);
+}
+
+.pickerBtnTerminal {
+  /* AB-ending result buttons get a subtle warm tint so they read
+     visually distinct from mid-AB results (Strike Looking, Foul,
+     etc.) The coach knows tapping a terminal result will end the
+     at-bat. */
+  background: rgba(232, 175, 52, 0.08);
+  border-color: rgba(232, 175, 52, 0.30);
+}
+
+.pickerBtnTerminal:hover:not(:disabled) {
+  background: rgba(232, 175, 52, 0.16);
+  border-color: rgba(232, 175, 52, 0.55);
+}
+
+.pickerBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Current-AB pitch log ─────────────────────────────────────── */
+
+.pitchLog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.pitchLogList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pitchLogList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pitchLogNum {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent-bright);
+  padding: 2px 6px;
+  background: rgba(126, 182, 255, 0.10);
+  border-radius: 4px;
+}
+
+.pitchLogCall {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  color: var(--text-muted);
+}
+
+/* ── Phase 4 — Video bubble ────────────────────────────────────
+   Sits under the Result picker inside the At-Bat tracker. Two
+   visual modes:
+     • Closed — single "Start Video" button (no camera permission
+       requested yet).
+     • Open   — live preview frame + Record/Stop button row +
+       camera-off control. */
+
+.videoBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.videoEnableBtn {
+  align-self: flex-start;
+}
+
+.videoFrame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  overflow: hidden;
+  /* `max-width: 480px` retired — the video bubble lives in its
+     own dedicated 4th column now, so the preview frame fills the
+     column's full width (which is intentionally the wider of the
+     two content columns). */
+  width: 100%;
+}
+
+.videoEl {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.videoErr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  text-align: center;
+  font-size: 13px;
+  color: #ffdde0;
+  background: rgba(221, 105, 116, 0.10);
+}
+
+.videoRecDot {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(221, 105, 116, 0.85);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.videoControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Tracker footer ────────────────────────────────────────────── */
+
+.trackerFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+/* ── Phase 5 — Save step ──────────────────────────────────────── */
+
+.saveList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.saveRow {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+@media (max-width: 760px) {
+  .saveRow { grid-template-columns: 1fr; }
+}
+
+.savePreview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 8px;
+}
+
+.saveMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saveMatchup {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.saveMatchup strong {
+  font-weight: 700;
+  color: #fff;
+}
+
+.savePickerRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.savePickerSelect {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.savePickerSelect:hover { border-color: rgba(126, 182, 255, 0.40); }
+
+.saveErr { font-size: 12px; color: #dd6974; }
+
+.saveActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.saveDone {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6daa45;
+}
+
+.saveDiscarded {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Recent at-bats block ────────────────────────────────────── */
+
+.recentBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.recentHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.recentChips {
+  display: flex;
+  gap: 6px;
+}
+
+.recentChip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.recentChip:hover { border-color: rgba(126, 182, 255, 0.40); }
+
+.recentChipActive {
+  background: rgba(126, 182, 255, 0.18);
+  border-color: rgba(126, 182, 255, 0.55);
+  color: #fff;
+}
+
+.recentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recentRow {
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.recentDate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.recentVs {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.recentHand {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--accent-bright);
+}
+
+.recentOutcome {
+  font-weight: 600;
+}
+
+.recentOutcome em {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — Tracker / Video / Save action bubbles
+   ══════════════════════════════════════════════
+   The Pitchers + Hitters columns on /live/at-bat use the shared
+   `.rosterColumn` / `.rosterColumnRow` classes from
+   /live/training/page.module.css — those already pick up the
+   cool-slate (outer) + near-white (inner chip) treatment via
+   the light-theme block in that file.
+   The remaining action surfaces on this page — the Tracker
+   panel (matchup banner + pickers + pitch log), the Video panel
+   (live camera feed + record controls), and the Save list rows
+   — are the at-bat counterparts of the "Position / Setup Record
+   / Save" action bubbles on /live/training. They flip to the
+   near-white (Swing) `--bubble-chrome-bg` so the whole Live
+   action UI reads in one off-white tone in light mode. */
+[data-theme="light"] .trackerPanel,
+[data-theme="light"] .videoPanel,
+[data-theme="light"] .saveRow {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08));
+}
+
+/* ── Light-theme matchup row — player name color ──
+   `.matchupName` (the pitcher + hitter names rendered in the
+   tracker column's matchup banner) is hardcoded `#fff` in the
+   base rule above — invisible on the now-near-white tracker
+   panel surface. Flip to solid black in light theme so the
+   names read cleanly against the off-white bubble. */
+[data-theme="light"] .matchupName {
+  color: #000;
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — at-bat recording surfaces
+   ══════════════════════════════════════════════
+   Picks up where the Tracker/Video/Save panel + matchupName
+   overrides above left off. Flips every dark-tinted interior
+   surface (matchup banner, picker blocks, picker buttons,
+   pitch log, save list) to a matching black-alpha or near-
+   white surface so the at-bat tracker reads in the same
+   palette as the rest of the app in light mode. */
+
+/* Matchup banner — keeps its faint accent-blue tint (works on
+   light too) but the border drops a touch so it doesn't outshine
+   the panel beneath. */
+[data-theme="light"] .matchupRow {
+  background: rgba(126, 182, 255, 0.10);
+  border-color: rgba(126, 182, 255, 0.30);
+}
+
+/* Picker blocks (the Pitch type / Umpire Call / Result groupings
+   inside the tracker column). Each block sits as a near-white
+   sub-bubble on the tracker panel surface. */
+[data-theme="light"] .pickerBlock {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+  /* The light-mode tones look better with a flat fill instead
+     of the dark-mode triple-radial recipe — `background:` above
+     already overrides the radial stack from the base rule. */
+}
+[data-theme="light"] .pickerLabel {
+  color: var(--text);
+  border-bottom-color: rgba(0, 0, 0, 0.14);
+}
+
+/* Picker buttons (Ball / Strike — Looking / Fastball / etc.).
+   Idle = translucent-black chip; hover = darker border;
+   active = accent-blue wash (same blue across themes);
+   terminal (AB-ending result) buttons keep their warm gold
+   tint which reads on both surfaces. */
+[data-theme="light"] .pickerBtn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+}
+[data-theme="light"] .pickerBtn:hover:not(:disabled) {
+  border-color: rgba(126, 182, 255, 0.55);
+}
+
+/* Pitch log + log rows (the running list of pitches in this AB)
+   flips to a near-white surface with a matching darker pitch-
+   number chip. */
+[data-theme="light"] .pitchLog {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .pitchLogNum {
+  background: rgba(126, 182, 255, 0.18);
+  color: var(--text);
+}
+
+/* Save list rows — the per-clip rows in Step 3 already get the
+   panel-level near-white from `.saveRow` above; here we ensure
+   the secondary inner controls (recent block, recent chips,
+   etc.) flip too. */
+[data-theme="light"] .recentBlock {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .recentRow {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .recentChip {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+}
+[data-theme="light"] .recentChip:hover {
+  border-color: rgba(126, 182, 255, 0.55);
+}
+[data-theme="light"] .recentChipActive {
+  background: rgba(126, 182, 255, 0.18);
+}
+
+/* Save-step picker (per-clip Attach-to-report dropdown). */
+[data-theme="light"] .savePickerSelect {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+}
+
+/* Video bubble surround (the box around the live camera feed in
+   the tracker view). Surface flips to near-white but the inner
+   video frame stays #000 so the live feed has its own contrast. */
+[data-theme="light"] .videoBubble {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}

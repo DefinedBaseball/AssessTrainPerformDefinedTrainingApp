@@ -55,6 +55,14 @@
   color: #f1f4f6;
   border-color: rgba(255,255,255,0.14);
 }
+/* Light theme: the translucent-white fill + near-white text collapses
+   to white-on-light (~1.2:1). Render the selected chip as a solid
+   accent pill so it reads as clearly active with strong contrast. */
+[data-theme="light"] .filterChipActive {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
 
 /* ══════════════════════════════════════════════
    LIST TABLE
@@ -65,6 +73,64 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+}
+/* Light theme: roster list wrapper picks up the canonical
+   `--panel-bg-light` (`#dee1e5` cool slate) so it matches the
+   Hitting Snapshot bubble color used across every outer
+   bubble in the app. Flat fill — no shine recipe. */
+[data-theme="light"] .listWrap {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08));
+}
+
+/* ── Page wrapper override (test) ──
+   Per coach-spec on the Athlete Hub: flip the page background
+   to the canonical `--panel-bg-light` grey and let the bubbles
+   inside (PageHeader + `.listWrap`) render WHITE — the inverse
+   of every other page in the app. The negative margin + matching
+   padding cancel out the .app-main padding so the grey extends
+   to the inner edges of the main content area, then restores
+   the inner padding so the bubbles sit at the correct inset.
+   `--page-header-bg` carries the white through to the imported
+   PageHeader module via its theme-aware fallback. Light theme
+   only — dark theme is untouched. */
+[data-theme="light"] .pageRoot {
+  /* PageHeader bubble (the Athlete Hub title bar) flips to the
+     canonical `--panel-bg-light` (`#dee1e5` cool slate) via
+     `--page-header-bg` — same color as the Hitting Snapshot
+     bubble + every other outer bubble across the app. The
+     previous shine recipe was retired. */
+  --page-header-bg: var(--panel-bg-light);
+  /* Shared shadow stack — same moderate two-layer recipe
+     used on the /athletes/[id] profile wrapper, slightly
+     darker than the prior 10/12% revision so the bubbles
+     read more grounded on the grey page surface. */
+  --bubble-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.14),
+    0 12px 26px rgba(15, 20, 30, 0.16);
+  /* Page bg uses the global `--bg` token (`#aeaeae` in light
+     theme) so the page floor stays the canonical medium grey
+     across the app — separate from `--panel-bg-light` which
+     now drives the outer-bubble color. */
+  background: var(--bg);
+  margin: -24px;
+  padding: 24px;
+  min-height: 100vh;
+}
+@media (max-width: 768px) {
+  [data-theme="light"] .pageRoot {
+    margin: -16px -12px;
+    padding: 16px 12px;
+  }
+}
+@media (max-width: 480px) {
+  [data-theme="light"] .pageRoot {
+    margin: -12px -8px;
+    padding: 12px 8px;
+  }
 }
 
 .listHeader {
@@ -145,6 +211,17 @@
   font-size: 12px;
   color: var(--text);
   flex-shrink: 0;
+}
+/* Light theme: player-initials avatar reads as a solid black
+   puck with white letters — high contrast against the new
+   neutral-grey list bubble. Overrides the default
+   `var(--text)` color (which would auto-flip to near-black in
+   light theme) so the initials stay legible against the
+   black fill. */
+[data-theme="light"] .avatar {
+  background: #000000;
+  border-color: rgba(0, 0, 0, 0.30);
+  color: #ffffff;
 }
 
 .playerName {

@@ -8,7 +8,28 @@ import * as api from '@/lib/api';
 import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
 import { PageHeader } from '@/components/PageHeader';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import styles from './page.module.css';
+
+/* ─── File → data URL helper ─────────────────────────────────────────────
+   Used by the Create / Edit Post file-upload inputs. Converts a picked
+   `File` into a base64 data URL the form can drop straight into the
+   existing `postImageUrl` / `postVideoUrl` string fields without needing
+   a server-side upload endpoint. Works in-browser, persists with the
+   post payload, and a future upload-to-CDN step can swap the underlying
+   transform without changing any caller.
+
+   Caveat: data URLs bloat the row size — large videos (>~25 MB) should
+   eventually go through a real upload endpoint. For typical screenshot
+   images + short highlight clips it's fine. */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 /* ── Helper: format relative time ── */
 function timeAgo(dateStr: string): string {
@@ -103,7 +124,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
-  }, [isLoading, user, router]);
+    // Players land directly on their own profile rather than the
+    // coach dashboard (which is built around the KPI grid + roster
+    // tools they can't act on). Their /profile route already wraps
+    // PlayerProfilePage and falls back to `user.playerId` when no
+    // URL id is provided, so this is just a one-hop redirect.
+    if (!isLoading && user && !isCoach) router.replace('/profile');
+  }, [isLoading, user, isCoach, router]);
 
   /* ── Load dashboard data ── */
   useEffect(() => {
@@ -603,14 +630,14 @@ function CreatePostModal({
             />
           </div>
 
-          {/* ── Body ── */}
+          {/* ── Body (Rich Text) ── */}
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Body (optional)</label>
-            <textarea
-              className={`${styles.fieldInput} ${styles.fieldTextarea}`}
-              placeholder="Write your announcement..."
+            <RichTextEditor
               value={postBody}
-              onChange={e => setPostBody(e.target.value)}
+              onChange={setPostBody}
+              placeholder="Write your announcement..."
+              minHeight={110}
             />
           </div>
 
@@ -688,26 +715,54 @@ function CreatePostModal({
             </>
           )}
 
-          {/* ── Video / Image URL ── */}
+          {/* ── Video — URL OR File upload ──
+              Both inputs write into the same `postVideoUrl` state, so
+              whichever the user fills last wins. File uploads are
+              encoded as base64 data URLs via `fileToDataUrl`, which
+              persists in the existing string field with no backend
+              changes. */}
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Video URL (optional)</label>
+            <label className={styles.fieldLabel}>Video (optional)</label>
             <input
               type="text"
               className={styles.fieldInput}
-              placeholder="https://..."
+              placeholder="Paste a video URL (https://...)"
               value={postVideoUrl}
               onChange={e => setPostVideoUrl(e.target.value)}
             />
+            <input
+              type="file"
+              accept="video/*"
+              className={styles.fileInput}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const dataUrl = await fileToDataUrl(file);
+                setPostVideoUrl(dataUrl);
+              }}
+            />
           </div>
 
+          {/* ── Image — URL OR File upload (same dual-input pattern) ── */}
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Image URL (optional)</label>
+            <label className={styles.fieldLabel}>Image (optional)</label>
             <input
               type="text"
               className={styles.fieldInput}
-              placeholder="https://..."
+              placeholder="Paste an image URL (https://...)"
               value={postImageUrl}
               onChange={e => setPostImageUrl(e.target.value)}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              className={styles.fileInput}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const dataUrl = await fileToDataUrl(file);
+                setPostImageUrl(dataUrl);
+              }}
             />
           </div>
 
@@ -834,14 +889,14 @@ function EditPostModal({
             />
           </div>
 
-          {/* ── Body ── */}
+          {/* ── Body (Rich Text) ── */}
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Body (optional)</label>
-            <textarea
-              className={`${styles.fieldInput} ${styles.fieldTextarea}`}
-              placeholder="Write your announcement..."
+            <RichTextEditor
               value={body}
-              onChange={e => setBody(e.target.value)}
+              onChange={setBody}
+              placeholder="Write your announcement..."
+              minHeight={110}
             />
           </div>
 
@@ -919,26 +974,49 @@ function EditPostModal({
             </>
           )}
 
-          {/* ── Video / Image URL ── */}
+          {/* ── Video — URL OR File upload (mirrors CreatePostModal) ── */}
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Video URL (optional)</label>
+            <label className={styles.fieldLabel}>Video (optional)</label>
             <input
               type="text"
               className={styles.fieldInput}
-              placeholder="https://..."
+              placeholder="Paste a video URL (https://...)"
               value={videoUrl}
               onChange={e => setVideoUrl(e.target.value)}
             />
+            <input
+              type="file"
+              accept="video/*"
+              className={styles.fileInput}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const dataUrl = await fileToDataUrl(file);
+                setVideoUrl(dataUrl);
+              }}
+            />
           </div>
 
+          {/* ── Image — URL OR File upload ── */}
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Image URL (optional)</label>
+            <label className={styles.fieldLabel}>Image (optional)</label>
             <input
               type="text"
               className={styles.fieldInput}
-              placeholder="https://..."
+              placeholder="Paste an image URL (https://...)"
               value={imageUrl}
               onChange={e => setImageUrl(e.target.value)}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              className={styles.fileInput}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const dataUrl = await fileToDataUrl(file);
+                setImageUrl(dataUrl);
+              }}
             />
           </div>
 

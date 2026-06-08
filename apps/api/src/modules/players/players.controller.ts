@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
-import { Roles } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 
 class CreatePlayerDto {
   userId!: string;
@@ -48,7 +48,8 @@ export class PlayersController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all players (coach view)' })
+  @Roles('COACH')
+  @ApiOperation({ summary: 'List all players (COACH only — roster view)' })
   findAll(
     @Query('gradYear') gradYear?: string,
     @Query('position') position?: string,
@@ -60,8 +61,10 @@ export class PlayersController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a player profile with metrics and videos' })
-  findOne(@Param('id') id: string) {
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get a player profile (ownership-checked)' })
+  findOne(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    assertPlayerOwnership(req, id);
     return this.playersService.findOne(id);
   }
 
@@ -73,8 +76,10 @@ export class PlayersController {
   }
 
   @Get(':id/top-metrics')
-  @ApiOperation({ summary: 'Get latest value for each metric type' })
-  getTopMetrics(@Param('id') id: string) {
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get latest value for each metric type (ownership-checked)' })
+  getTopMetrics(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    assertPlayerOwnership(req, id);
     return this.playersService.getTopMetrics(id);
   }
 }

@@ -16,6 +16,12 @@
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent);
   pointer-events: none;
 }
+/* Light-theme accent — darker grey gradient so the hairline at the
+   top of every MetricChart container reads against the off-white
+   bubble surface. */
+[data-theme="light"] .container::before {
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.32), transparent);
+}
 .container:hover {
   border-color: var(--border-strong);
   transform: translateY(-1px);

@@ -21,7 +21,8 @@ import { StrengthConditioningTab } from './tabs/StrengthConditioningTab';
 import { VideosTab } from './tabs/VideosTab';
 
 import { ReportModal } from './ReportModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor } from './helpers';
+import { PdfBuilderModal, type PdfLayout } from './PdfBuilderModal';
+import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
@@ -72,7 +73,14 @@ const TABS: Tab[] = [
   { key: 'catching', label: 'Catching', icon: IconDefense },
   { key: 'outfield', label: 'Outfield', icon: IconDefense },
   { key: 'pitching', label: 'Pitching', icon: IconPitching },
-  { key: 'strength', label: 'Strength & Conditioning', icon: IconStrength },
+  /* Tab label was "Strength & Conditioning" → "S & C" → now
+     "Physical" per coach-spec. "Physical" reads as the broader
+     umbrella that contains BOTH the Strength & Conditioning
+     sub-tab AND the Mobility Screen sub-tab inside the S&C tab
+     content. Same `key: 'strength'` under the hood so routing /
+     report-type matching / sidebar visibility logic all keep
+     working unchanged. */
+  { key: 'strength', label: 'Physical', icon: IconStrength },
   { key: 'videos', label: 'Videos', icon: IconVideos },
 ];
 
@@ -106,6 +114,23 @@ export default function PlayerProfilePage() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [progressData, setProgressData] = useState<Record<string, { value: number; recordedAt: string }[]>>({});
   const [reports, setReports] = useState<ReportSummary[]>([]);
+  /* Colleges list — fetched so the Commitment circle can show the logo
+     associated with the player's committed school (via College.logoUrl
+     set in Settings → Teams & Colleges, or via the "+ Add new college"
+     form in the Report modal). */
+  const [colleges, setColleges] = useState<api.College[]>([]);
+  /* Set while the Summary PDF capture flow is running — pauses the
+     active-tab auto-correction below so we can programmatically swap
+     to Hitting / Catching / Infield / Outfield / Pitching tabs and
+     screenshot each snapshot, even when the player's positions wouldn't
+     normally surface those tabs. Also shows a fullscreen "Generating
+     PDF…" overlay so the user understands the brief tab flicker. */
+  const [capturingPdf, setCapturingPdf] = useState(false);
+  /* Toggles the PDF Builder modal where the user picks which sections
+     to include, reorders them, sets each section's vertical position,
+     and optionally saves the whole layout as a named preset. Opens
+     when the Player Summary tab's "Download PDF" button is clicked. */
+  const [pdfBuilderOpen, setPdfBuilderOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -118,8 +143,20 @@ export default function PlayerProfilePage() {
 
   /* ── Auth guard ── */
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/login');
-  }, [authLoading, user, router]);
+    if (authLoading) return;
+    if (!user) { router.replace('/login'); return; }
+
+    // Players may only view their own profile. If they navigate (or are
+    // linked) to another athlete's id, bounce them back to their own.
+    // Coaches can view any athlete. The backend now enforces the same
+    // rule; this is the UI mirror so we never paint another player's data.
+    if (!isCoach) {
+      const myId = (user as any).playerId;
+      if (myId && id && id !== myId) {
+        router.replace(`/athletes/${myId}`);
+      }
+    }
+  }, [authLoading, user, isCoach, id, router]);
 
   /* ── Data loading ── */
   useEffect(() => {
@@ -139,11 +176,17 @@ export default function PlayerProfilePage() {
       api.getPlayerVideos(id).catch(() => []),
       api.getPlayerReports(id).catch(() => []),
       Promise.all(progressPromises),
-    ]).then(([p, top, vids, reps, progressResults]) => {
+      /* Colleges list is non-critical for the page rendering, so swallow
+         errors and fall back to an empty list. The commitment circle
+         simply renders the graduation-cap glyph fallback if the lookup
+         comes up empty. */
+      api.getColleges().catch(() => [] as api.College[]),
+    ]).then(([p, top, vids, reps, progressResults, colls]) => {
       setPlayer(p);
       setTopMetrics(top);
       setVideos(vids);
       setReports(reps as ReportSummary[]);
+      setColleges(colls);
       const pd: Record<string, { value: number; recordedAt: string }[]> = {};
       progressResults.forEach(({ mt, data }) => { if (data.length > 0) pd[mt] = data; });
       setProgressData(pd);
@@ -154,18 +197,68 @@ export default function PlayerProfilePage() {
     });
   }, [user, id, refreshKey]);
 
+  /* Live At-Bats for this athlete — feeds the Swing Decision bar in
+     the Hitting Tool Grades card. Pulled separately from the metrics
+     fetch so the rest of the profile loads quickly even if at-bat
+     data is large. 500-row cap is generous (most athletes have far
+     fewer); coaches who exceed it can revisit the cap later. */
+  const [liveAtBats, setLiveAtBats] = useState<api.AtBatDetail[]>([]);
+  useEffect(() => {
+    if (!user || !id) return;
+    let cancelled = false;
+    api.listAtBats({ hitterId: id, limit: 500 })
+      .then((rows) => { if (!cancelled) setLiveAtBats(rows); })
+      .catch(() => { if (!cancelled) setLiveAtBats([]); });
+    return () => { cancelled = true; };
+  }, [user, id, refreshKey]);
+
   /* ── Aggregate score (hero "Player Score" bubble) ── */
   const aggregate = useMemo(() => {
     if (!player) return null;
-    return computeAggregateScores(player, reports, topMetrics);
-  }, [player, reports, topMetrics]);
+    return computeAggregateScores(player, reports, topMetrics, liveAtBats);
+  }, [player, reports, topMetrics, liveAtBats]);
 
-  /* ── Visible tabs (position-driven) ──
+  /* Hidden-tab preference (per-player, persisted in localStorage). The
+     Eye toggle in the Report modal header writes here; we listen for the
+     custom event so the tab bar updates the moment the user toggles a
+     tab's visibility. Defaults to `DEFAULT_HIDDEN_TABS` for a fresh
+     player record — Catching / Infield / Outfield / S & C are hidden
+     until explicitly enabled.
+
+     Lazy `useState` initializer reads localStorage on the FIRST render
+     (id already resolved to the URL param or auth playerId by then), so
+     the tab bar paints with the correct hidden set immediately instead
+     of flashing the full set for one tick before the effect runs. The
+     `useEffect` below still re-reads when `id` changes (e.g. coach
+     navigates between two athletes' profiles in the same tab) and
+     subscribes to the cross-component update event. */
+  const [hiddenTabs, setHiddenTabsState] = useState<string[]>(() => getHiddenTabs(id));
+  useEffect(() => {
+    if (!id) return;
+    setHiddenTabsState(getHiddenTabs(id));
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { playerId?: string } | undefined;
+      // Only re-read when the event matches this player so opening a
+      // different athlete's modal can't blow away our state.
+      if (!detail || detail.playerId === id) {
+        setHiddenTabsState(getHiddenTabs(id));
+      }
+    };
+    window.addEventListener('player:hiddenTabsChanged', handler as EventListener);
+    return () => window.removeEventListener('player:hiddenTabsChanged', handler as EventListener);
+  }, [id]);
+
+  /* ── Visible tabs (position + hidden-preference driven) ──
      Defense was split into three position-specific tabs — each shows only
      when the player carries that position code on their profile.
      Position groups mirror the Training Calendar's helper so a player
      marked LF/CF/RF (or umbrella OF) counts as an outfielder, and a
-     player marked 1B/2B/3B/SS (or umbrella INF) counts as an infielder. */
+     player marked 1B/2B/3B/SS (or umbrella INF) counts as an infielder.
+     Layered ON TOP of that: the per-player `hiddenTabs` set further
+     filters out tabs the coach has explicitly toggled off via the Eye
+     icon in the Report modal header. PDF capture flow bypasses this
+     filter via `capturingPdf` so the Summary capture can still walk every
+     section regardless of which ones are user-hidden. */
   const visibleTabs = useMemo(() => {
     if (!player) return TABS;
     const positions = (player.positions || '')
@@ -182,21 +275,42 @@ export default function PlayerProfilePage() {
 
     return TABS.filter((t) => {
       if (t.key === 'summary') return true;
+      // Per-player Eye-toggle override — short-circuit before the
+      // position checks so a hidden tab disappears even when the player
+      // carries a matching position. Summary is exempt above so coaches
+      // can always reach the overview.
+      if (hiddenTabs.includes(t.key) && !capturingPdf) return false;
       if (t.key === 'hitting') return hasNonPitcher;
       if (t.key === 'pitching') return isPitcher;
       if (t.key === 'catching') return isCatcher;
       if (t.key === 'infield')  return isInfielder;
       if (t.key === 'outfield') return isOutfielder;
-      return true; // strength, videos
+      /* Videos pulled out of the main tab nav — now reached via an
+         icon button in every tab's TabBarActions (sits next to the
+         Download PDF icon). The tab still exists internally for the
+         TabPanel render, just not surfaced in the nav row. */
+      if (t.key === 'videos')   return false;
+      return true; // strength
     });
-  }, [player, reports]);
+  }, [player, reports, hiddenTabs, capturingPdf]);
 
   // If the current tab is filtered out (e.g. positions changed), fall back to Summary.
+  // Skipped while `capturingPdf` is true so the Summary PDF capture flow can
+  // briefly switch to position-specific tabs (Infield / Catching / Outfield)
+  // that wouldn't otherwise appear for this player's positions.
+  //
+  // `videos` is excluded from `visibleTabs` (the icon button is its only
+  // entry point — see the comment on the filter above), but it's still a
+  // legitimate destination. Treating it as valid here keeps the
+  // `onOpenVideos` callback from being immediately bounced back to
+  // Summary the moment the Videos tab tries to mount.
   useEffect(() => {
+    if (capturingPdf) return;
+    if (activeTab === 'videos') return;
     if (!visibleTabs.some((t) => t.key === activeTab)) {
       setActiveTab('summary');
     }
-  }, [visibleTabs, activeTab]);
+  }, [visibleTabs, activeTab, capturingPdf]);
 
   /* ── Guards ── */
   if (authLoading || !user) return null;
@@ -216,23 +330,169 @@ export default function PlayerProfilePage() {
     onNewReport: () => { setEditingReport(null); setShowReportModal(true); },
     onEditReport: (r) => { setEditingReport(r); setShowReportModal(true); },
     onEditProfile: () => { setEditingReport(null); setProfileEditOpen(true); setShowReportModal(true); },
+    /* Jumps the parent profile to the Videos tab. Used by the icon
+       button surfaced in each tab's TabBarActions next to Download PDF. */
+    onOpenVideos: () => setActiveTab('videos'),
+  };
+
+  /* ─────────────────────────────────────────────────────────
+   * SUMMARY PDF CAPTURE
+   *
+   * Drives the Player Summary tab's top-level "Download PDF"
+   * button. Cycles `activeTab` through summary → hitting →
+   * infield → catching → outfield → pitching, waiting between
+   * each switch for the tab to mount, fetch its data, and
+   * render. After each render, finds the `[data-pdf-section]`
+   * marker baked into the live JSX of that tab and screenshots
+   * it via html2canvas. The resulting PNG data URLs are passed
+   * to `generateSummaryCapturePdf` which assembles them onto
+   * a CoverPage + one image page per snapshot.
+   *
+   * Sections without a matching DOM marker (e.g. a player
+   * with no Catching assessment so the Catching Snapshot
+   * isn't rendered) are simply skipped — the PDF includes
+   * only sections that were actually visible at capture time.
+   * ───────────────────────────────────────────────────────── */
+  /** Map of section-key → tab to switch to before capturing. Lives at
+   *  module scope of this function so both the modal's "Generate" path
+   *  and the legacy capture path agree on the routing. */
+  const SECTION_TAB_MAP: Record<
+    'tool-grades' | 'hitting-snapshot' | 'infield-snapshot' | 'catching-snapshot' | 'outfield-snapshot' | 'pitch-report',
+    { tab: string; title: string }
+  > = {
+    'tool-grades':       { tab: 'summary',  title: 'Tool Grades' },
+    'hitting-snapshot':  { tab: 'hitting',  title: 'Hitting Snapshot' },
+    'infield-snapshot':  { tab: 'infield',  title: 'Infield Snapshot' },
+    'catching-snapshot': { tab: 'catching', title: 'Catching Snapshot' },
+    'outfield-snapshot': { tab: 'outfield', title: 'Outfield Snapshot' },
+    'pitch-report':      { tab: 'pitching', title: 'Pitch Report' },
+  };
+
+  type CapturedSnap = { dataUrl: string; width: number; height: number; title: string };
+
+  /** Captures every known section by cycling the parent's activeTab
+   *  through each section's home tab, waiting for layout, and running
+   *  html2canvas. Returns a map keyed by section so the builder modal
+   *  can paint live previews and reuse the same images for the final
+   *  PDF assembly (avoids a second capture pass). */
+  const captureAllSectionsForBuilder = async (): Promise<Record<string, CapturedSnap>> => {
+    if (!player) return {};
+
+    const html2canvas = (await import('html2canvas')).default;
+    const originalTab = activeTab;
+    const captures: Record<string, CapturedSnap> = {};
+
+    setCapturingPdf(true);
+    try {
+      for (const [key, meta] of Object.entries(SECTION_TAB_MAP)) {
+        setActiveTab(meta.tab);
+        await new Promise((r) => setTimeout(r, 2500));
+
+        const el = document.querySelector(`[data-pdf-section="${key}"]`) as HTMLElement | null;
+        if (!el) continue;
+
+        try {
+          const canvas = await html2canvas(el, {
+            backgroundColor: '#0a0e14',
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+          });
+          captures[key] = {
+            dataUrl: canvas.toDataURL('image/png'),
+            width: canvas.width,
+            height: canvas.height,
+            title: meta.title,
+          };
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(`Failed to capture ${key}:`, err);
+        }
+      }
+    } finally {
+      setActiveTab(originalTab);
+      setCapturingPdf(false);
+    }
+    return captures;
+  };
+
+  /** Opens the PDF Builder modal. The capture pass + final PDF assembly
+   *  happen inside the modal's lifecycle (it requests captures itself
+   *  via the `onCapture` prop, then calls `onGenerate` with the user's
+   *  layout + the captures it already has). */
+  const handleCaptureSummaryPdf = async () => {
+    if (!player) return;
+    setPdfBuilderOpen(true);
+  };
+
+  /** Layout-aware PDF assembly. The captures map comes from the builder
+   *  modal (which captured everything upfront for its preview pane), so
+   *  we never run html2canvas a second time — we just filter / reorder
+   *  the cached images according to the user's chosen layout and pass
+   *  them through to the PDF generator with their per-section yOffsets. */
+  const handleBuildPdf = async (
+    layout: PdfLayout,
+    captures: Record<string, CapturedSnap>,
+  ) => {
+    if (!player) return;
+
+    const { generateSummaryCapturePdf } = await import('@/lib/pdf');
+
+    const orderedEnabled = layout.sections.filter(s => s.enabled);
+    if (orderedEnabled.length === 0) return;
+
+    const ordered = orderedEnabled
+      .map((cfg) => {
+        const snap = captures[cfg.key];
+        if (!snap) return null;
+        return {
+          key: cfg.key,
+          title: snap.title,
+          dataUrl: snap.dataUrl,
+          width: snap.width,
+          height: snap.height,
+          yOffset: cfg.yOffset,
+          /* Pulled from the modal's Size slider — drives how wide the
+             section image renders on its page in the final PDF. */
+          scale: typeof cfg.scale === 'number' ? cfg.scale : 1,
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+
+    if (ordered.length === 0) {
+      alert('No on-screen sections were available to capture for this PDF.');
+      return;
+    }
+
+    await generateSummaryCapturePdf(player, ordered);
   };
 
   return (
-    <div>
+    <div className={styles.pageRoot}>
       {/* ── Back Link (coaches navigating from Athletes list) ── */}
       {isCoach && params?.id && (
         <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
       )}
 
-      {/* ── Tab Bar (above player name bubble) ── */}
-      <TabBar tabs={visibleTabs} activeKey={activeTab} onTabChange={setActiveTab} />
+      {/* TabBar moved BELOW the Player Name (Command Deck) bubble —
+          its render is now between `heroOuter` and `contentWrap` (see
+          below) so the player's identity card sits at the very top of
+          the profile and the tab nav lives directly underneath as
+          the entry point into each report. */}
 
       {/* ── COMMAND DECK HERO (ported from test-3) ── */}
       {(() => {
         const overall = aggregate?.overall ?? null;
         const pct = overall != null ? Math.max(0, Math.min(1, (overall - 20) / 60)) : 0;
-        const R = 68;                // gauge radius
+        /* SVG viewBox is 160×160, stroke-width is 6 (3px each side of
+           the path). For the visible ring's outer edge to sit at the
+           viewBox edge (so the rendered gauge fills the full 80×80
+           container and matches the Commitment circle's outer border),
+           the path radius needs to be 80 − 3 = 77 instead of the
+           previous 68. Combined with `overflow: visible` on the SVG
+           (already set in CSS) so the linecaps don't clip. */
+        const R = 77;                // gauge radius (ring outer edge at viewBox edge)
         const C = 2 * Math.PI * R;   // gauge circumference
 
         // 5-axis radar values (20-80 scouting scale) — derived from the
@@ -278,6 +538,22 @@ export default function PlayerProfilePage() {
 
         const committed = Boolean(player.collegeCommit);
 
+        /* Resolve the commitment circle's image. Priority order:
+             1. Match player.collegeCommit against the colleges list and use
+                the matching record's logoUrl (set in Settings →
+                Teams & Colleges).
+             2. Fall back to the graduation-cap glyph if no match / no logo.
+           The lookup is case-insensitive + whitespace-tolerant so legacy
+           free-text values still match cleanly. */
+        const commitLogoUrl = committed
+          ? (() => {
+              const needle = (player.collegeCommit || '').trim().toLowerCase();
+              if (!needle) return null;
+              const match = colleges.find(c => c.name.trim().toLowerCase() === needle);
+              return match?.logoUrl || null;
+            })()
+          : null;
+
         return (
           <div className={styles.heroOuter}>
             {/* "New Report" has moved into the Reports dropdown on each tab. */}
@@ -285,86 +561,345 @@ export default function PlayerProfilePage() {
             <div className={styles.commandDeck}>
               {/* LEFT: identity block */}
               <div className={styles.identityBlock}>
+                {/* Top telemetry strip — POS, HT, WT, B/T, GRAD, AGE,
+                    HS, Club. The leading pulsing-dot <i> bullet that
+                    previously sat before POS has been retired so the
+                    strip reads as a clean monospaced row. HS + Club
+                    used to render as their own row below the player
+                    name; they now join the end of this single strip
+                    so the entire identity block reads as one line
+                    above the player name. */}
                 <div className={styles.telemetryStrip}>
-                  <i aria-hidden="true" />
                   <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
                   <span>HT <b>{formatHeight(player.heightInches)}</b></span>
                   <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
                   <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
                   <span>GRAD <b>{player.gradYear || '—'}</b></span>
-                  <span>AGE <b>{getAge(player.birthDate, player.gradYear)}</b></span>
+                  <span>AGE <b>{getAge(player.birthDate)}</b></span>
+                  <span>HS <b>{player.highSchool || '—'}</b></span>
+                  <span>Club <b>{player.clubTeam || '—'}</b></span>
                 </div>
 
-                <h1 className={styles.megaName}>
-                  {player.firstName}{' '}
-                  <span className={styles.lastName}>{player.lastName}</span>
-                </h1>
+                {/* Player name + Player Score + Commitment row — name
+                    pinned LEFT, gauge + commitment grouped together on
+                    the RIGHT (justify-content: space-between) so the
+                    Commitment circle's right edge aligns with the
+                    Tool Grades section's right edge that begins below.
+                    Both circles sized ~76px to sit in line with the
+                    name + telemetry strip without dwarfing them. */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 24,
+                  flexWrap: 'wrap',
+                  /* Negative top margin pulls the entire name row
+                     closer to the telemetry strip above. Iterated
+                     -4 → -6 → -7 → -10 → -12 → -15 → -19 (final
+                     step closes another 30% of the remaining gap
+                     between the POS line and the player name).
+                     The identity block's flex `gap` is already 0,
+                     so this is the only remaining lever. */
+                  marginTop: -19,
+                }}>
+                  <h1 className={styles.megaName} style={{ margin: 0 }}>
+                    {player.firstName}{' '}
+                    <span className={styles.lastName}>{player.lastName}</span>
+                  </h1>
 
-                <div className={styles.hud}>
-                  <div className={styles.hudCell}>
-                    <span className={styles.hudLabel}>High School</span>
-                    <span className={styles.hudValue}>{player.highSchool || '—'}</span>
-                  </div>
-                  <div className={`${styles.hudCell} ${player.clubTeam ? '' : styles.cold}`}>
-                    <span className={styles.hudLabel}>Club Team</span>
-                    <span className={styles.hudValue}>{player.clubTeam || '—'}</span>
-                  </div>
-                  <div className={`${styles.hudCell} ${committed ? styles.warm : styles.cold}`}>
-                    <span className={styles.hudLabel}>Commitment</span>
-                    <span className={styles.hudValue}>{committed ? player.collegeCommit : 'Uncommitted'}</span>
-                  </div>
-                </div>
-              </div>
+                  {/* Right-side cluster — Commitment + Gauge grouped
+                      together. Order is Commitment (left) → Gauge
+                      (right) so the Player Grade circle is the
+                      RIGHTMOST element in the row.
 
-              {/* RIGHT: overall-score gauge — distribution radar retired,
-                  gauge now occupies the entire metrics column on its own. */}
-              <div className={styles.metricsCol}>
-                {(() => {
-                  // Gauge now follows the unified score bands: 20-40 red,
-                  // 40-50 orange, 50-60 yellow→green, 60-80 green. Use the
-                  // current overall to drive the stroke color (plus a softer
-                  // second stop for visual depth).
-                  const gaugeHi = overall != null ? scoreColor(overall) : '#c9ced6';
-                  const gaugeLo = overall != null ? scoreColor(Math.max(20, overall - 12)) : '#ffffff';
-                  return (
-                    <div className={styles.gaugeWrap}>
-                      <svg viewBox="0 0 160 160" aria-hidden="true">
-                        <defs>
-                          <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%"  stopColor={gaugeLo} />
-                            <stop offset="100%" stopColor={gaugeHi} />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="80" cy="80" r={R} className={styles.gaugeTrack} />
-                        <circle
-                          cx="80" cy="80" r={R}
-                          className={styles.gaugeFill}
-                          strokeDasharray={C}
-                          strokeDashoffset={C - C * pct}
+                      `marginRight: -26` cancels the .commandDeck's
+                      26px right padding so the gauge's right edge
+                      lands flush with the commandDeck's outer right
+                      edge — the same right edge the Tool Grades
+                      panel below uses (both panels share the same
+                      contentWrap container, no horizontal padding). */}
+                  <div style={{
+                    display: 'flex',
+                    /* alignItems flipped center → flex-start so the
+                       Player Grade gauge top-aligns with the
+                       Commitment circle's top (instead of being
+                       centered against the taller Commitment column
+                       that includes the school-name caption). The two
+                       circles now share the same vertical position. */
+                    alignItems: 'flex-start',
+                    /* Gap bumped 20 → 30 → 35 (extra 5px on top of
+                       the previous shift) so the Commitment circle
+                       pushes a further 5px LEFT while the Player
+                       Grade gauge stays anchored to the cluster's
+                       right edge. */
+                    gap: 35,
+                    flex: '0 0 auto',
+                    /* marginRight loosened -26 → -16 → -1 (another
+                       15px less overhang) so the whole cluster shifts
+                       a further 15px LEFT. Combined with the gap
+                       bump above, this round moves the Player Grade
+                       gauge 15px left and the Commitment circle
+                       20px left from their previous positions. */
+                    marginRight: -1,
+                  }}>
+
+                  {/* College Commitment — outer rectangular bubble
+                      chrome (background / border / shadow / fixed
+                      width) retired per spec. The wrapper is now a
+                      transparent layout-only flex column holding the
+                      logo + caption with the same internal spacing
+                      the rectangle used. The inner logo still has no
+                      chrome of its own — the image circle and the
+                      italic caption simply sit on the dark
+                      command-deck surface behind, no surrounding
+                      bubble. */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    flex: '0 0 auto',
+                    opacity: committed ? 1 : 0.9,
+                    /* Padding tuned so the LOGO sits at the cluster's
+                       exact vertical center, which makes the player-
+                       name h1 to the LEFT (parent row uses
+                       `alignItems: 'center'`) line up perfectly with
+                       the logo's midline rather than with the cluster
+                       midpoint that previously sat above the logo
+                       because the caption skewed the average down.
+                       Math: paddingTop 30 + (logo 72)/2 = 66 from
+                       cluster top to logo center. To put the logo
+                       at cluster mid-height, paddingBottom must
+                       satisfy paddingTop = paddingBottom + gap +
+                       caption_height ⇒ 10 = 30 − 6 − 14. */
+                    paddingTop: 30,
+                    paddingBottom: 10,
+                  }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      /* Logo holder — no longer carries the bubble
+                         chrome (background/border/shadow lifted up
+                         to the outer rectangle). Keeps `border-radius:
+                         50%` + `overflow: hidden` so the rendered
+                         image is still clipped to a circle inside
+                         the surrounding rectangle. */
+                      width: 72,
+                      height: 72,
+                      borderRadius: '50%',
+                      color: committed ? '#0E1116' : 'var(--text-muted)',
+                      flex: '0 0 auto',
+                      padding: commitLogoUrl ? 0 : 6,
+                      textAlign: 'center',
+                      overflow: 'hidden',
+                    }} aria-hidden="true">
+                      {commitLogoUrl ? (
+                        /* Uploaded college logo — wins over the
+                           graduation-cap glyph placeholder. Image is
+                           cover-fitted into the circular badge so it
+                           reads as the player's commitment crest. */
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={commitLogoUrl}
+                          alt={`${player.collegeCommit || ''} logo`}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            borderRadius: '50%',
+                            display: 'block',
+                          }}
                         />
-                      </svg>
-                      <div className={styles.gaugeInner}>
-                        <span
-                          className={styles.val}
-                          style={overall != null ? { color: gaugeHi, WebkitTextFillColor: gaugeHi, background: 'none' } : undefined}
-                        >
-                          {overall ?? '—'}
+                      ) : committed ? (
+                        /* Graduation-cap glyph — generic logo placeholder
+                           shown when the player IS committed but the
+                           matching College record has no `logoUrl` set.
+                           Once the coach uploads a logo in Settings →
+                           Teams & Colleges this gets replaced by the
+                           <img> branch above. Glyph trimmed 47 → 38 →
+                           34 (another 10 % smaller) in step with the
+                           circle. */
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" strokeWidth="2"
+                             strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 10L12 5 2 10l10 5 10-5z" />
+                          <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" />
+                        </svg>
+                      ) : (
+                        /* In-circle "Uncommitted" label — replaces the
+                           glyph + caption pair when the player has no
+                           commitment on file. Rendered small + muted
+                           grey so the badge stays visually subdued
+                           (a player with no commit shouldn't shout). */
+                        <span style={{
+                          fontSize: 7,
+                          fontWeight: 600,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          lineHeight: 1.1,
+                          color: 'var(--text-muted)',
+                          opacity: 0.7,
+                        }}>
+                          Uncommitted
                         </span>
-                        <span className={styles.suffix}>/80 SCALE</span>
+                      )}
+                    </span>
+                    {committed && (
+                      <span style={{
+                        /* Caption bumped 10.5 → 12.6 (20% larger) so
+                           the school name reads as a primary identity
+                           element below the (now smaller) badge. */
+                        fontSize: 12.6,
+                        fontWeight: 700,
+                        /* Italic per spec — the school-name caption
+                           and the Player Grade caption below the
+                           sibling gauge are both rendered italic so
+                           the matched pair of HUD-circle labels reads
+                           as accent text rather than plain captions. */
+                        fontStyle: 'italic',
+                        color: 'var(--text-bright)',
+                        letterSpacing: '0.04em',
+                        textAlign: 'center',
+                        /* `maxWidth: 140` retired + `whiteSpace:
+                           'nowrap'` added so long school names (e.g.
+                           "University of Minnesota") read on a single
+                           horizontal line under the badge instead of
+                           wrapping onto two. The parent wrapper uses
+                           `flex: '0 0 auto'`, so it grows to fit the
+                           caption's natural width — the 72 px logo
+                           stays horizontally centered inside the now-
+                           wider column. */
+                        whiteSpace: 'nowrap',
+                        lineHeight: 1.1,
+                      }}>
+                        {player.collegeCommit}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Player Score gauge — circular HUD sized to ~90%
+                      of the Player Name bubble's height so it matches
+                      the Commitment badge to the left. The gauge's
+                      `gaugeWrap` CSS class drives its 130×130 default;
+                      an inline width/height override here sets it to
+                      72×72 (was 110 → 80 → 72; 10 % smaller in step
+                      with the Commitment circle's matching shrink).
+                      Rightmost element in the row → its right edge
+                      aligns with the Tool Grades section's right edge
+                      below. Wrapped in a flex column so the "Player
+                      Grade" caption can sit directly under the gauge,
+                      mirroring the Commitment circle's college-name
+                      caption. */}
+                  {(() => {
+                    const gaugeHi = overall != null ? scoreColor(overall) : '#c9ced6';
+                    const gaugeLo = overall != null ? scoreColor(Math.max(20, overall - 12)) : '#ffffff';
+                    return (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 4,
+                        flex: '0 0 auto',
+                        /* Match the Commitment wrapper's `paddingTop:
+                           30` (was 25 → 30) so the gauge's TOP
+                           visually aligns with the college logo's top
+                           in the sibling cluster. Parent uses
+                           `alignItems: 'flex-start'`, so without this
+                           the gauge would sit at the parent's top edge
+                           while the logo sat 30 px below it. */
+                        paddingTop: 30,
+                      }}>
+                        <div className={styles.gaugeWrap} style={{ width: 72, height: 72, flex: '0 0 auto' }}>
+                          <svg viewBox="0 0 160 160" aria-hidden="true">
+                            <defs>
+                              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%"  stopColor={gaugeLo} />
+                                <stop offset="100%" stopColor={gaugeHi} />
+                              </linearGradient>
+                            </defs>
+                            <circle cx="80" cy="80" r={R} className={styles.gaugeTrack} />
+                            <circle
+                              cx="80" cy="80" r={R}
+                              className={styles.gaugeFill}
+                              strokeDasharray={C}
+                              strokeDashoffset={C - C * pct}
+                            />
+                          </svg>
+                          <div className={styles.gaugeInner}>
+                            <span
+                              className={styles.val}
+                              style={{
+                                /* Trimmed 25 → 20 (about 20% smaller) in
+                                   step with the gauge shrinking 100 → 80
+                                   to match the Commitment circle's size.
+                                   Keeps the grade number roughly the same
+                                   fraction of the circle's diameter. */
+                                fontSize: 20,
+                                ...(overall != null ? { color: gaugeHi, WebkitTextFillColor: gaugeHi, background: 'none' } : {}),
+                              }}
+                            >
+                              {overall ?? '—'}
+                            </span>
+                            <span className={styles.suffix} style={{ fontSize: 7 }}>/80</span>
+                          </div>
+                        </div>
+                        {/* "Player Grade" caption — same typography as the
+                            college-name caption under the Commitment circle
+                            so the two HUD circles read as a matched pair
+                            with parallel labels below them. Both captions
+                            are italic per the matched-pair spec. */}
+                        <span style={{
+                          /* Bumped 10.5 → 12.6 to match the
+                             "University of Minnesota" caption font
+                             size in the Commitment cluster, so the
+                             two HUD-circle labels read as a true
+                             matched pair (same italic, same size,
+                             same weight, same letter-spacing). */
+                          fontSize: 12.6,
+                          fontWeight: 700,
+                          fontStyle: 'italic',
+                          color: 'var(--text-bright)',
+                          letterSpacing: '0.04em',
+                          textAlign: 'center',
+                          maxWidth: 140,
+                          lineHeight: 1.1,
+                        }}>
+                          Player Grade
+                        </span>
                       </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
+                  </div>{/* /right-side cluster */}
+                </div>
+
               </div>
-            </div>
+
+              {/* Right metrics column retired — the Player Score gauge
+                  now lives next to the Commitment chip inside the
+                  identity block above. */}
+            </div>{/* /commandDeck */}
           </div>
         );
       })()}
 
+      {/* ── Tab Bar (now below the player name bubble) ── */}
+      <TabBar tabs={visibleTabs} activeKey={activeTab} onTabChange={setActiveTab} />
+
       {/* ── Content ── */}
       <div className={styles.contentWrap}>
         <TabPanel active={activeTab === 'summary'}>
-          <PlayerSummaryTab {...tabProps} />
+          <PlayerSummaryTab
+            {...tabProps}
+            onCaptureSummaryPdf={handleCaptureSummaryPdf}
+            /* Drive Tool Grades' section list off the SAME visible-
+               tabs set the tab bar at the top uses. When the coach
+               hides Catching / Infield / Outfield / S & C via the
+               Eye toggle in the Report modal, those sections also
+               drop out of the Tool Grades grid below the bar so the
+               two surfaces always agree on what the player "trains". */
+            visibleTabKeys={visibleTabs.map((t) => t.key)}
+          />
         </TabPanel>
         <TabPanel active={activeTab === 'hitting'}>
           <HittingTab {...tabProps} />
@@ -392,10 +927,76 @@ export default function PlayerProfilePage() {
         </TabPanel>
       </div>
 
+      {/* PDF Builder modal — opens when the Player Summary tab's
+          "Download PDF" button is clicked. Lets the user pick which
+          sections to include, reorder them, position each section
+          vertically on its page, and save / load presets. Calls
+          handleBuildPdf with the chosen layout on Generate. */}
+      <PdfBuilderModal
+        open={pdfBuilderOpen}
+        playerName={`${player.firstName ?? ''} ${player.lastName ?? ''}`.trim()}
+        onClose={() => setPdfBuilderOpen(false)}
+        onCapture={captureAllSectionsForBuilder}
+        onGenerate={handleBuildPdf}
+      />
+
+      {/* "Generating PDF…" fullscreen overlay — shown while the
+          Summary PDF capture cycle is running, BUT only when the
+          PDF Builder modal is closed. When the builder is open the
+          modal already shows its own "Capturing live previews…"
+          state, and stacking the parent overlay on top of the
+          modal would obscure it (and was causing the "glitching out
+          of generating pdf" loop the user reported). */}
+      {capturingPdf && !pdfBuilderOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(8, 11, 18, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(2px)',
+          }}
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div style={{
+            background: 'rgba(20, 24, 32, 0.96)',
+            border: '1px solid rgba(126, 182, 255, 0.35)',
+            borderRadius: 16,
+            padding: '24px 32px',
+            color: 'var(--text-bright)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 13,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            fontWeight: 700,
+            boxShadow: '0 18px 48px rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                 style={{ animation: 'spin 1s linear infinite' }}>
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeDasharray="28 18" />
+            </svg>
+            Generating PDF…
+          </div>
+        </div>
+      )}
+
       {/* Report Modal — used for Create / Edit / Player profile-edit.
           profileEditOpen flips it into a SUMMARY-only view that hides the
-          report-type chip row, used by the player-side Edit Profile button. */}
-      {showReportModal && (
+          report-type chip row, used by the player-side Edit Profile button.
+          Also guarded on `user` being present: if auth is still resolving
+          (or the session expired) the modal mounted with `(user as any).id`
+          would throw "Cannot read property 'id' of null" before rendering.
+          The button that flips `showReportModal` true is itself gated
+          on the page's auth check above, so this should never fire as
+          long as `user` is truthy — the guard is belt-and-suspenders. */}
+      {showReportModal && user && (
         <ReportModal
           player={player}
           userId={(user as any).id || (user as any).sub}

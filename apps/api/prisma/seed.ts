@@ -12,27 +12,45 @@ function hashPassword(password: string): string {
 async function main() {
   console.log('Seeding database...');
 
-  // Clean existing data (order matters for foreign keys)
+  // Clean existing data (order matters for foreign keys).
+  // PERMANENT PLAYERS ARE PRESERVED — Jack Setterland (and any other
+  // player flagged `isPermanent`) keeps their record + every linked
+  // metric / report / video / etc. through re-seeds, so coach-uploaded
+  // data on the sandbox player isn't wiped each time `db:seed` runs.
   console.log('Cleaning existing data...');
+
+  const permanentPlayers = await prisma.player.findMany({
+    where: { isPermanent: true },
+    select: { id: true, userId: true },
+  });
+  const keepPlayerIds = permanentPlayers.map((p) => p.id);
+  const keepUserIds = permanentPlayers.map((p) => p.userId);
+  // `notIn: []` matches every row in Prisma → without permanent
+  // players the conditions become "delete every row", which is the
+  // pre-permanent behavior. With permanent players present, every
+  // row tied to one of those IDs is spared.
+  const wherePlayer = { playerId: { notIn: keepPlayerIds } };
+  const whereUploadedBy = { uploadedById: { notIn: keepPlayerIds } };
+
   await prisma.mlbVideo.deleteMany();
   await prisma.mlbPlayer.deleteMany();
   await prisma.eduClass.deleteMany();
-  await prisma.scheduledDrill.deleteMany();
+  await prisma.scheduledDrill.deleteMany({ where: wherePlayer });
   await prisma.drill.deleteMany();
-  await prisma.leaderboardEntry.deleteMany();
-  await prisma.gameReport.deleteMany();
+  await prisma.leaderboardEntry.deleteMany({ where: wherePlayer });
+  await prisma.gameReport.deleteMany({ where: wherePlayer });
   await prisma.trainingExercise.deleteMany();
   await prisma.trainingDay.deleteMany();
-  await prisma.trainingProgram.deleteMany();
+  await prisma.trainingProgram.deleteMany({ where: wherePlayer });
   await prisma.voiceOver.deleteMany();
   await prisma.annotation.deleteMany();
-  await prisma.video.deleteMany();
-  await prisma.report.deleteMany();
-  await prisma.metric.deleteMany();
+  await prisma.video.deleteMany({ where: { AND: [wherePlayer, whereUploadedBy] } });
+  await prisma.report.deleteMany({ where: wherePlayer });
+  await prisma.metric.deleteMany({ where: wherePlayer });
   await prisma.csvUpload.deleteMany();
   await prisma.post.deleteMany();
-  await prisma.player.deleteMany();
-  await prisma.user.deleteMany();
+  await prisma.player.deleteMany({ where: { isPermanent: false } });
+  await prisma.user.deleteMany({ where: { id: { notIn: keepUserIds } } });
 
   // Create coach user
   const coachUser = await prisma.user.create({
@@ -88,6 +106,50 @@ async function main() {
   }
 
   console.log(`Created ${players.length} players`);
+
+  // ── Jack Setterland (sandbox / permanent player) ──
+  // Created once via upsert so re-running this seed keeps his record
+  // (and every metric, report, video uploaded to him) intact. The
+  // cleanup phase above already spares any player flagged
+  // `isPermanent`, but we still upsert here so a freshly-cleared
+  // database also gets Jack on first seed.
+  const jackEmail = 'jack.setterland@playerdev.com';
+  let jackUser = await prisma.user.findUnique({ where: { email: jackEmail } });
+  if (!jackUser) {
+    jackUser = await prisma.user.create({
+      data: {
+        email: jackEmail,
+        password: hashPassword('player123'),
+        role: 'PLAYER',
+      },
+    });
+  }
+  const jackExisting = await prisma.player.findUnique({ where: { userId: jackUser.id } });
+  if (jackExisting) {
+    // Re-seed run — Jack already exists and his data is preserved.
+    // Just normalize the flag in case it ever drifted to false.
+    await prisma.player.update({
+      where: { id: jackExisting.id },
+      data: { isPermanent: true },
+    });
+    console.log('Permanent player Jack Setterland already exists — preserved with data intact.');
+  } else {
+    await prisma.player.create({
+      data: {
+        userId: jackUser.id,
+        firstName: 'Jack',
+        lastName: 'Setterland',
+        positions: 'INF,OF',
+        gradYear: 2026,
+        heightInches: 72,
+        weightLbs: 180,
+        bats: 'R',
+        throws: 'R',
+        isPermanent: true,
+      },
+    });
+    console.log('Created permanent player Jack Setterland.');
+  }
 
   // Seed metrics, CsvUploads, and Reports for each player
   // Helper: add random variation to a grade (±range, clamped 20-80)

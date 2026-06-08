@@ -98,6 +98,21 @@ export function CoachingStudio({
   const compareCanvasRef = useRef<HTMLCanvasElement>(null);
   const localFileCounterRef = useRef(0);
 
+  // ── Browse-videos modal ──────────────────────────────────────────────────
+  // Richer alternative to the cramped <select> dropdown. Tracks which slot
+  // the picker is opening for so the chosen video drops into the correct
+  // pane (primary or compare).
+  const [browseOpen, setBrowseOpen] = useState<null | 'primary' | 'compare'>(null);
+  const [browseQuery, setBrowseQuery] = useState('');
+  const [browseCategory, setBrowseCategory] = useState<string>('all');
+
+  // Source-database browser modals — each pulls from the corresponding
+  // backend DB (MlbVideo / Drill / other Player's videos) so coaches can
+  // study or compare against real material instead of re-uploading files.
+  const [mlbBrowseOpen, setMlbBrowseOpen] = useState<null | 'primary' | 'compare'>(null);
+  const [drillBrowseOpen, setDrillBrowseOpen] = useState<null | 'primary' | 'compare'>(null);
+  const [otherAthleteOpen, setOtherAthleteOpen] = useState<null | 'primary' | 'compare'>(null);
+
   // Athlete's videos = those with a playable URL
   const athleteVideos = useMemo(
     () => videos.filter(v => (v.originalUrl || v.hlsUrl) && (v.status === 'READY' || v.status == null)),
@@ -339,6 +354,27 @@ export function CoachingStudio({
     else                    { setCompareSrc(src); setAnnotations(a => a.filter(x => x.pane !== 'compare')); }
   }
 
+  /**
+   * Load a video into the studio from an existing URL — used by the MLB,
+   * Drill, and Other-Athlete browsers. The id prefix tells the save flow
+   * what database the source came from so we can persist a stable
+   * reference (vs `local:` blobs which die with the page).
+   */
+  function loadFromUrl(
+    slot: 'primary' | 'compare',
+    opts: { id: string; url: string; title: string; category?: string; origin: VideoSrc['origin'] },
+  ) {
+    const src: VideoSrc = {
+      id: opts.id,
+      url: opts.url,
+      title: opts.title,
+      category: opts.category,
+      origin: opts.origin,
+    };
+    if (slot === 'primary') { setPrimarySrc(src); setAnnotations(a => a.filter(x => x.pane !== 'primary')); }
+    else                    { setCompareSrc(src); setAnnotations(a => a.filter(x => x.pane !== 'compare')); }
+  }
+
   // ── Transport controls ────────────────────────────────────────────────────
   const playPause = () => {
     const v = primaryVideoRef.current;
@@ -468,58 +504,82 @@ export function CoachingStudio({
           {slot === 'primary' ? 'Primary' : 'Compare'}
         </span>
 
-        {/* Athlete videos dropdown */}
-        <select
-          value={cur?.id.startsWith('video:') ? cur.id.slice('video:'.length) : ''}
-          onChange={(e) => e.target.value && pickAthleteVideo(slot, e.target.value)}
-          style={{
-            background: 'rgba(20,24,32,0.85)',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            padding: '6px 10px',
-            borderRadius: 7,
-            fontSize: 12,
-            minWidth: 180,
+        {/* Browse the athlete's uploaded videos (rich picker with thumbs) */}
+        <button
+          type="button"
+          onClick={() => {
+            setBrowseQuery('');
+            setBrowseCategory('all');
+            setBrowseOpen(slot);
           }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px',
+            background: 'rgba(232,175,52,0.12)',
+            border: '1px solid rgba(232,175,52,0.35)',
+            borderRadius: 7,
+            fontSize: 11.5,
+            color: 'var(--gold)',
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+          title="Browse this player's uploaded videos"
         >
-          <option value="">— {player.firstName}&apos;s videos —</option>
-          {athleteVideos.map(v => (
-            <option key={v.id} value={v.id}>{v.title} · {v.category}</option>
-          ))}
-        </select>
+          📁 {player.firstName}&apos;s Videos
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            padding: '1px 6px',
+            borderRadius: 999,
+            background: 'rgba(232,175,52,0.20)',
+          }}>
+            {athleteVideos.length}
+          </span>
+        </button>
 
-        {/* Local file upload — single button per origin */}
-        {(['local', 'mlb', 'drill', 'other'] as const).map(origin => {
-          const labels = { local: 'Upload', mlb: 'MLB Clip', drill: 'Drill', other: 'Other Athlete' };
-          return (
-            <label
-              key={origin}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 12px',
-                background: 'rgba(126,182,255,0.10)',
-                border: '1px solid rgba(126,182,255,0.32)',
-                borderRadius: 7,
-                fontSize: 11.5,
-                color: 'var(--accent-light)',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              + {labels[origin]}
-              <input
-                type="file"
-                accept="video/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) pickLocalFile(slot, f, origin);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          );
-        })}
+        {/* MLB Clip — opens picker against the MlbVideo database */}
+        <button
+          type="button"
+          onClick={() => setMlbBrowseOpen(slot)}
+          style={pickerBtnStyle}
+          title="Pull a clip from the MLB Video Library"
+        >
+          + MLB Clip
+        </button>
+
+        {/* Drill — opens picker against the Drill library's videoUrls */}
+        <button
+          type="button"
+          onClick={() => setDrillBrowseOpen(slot)}
+          style={pickerBtnStyle}
+          title="Pull a video from the Drill Library"
+        >
+          + Drill
+        </button>
+
+        {/* Other Athlete — pick another player → pick one of their uploaded videos */}
+        <button
+          type="button"
+          onClick={() => setOtherAthleteOpen(slot)}
+          style={pickerBtnStyle}
+          title="Compare against another athlete's uploaded videos"
+        >
+          + Other Athlete
+        </button>
+
+        {/* Local file upload — for ad-hoc files outside any database */}
+        <label style={pickerBtnStyle}>
+          + Upload
+          <input
+            type="file"
+            accept="video/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) pickLocalFile(slot, f, 'local');
+              e.target.value = '';
+            }}
+          />
+        </label>
 
         {cur && (
           <span style={{
@@ -827,7 +887,7 @@ export function CoachingStudio({
                 ...transportBtnStyle,
                 background: 'rgba(244,63,94,0.30)',
                 borderColor: '#f43f5e',
-                color: '#fff',
+                color: 'var(--text-bright)',
                 fontWeight: 800,
                 animation: 'pulse-rec 1.2s infinite',
               }}
@@ -944,6 +1004,58 @@ export function CoachingStudio({
         </div>
       </Section>
 
+      {/* ── Browse player videos modal ── */}
+      {browseOpen && (
+        <BrowseVideosModal
+          slot={browseOpen}
+          playerName={player.firstName}
+          videos={athleteVideos}
+          query={browseQuery}
+          setQuery={setBrowseQuery}
+          category={browseCategory}
+          setCategory={setBrowseCategory}
+          onPick={(videoId) => {
+            pickAthleteVideo(browseOpen, videoId);
+            setBrowseOpen(null);
+          }}
+          onClose={() => setBrowseOpen(null)}
+        />
+      )}
+
+      {mlbBrowseOpen && (
+        <MlbClipBrowserModal
+          slot={mlbBrowseOpen}
+          onPick={(opts) => {
+            loadFromUrl(mlbBrowseOpen, opts);
+            setMlbBrowseOpen(null);
+          }}
+          onClose={() => setMlbBrowseOpen(null)}
+        />
+      )}
+
+      {drillBrowseOpen && (
+        <DrillBrowserModal
+          slot={drillBrowseOpen}
+          onPick={(opts) => {
+            loadFromUrl(drillBrowseOpen, opts);
+            setDrillBrowseOpen(null);
+          }}
+          onClose={() => setDrillBrowseOpen(null)}
+        />
+      )}
+
+      {otherAthleteOpen && (
+        <OtherAthleteBrowserModal
+          slot={otherAthleteOpen}
+          excludePlayerId={player.id}
+          onPick={(opts) => {
+            loadFromUrl(otherAthleteOpen, opts);
+            setOtherAthleteOpen(null);
+          }}
+          onClose={() => setOtherAthleteOpen(null)}
+        />
+      )}
+
       <style jsx global>{`
         @keyframes pulse-rec {
           0%, 100% { box-shadow: 0 0 0 0 rgba(244,63,94,0.45); }
@@ -951,6 +1063,277 @@ export function CoachingStudio({
         }
       `}</style>
     </>
+  );
+}
+
+/* ─── Browse player videos modal ────────────────────────────────────────────
+   Rich picker for the athlete's already-uploaded videos. Replaces the cramped
+   <select> dropdown — coaches can search, filter by category, and click a
+   thumbnail to drop the clip into the chosen studio slot.
+   ───────────────────────────────────────────────────────────────────────── */
+function BrowseVideosModal({
+  slot, playerName, videos, query, setQuery, category, setCategory, onPick, onClose,
+}: {
+  slot: 'primary' | 'compare';
+  playerName: string;
+  videos: api.Video[];
+  query: string;
+  setQuery: (q: string) => void;
+  category: string;
+  setCategory: (c: string) => void;
+  onPick: (videoId: string) => void;
+  onClose: () => void;
+}) {
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    videos.forEach((v) => v.category && set.add(v.category));
+    return ['all', ...Array.from(set).sort()];
+  }, [videos]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return videos
+      .filter((v) => category === 'all' || v.category === category)
+      .filter((v) => !q || v.title.toLowerCase().includes(q) || (v.category || '').toLowerCase().includes(q))
+      // Newest uploads first — more useful when you're studying recent work.
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [videos, query, category]);
+
+  function fmtDuration(sec: number | null) {
+    if (!sec || !isFinite(sec)) return '';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function fmtDate(iso: string) {
+    try {
+      return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
+    } catch { return ''; }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000,
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'min(960px, 100%)',
+          maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column',
+          background: 'rgba(18,22,30,0.98)',
+          border: '1px solid var(--border)',
+          borderRadius: 14,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 18px',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(255,255,255,0.025)',
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+              Pick a video for the {slot === 'primary' ? 'Primary' : 'Compare'} pane
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              {playerName}&apos;s uploaded videos · {filtered.length} of {videos.length} shown
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-muted)',
+              padding: '4px 10px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 18, lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Filter bar */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+          padding: '10px 18px',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by title or category…"
+            style={{
+              flex: '1 1 220px',
+              minWidth: 220,
+              background: 'rgba(20,24,32,0.85)',
+              border: '1px solid var(--border)',
+              color: 'var(--text)',
+              padding: '7px 10px',
+              borderRadius: 7,
+              fontSize: 12,
+            }}
+          />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCategory(c)}
+                style={{
+                  padding: '5px 11px',
+                  borderRadius: 999,
+                  fontSize: 11, fontWeight: 600,
+                  cursor: 'pointer',
+                  background: category === c ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
+                  color: category === c ? '#000' : 'var(--text-muted)',
+                  border: `1px solid ${category === c ? 'transparent' : 'var(--border)'}`,
+                  textTransform: 'capitalize',
+                }}
+              >
+                {c === 'all' ? 'All' : c}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Grid */}
+        <div style={{
+          flex: 1, overflowY: 'auto',
+          padding: 18,
+        }}>
+          {filtered.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '48px 16px',
+              color: 'var(--text-muted)', fontSize: 13,
+            }}>
+              {videos.length === 0
+                ? `No uploaded videos for ${playerName} yet.`
+                : 'No videos match the current filters.'}
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: 14,
+            }}>
+              {filtered.map((v) => {
+                const playable = !!(v.originalUrl || v.hlsUrl);
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    disabled={!playable}
+                    onClick={() => onPick(v.id)}
+                    style={{
+                      display: 'flex', flexDirection: 'column',
+                      textAlign: 'left',
+                      background: 'rgba(20,24,32,0.85)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      cursor: playable ? 'pointer' : 'not-allowed',
+                      opacity: playable ? 1 : 0.45,
+                      padding: 0,
+                      transition: 'border-color 0.15s, transform 0.1s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (playable) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-light)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                    }}
+                    title={playable ? 'Load into the studio' : 'No playable URL on this video'}
+                  >
+                    {/* Thumbnail */}
+                    <div style={{
+                      position: 'relative',
+                      aspectRatio: '16 / 9',
+                      background: '#000',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {v.thumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={v.thumbnailUrl}
+                          alt={v.title}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 28, color: 'rgba(255,255,255,0.35)' }}>🎬</span>
+                      )}
+                      {v.durationSec && (
+                        <span style={{
+                          position: 'absolute', bottom: 6, right: 6,
+                          background: 'rgba(0,0,0,0.75)',
+                          color: 'var(--text-bright)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: 10, fontWeight: 600,
+                        }}>
+                          {fmtDuration(v.durationSec)}
+                        </span>
+                      )}
+                      {!playable && (
+                        <span style={{
+                          position: 'absolute', top: 6, left: 6,
+                          background: 'rgba(244,63,94,0.85)',
+                          color: 'var(--text-bright)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                        }}>
+                          {v.status || 'No URL'}
+                        </span>
+                      )}
+                    </div>
+                    {/* Body */}
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{
+                        fontSize: 12.5, fontWeight: 700, color: 'var(--text)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {v.title}
+                      </div>
+                      <div style={{
+                        fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}>
+                        <span style={{
+                          background: 'rgba(126,182,255,0.12)',
+                          color: 'var(--accent-light)',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          fontSize: 10, fontWeight: 600,
+                        }}>{v.category || 'Uncategorized'}</span>
+                        <span>{fmtDate(v.createdAt)}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -967,8 +1350,708 @@ const transportBtnStyle: React.CSSProperties = {
   letterSpacing: '0.04em',
 };
 
+/* Shared style for the source-picker buttons in SourcePicker
+   (MLB Clip / Drill / Other Athlete / Upload). */
+const pickerBtnStyle: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '6px 12px',
+  background: 'rgba(126,182,255,0.10)',
+  border: '1px solid rgba(126,182,255,0.32)',
+  borderRadius: 7,
+  fontSize: 11.5,
+  color: 'var(--accent-light)',
+  cursor: 'pointer',
+  fontWeight: 600,
+};
+
 const toolLabelStyle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, letterSpacing: '0.18em',
   textTransform: 'uppercase', color: 'var(--text-muted)',
   marginRight: 4,
 };
+
+/* ─── Generic modal shell (shared by all browse modals) ──────────────────
+   Centered card with header (title + close), content slot, and the same
+   dimming overlay used by BrowseVideosModal so the studio's UX stays
+   consistent across every source picker.
+   ────────────────────────────────────────────────────────────────────── */
+function StudioModal({
+  title, subtitle, onClose, children,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000,
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'min(960px, 100%)',
+          maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column',
+          background: 'rgba(18,22,30,0.98)',
+          border: '1px solid var(--border)',
+          borderRadius: 14,
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 18px',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(255,255,255,0.025)',
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+            {subtitle && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{subtitle}</div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-muted)',
+              padding: '4px 10px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 18, lineHeight: 1,
+            }}
+            aria-label="Close"
+          >×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* Helpers used across browse modals */
+function isDirectVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  // YouTube embeds and watch URLs can't play in a <video> element, so the
+  // studio (which scrubs frame-by-frame) can't use them.
+  if (/youtube\.com|youtu\.be/.test(url)) return false;
+  return true;
+}
+
+function StudioVideoCard({
+  title, subtitle, thumbnail, badge, durationSec, disabled, onClick,
+}: {
+  title: string;
+  subtitle?: string;
+  thumbnail?: string | null;
+  badge?: string;
+  durationSec?: number | null;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const fmtDuration = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        display: 'flex', flexDirection: 'column',
+        textAlign: 'left',
+        background: 'rgba(20,24,32,0.85)',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        overflow: 'hidden',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+        padding: 0,
+        transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent-light)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+      }}
+      title={disabled ? 'Not playable in the studio (likely a YouTube link or missing URL)' : 'Load into the studio'}
+    >
+      <div style={{
+        position: 'relative',
+        aspectRatio: '16 / 9',
+        background: '#000',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbnail} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <span style={{ fontSize: 28, color: 'rgba(255,255,255,0.35)' }}>🎬</span>
+        )}
+        {durationSec ? (
+          <span style={{
+            position: 'absolute', bottom: 6, right: 6,
+            background: 'rgba(0,0,0,0.75)',
+            color: 'var(--text-bright)',
+            padding: '2px 6px',
+            borderRadius: 4,
+            fontSize: 10, fontWeight: 600,
+          }}>{fmtDuration(durationSec)}</span>
+        ) : null}
+        {disabled && (
+          <span style={{
+            position: 'absolute', top: 6, left: 6,
+            background: 'rgba(244,63,94,0.85)',
+            color: 'var(--text-bright)',
+            padding: '2px 6px',
+            borderRadius: 4,
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+          }}>Unsupported</span>
+        )}
+      </div>
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{
+          fontSize: 12.5, fontWeight: 700, color: 'var(--text)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{title}</div>
+        <div style={{
+          fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          {badge && (
+            <span style={{
+              background: 'rgba(126,182,255,0.12)',
+              color: 'var(--accent-light)',
+              padding: '1px 6px',
+              borderRadius: 4,
+              fontSize: 10, fontWeight: 600,
+            }}>{badge}</span>
+          )}
+          {subtitle && <span>{subtitle}</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/* ─── MLB Clip Browser ────────────────────────────────────────────────── */
+
+function MlbClipBrowserModal({
+  slot, onPick, onClose,
+}: {
+  slot: 'primary' | 'compare';
+  onPick: (opts: { id: string; url: string; title: string; category?: string; origin: VideoSrc['origin'] }) => void;
+  onClose: () => void;
+}) {
+  // Two-stage flow: pick MLB player → pick clip. Players' video summaries
+  // come from the list endpoint; the full video records (with URLs) need
+  // the per-player detail call.
+  const [players, setPlayers] = useState<api.MlbPlayer[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<api.MlbPlayer | null>(null);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getMlbPlayers()
+      .then((rows) => setPlayers(rows))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPlayerId) { setSelectedPlayer(null); return; }
+    let cancelled = false;
+    api.getMlbPlayer(selectedPlayerId).then((p) => {
+      if (!cancelled) setSelectedPlayer(p);
+    });
+    return () => { cancelled = true; };
+  }, [selectedPlayerId]);
+
+  const filteredPlayers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return players
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [players, query]);
+
+  return (
+    <StudioModal
+      title={`Pick an MLB clip for the ${slot === 'primary' ? 'Primary' : 'Compare'} pane`}
+      subtitle={selectedPlayer ? `${selectedPlayer.name} · ${(selectedPlayer.videos || []).length} clips` : 'Choose an MLB player'}
+      onClose={onClose}
+    >
+      {!selectedPlayer ? (
+        <>
+          <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)' }}>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search MLB players or teams…"
+              style={{
+                width: '100%',
+                background: 'rgba(20,24,32,0.85)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '7px 10px', borderRadius: 7, fontSize: 12,
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading…</div>
+            ) : filteredPlayers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+                No MLB players in the library yet. Add some from the Education page.
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                gap: 10,
+              }}>
+                {filteredPlayers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedPlayerId(p.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px',
+                      background: 'rgba(20,24,32,0.85)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 9,
+                      cursor: 'pointer',
+                      color: 'var(--text)',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: 22 }}>{p.emoji}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12, fontWeight: 700,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{p.name}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                        {(p.videos || []).length} clip{(p.videos || []).length === 1 ? '' : 's'}
+                        {p.team ? ` · ${p.team}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 18px', borderBottom: '1px solid var(--border)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setSelectedPlayerId(null)}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
+                padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                fontSize: 11, fontWeight: 600,
+              }}
+            >← Back to players</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+            {(selectedPlayer.videos || []).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+                No clips on this player yet.
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 14,
+              }}>
+                {(selectedPlayer.videos || []).map((v) => {
+                  const playable = isDirectVideoUrl(v.url);
+                  return (
+                    <StudioVideoCard
+                      key={v.id}
+                      title={v.title}
+                      subtitle={v.notes || undefined}
+                      badge={v.category}
+                      disabled={!playable}
+                      onClick={() => onPick({
+                        id: `mlb:${v.id}`,
+                        url: v.url || '',
+                        title: `${selectedPlayer.name} — ${v.title}`,
+                        category: v.category,
+                        origin: 'mlb',
+                      })}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </StudioModal>
+  );
+}
+
+/* ─── Drill Browser ───────────────────────────────────────────────────── */
+
+function DrillBrowserModal({
+  slot, onPick, onClose,
+}: {
+  slot: 'primary' | 'compare';
+  onPick: (opts: { id: string; url: string; title: string; category?: string; origin: VideoSrc['origin'] }) => void;
+  onClose: () => void;
+}) {
+  const [drills, setDrills] = useState<api.Drill[]>([]);
+  const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<string>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getDrills()
+      .then((rows) => setDrills(rows))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Only drills with a videoUrl are useful here.
+  const playable = useMemo(() => drills.filter((d) => !!d.videoUrl), [drills]);
+
+  const tabs = useMemo(() => {
+    const set = new Set<string>();
+    playable.forEach((d) => d.tab && set.add(d.tab));
+    return ['all', ...Array.from(set).sort()];
+  }, [playable]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return playable
+      .filter((d) => tab === 'all' || d.tab === tab)
+      .filter((d) => !q
+        || d.name.toLowerCase().includes(q)
+        || (d.description || '').toLowerCase().includes(q)
+        || (d.category || '').toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [playable, query, tab]);
+
+  return (
+    <StudioModal
+      title={`Pick a drill video for the ${slot === 'primary' ? 'Primary' : 'Compare'} pane`}
+      subtitle={`${filtered.length} of ${playable.length} drills with video shown`}
+      onClose={onClose}
+    >
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+        padding: '10px 18px', borderBottom: '1px solid var(--border)',
+      }}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search drills…"
+          style={{
+            flex: '1 1 220px', minWidth: 220,
+            background: 'rgba(20,24,32,0.85)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            padding: '7px 10px', borderRadius: 7, fontSize: 12,
+          }}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {tabs.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              style={{
+                padding: '5px 11px', borderRadius: 999,
+                fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                background: tab === t ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
+                color: tab === t ? '#000' : 'var(--text-muted)',
+                border: `1px solid ${tab === t ? 'transparent' : 'var(--border)'}`,
+                textTransform: 'capitalize',
+              }}
+            >
+              {t === 'all' ? 'All' : t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+            {playable.length === 0
+              ? 'No drills with videos in the library yet. Upload demo videos from the Education → Drills page.'
+              : 'No drills match the current filters.'}
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: 14,
+          }}>
+            {filtered.map((d) => (
+              <StudioVideoCard
+                key={d.id}
+                title={d.name}
+                subtitle={d.description || undefined}
+                badge={`${d.tab} · ${d.category}`}
+                onClick={() => onPick({
+                  id: `drill:${d.id}`,
+                  url: d.videoUrl || '',
+                  title: d.name,
+                  category: d.category,
+                  origin: 'drill',
+                })}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </StudioModal>
+  );
+}
+
+/* ─── Other Athlete Browser ───────────────────────────────────────────── */
+
+function OtherAthleteBrowserModal({
+  slot, excludePlayerId, onPick, onClose,
+}: {
+  slot: 'primary' | 'compare';
+  excludePlayerId: string;
+  onPick: (opts: { id: string; url: string; title: string; category?: string; origin: VideoSrc['origin'] }) => void;
+  onClose: () => void;
+}) {
+  const [players, setPlayers] = useState<api.Player[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<api.Player | null>(null);
+  const [videos, setVideos] = useState<api.Video[]>([]);
+  const [playerQuery, setPlayerQuery] = useState('');
+  const [videoQuery, setVideoQuery] = useState('');
+  const [loadingPlayers, setLoadingPlayers] = useState(true);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+
+  useEffect(() => {
+    api.getPlayers()
+      .then((rows) => setPlayers(rows.filter((p) => p.id !== excludePlayerId)))
+      .finally(() => setLoadingPlayers(false));
+  }, [excludePlayerId]);
+
+  useEffect(() => {
+    if (!selectedPlayer) { setVideos([]); return; }
+    let cancelled = false;
+    setLoadingVideos(true);
+    api.browseVideos({ playerId: selectedPlayer.id })
+      .then((rows) => {
+        if (!cancelled) setVideos(rows as api.Video[]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVideos(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedPlayer]);
+
+  const filteredPlayers = useMemo(() => {
+    const q = playerQuery.trim().toLowerCase();
+    return players
+      .filter((p) => !q
+        || `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
+        || (p.positions || '').toLowerCase().includes(q))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName));
+  }, [players, playerQuery]);
+
+  const playableVideos = useMemo(
+    () => videos.filter((v) => (v.originalUrl || v.hlsUrl) && (v.status === 'READY' || v.status == null)),
+    [videos],
+  );
+
+  const filteredVideos = useMemo(() => {
+    const q = videoQuery.trim().toLowerCase();
+    return playableVideos
+      .filter((v) => !q || v.title.toLowerCase().includes(q) || (v.category || '').toLowerCase().includes(q))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [playableVideos, videoQuery]);
+
+  return (
+    <StudioModal
+      title={`Pick another athlete's video for the ${slot === 'primary' ? 'Primary' : 'Compare'} pane`}
+      subtitle={selectedPlayer
+        ? `${selectedPlayer.firstName} ${selectedPlayer.lastName} · ${filteredVideos.length} of ${playableVideos.length} videos`
+        : 'Choose an athlete'}
+      onClose={onClose}
+    >
+      {!selectedPlayer ? (
+        <>
+          <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)' }}>
+            <input
+              type="text"
+              value={playerQuery}
+              onChange={(e) => setPlayerQuery(e.target.value)}
+              placeholder="Search athletes by name or position…"
+              style={{
+                width: '100%',
+                background: 'rgba(20,24,32,0.85)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '7px 10px', borderRadius: 7, fontSize: 12,
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+            {loadingPlayers ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading athletes…</div>
+            ) : filteredPlayers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+                No other athletes match.
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 10,
+              }}>
+                {filteredPlayers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedPlayer(p)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px',
+                      background: 'rgba(20,24,32,0.85)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 9,
+                      cursor: 'pointer',
+                      color: 'var(--text)',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {p.profilePhoto ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.profilePhoto} alt={p.firstName} style={{
+                        width: 36, height: 36, borderRadius: '50%', objectFit: 'cover',
+                      }} />
+                    ) : (
+                      <div style={{
+                        width: 36, height: 36, borderRadius: '50%',
+                        background: 'rgba(126,182,255,0.18)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 13, fontWeight: 700, color: 'var(--accent-light)',
+                      }}>
+                        {p.firstName?.[0] || '?'}{p.lastName?.[0] || ''}
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12, fontWeight: 700,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {p.firstName} {p.lastName}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                        {p.gradYear ? `'${String(p.gradYear).slice(-2)} ` : ''}{p.positions || ''}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+            padding: '10px 18px', borderBottom: '1px solid var(--border)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setSelectedPlayer(null)}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
+                padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                fontSize: 11, fontWeight: 600,
+              }}
+            >← Back to athletes</button>
+            <input
+              type="text"
+              value={videoQuery}
+              onChange={(e) => setVideoQuery(e.target.value)}
+              placeholder="Search videos…"
+              style={{
+                flex: '1 1 220px', minWidth: 220,
+                background: 'rgba(20,24,32,0.85)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '7px 10px', borderRadius: 7, fontSize: 12,
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+            {loadingVideos ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading videos…</div>
+            ) : filteredVideos.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+                {playableVideos.length === 0
+                  ? `${selectedPlayer.firstName} doesn't have any uploaded videos yet.`
+                  : 'No videos match the search.'}
+              </div>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 14,
+              }}>
+                {filteredVideos.map((v) => {
+                  const url = v.originalUrl || v.hlsUrl || '';
+                  return (
+                    <StudioVideoCard
+                      key={v.id}
+                      title={v.title}
+                      subtitle={new Date(v.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
+                      badge={v.category}
+                      thumbnail={v.thumbnailUrl}
+                      durationSec={v.durationSec}
+                      onClick={() => onPick({
+                        id: `video:${v.id}`,
+                        url,
+                        title: `${selectedPlayer.firstName} ${selectedPlayer.lastName} — ${v.title}`,
+                        category: v.category,
+                        origin: 'other',
+                      })}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </StudioModal>
+  );
+}

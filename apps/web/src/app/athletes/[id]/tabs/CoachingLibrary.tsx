@@ -32,8 +32,8 @@ function parseCoachingMeta(report: ReportSummary): CoachingMeta {
 }
 
 export function CoachingLibrary({
-  player, videos, reports, isCoach, onRefresh, onOpenStudio,
-}: TabProps & { onOpenStudio: () => void }) {
+  player, videos, reports, isCoach, onRefresh,
+}: TabProps) {
   const coachingReports = useMemo(
     () => reports.filter(r => r.reportType === 'COACHING')
                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -69,32 +69,14 @@ export function CoachingLibrary({
           subtitle={`${coachingReports.length} saved session${coachingReports.length === 1 ? '' : 's'} · ${player.firstName} ${player.lastName}`}
         />
 
-        {isCoach && (
-          <div style={{ marginBottom: 16 }}>
-            <button
-              type="button"
-              onClick={onOpenStudio}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '10px 18px', borderRadius: 10,
-                background: 'linear-gradient(135deg, rgba(126,182,255,0.18), rgba(61,139,253,0.10))',
-                border: '1px solid rgba(126,182,255,0.45)',
-                color: 'var(--accent-light)',
-                fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
-                cursor: 'pointer',
-                transition: 'background 0.15s ease, border-color 0.15s ease',
-              }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.background = 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.background = 'linear-gradient(135deg, rgba(126,182,255,0.18), rgba(61,139,253,0.10))'; }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="8" cy="8" r="6" />
-                <path d="M8 5v6M5 8h6" />
-              </svg>
-              Open Coaching Studio
-            </button>
-          </div>
-        )}
+        {/* "Open Coaching Studio" button retired — Studio's
+            authoring features (mic-narrated Coach Review recording,
+            drawing tools, compare, sync/unsync grid playback) now
+            live inside the bundle modal that opens from any video
+            tile, so a dedicated entry point isn't needed. The
+            Library below still surfaces every historical COACHING
+            report so coaches can browse what they saved from the
+            old Studio. */}
 
         {coachingReports.length === 0 ? (
           <div style={{

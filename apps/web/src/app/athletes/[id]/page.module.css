@@ -26,17 +26,37 @@
 /* ── Hero Section ── */
 .heroOuter {
   position: relative;
-  padding: 6px 0 8px;
+  /* Padding-bottom dropped from 8 → 0 so the entire vertical gap
+     between the Player Name bubble and the Tab Bar that now sits
+     under it is controlled by `.tabBarOuter`'s `margin-top`. Keeping
+     both above/below TabBar gaps in a single property lets the
+     "match top and bottom" rule below stay obvious. */
+  padding: 6px 0 0;
   margin-bottom: 0;
+  /* Match `.contentWrap`'s max-width AND its centering so the hero
+     block (and its commandDeck inside) ends at the same right edge
+     as the PlayerSummaryTab body below — guarantees the Player
+     Summary bubble's right edge lines up with the Tool Grades
+     bubble's right edge on any viewport width. `margin: 0 auto` keeps
+     the hero centered when the page is wider than 1200px so it tracks
+     with `.contentWrap` (which now also centers) and `.tabBarOuter`. */
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* faint top-glow behind hero — monochrome silver + blue corner */
+/* faint top-glow behind hero — monochrome silver + blue corner.
+   Stretched to the full hero width (was `left:10%; right:10%`) so the
+   blue right-side radial no longer has a hard vertical cutoff between
+   the Commitment circle and the Player Grade gauge. With the edges
+   pushed to 0/100% the gradient now fades naturally past the bubble's
+   own border, which hides any remaining seam. */
 .heroOuter::before {
   content: '';
   position: absolute;
   top: -40px;
-  left: 10%;
-  right: 10%;
+  left: 0;
+  right: 0;
   height: 200px;
   background:
     radial-gradient(ellipse at 18% center, rgba(255,255,255,0.06) 0%, transparent 58%),
@@ -102,9 +122,15 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.85fr);
+  /* Single column now that the Player Score gauge moved out of its
+     own right-side metrics col and into the identity block (next to
+     the Commitment chip). */
+  grid-template-columns: 1fr;
   gap: 20px;
-  padding: 20px 26px 18px;
+  /* Padding tightened (was 20/26/18 → 12/26/12 → 8/26/12) then
+     top bumped back up by 50% (8 → 12) so the telemetry POS row
+     gets more breathing room from the bubble's top edge. */
+  padding: 12px 26px 12px;
   /* Match the dark Movement-Plot tone used by every outer profile panel
      across the app — a single centered radial highlight over rgba(10,14,20)
      with a 1px white-rim border and the standard inner-shadow stack. The
@@ -115,7 +141,12 @@
       transparent 60%),
     rgba(10, 14, 20, 0.38);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 28px;
+  /* Top corners stay rounded at 28px; bottom corners are flattened
+     so the Player Name bubble docks cleanly into the TabBar sitting
+     immediately beneath it (the TabBar's top corners are also
+     flattened — together they read as ONE continuous panel split by
+     a single shared horizontal seam). */
+  border-radius: 28px 28px 0 0;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     inset 0 0 24px rgba(0, 0, 0, 0.35),
@@ -125,22 +156,22 @@
 }
 
 /* Soft blue glow in the top-left corner */
-.commandDeck::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 80px; height: 80px;
-  background: radial-gradient(circle at 0 0, rgba(61,139,253,0.28) 0%, transparent 65%);
-  pointer-events: none;
-  z-index: 2;
-}
+/* Soft blue glow in the top-left corner — RETIRED per coach-spec.
+   The decorative `rgba(61,139,253, ...)` blue corner radial was
+   removed so the Player Name bubble reads as a clean neutral panel
+   in both dark + light themes. Matches the Pitch Report HUD's
+   `.hudConsole::before` retirement. `content: none` prevents the
+   pseudo-element from rendering at all. */
+.commandDeck::before { content: none; }
 /* White beacon bar running vertically through the left edge */
 .commandDeck::after {
   content: '';
   position: absolute;
   left: 14px;
-  top: 70px;
-  bottom: 70px;
+  /* Top/bottom inset shrunk (was 70px) so the beacon still has a
+     visible middle now that the deck itself is shorter. */
+  top: 38px;
+  bottom: 38px;
   width: 2px;
   background: linear-gradient(180deg,
     transparent 0%,
@@ -157,7 +188,11 @@
 .identityBlock {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Gap zeroed (was 10 → 4 → 0) so the player name sits as close
+     as comfortably possible to the telemetry strip above. The
+     name's own line-box top buffer (line-height 0.94) provides
+     the small visual breathing room. */
+  gap: 0;
   padding-left: 20px;
   min-width: 0;
 }
@@ -168,27 +203,49 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  padding-bottom: 6px;
+  /* Padding-bottom zeroed (was 6 → 2 → 0) so the dashed border
+     hugs the POS readout — name row tightens against it. */
+  padding-bottom: 0;
   border-bottom: 1px dashed rgba(255,255,255,0.06);
-  line-height: 1.2;
+  /* Line-height tightened 10% (1.2 → 1.08) to pull this telemetry
+     row's bottom edge closer to the player name below it. */
+  line-height: 0.97;
 }
 .telemetryStrip span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.2;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  /* Labels (POS, HT, WT, B/T, GRAD, AGE, HS, Club) now read in the
+     same Brown italic display treatment that drives "Player Summary"
+     and every other panel title across the app. The wide-tracked
+     uppercase mono look that lived here previously gets retired
+     so the player-info chrome shares the Mason-Brown identity used
+     in the bubble titles below. The `b` value sibling already uses
+     this font; switching the label span to match makes the strip
+     read as one harmonized type system. */
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  /* Bumped from 12px → 13.8px (a 15% increase) so the POS/HT/WT/...
+     telemetry readout reads larger across the top of the Player Name
+     bubble. The b sibling tracks the same size. */
+  font-size: 13.8px;
+  /* Matched the parent's tightened 1.08 line-height so the visual
+     row height collapses uniformly. */
+  line-height: 0.97;
+  /* Tighter tracking + drop the uppercase since Brown italic reads
+     best in its native mixed case (matches `.panelTitle` style). */
+  letter-spacing: -0.01em;
+  text-transform: none;
   color: var(--text-muted);
 }
 .telemetryStrip b {
   font-family: var(--font-display);
-  font-size: 12px;
+  /* 15% size bump to match the parent span. */
+  font-size: 13.8px;
   font-weight: 600;
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 0.97;
   color: var(--text-bright);
   text-transform: none;
   /* Force lining figures so pure-digit values (GRAD, AGE, WT) sit on
@@ -244,6 +301,15 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  /* Promote to inline-block + add a small trailing padding so the
+     italic slant of the LAST glyph (e.g. the right edge of the "N"
+     in "Brown") fits inside the gradient's box. Without this, the
+     glyph's slanted top extends past the span's intrinsic width and
+     falls outside the linear-gradient's painting area — with
+     -webkit-text-fill-color: transparent that means the tip of the
+     letter renders as nothing and looks visually clipped. */
+  display: inline-block;
+  padding-right: 0.08em;
 }
 
 /* ── Metrics column (RIGHT column) — overall-score gauge only.
@@ -500,10 +566,34 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   width: 100%;
-  max-width: 820px;
+  /* Widened from 820 → 1200 px so the Reports modal has room for
+     the multi-column CSV / metric / grade sections to breathe. The
+     Create Post modal in `app/page.module.css` is matched to the
+     same cap, keeping the two surfaces visually consistent. */
+  max-width: 1200px;
   box-shadow: var(--shadow-lg), 0 0 80px rgba(255,255,255,0.04);
   position: relative;
 }
+
+/* Light-theme override: report-modal body is solid white per
+   coach-spec — the dark gradient is retired and the modal reads
+   as a clean white canvas with subtle shadow lift. Border drops
+   to a low-opacity black for crisp definition. Used by the
+   Report modal (new/edit) AND the Player Profile edit modal. */
+[data-theme="light"] .modalContent {
+  /* App's page-floor grey (--bg = #aeaeae in light) so the modal body
+     behind the report sections reads as the same grey backdrop as the
+     rest of the app — the form bubbles (Hitting-Snapshot-slate outer
+     panels, Curveball-off-white inner cards, etc.) then float on the
+     same canvas they would on the live page. Was pure #ffffff which
+     made the form bubbles read as same-color blobs on a white sheet. */
+  background: var(--bg);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 4px 14px rgba(15, 20, 30, 0.08),
+    0 24px 60px rgba(15, 20, 30, 0.10);
+}
+
 .modalContent::before {
   content: '';
   position: absolute;
@@ -512,6 +602,12 @@
   background: var(--grad-edge);
   opacity: 0.7;
   pointer-events: none;
+}
+/* Retire the decorative white-rim hairline at the top of the
+   modal in light mode (it was tuned for the dark gradient
+   surface and reads as a strange line on the white bg). */
+[data-theme="light"] .modalContent::before {
+  content: none;
 }
 
 .modalHeader {
@@ -572,6 +668,11 @@
 
 .contentWrap {
   max-width: 1200px;
+  /* Centered with auto margins so the body tracks with `.heroOuter`
+     above it — both bubbles (Player Summary at the top, Tool Grades
+     and the rest of the tab content below) share the same right
+     edge regardless of viewport width. */
+  margin: 0 auto;
   padding: 0 0 48px;
 }
 
@@ -674,20 +775,28 @@
 
 /* Command deck — invert Movement-Plot dark tone to a clean white panel. */
 [data-theme="light"] .commandDeck {
-  background:
-    radial-gradient(ellipse at 50% 35%,
-      rgba(0, 0, 0, 0.02) 0%,
-      transparent 60%),
-    #ffffff;
+  /* Player Name bubble — inherits the shared `--panel-bg-
+     light` from `.pageRoot`. Hand-tuned 3-layer shadow that
+     only rims the TOP + SIDES (no downward component) per
+     coach-spec: the Player Name bubble docks flush against
+     the TabBar (which has flat top corners and no top border
+     so the two read as ONE continuous panel with a single
+     seam line between them). A full `--bubble-shadow` drop
+     here would cast over the Player-Summary tab button below,
+     breaking the "single bubble" illusion. The TabBar
+     supplies its own downward shadow for the bottom of the
+     combined unit. */
+  background: var(--panel-bg-light);
   border-color: rgba(0, 0, 0, 0.10);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    0 8px 22px rgba(15, 20, 30, 0.08);
+    -3px 0 12px rgba(0, 0, 0, 0.14),
+    3px 0 12px rgba(0, 0, 0, 0.14),
+    0 -4px 14px rgba(0, 0, 0, 0.14);
 }
 /* Soften the corner blue glow — the dark theme version was 0.28 alpha. */
-[data-theme="light"] .commandDeck::before {
-  background: radial-gradient(circle at 0 0, rgba(61, 139, 253, 0.16) 0%, transparent 65%);
-}
+/* `.commandDeck::before` was retired in the base rule above
+   (`content: none`) so the light-theme override is gone too —
+   no decorative blue corner glow in either theme. */
 /* Replace the bright white beacon bar with a graphite gradient so it's
    visible on a white background. */
 [data-theme="light"] .commandDeck::after {
@@ -728,4 +837,74 @@
    invisible on white. Flip to a dark hairline. */
 [data-theme="light"] .telemetryStrip {
   border-bottom-color: rgba(0, 0, 0, 0.10);
+}
+
+/* ── Page wrapper override (test) ──
+   Per coach-spec the player profile inverts the standard
+   light-theme palette: PAGE background flips to the canonical
+   neutral grey (#e6e6e6, the literal `--panel-bg-light` value)
+   and every BUBBLE inside flips to WHITE.
+
+   Implementation: redefine `--panel-bg-light` to `#ffffff` on
+   the page wrapper. Every descendant that reads `var(--panel-
+   bg-light)` (Player Name commandDeck, Tool Grades panel,
+   Coach Grades panels, Player Summary panels, sub-tab bars,
+   Spray-Chart bubble chrome via `--bubble-chrome-bg`'s parent
+   resolution, the Athlete-Hub-style PageHeader via its
+   `--page-header-bg` fallback, …) automatically picks up the
+   white fill without touching each rule individually. The
+   wrapper itself paints the literal grey as its background.
+
+   Page padding via the .app-main wrapper is cancelled with
+   matching negative margins so the grey extends edge-to-edge
+   inside the main content area, with responsive variants for
+   the 16px / 12px viewports. Light theme only. */
+[data-theme="light"] .pageRoot {
+  /* OUTER panels (Player Name, Player Summary panels, Tool
+     Grades, Pitch Report outer, Infielder/Outfielder/Catching
+     Snapshots, Strength, Mobility, Speed, Hitting Snapshot,
+     Hitting Inputs outer, etc.) — flat cool slate `#dee1e5`,
+     matching the Hitting Snapshot bubble color per coach-
+     spec. No more shine recipe — every outer bubble across
+     the profile reads as the same uniform cool-slate frame
+     against the medium-grey page floor (`#aeaeae`). */
+  --panel-bg-light: #dee1e5;
+
+  /* INTERIOR bubbles (Tool Grades section rows, Movement
+     Plot, Pitch Report inner Curveball/Fastball cards, Spray
+     Chart inner chrome, Notes, sub-bubbles inside any
+     Snapshot, etc.) — flat near-white `#eaeaea`, matching
+     the Hitting Snapshot's interior color. Slightly darker
+     than the previous `#ededed` so the interior bubble layer
+     unifies with the Hitting tab treatment. */
+  --card-elev: linear-gradient(180deg, #eaeaea 0%, #eaeaea 100%);
+  --card-elev-hover: linear-gradient(180deg, #f0f0f0 0%, #eaeaea 100%);
+  --card-elev-bg: #eaeaea;
+  --bubble-chrome-bg: #eaeaea;
+
+  /* Shared shadow stack — moderate-but-slightly-darker lift.
+     Two-layer drop: near-edge contact shadow + medium
+     ambient cast. A small alpha bump over the prior 10/12%
+     so the bubbles read more grounded against the grey page
+     without becoming heavy. */
+  --bubble-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.14),
+    0 12px 26px rgba(15, 20, 30, 0.16);
+
+  background: #aeaeae;
+  margin: -24px;
+  padding: 24px;
+  min-height: 100vh;
+}
+@media (max-width: 768px) {
+  [data-theme="light"] .pageRoot {
+    margin: -16px -12px;
+    padding: 16px 12px;
+  }
+}
+@media (max-width: 480px) {
+  [data-theme="light"] .pageRoot {
+    margin: -12px -8px;
+    padding: 12px 8px;
+  }
 }

@@ -95,13 +95,15 @@ async function run() {
     assert(res.status === 401, `Expected 401, got ${res.status}`);
   });
 
-  let playerToken: string;
+  let playerToken!: string;
+  let playerOwnId!: string; // the linked Player.id of the logged-in PLAYER user
   await test('POST /auth/login with player credentials returns JWT', async () => {
     const data = await post<any>('/auth/login', { email: 'john@playerdev.com', password: 'player123' });
     assert(data.role === 'PLAYER', `Expected PLAYER role, got ${data.role}`);
     assert(!!data.playerId, 'Missing playerId');
     assert(typeof data.token === 'string' && data.token.split('.').length === 3, 'Missing JWT token');
     playerToken = data.token;
+    playerOwnId = data.playerId;
   });
 
   await test('POST /players as PLAYER returns 401 (role guard)', async () => {
@@ -134,8 +136,8 @@ async function run() {
   });
 
   // Players
-  let players: any[];
-  let johnId: string;
+  let players!: any[];
+  let johnId!: string;
 
   await test('GET /players returns seeded players', async () => {
     players = await get<any[]>('/players');
@@ -194,6 +196,78 @@ async function run() {
     assert(Array.isArray(programs[0].days), 'Missing days');
     assert(programs[0].days.length >= 1, 'No training days');
   });
+
+  // ─── Security boundary — assertPlayerOwnership ────────────────────
+  // Players must only see their own data. These tests hit each
+  // ownership-checked endpoint with a PLAYER token, first against their
+  // own playerId (should pass), then against another player's id (should
+  // be rejected). If anyone refactors and forgets the guard, these go
+  // red on the next CI run.
+  const otherPlayer = players.find((p: any) => p.id !== playerOwnId);
+  if (!otherPlayer) {
+    console.warn('Skipping security-boundary tests — no second player in seed data.');
+  } else {
+    const otherId = otherPlayer.id;
+    const playerAuth = { Authorization: `Bearer ${playerToken}` };
+
+    const expectStatus = async (path: string, expected: number, opts: RequestInit = {}) => {
+      const res = await fetch(`${BASE}${path}`, {
+        ...opts,
+        headers: { ...playerAuth, ...(opts.headers || {}) },
+      });
+      assert(
+        res.status === expected,
+        `${opts.method || 'GET'} ${path}: expected ${expected}, got ${res.status}`,
+      );
+    };
+
+    // Reports — own ok, other rejected.
+    await test('PLAYER can fetch own reports', async () => {
+      await expectStatus(`/reports/player/${playerOwnId}`, 200);
+    });
+    await test('PLAYER blocked from another player\'s reports', async () => {
+      await expectStatus(`/reports/player/${otherId}`, 403);
+    });
+
+    // Players — own profile ok, other rejected.
+    await test('PLAYER can fetch own profile', async () => {
+      await expectStatus(`/players/${playerOwnId}`, 200);
+    });
+    await test('PLAYER blocked from another profile', async () => {
+      await expectStatus(`/players/${otherId}`, 403);
+    });
+    await test('PLAYER blocked from another player\'s top-metrics', async () => {
+      await expectStatus(`/players/${otherId}/top-metrics`, 403);
+    });
+
+    // Metrics — base + progress + dates routes.
+    await test('PLAYER can fetch own metrics', async () => {
+      await expectStatus(`/players/${playerOwnId}/metrics`, 200);
+    });
+    await test('PLAYER blocked from another player\'s metrics', async () => {
+      await expectStatus(`/players/${otherId}/metrics`, 403);
+    });
+    await test('PLAYER blocked from another player\'s metric progress', async () => {
+      await expectStatus(`/players/${otherId}/metrics/progress/max_exit_velo`, 403);
+    });
+
+    // Training schedule.
+    await test('PLAYER blocked from another player\'s schedule', async () => {
+      await expectStatus(`/training/schedule/${otherId}`, 403);
+    });
+
+    // Coach passes the same checks because COACH role short-circuits the
+    // ownership check — sanity-test that we didn't accidentally over-lock.
+    const coachAuth = { Authorization: `Bearer ${bearerToken}` };
+    await test('COACH can fetch any player\'s reports', async () => {
+      const res = await fetch(`${BASE}/reports/player/${otherId}`, { headers: coachAuth });
+      assert(res.status === 200, `Expected 200, got ${res.status}`);
+    });
+    await test('COACH can fetch any player\'s metrics', async () => {
+      const res = await fetch(`${BASE}/players/${otherId}/metrics`, { headers: coachAuth });
+      assert(res.status === 200, `Expected 200, got ${res.status}`);
+    });
+  }
 
   // Uploads
   await test('GET /uploads/sources returns supported sources', async () => {

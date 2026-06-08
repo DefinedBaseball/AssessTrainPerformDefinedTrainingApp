@@ -1,4 +1,163 @@
-import type { Player, Metric, Video } from '@/lib/api';
+import type { Player, Metric, Video, AtBatDetail, Pitch } from '@/lib/api';
+
+/* ── Live At-Bat → Swing Decision metrics ──────────────────────────────
+   Aggregates per-pitch outcomes from this athlete's saved Live At-Bats
+   into the same four percentages the Swing Decision Tool Grades bar
+   used to pull from CSV uploads: Barrel %, Whiff %, Chase %, In-Zone
+   Swing %. Replaces the FB/OS/Total CSV-derived bucketing now that
+   coaches are tracking at-bats live via /live/at-bat.
+
+   Pitch-result classification (matches the `PITCH_RESULTS` constants in
+   api.ts and the pitch-tracker buttons over in /live/at-bat):
+     • SWUNG  — STRIKE_SWINGING, STRIKE_OUT_SWINGING, FOUL, FLY_BALL,
+                GROUND_BALL, LINE_DRIVE, BARREL
+     • WHIFF  — STRIKE_SWINGING, STRIKE_OUT_SWINGING (swing-and-miss)
+     • BIP    — FLY_BALL, GROUND_BALL, LINE_DRIVE, BARREL (in-play)
+     • BARREL — BARREL only
+
+   Zone classification (from each pitch's `callBallStrike` field set by
+   the coach during live tracking):
+     • STRIKE / 'S' → in-zone
+     • BALL   / 'B' → out-of-zone
+     • Anything else → unknown; falls back to inferring from result
+       (BALL/WALK → out-of-zone; STRIKE_LOOKING/STRIKE_OUT_LOOKING →
+       in-zone). Pitches that can't be classified either way are
+       excluded from chase / zone-swing percentages but still count
+       toward barrel / whiff.
+
+   Returns raw 0-100 percentages (or null when the denominator is 0)
+   so the caller can plug them into the existing GRADE_RANGES → 20-80
+   converter (`toScoutingGrade`) without changing the grading logic. */
+const SWING_RESULTS = new Set<string>([
+  'STRIKE_SWINGING', 'STRIKE_OUT_SWINGING', 'FOUL',
+  'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL',
+]);
+const WHIFF_RESULTS = new Set<string>([
+  'STRIKE_SWINGING', 'STRIKE_OUT_SWINGING',
+]);
+const IN_PLAY_RESULTS = new Set<string>([
+  'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL',
+]);
+
+function pitchInZone(p: Pitch): 'in' | 'out' | 'unknown' {
+  const c = p.callBallStrike?.toUpperCase();
+  if (c === 'STRIKE' || c === 'S') return 'in';
+  if (c === 'BALL'   || c === 'B') return 'out';
+  /* Fall back to result-based inference for legacy pitches that
+     weren't tracking the zone-call field. */
+  if (p.result === 'BALL' || p.result === 'WALK') return 'out';
+  if (p.result === 'STRIKE_LOOKING' || p.result === 'STRIKE_OUT_LOOKING') return 'in';
+  return 'unknown';
+}
+
+export interface LiveSwingDecisionStats {
+  /** Barrel % across all balls in play (BARREL / BIP). */
+  barrelPct: number | null;
+  /** Whiff % across all swings (swing-and-miss / total swings). */
+  whiffPct: number | null;
+  /** Chase % across out-of-zone pitches (out-of-zone swings / oz pitches). */
+  chasePct: number | null;
+  /** In-Zone Swing % across in-zone pitches (iz swings / iz pitches). */
+  inZoneSwingPct: number | null;
+  /** Total pitches counted — surfaces "0 pitches" empty state in the UI. */
+  pitchCount: number;
+}
+
+export function computeLiveSwingDecisionStats(atBats: AtBatDetail[]): LiveSwingDecisionStats {
+  let pitchCount = 0;
+  let swings = 0;
+  let whiffs = 0;
+  let bip = 0;
+  let barrels = 0;
+  let inZone = 0;
+  let outZone = 0;
+  let inZoneSwings = 0;
+  let outZoneSwings = 0;
+
+  for (const ab of atBats) {
+    for (const p of ab.pitches || []) {
+      pitchCount++;
+      const swung = p.result ? SWING_RESULTS.has(p.result) : false;
+      if (swung) swings++;
+      if (p.result && WHIFF_RESULTS.has(p.result)) whiffs++;
+      if (p.result && IN_PLAY_RESULTS.has(p.result)) bip++;
+      if (p.result === 'BARREL') barrels++;
+      const zone = pitchInZone(p);
+      if (zone === 'in')  { inZone++;  if (swung) inZoneSwings++;  }
+      if (zone === 'out') { outZone++; if (swung) outZoneSwings++; }
+    }
+  }
+
+  const pct = (num: number, denom: number): number | null =>
+    denom > 0 ? Math.round((num / denom) * 1000) / 10 : null;
+
+  return {
+    barrelPct:       pct(barrels, bip),
+    whiffPct:        pct(whiffs, swings),
+    chasePct:        pct(outZoneSwings, outZone),
+    inZoneSwingPct:  pct(inZoneSwings, inZone),
+    pitchCount,
+  };
+}
+
+/* ── Hidden tabs (per-player UI preference) ─────────────────────────────
+   Each player profile can hide individual tabs via the Eye toggle in the
+   Report modal header — useful for athletes who don't train every
+   discipline (e.g. a strict hitter doesn't need Catching / Infield /
+   Outfield / S & C surfacing on their profile).
+
+   Stored in localStorage keyed by playerId so the preference persists
+   per-browser. Switching to a different machine resets to the defaults;
+   moving this to the server would require a Prisma migration + API
+   endpoint, which can be done later without changing this surface.
+
+   The four position-specific Defense tabs + S & C default to HIDDEN so
+   only Hitting / Pitching surface for a fresh player record. Coaches
+   click the eye in the report modal to bring any of them back. */
+export const DEFAULT_HIDDEN_TABS = ['catching', 'infield', 'outfield', 'strength'] as const;
+
+/** Maps a `REPORT_TYPES` id (HITTING, PITCHING, …) to its profile-tab key
+ *  (hitting, pitching, …). Used by the Eye toggle to know which tab to
+ *  show / hide when the user clicks. */
+export const REPORT_TYPE_TO_TAB: Record<string, string> = {
+  HITTING: 'hitting',
+  PITCHING: 'pitching',
+  STRENGTH: 'strength',
+  INFIELD: 'infield',
+  OUTFIELD: 'outfield',
+  CATCHING: 'catching',
+};
+
+function hiddenTabsKey(playerId: string): string {
+  return `player.${playerId}.hiddenTabs`;
+}
+
+/** Read the hidden-tab set for a player from localStorage, falling back
+ *  to `DEFAULT_HIDDEN_TABS` when nothing has been saved yet. Returns a
+ *  fresh array each call so callers can mutate safely. */
+export function getHiddenTabs(playerId: string): string[] {
+  if (!playerId || typeof window === 'undefined') return [...DEFAULT_HIDDEN_TABS];
+  try {
+    const raw = window.localStorage.getItem(hiddenTabsKey(playerId));
+    if (raw === null) return [...DEFAULT_HIDDEN_TABS];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...DEFAULT_HIDDEN_TABS];
+    return parsed.filter((s): s is string => typeof s === 'string');
+  } catch { return [...DEFAULT_HIDDEN_TABS]; }
+}
+
+/** Persist the hidden-tab set and fire a window event so other live
+ *  components (the tab bar over in page.tsx) pick up the change without
+ *  needing a full re-render cycle. */
+export function setHiddenTabsForPlayer(playerId: string, tabs: string[]): void {
+  if (!playerId || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(hiddenTabsKey(playerId), JSON.stringify(tabs));
+    window.dispatchEvent(new CustomEvent('player:hiddenTabsChanged', {
+      detail: { playerId },
+    }));
+  } catch { /* ignore quota / disabled storage */ }
+}
 
 /* ── Shared Types ── */
 
@@ -31,6 +190,11 @@ export interface TabProps {
   /** Open the profile-edit modal (Summary form). Used by the player-side
    *  Edit Profile button that replaces Add Report on non-coach views. */
   onEditProfile?: () => void;
+  /** Switch the parent profile to the Videos tab. Wired into each tab's
+   *  TabBarActions as an icon-only "Videos" button that sits next to
+   *  the Download PDF icon, replacing the standalone Videos tab in
+   *  the main nav. Works the same way in both player + coach apps. */
+  onOpenVideos?: () => void;
 }
 
 /** Get the latest report matching any of the given types */
@@ -68,6 +232,10 @@ export interface ManualSwingScores {
   core: number | null;
   slot: number | null;
   timing: number | null;
+  /** Coach grade on the hitter's stride — length / direction from load
+   *  to launch. Persisted alongside the other Coach Diagnosis keys at
+   *  content.manualScores on the HITTING report. */
+  stride: number | null;
 }
 
 /** Mechanical coach grades for a PITCHING report (20-80 scale). Persisted at
@@ -126,21 +294,34 @@ export const PITCHING_GRADE_SECTIONS: PitchingGradeSectionConfig[] = [
       { key: 'direction',           label: 'Direction',            options: ['Stuck Back', 'Drift Forward', 'Spin Off', 'Push Off'] },
       { key: 'strideLength',        label: 'Stride Length',        options: ['Short', 'Medium', 'Long'] },
       { key: 'lowerHalfConnection', label: 'Lower Half Connection', options: ['Stable', 'Early Hip Rotation', 'Limited Separation'] },
+      /* "Drift" — timing-of-forward-move chip added under Direction. */
+      { key: 'drift',               label: 'Drift',                 options: ['Early', 'Behind', 'Good'] },
     ],
   },
   {
     key: 'lhfs', title: 'Lower Half at Foot Strike', icon: '🦵',
     items: [
-      { key: 'footStrikePosture', label: 'Foot Strike Posture', options: ['Stacked', 'Early Trunk Tilt', 'Falling Forward', 'Stuck Back'] },
+      /* "Foot Strike Posture" → "Foot Position" rename.
+         Storage key also flips (`footStrikePosture` → `footPosition`)
+         and the option set is the new toe/heel/orientation taxonomy.
+         Old saved reports with `lhfs.footStrikePosture` will read as
+         empty for this slot — by design, since the new descriptor
+         set is incompatible with the old one. */
+      { key: 'footPosition',      label: 'Foot Position',       options: ['Heel', 'Toe', 'Closed', 'Open'] },
       { key: 'kneeFlexion',       label: 'Knee Flexion',         options: ['Stable', 'Stiff', 'Weak'] },
-      { key: 'leadLegBlock',      label: 'Lead Leg Block',       options: ['On Time', 'Early', 'Late'] },
+      /* "Stability" chip — coach-specified descriptor set. */
+      { key: 'stability',         label: 'Stability',            options: ['Leaked', 'Collapsed', 'Pushy', 'Balanced'] },
+      /* `leadLegBlock` moved OUT of this section — it now lives
+         under Lower Half Rotation below. */
     ],
   },
   {
     key: 'uhfs', title: 'Upper Half at Foot Strike', icon: '🎯',
     items: [
-      { key: 'shoulderPosition', label: 'Shoulder Position', options: ['Closed', 'On-Time', 'Early'] },
-      { key: 'gloveSide',        label: 'Glove Side',         options: ['Tucks', 'Opens', 'Passive'] },
+      { key: 'shoulderPosition',  label: 'Shoulder Position',   options: ['Closed', 'On-Time', 'Early'] },
+      { key: 'gloveSide',         label: 'Glove Side',          options: ['Tucks', 'Opens', 'Passive'] },
+      /* "Upper Body Posture" chip added per spec. */
+      { key: 'upperBodyPosture',  label: 'Upper Body Posture',  options: ['Forward', 'Back', 'Upright', 'Hinged'] },
     ],
   },
   {
@@ -148,6 +329,10 @@ export const PITCHING_GRADE_SECTIONS: PitchingGradeSectionConfig[] = [
     items: [
       { key: 'timing',         label: 'Timing',                  options: ['On-Time', 'Early', 'Late'] },
       { key: 'hipShoulderSep', label: 'Hip / Shoulder Separation', options: ['On-Time', 'Early', 'Late'] },
+      /* `leadLegBlock` relocated from `lhfs` per spec. Storage key
+         now resolves to `lhRot.leadLegBlock` — any prior reports
+         with `lhfs.leadLegBlock` will not surface here. */
+      { key: 'leadLegBlock',   label: 'Lead Leg Block',          options: ['On Time', 'Early', 'Late'] },
     ],
   },
   {
@@ -158,10 +343,119 @@ export const PITCHING_GRADE_SECTIONS: PitchingGradeSectionConfig[] = [
       { key: 'trunkRotation',  label: 'Trunk Rotation',   options: ['Good', 'Stops Early', 'Over Rotates'] },
     ],
   },
+  /* Movement + Execution — two outcome-level Coach Grade bars
+     appended after the 7 delivery-mechanics sections. They feed
+     the matching Pitching Tool Grades bars on the Player Summary
+     (`pit_movement`, `pit_execution` in `computeAggregateScores`)
+     while the 7 delivery sections above roll up into the
+     `pit_mechanics` bar. Each is a single-item section so it
+     renders as one slider in the report modal + one bubble on
+     the Coach Grades summary strip. */
+  {
+    key: 'movement', title: 'Movement', icon: '🌀',
+    items: [
+      {
+        key: 'overall',
+        label: 'Movement',
+        options: ['Sharp', 'Average', 'Flat', 'Inconsistent'],
+      },
+    ],
+  },
+  {
+    key: 'execution', title: 'Execution', icon: '🎯',
+    items: [
+      {
+        key: 'overall',
+        label: 'Execution',
+        options: ['Locked In', 'Spotty', 'Wild', 'Behind in Counts'],
+      },
+    ],
+  },
+];
+
+/** Section keys that roll up into the Pitching → Mechanics bar on
+ *  the Player Summary Tool Grades card. The two outcome sections
+ *  (Movement / Execution) are intentionally EXCLUDED here because
+ *  they feed their own Tool Grades bars instead of the mechanics
+ *  composite. */
+export const PITCHING_MECHANICS_SECTION_KEYS: readonly string[] = [
+  'gather', 'armPath', 'direction', 'lhfs', 'uhfs', 'lhRot', 'decel',
 ];
 
 /** Stable storage key for a pitching grade entry. */
 export const pitchingGradeKey = (section: string, item: string) => `${section}.${item}`;
+
+/* ─────────────────────────────────────────────────────────────────────
+   DEFENSE COACH GRADES (Catching / Infield / Outfield)
+   ─────────────────────────────────────────────────────────────────────
+   Per coach-spec, every defense report (CATCHING / INFIELD / OUTFIELD)
+   surfaces the SAME 7 Coach Grade categories that the Pitching report
+   uses for delivery mechanics — but each category gets a SINGLE
+   20-80 slider instead of being broken down into per-item sub-grades.
+   The defense form intentionally drops the underlying descriptor
+   options too: just the 7 section TITLES, each with one score.
+
+   Storage shape: a flat `Record<sectionKey, number|null>` (e.g.
+   `{ gather: 60, armPath: 50, direction: null, ... }`) persisted at
+   one of three content slots — `catchingCoachGrades`,
+   `infieldCoachGrades`, `outfieldCoachGrades` — alongside the
+   existing position-specific assessment blobs. Pitching's grade
+   key/section names are reused verbatim so coaches read the same
+   vocabulary across all positions; the labels still apply to
+   throwing mechanics regardless of position. */
+export interface DefenseCoachGradeSectionConfig {
+  key: string;
+  title: string;
+  icon: string;
+}
+export type DefenseCoachGrades = Record<string, number | null>;
+
+/** 5-section Coach Grade taxonomy used by every defense report
+ *  (catching / infield / outfield) — throwing-mechanics checkpoints
+ *  graded on the 20-80 scouting scale. `armPath` and `decel` keep
+ *  their original keys so existing grades carry over; the other three
+ *  use fresh keys for the redefined checkpoints. */
+export const DEFENSE_COACH_GRADE_SECTIONS: DefenseCoachGradeSectionConfig[] = [
+  { key: 'footWork',    title: 'Foot Work',            icon: '🦵' },
+  { key: 'armPath',     title: 'Arm Path',             icon: '🦾' },
+  { key: 'footStrike',  title: 'Foot Strike Position', icon: '🎯' },
+  { key: 'rotationSeq', title: 'Rotation Sequence',    icon: '🔄' },
+  { key: 'decel',       title: 'Arm Deceleration',     icon: '🛑' },
+];
+
+/** Defense position discriminator — selects which content slot the
+ *  coach-grade reader/writer targets. */
+export type DefensePosition = 'catching' | 'infield' | 'outfield';
+
+const DEFENSE_GRADES_CONTENT_KEY: Record<DefensePosition, string> = {
+  catching: 'catchingCoachGrades',
+  infield:  'infieldCoachGrades',
+  outfield: 'outfieldCoachGrades',
+};
+
+/** Read defense coach grades off a CATCHING/INFIELD/OUTFIELD report's
+ *  content.{position}CoachGrades block. Always returns a Record
+ *  (empty when missing/unparseable) so the modal + display can index
+ *  into it without null guards. */
+export function getDefenseCoachGrades(
+  report: ReportSummary | null,
+  position: DefensePosition,
+): DefenseCoachGrades {
+  if (!report?.content) return {};
+  try {
+    const parsed = JSON.parse(report.content);
+    const g = parsed?.[DEFENSE_GRADES_CONTENT_KEY[position]];
+    if (!g || typeof g !== 'object') return {};
+    const out: DefenseCoachGrades = {};
+    for (const [k, v] of Object.entries(g)) {
+      /* Coerce every value to either a finite number or null —
+         protects against bad legacy data while keeping the read
+         side noise-free. */
+      out[k] = typeof v === 'number' && Number.isFinite(v) ? v : null;
+    }
+    return out;
+  } catch { return {}; }
+}
 
 /** Read pitching grades off a PITCHING report's content.pitchingGrades block.
  *  Always returns a Record (empty when missing/unparseable) so the modal can
@@ -219,7 +513,7 @@ export type ManualSwingOptions = Record<keyof ManualSwingScores, string[]>;
 export function getManualSwingOptions(report: ReportSummary | null): ManualSwingOptions {
   const empty: ManualSwingOptions = {
     forwardMove: [], posture: [], stability: [], direction: [],
-    stretch: [], core: [], slot: [], timing: [],
+    stretch: [], core: [], slot: [], timing: [], stride: [],
   };
   if (!report?.content) return empty;
   try {
@@ -240,7 +534,7 @@ export function getManualSwingOptions(report: ReportSummary | null): ManualSwing
 export function getManualSwingScores(report: ReportSummary | null): ManualSwingScores {
   const empty: ManualSwingScores = {
     forwardMove: null, posture: null, stability: null, direction: null,
-    stretch: null, core: null, slot: null, timing: null,
+    stretch: null, core: null, slot: null, timing: null, stride: null,
   };
   if (!report?.content) return empty;
   try {
@@ -259,6 +553,7 @@ export function getManualSwingScores(report: ReportSummary | null): ManualSwingS
       core:        num(m.core),
       slot:        num(m.slot),
       timing:      num(m.timing),
+      stride:      num(m.stride),
     };
   } catch { return empty; }
 }
@@ -278,11 +573,24 @@ export type ManualBattedBall = {
  *  content.manualSwingMetrics when the coach uses the "Manual Entry"
  *  toggle on the Blast CSV card. */
 export type ManualSwingMetrics = {
+  max_bat_speed: number | null;
+  avg_bat_speed: number | null;
   attack_angle: number | null;
   plane_angle: number | null;
-  avg_bat_speed: number | null;
   time_to_contact: number | null;
   on_plane_efficiency: number | null;
+  connection_at_contact: number | null;
+  rotational_acceleration: number | null;
+  /* New manual-entry fields added per the Blast CSV spec — these
+     mirror the columns in the Blast Motion export so a coach can
+     hand-enter them on a report when no CSV is uploaded. The Blast
+     CSV → app mapping document (`Blast Motion App Logic.xlsx`)
+     calls these out as belonging to the Swing bubble. */
+  plane_score: number | null;
+  connection_score: number | null;
+  rotation_score: number | null;
+  early_connection: number | null;
+  connection_at_impact: number | null;
 };
 
 /** Field configs the report-modal uses to render the manual entry inputs. */
@@ -294,12 +602,42 @@ export const MANUAL_BATTED_BALL_FIELDS: { key: keyof ManualBattedBall; label: st
   { key: 'distance',       label: 'Distance',       unit: 'ft',  step: 1 },
 ];
 
+/* Order mirrors the in-app Hitting Snapshot Swing row:
+   Max Bat → Avg Bat → Attack → Tilt → TtC → Plane → Conn → Rot. */
 export const MANUAL_SWING_METRIC_FIELDS: { key: keyof ManualSwingMetrics; label: string; unit: string; step?: number }[] = [
-  { key: 'attack_angle',         label: 'Attack Angle',        unit: '°',   step: 0.1 },
-  { key: 'plane_angle',          label: 'Plane Angle',         unit: '°',   step: 0.1 },
-  { key: 'avg_bat_speed',        label: 'Avg Bat Speed',       unit: 'mph', step: 0.1 },
-  { key: 'time_to_contact',      label: 'Time to Contact',     unit: 's',   step: 0.001 },
-  { key: 'on_plane_efficiency',  label: 'On-Plane Efficiency', unit: '%',   step: 0.1 },
+  { key: 'max_bat_speed',           label: 'Max Bat Speed',          unit: 'mph', step: 0.1 },
+  { key: 'avg_bat_speed',           label: 'Avg Bat Speed',          unit: 'mph', step: 0.1 },
+  { key: 'attack_angle',            label: 'Attack Angle',           unit: '°',   step: 0.1 },
+  { key: 'plane_angle',             label: 'Tilt (Plane Angle)',     unit: '°',   step: 0.1 },
+  { key: 'time_to_contact',         label: 'Time to Contact',        unit: 's',   step: 0.001 },
+  { key: 'on_plane_efficiency',     label: 'On-Plane Efficiency',    unit: '%',   step: 0.1 },
+  /* Display label re-purposed "Connection at Contact" → "Rotational
+     Acceleration" per coach feedback. Data key (`connection_at_contact`)
+     and persisted reports are untouched — only the label coaches see
+     in the manual entry form changes. The Power (Kwh) row above now
+     owns the old `rotational_acceleration` key; this row tracks a
+     separate Rotational Acceleration reading under the
+     `connection_at_contact` key. Unit switched %→g to match the
+     metric's actual unit. */
+  { key: 'connection_at_contact',   label: 'Rotational Acceleration', unit: 'g',  step: 0.1 },
+  /* Display label renamed "Rotational Acceleration" → "Power (Kwh)"
+     per coach feedback. Data key (`rotational_acceleration`) and
+     persisted reports are untouched — only the label coaches see
+     in the manual entry form changes. Unit cleared (the Kwh
+     identifier lives inside the label now, matching the
+     `SHORT_LABELS.power_output: 'Power (Kwh)'` convention). */
+  { key: 'rotational_acceleration', label: 'Power (Kwh)',           unit: '',    step: 0.1 },
+  /* Additional metrics from the Blast CSV spec (`Blast Motion App
+     Logic.xlsx`) — coaches can hand-enter these on a report when no
+     Blast CSV is uploaded. Order follows the spec sheet: composite
+     scores first (Plane / Connection / Rotation), then the
+     specific connection-degree readings (Early Connection,
+     Connection at Impact). */
+  { key: 'plane_score',             label: 'Plane Score',            unit: '',    step: 1 },
+  { key: 'connection_score',        label: 'Connection Score',       unit: '',    step: 1 },
+  { key: 'rotation_score',          label: 'Rotation Score',         unit: '',    step: 1 },
+  { key: 'early_connection',        label: 'Early Connection',       unit: '°',   step: 0.1 },
+  { key: 'connection_at_impact',    label: 'Connection at Impact',   unit: '°',   step: 0.1 },
 ];
 
 const EMPTY_MANUAL_BATTED_BALL: ManualBattedBall = {
@@ -307,8 +645,16 @@ const EMPTY_MANUAL_BATTED_BALL: ManualBattedBall = {
   launch_angle: null, distance: null,
 };
 const EMPTY_MANUAL_SWING: ManualSwingMetrics = {
-  attack_angle: null, plane_angle: null, avg_bat_speed: null,
+  max_bat_speed: null, avg_bat_speed: null,
+  attack_angle: null, plane_angle: null,
   time_to_contact: null, on_plane_efficiency: null,
+  connection_at_contact: null, rotational_acceleration: null,
+  /* Blast CSV spec fields. Existing reports saved before these were
+     added still load — `readManualNumberMap` clones this template
+     then overlays whatever values are persisted, leaving the new
+     keys as null when absent. */
+  plane_score: null, connection_score: null, rotation_score: null,
+  early_connection: null, connection_at_impact: null,
 };
 
 function readManualNumberMap<T extends Record<string, number | null>>(
@@ -376,6 +722,32 @@ export function getReportUploadIds(report: ReportSummary | null): string[] {
   return [];
 }
 
+/** Same as `getReportUploadIds` but limits the result to a specific
+ *  set of slot keys (the keys used in REPORT_CSV_SLOTS — e.g. `blast`,
+ *  `fullswing`, `hittrax`, `atbat`, `atbat_fullswing`). Used by the
+ *  Hitting tab to feed the Spray Chart different upload IDs depending
+ *  on which sub-tab is active (Swing → assessment uploads,
+ *  Swing Decision → the at-bat live-data upload). Returns [] when the
+ *  report has no content or none of the requested slots have data. */
+export function getReportUploadIdsForKeys(
+  report: ReportSummary | null,
+  slotKeys: readonly string[],
+): string[] {
+  if (!report?.content) return [];
+  try {
+    const parsed = JSON.parse(report.content);
+    const uploads = parsed.csvUploads;
+    if (!uploads || typeof uploads !== 'object') return [];
+    const ids: string[] = [];
+    for (const key of slotKeys) {
+      const entry = uploads[key];
+      if (entry?.uploadId) ids.push(entry.uploadId);
+    }
+    return ids;
+  } catch { /* ignore */ }
+  return [];
+}
+
 /* ── Metric Labels ── */
 
 export const METRIC_LABELS: Record<string, string> = {
@@ -387,12 +759,13 @@ export const METRIC_LABELS: Record<string, string> = {
   time_to_contact: 'Time to Contact',
   on_plane_efficiency: 'On-Plane Efficiency',
   peak_hand_speed: 'Peak Hand Speed',
-  rotational_acceleration: 'Rotational Accel',
-  connection_at_contact: 'Connection at Contact',
+  power_output: 'Power',
+  rotational_acceleration: 'Rotational Accel', // legacy
+  connection_at_contact: 'Connection at Contact', // legacy
   early_connection: 'Early Connection',
   // Batted Ball (Full Swing / HitTrax)
-  max_exit_velo: 'Max Exit Velo',
-  avg_exit_velo: 'Avg Exit Velo',
+  max_exit_velo: 'Max EV',
+  avg_exit_velo: 'Avg EV',
   launch_angle: 'Launch Angle',
   bat_speed: 'Bat Speed',
   smash_factor: 'Smash Factor',
@@ -445,7 +818,7 @@ export const METRIC_LABELS: Record<string, string> = {
   // Manual coach scores (20-80)
   manual_forward_move: 'Forward Move',
   manual_posture: 'Posture',
-  manual_stability: 'Stability',
+  manual_stability: 'Slot',
   manual_direction: 'Direction',
   // Vision (Vizual Edge)
   vizual_edge_convergence: 'Convergence',
@@ -528,10 +901,16 @@ const THRESHOLDS: Record<string, [number, number, boolean]> = {
   avg_bat_speed: [70, 62, true],
   squared_up_pct: [40, 25, true],
   hard_hit_pct: [40, 25, true],
-  on_plane_efficiency: [85, 70, true],
+  /* Plane Score uses the flat 20-80 band: <40 red, 40-60 yellow, ≥60 green. */
+  on_plane_efficiency: [60, 40, true],
   bat_speed: [75, 65, true],
   smash_factor: [1.35, 1.2, true],
-  distance: [380, 320, true],
+  /* Distance bands match the in-app strict-threshold logic in
+     toScoutingGrade — green ≥ 300 ft, yellow 200-300, red < 200. Was
+     [380, 320] which made any session under 320 ft mid (yellow) and
+     under 200 stayed low; the snapshot's 200/300 cutoffs are the
+     coach-facing rule the rest of the app uses. */
+  distance: [300, 200, true],
   fb_max_velo: [90, 82, true],
   fb_avg_velo: [87, 80, true],
   spin_rate: [2400, 2000, true],
@@ -565,10 +944,17 @@ const THRESHOLDS: Record<string, [number, number, boolean]> = {
   overall_k_pct: [15, 25, false],  // lower K% is better
   avg_ev: [95, 85, true],
   attack_angle: [15, 8, true],     // sweet-spot ~10-15° (treat higher = better in-window)
-  plane_angle: [35, 25, true],     // tilt — higher generally better up to ~35°
+  plane_angle: [35, 25, true],     // tilt — overridden by special-case bands in getBadgeLevel
   time_to_contact: [0.14, 0.18, false], // faster is better
-  connection_at_contact: [88, 78, true],
-  rotational_acceleration: [22, 16, true],
+  /* Plane Score / Connection / Rotation — flat 20-80 raw scale.
+     Matches the GRADE_RANGES + the user-spec "20-40 red, 40-60 yellow,
+     60-80 green" bands. */
+  connection_at_contact: [60, 40, true],
+  rotational_acceleration: [60, 40, true],
+  /* Power (kW) — high ≥ 6 kW, mid ≥ 4, low < 4. */
+  power_output: [6, 4, true],
+  /* Peak Hand Speed (mph) — high ≥ 25, mid ≥ 21, low < 21. */
+  peak_hand_speed: [25, 21, true],
   launch_angle: [25, 15, true],   // sweet-spot for damage
   vizual_edge_overall: [80, 65, true],
   vizual_edge_convergence: [80, 60, true],
@@ -580,6 +966,33 @@ const THRESHOLDS: Record<string, [number, number, boolean]> = {
 export type BadgeLevel = 'high' | 'mid' | 'low' | 'teal';
 
 export function getBadgeLevel(metricType: string, value: number): BadgeLevel {
+  /* Strict band metrics — these need a sweet-spot rule that the standard
+     two-threshold model can't express (red on BOTH ends, yellow in the
+     middle, green at the target band). Kept in sync with toScoutingGrade
+     so chip color and KPI-card color always agree. */
+  if (metricType === 'plane_angle') {
+    // Blast CSV imports as positive (0–40+); legacy manual data may be
+    // negative. Compare against absolute value so both work:
+    //   0–10  → red, 10–20 → yellow, 20–40 → green, >40 → red.
+    const v = Math.abs(value);
+    if (v < 10) return 'low';
+    if (v < 20) return 'mid';
+    if (v <= 40) return 'high';
+    return 'low';
+  }
+  if (metricType === 'attack_angle') {
+    // Sweet spot 0-15° green, 15-20° yellow, <0 or >20 red.
+    if (value < 0) return 'low';
+    if (value <= 15) return 'high';
+    if (value <= 20) return 'mid';
+    return 'low';
+  }
+  if (metricType === 'distance') {
+    // <200 red, 200-300 yellow, >300 green
+    if (value < 200) return 'low';
+    if (value <= 300) return 'mid';
+    return 'high';
+  }
   const t = THRESHOLDS[metricType];
   if (!t) return 'teal';
   const [high, mid, higherBetter] = t;
@@ -646,13 +1059,94 @@ export const GRADE_RANGES: Record<string, [number, number]> = {
   attack_angle: [-5, 18],          // sweet-spot positive
   plane_angle: [10, 38],
   time_to_contact: [0.20, 0.13],   // lower is better
-  on_plane_efficiency: [55, 92],
-  connection_at_contact: [70, 95],
-  rotational_acceleration: [10, 26],
+  /* Plane Score / Connection / Rotation — coaches grade these on a flat
+     20-80 raw scale where the value IS the grade band:
+       20-40 red · 40-60 yellow · 60-80 green
+     A linear range of [20, 80] makes grade(value) ≈ clamp(value, 20, 80),
+     so a raw 65 maps to grade 60 (green), a raw 45 maps to grade 50
+     (yellow), etc. Mirrors the user-facing band spec exactly. */
+  on_plane_efficiency: [20, 80],
+  /* Power (Blast column O, kW) — typical amateur swings produce 3-7 kW.
+     Linear band: 3 kW = grade 20, 7 kW = grade 80. */
+  power_output: [3, 7],
+  /* Peak Hand Speed (mph) — typical Blast values 18-28 mph. */
+  peak_hand_speed: [18, 28],
+  // Legacy keys kept for any historical data still in the DB.
+  connection_at_contact: [20, 80],
+  rotational_acceleration: [20, 80],
   launch_angle: [5, 22],
 };
 
 export function toScoutingGrade(value: number, metricType: string): number {
+  /* Distance uses strict band thresholds rather than a linear range so the
+     chip color flips on the exact ft cutoffs the coaches grade by:
+       <200 ft → red    (grade 30)
+       200–300 ft → yellow (grade 50)
+       >300 ft → green  (grade 70)
+     scoreColor() bands are <40 red, 40-59 yellow, ≥60 green, so 30/50/70
+     land cleanly inside each color. */
+  if (metricType === 'distance') {
+    if (value < 200) return 30;
+    if (value <= 300) return 50;
+    return 70;
+  }
+  /* Plane Angle / Tilt — Blast CSV imports this as a POSITIVE number
+     (e.g. 28° not -28°), so the bands compare against positive values.
+     Strict sweet-spot bands rather than linear:
+       0–10  → red    (grade 30) — bat too flat
+       10–20 → yellow (grade 50)
+       20–40 → green  (grade 70) — sweet-spot tilt
+       >40   → red    (grade 30) — overcooked steep
+     scoreColor bands <40 red / 40-59 yellow / ≥60 green, so the 30/50/70
+     grades land cleanly inside each color band. Works on the absolute
+     value so any legacy negative readings still grade correctly. */
+  if (metricType === 'plane_angle') {
+    const v = Math.abs(value);
+    if (v < 10) return 30;
+    if (v < 20) return 50;
+    if (v <= 40) return 70;
+    return 30;
+  }
+  /* Attack Angle — strict sweet-spot bands:
+       <0          → red    (grade 30) — chopping down
+       0–15        → green  (grade 70) — productive uppercut
+       15–20       → yellow (grade 50) — getting steep
+       >20         → red    (grade 30) — overcooked
+     Same scoreColor band mapping as the others. */
+  if (metricType === 'attack_angle') {
+    if (value < 0) return 30;
+    if (value <= 15) return 70;
+    if (value <= 20) return 50;
+    return 30;
+  }
+  /* Early Connection + Connection at Impact — symmetric sweet-spot
+     around 90° per coach spec:
+       <70   → red    (grade 30) — body lagging behind the barrel
+       70–80 → yellow (grade 50)
+       80–100→ green  (grade 70) — ideal connection zone
+       100–110→yellow (grade 50)
+       >110  → red    (grade 30) — body too far ahead
+     scoreColor maps <40 red / 40-59 yellow / ≥60 green, so the
+     30/50/70 returns slot into the correct visual zone. Both keys
+     share the same band logic. */
+  if (metricType === 'early_connection' || metricType === 'connection_at_impact') {
+    if (value < 70 || value > 110) return 30;
+    if (value < 80 || value > 100) return 50;
+    return 70;
+  }
+  /* Plane Score + Connection Score + Rotation Score — direct
+     scouting-scale mapping per coach spec:
+       20–40 → red    — fundamentally off
+       40–60 → yellow — average / inconsistent
+       60–80 → green  — driving consistent quality
+     The raw composite score (0–100 from Blast) is clamped to the
+     20-80 scouting band and returned as the grade itself — scoreColor
+     then maps <40 → red, 40-59 → yellow, ≥60 → green directly. Values
+     below 20 lock at red (clamped to 20), above 80 lock at green
+     (clamped to 80). All three keys share this band logic. */
+  if (metricType === 'plane_score' || metricType === 'connection_score' || metricType === 'rotation_score') {
+    return Math.max(20, Math.min(80, Math.round(value)));
+  }
   const range = GRADE_RANGES[metricType];
   if (!range) return 50; // default
   const [min, max] = range;
@@ -668,22 +1162,130 @@ export function formatHeight(inches: number | null): string {
   return `${Math.floor(inches / 12)}'${inches % 12}"`;
 }
 
-/** Calculate age from birthDate string, or estimate from grad year */
-export function getAge(birthDate: string | null | undefined, gradYear: number | null | undefined): string {
-  if (birthDate) {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
-    return String(age);
-  }
-  if (gradYear) {
-    // Estimate: players typically turn 18 in their senior year
-    const currentYear = new Date().getFullYear();
-    return `~${18 - (gradYear - currentYear)}`;
-  }
-  return '—';
+/**
+ * Normalize a player's stored `positions` CSV into the report-display labels
+ * the coach expects on the Cover Page and the PdfPlayerInfoBar:
+ *
+ *   • Any of 1B / 2B / 3B / SS  → "INF"
+ *   • Any of LF / CF / RF       → "OF"
+ *   • C                          → "Catcher"
+ *   • P                          → "Pitcher"
+ *   • Literal INF / OF stay as INF / OF (umbrella codes already in use)
+ *   • UTIL                       → "UTIL"
+ *
+ * Groups are deduped and emitted in a stable, baseball-conventional order
+ * (Catcher → INF → OF → UTIL → Pitcher). If a player has any infield-
+ * specific code (1B/2B/3B/SS) AND the umbrella INF, the result still
+ * collapses to a single "INF" so the cover never reads "SS · INF".
+ *
+ * Returns the joined string, or "—" when no positions are stored.
+ */
+export function formatPositionsForDisplay(
+  positionsCsv: string | null | undefined,
+  separator: string = ' · ',
+): string {
+  const rawPositions = (positionsCsv || '')
+    .split(',')
+    .map((p) => p.trim().toUpperCase())
+    .filter(Boolean);
+  if (rawPositions.length === 0) return '—';
+
+  /* Display-side normalization — mirrors `normalizePositionsForSave` so
+     the PDF cover/info-bar prints the cleaned-up label even when the
+     stored value still contains legacy umbrella codes that haven't been
+     re-saved through Edit Profile yet. Without this, a player saved
+     long ago as `OF,SS,2B,3B` (legacy umbrella from New Player + later
+     specific infield codes) would still print "INF · OF" on the PDF
+     until the coach manually re-saves their profile. With this, the
+     umbrella `OF` is treated as stale the moment any specific code
+     appears, so the PDF prints "INF" immediately. */
+  const SPECIFIC = ['1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
+  const hasAnySpecific = rawPositions.some((p) => SPECIFIC.includes(p));
+  const positions = hasAnySpecific
+    ? rawPositions.filter((p) => p !== 'INF' && p !== 'OF')
+    : rawPositions;
+
+  const INFIELD = new Set(['1B', '2B', '3B', 'SS', 'INF']);
+  const OUTFIELD = new Set(['LF', 'CF', 'RF', 'OF']);
+
+  const labels: string[] = [];
+  if (positions.includes('C'))                          labels.push('Catcher');
+  if (positions.some((p) => INFIELD.has(p)))            labels.push('INF');
+  if (positions.some((p) => OUTFIELD.has(p)))           labels.push('OF');
+  if (positions.includes('UTIL'))                       labels.push('UTIL');
+  if (positions.includes('P'))                          labels.push('Pitcher');
+
+  // Fallback — if none of the recognized buckets matched (e.g. a
+  // custom code), keep the raw values rather than print nothing.
+  return labels.length > 0 ? labels.join(separator) : positions.join(separator);
+}
+
+/**
+ * Normalize a player's positions array before persisting it back to the DB,
+ * stripping umbrella codes that have been superseded by ANY specific
+ * position.
+ *
+ * The Edit Profile modal is the specific-codes editor (1B/2B/3B/SS/LF/CF/RF),
+ * so whenever a coach saves a profile through it WITH at least one
+ * specific position selected, the legacy umbrella codes (INF/OF) are
+ * treated as vestigial and removed — the specific codes carry the
+ * intent now.
+ *
+ * Example: a player saved as `OF,SS,2B,3B` (umbrella `OF` left over
+ * from the New Player form + specific infield codes added later) becomes
+ * `SS,2B,3B` the next time their profile is saved, regardless of whether
+ * any specific outfield code was added. Legacy data self-heals as
+ * coaches re-save profiles.
+ *
+ * If a coach genuinely wants a two-way designation, they should select
+ * specific positions on both sides (e.g. `SS,LF`) — the umbrella codes
+ * are intentionally not preserved alongside specifics because the
+ * specific codes are the source of truth in this picker.
+ *
+ * Umbrellas are only kept when NO specific code is present (e.g. a
+ * profile with just `OF` and nothing else stays as `OF`).
+ */
+export function normalizePositionsForSave(positions: string[]): string[] {
+  const cleaned = positions.map((p) => p.trim()).filter(Boolean);
+  const SPECIFIC = ['1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
+  const hasAnySpecific = cleaned.some((p) => SPECIFIC.includes(p.toUpperCase()));
+  if (!hasAnySpecific) return cleaned;
+
+  return cleaned.filter((p) => {
+    const u = p.toUpperCase();
+    return u !== 'INF' && u !== 'OF';
+  });
+}
+
+/** Calculate age strictly from the player's birthDate. Returns a
+ *  number (whole years since birth, adjusted for whether the
+ *  birthday has passed this calendar year) or `null` when no
+ *  birthDate is set. Use `getAge` for the formatted-string
+ *  variant the profile telemetry strip displays.
+ *
+ *  The previous implementation fell back to a `gradYear`-based
+ *  estimate (~17, ~18) when birthDate was missing — that was
+ *  retired per spec because (a) the estimate could mislead by a
+ *  year or more when a player's birth month is far from their
+ *  grad cohort's average, and (b) the source of truth should be
+ *  the explicit birth date the coach enters in the profile. */
+export function getAgeFromBirthDate(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+/** Formatted age for the player profile telemetry strip — wraps
+ *  `getAgeFromBirthDate` and returns "—" when no birthday is on
+ *  file. Birthday is the only source of truth. */
+export function getAge(birthDate: string | null | undefined): string {
+  const age = getAgeFromBirthDate(birthDate);
+  return age === null ? '—' : String(age);
 }
 
 /** Extract metrics relevant to a set of keys from topMetrics */
@@ -787,15 +1389,28 @@ export interface AggregateScores {
  *    < 40 → red,  40-59 → yellow,  ≥ 60 → green. */
 export function scoreColor(score: number): string {
   const clamped = Math.max(20, Math.min(80, score));
-  if (clamped >= 60) return '#22C55E';   // green = good
-  if (clamped >= 40) return '#EAB308';   // yellow = average
-  return '#EF4444';                       // red = bad
+  /* Light theme uses deeper shades: the vivid dark-theme band colors
+     (esp. the #EAB308 yellow) fall below ~1.5:1 contrast on the pale
+     slate / near-white light surfaces. The dark-theme palette is
+     unchanged, and PDF output has its own white-page palette (lib/pdf),
+     so this only affects on-screen light theme. */
+  const light = typeof document !== 'undefined'
+    && document.documentElement.getAttribute('data-theme') === 'light';
+  if (clamped >= 60) return light ? '#15803D' : '#22C55E';   // green = good
+  if (clamped >= 40) return light ? '#C2A100' : '#EAB308';   // yellow = average
+  return light ? '#C2161B' : '#EF4444';                       // red = bad
 }
 
 export function computeAggregateScores(
   player: { positions: string | null; firstName?: string | null; lastName?: string | null },
   _reports: ReportSummary[],
   _topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
+  /* Saved live at-bats for this athlete (any time window the caller
+     chooses to fetch). When provided AND containing at least one
+     pitch, drives the Hitting → Swing Decision bar instead of the
+     legacy CSV-derived metrics. Optional so existing callers (and
+     surfaces that don't need Swing Decision detail) can omit it. */
+  _liveAtBats?: AtBatDetail[],
 ): AggregateScores {
   const positions = (player.positions || '')
     .split(',')
@@ -848,13 +1463,23 @@ export function computeAggregateScores(
     const latestHitting = getLatestReport(_reports, ['HITTING']);
     const manual = getManualSwingScores(latestHitting);
     const COACH_GRADE_DEFS: { key: keyof ManualSwingScores; label: string }[] = [
-      { key: 'forwardMove', label: 'Forward Move' },
+      /* Coach Grade label rename + Stride add — keys stay the same so
+         saved data survives, only the display labels rotate:
+           data key `stretch`   → label "Counter"
+           data key `core`      → label "Stability"
+           data key `stability` → label "Slot"
+           data key `slot`      → label "Path"
+         `forwardMove` retired from the UI but the type field stays
+         so older saved reports still load cleanly. `stride` added as
+         a new Coach Grade slot — null on legacy reports, persists
+         alongside the other manual scores once a coach grades it. */
+      { key: 'stride',      label: 'Stride' },
+      { key: 'stretch',     label: 'Counter' },
       { key: 'posture',     label: 'Posture' },
-      { key: 'stability',   label: 'Stability' },
+      { key: 'core',        label: 'Stability' },
+      { key: 'stability',   label: 'Slot' },
+      { key: 'slot',        label: 'Path' },
       { key: 'direction',   label: 'Direction' },
-      { key: 'stretch',     label: 'Stretch' },
-      { key: 'core',        label: 'Core' },
-      { key: 'slot',        label: 'Slot' },
       { key: 'timing',      label: 'Timing' },
     ];
 
@@ -884,15 +1509,49 @@ export function computeAggregateScores(
     /* Build one aggregate sub-metric per decision bucket. Grade is the
        average of every contributing FB/OS/Total key that has a value;
        buckets with zero contributors render with no grade ("—"). */
-    const decisionSubs: AggregateSubMetric[] = DECISION_BUCKETS.map((bucket) => {
-      const grades = bucket.sources
-        .map((k) => (_topMetrics[k] ? toScoutingGrade(_topMetrics[k].value, k) : null))
-        .filter((g): g is number => g != null);
-      const avg = grades.length > 0
-        ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length)
-        : undefined;
-      return { key: bucket.key, label: bucket.label, grade: avg };
-    });
+    /* Swing Decision now sources from saved Live At-Bats instead
+       of the legacy Full-Swing-CSV fb/os/overall metric buckets.
+       Pitch outcomes the coach tagged in /live/at-bat are rolled
+       up into four percentages (Barrel / Whiff / Chase / In-Zone
+       Swing), each converted to a 20-80 scouting grade via the
+       same `toScoutingGrade` ranges the CSV path used.
+
+       If `_liveAtBats` is empty or unprovided, the four bars stay
+       null (the bar renders as "—") instead of silently falling
+       back to CSV data — keeps the source-of-truth honest. */
+    const liveStats = _liveAtBats && _liveAtBats.length > 0
+      ? computeLiveSwingDecisionStats(_liveAtBats)
+      : null;
+    const decisionSubs: AggregateSubMetric[] = [
+      {
+        key: 'decision_barrel',
+        label: 'Barrel %',
+        grade: liveStats?.barrelPct != null
+          ? toScoutingGrade(liveStats.barrelPct, 'overall_barrel_pct') ?? undefined
+          : undefined,
+      },
+      {
+        key: 'decision_whiff',
+        label: 'Whiff %',
+        grade: liveStats?.whiffPct != null
+          ? toScoutingGrade(liveStats.whiffPct, 'overall_whiff_pct') ?? undefined
+          : undefined,
+      },
+      {
+        key: 'decision_chase',
+        label: 'Chase %',
+        grade: liveStats?.chasePct != null
+          ? toScoutingGrade(liveStats.chasePct, 'overall_chase_pct') ?? undefined
+          : undefined,
+      },
+      {
+        key: 'decision_zone_sw',
+        label: 'In Zone Swing %',
+        grade: liveStats?.inZoneSwingPct != null
+          ? toScoutingGrade(liveStats.inZoneSwingPct, 'overall_in_zone_swing_pct') ?? undefined
+          : undefined,
+      },
+    ];
 
     const coachSubs: AggregateSubMetric[] = COACH_GRADE_DEFS.map(({ key, label }) => ({
       key: `manual_${key}`,
@@ -921,14 +1580,67 @@ export function computeAggregateScores(
 
   // Pitching — any P in positions
   if (isPitcher) {
+    /* Pull pitching grades off the most recent PITCHING report so
+       the three Tool Grades bars (Mechanics / Movement / Execution)
+       roll up from the actual coach inputs. */
+    const latestPitching = getLatestReport(_reports, ['PITCHING']);
+    const pGrades = getPitchingGrades(latestPitching);
+
+    /* Per-section aggregate helper — averages every populated item
+       score within `section.items`. Returns null when no items have
+       a score so the bar renders as "—" instead of a misleading 0. */
+    const sectionAvgFor = (sectionKey: string): number | null => {
+      const section = PITCHING_GRADE_SECTIONS.find((s) => s.key === sectionKey);
+      if (!section) return null;
+      const scores = section.items
+        .map((it) => pGrades[pitchingGradeKey(sectionKey, it.key)]?.score)
+        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      if (scores.length === 0) return null;
+      return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    };
+
+    /* Mechanics = average of the 7 delivery-mechanics section
+       aggregates (Gather / Arm Path / Direction / LHFS / UHFS /
+       Lower Half Rotation / Arm Deceleration). Movement +
+       Execution are EXCLUDED from this composite — they each feed
+       their own dedicated Tool Grades bar below. */
+    const mechanicsSubs: AggregateSubMetric[] = PITCHING_MECHANICS_SECTION_KEYS.map((sectionKey) => {
+      const section = PITCHING_GRADE_SECTIONS.find((s) => s.key === sectionKey);
+      return {
+        key: `mech_${sectionKey}`,
+        label: section?.title ?? sectionKey,
+        grade: sectionAvgFor(sectionKey) ?? undefined,
+      };
+    });
+    const mechanicsScore = averageGrades(mechanicsSubs.map((s) => s.grade ?? null));
+
+    /* Movement + Execution — single-section bars. The aggregate is
+       just that section's own average (one item per section, so the
+       average IS the item's score). Sub-metrics list the single
+       item so the Summary's per-bar drill-down still works. */
+    const movementScore = sectionAvgFor('movement');
+    const executionScore = sectionAvgFor('execution');
+    const movementSection  = PITCHING_GRADE_SECTIONS.find((s) => s.key === 'movement');
+    const executionSection = PITCHING_GRADE_SECTIONS.find((s) => s.key === 'execution');
+    const movementSubs: AggregateSubMetric[] = (movementSection?.items ?? []).map((it) => ({
+      key: `mov_${it.key}`,
+      label: it.label,
+      grade: pGrades[pitchingGradeKey('movement', it.key)]?.score ?? undefined,
+    }));
+    const executionSubs: AggregateSubMetric[] = (executionSection?.items ?? []).map((it) => ({
+      key: `exec_${it.key}`,
+      label: it.label,
+      grade: pGrades[pitchingGradeKey('execution', it.key)]?.score ?? undefined,
+    }));
+
     sections.push({
       key: 'pitching',
       label: 'Pitching',
       color: '#F59E0B',
       bars: [
-        { key: 'pit_mechanics', label: 'Mechanics', score: null, subMetrics: [] },
-        { key: 'pit_movement', label: 'Movement', score: null, subMetrics: [] },
-        { key: 'pit_execution', label: 'Execution', score: null, subMetrics: [] },
+        { key: 'pit_mechanics', label: 'Mechanics', score: mechanicsScore, subMetrics: mechanicsSubs },
+        { key: 'pit_movement',  label: 'Movement',  score: movementScore,  subMetrics: movementSubs },
+        { key: 'pit_execution', label: 'Execution', score: executionScore, subMetrics: executionSubs },
       ],
     });
   }
@@ -1006,10 +1718,10 @@ export function computeAggregateScores(
   // Cognition / Vision was retired with the Vision tab — no longer
   // surfaced in Tool Grades since there's no profile tab to drill into.
 
-  // S&C — always
+  // Physical (was "S & C") — always
   sections.push({
     key: 'strength',
-    label: 'S & C',
+    label: 'Physical',
     color: '#EF4444',
     bars: [
       { key: 'sc_speed', label: 'Speed', score: null, subMetrics: [] },

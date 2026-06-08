@@ -39,4 +39,6 @@ export {
   generateStrengthPdf,
   generateVisionPdf,
   generateSummaryPdf,
+  generateSummaryCapturePdf,
 } from './generators';
+export type { CapturedSection } from './generators';

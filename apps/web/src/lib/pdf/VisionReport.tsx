@@ -25,9 +25,10 @@ export function VisionReportPages({ data }: { data: VisionPdfData }) {
   const hasData = Object.keys(metrics).length > 0;
 
   return (
+    /* Top `PdfPlayerInfoBar` retired — Cover Page already carries
+       the player's name + vitals on PDF page 1, so the black bar
+       on page 2 was redundant. */
     <Page size="LETTER" style={s.page}>
-      <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
-
       <PdfSectionHeader title="Vizual Edge Assessment" subtitle="Visual performance metrics" />
 
       {hasData ? (

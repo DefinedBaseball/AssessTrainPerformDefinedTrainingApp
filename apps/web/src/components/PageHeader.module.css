@@ -131,6 +131,64 @@
   background-clip: text;
 }
 
+/* Light-theme override — the default silver gradient
+   (white → silver → grey) becomes invisible on the off-white
+   page surface in light mode. Flip the first-word portion of
+   every page title to the same dark-graphite gradient used by
+   the "Mason" half of the athlete-profile `megaName` so every
+   page header (Assess / Train / Athletes / Cole / Education /
+   Leader / Videos / Data / Program / …) reads as the same
+   dark display word. The second-word `.titleAccent` keeps its
+   italic blue gradient — coach-spec: "Leave the second word
+   blue like is." */
+[data-theme="light"] .title {
+  background: linear-gradient(180deg,
+    #1a1f25 0%,
+    #2a3138 40%,
+    #404a52 85%,
+    #5a646c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+/* Light-theme bubble surface — match the athlete-profile Player
+   Name bubble (`.commandDeck` in athletes/[id]/page.module.css)
+   so every PageHeader (Athlete Hub, Assess, Train, Education,
+   Leaderboards, Videos, Data, Program, …) reads as the same
+   canonical neutral-grey bubble in light mode as the Player
+   Name bubble + Tool Grades panel + Current Grades sub-tab bar.
+   The dark-theme triple-gradient surface is retired in light
+   theme since it was rendering as a bright white-on-white
+   wash.
+
+   Pages that need a different header surface (e.g. a page-
+   wrapper background flip on /athletes that swaps page +
+   bubble colors) can override `--page-header-bg` on their
+   own wrapper to change THIS bubble's fill without touching
+   the rest of the type system. */
+[data-theme="light"] .pageHeader {
+  background: var(--page-header-bg, var(--panel-bg-light));
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08));
+}
+/* The blue corner-glow + grad-edge hairline rely on the dark
+   surface for their subtle bloom; on the light grey bubble they
+   read as muddy artefacts. Suppress both in light theme so the
+   header reads as a clean grey panel matching the rest of the
+   light-mode bubble system. */
+[data-theme="light"] .cornerGlow {
+  display: none;
+}
+[data-theme="light"] .rule {
+  background: rgba(0, 0, 0, 0.08);
+  opacity: 1;
+}
+
 /* ── Subtitle ── */
 .subtitle {
   margin: 4px 0 0;

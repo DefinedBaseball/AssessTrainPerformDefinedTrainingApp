@@ -24,6 +24,10 @@ export interface ChartConfigDto {
   pbDirection?: 'MAX' | 'MIN' | null;
   zoneGrid?: '3x3' | '5x5' | null;
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
+  // Optional cohort overlay — when enabled, a parallel "class average" series
+  // is appended to every primary series. cohortMode controls which peers count.
+  cohortEnabled?: boolean | null;
+  cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
 }
 
 @Injectable()
@@ -84,6 +88,8 @@ export class AnalyticsService {
         pbDirection: dto.pbDirection ?? null,
         zoneGrid: dto.zoneGrid ?? null,
         zoneMetric: dto.zoneMetric ?? null,
+        cohortEnabled: dto.cohortEnabled ?? false,
+        cohortMode: dto.cohortMode ?? null,
       },
     });
   }
@@ -119,6 +125,8 @@ export class AnalyticsService {
     if (dto.pbDirection !== undefined) data.pbDirection = dto.pbDirection;
     if (dto.zoneGrid !== undefined) data.zoneGrid = dto.zoneGrid;
     if (dto.zoneMetric !== undefined) data.zoneMetric = dto.zoneMetric;
+    if (dto.cohortEnabled !== undefined) data.cohortEnabled = dto.cohortEnabled;
+    if (dto.cohortMode !== undefined) data.cohortMode = dto.cohortMode;
 
     return this.prisma.chartConfig.update({ where: { id }, data });
   }
@@ -146,7 +154,18 @@ export class AnalyticsService {
       dataMode,
       reportIds,
     });
-    return { config, series };
+
+    let cohortSeries: any[] = [];
+    if ((config as any).cohortEnabled) {
+      cohortSeries = await this.buildCohortSeries(
+        playerId,
+        sources,
+        dateFilter,
+        ((config as any).cohortMode as 'GRAD_YEAR' | 'POSITION' | 'ALL') || 'GRAD_YEAR',
+      );
+    }
+
+    return { config, series: [...series, ...cohortSeries] };
   }
 
   /**
@@ -171,6 +190,17 @@ export class AnalyticsService {
       dataMode,
       reportIds,
     });
+
+    let cohortSeries: any[] = [];
+    if (dto.cohortEnabled) {
+      cohortSeries = await this.buildCohortSeries(
+        playerId,
+        sources,
+        dateFilter,
+        dto.cohortMode || 'GRAD_YEAR',
+      );
+    }
+
     return {
       config: {
         id: 'preview',
@@ -194,8 +224,10 @@ export class AnalyticsService {
         pbDirection: dto.pbDirection ?? null,
         zoneGrid: dto.zoneGrid ?? null,
         zoneMetric: dto.zoneMetric ?? null,
+        cohortEnabled: dto.cohortEnabled ?? false,
+        cohortMode: dto.cohortMode ?? null,
       },
-      series,
+      series: [...series, ...cohortSeries],
     };
   }
 
@@ -252,6 +284,107 @@ export class AnalyticsService {
           metricType: s.metricType,
           label: s.label || s.metricType,
           points: metrics.map((m) => ({ date: m.recordedAt.toISOString(), value: m.value })),
+        };
+      }),
+    );
+  }
+
+  /**
+   * Build a "class average" overlay series — one per primary data source.
+   * Aggregates peer values into a daily mean within the same date window
+   * the primary series uses. Peers are scoped by cohortMode: same gradYear,
+   * same position(s), or all athletes.
+   *
+   * Returned series are tagged with a "(class avg)" label and `cohort: true`
+   * so the frontend can style them differently (dashed line, muted color).
+   */
+  private async buildCohortSeries(
+    playerId: string,
+    sources: Array<{ source: string; metricType: string; label?: string }>,
+    dateFilter: { gte?: Date; lte?: Date } | null,
+    cohortMode: 'GRAD_YEAR' | 'POSITION' | 'ALL',
+  ) {
+    const me = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { gradYear: true, positions: true },
+    });
+    if (!me) return [];
+
+    // Build the peer scope. Always exclude the focal athlete so the cohort
+    // line is a true comparison, not an inflated self-mix.
+    const peerWhere: any = { id: { not: playerId } };
+    if (cohortMode === 'GRAD_YEAR' && me.gradYear != null) {
+      peerWhere.gradYear = me.gradYear;
+    } else if (cohortMode === 'POSITION' && me.positions) {
+      // Player.positions is a comma-separated string. Match peers who share
+      // ANY listed position. SQLite has no array contains, so we OR each.
+      const myPositions = me.positions
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (myPositions.length > 0) {
+        peerWhere.OR = myPositions.map((p) => ({ positions: { contains: p } }));
+      }
+    }
+    // cohortMode === 'ALL' falls through with just the id-not-self filter.
+
+    const peers = await this.prisma.player.findMany({
+      where: peerWhere,
+      select: { id: true },
+    });
+    const peerIds = peers.map((p) => p.id);
+    if (peerIds.length === 0) return [];
+
+    return Promise.all(
+      sources.map(async (s) => {
+        if (s.source === 'REPORT') {
+          // Reports don't aggregate cleanly across cohorts (the score is a
+          // composite per-athlete number). Emit an empty cohort series so
+          // the chart's primary line still renders alone.
+          return {
+            source: s.source,
+            metricType: s.metricType,
+            label: `${s.label || s.metricType} · class avg`,
+            cohort: true,
+            points: [],
+          };
+        }
+
+        const metrics = await this.prisma.metric.findMany({
+          where: {
+            playerId: { in: peerIds },
+            source: s.source,
+            metricType: s.metricType,
+            ...(dateFilter ? { recordedAt: dateFilter } : {}),
+          },
+          select: { recordedAt: true, value: true },
+        });
+
+        // Bucket by calendar day, then average — collapses multiple peers
+        // and multiple per-peer reads on a given day into one comparison
+        // point.
+        const byDay = new Map<string, { sum: number; n: number }>();
+        for (const m of metrics) {
+          const dayKey = m.recordedAt.toISOString().slice(0, 10);
+          const cell = byDay.get(dayKey) || { sum: 0, n: 0 };
+          cell.sum += m.value;
+          cell.n += 1;
+          byDay.set(dayKey, cell);
+        }
+
+        const points = Array.from(byDay.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([day, { sum, n }]) => ({
+            date: new Date(`${day}T00:00:00.000Z`).toISOString(),
+            value: sum / n,
+          }));
+
+        return {
+          source: s.source,
+          metricType: s.metricType,
+          label: `${s.label || s.metricType} · class avg`,
+          cohort: true,
+          points,
         };
       }),
     );

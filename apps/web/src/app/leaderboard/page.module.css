@@ -144,11 +144,24 @@
   padding-right: 36px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md, 12px);
+  /* `color-scheme: dark` tells the browser to paint the NATIVE
+     `<option>` dropdown using the OS dark theme. Without it, Chrome /
+     Edge / Safari ignore our custom `option` background rule below
+     and render the open dropdown with the OS light theme (white bg,
+     near-invisible white-on-white text) — which is what the user
+     reported. Firefox respected the rule already; this brings the
+     other engines in line. */
+  color-scheme: dark;
   background-image:
     linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.008) 100%),
     linear-gradient(140deg, rgba(104,108,114,0.10) 0%, transparent 55%),
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23A0A6AE' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
-  background-color: var(--card-elev-bg);
+  /* `--card-elev-bg` resolves to `transparent` in globals.css, which
+     left the select with no solid surface — so the native dropdown
+     painted white through it. Switched to the same subtle dark fill
+     the Chart Builder `.datePopoverTrigger` uses (rgba(255,255,255,0.04))
+     so the dropdown trigger reads as a faint dark chip on the page. */
+  background-color: rgba(255,255,255,0.04);
   background-repeat: no-repeat, no-repeat, no-repeat;
   background-position: 0 0, 0 0, right 12px center;
   color: var(--text);
@@ -175,7 +188,12 @@
 }
 
 .filterSelect option {
-  background: var(--card-elev-bg, #0d1218);
+  /* Explicit solid dark fill — `--card-elev-bg` is `transparent` in
+     globals.css, so the fallback hex (which was already there as a
+     defensive fallback for callers using a CSS-vars-less context)
+     is now the actual value. Firefox respects this; Chrome / Edge /
+     Safari follow `color-scheme: dark` on the parent select. */
+  background: #0d1218;
   color: var(--text);
 }
 

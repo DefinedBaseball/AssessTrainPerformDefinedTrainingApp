@@ -310,6 +310,13 @@
   background: var(--red-dim);
   color: var(--red);
 }
+/* Light theme: these post-tag text colors are saturated mid-tones that
+   fall below ~2:1 on their pale dim-tint backgrounds. Deepen them.
+   (.tagFacility already uses --accent-light, which flips dark.) */
+[data-theme="light"] .tagHighlight { color: #15803D; }
+[data-theme="light"] .tagProgram { color: #1d5fa8; }
+[data-theme="light"] .tagCommitment { color: #8a6a0c; }
+[data-theme="light"] .tagProSigning { color: #b3303c; }
 
 .postDate {
   font-size: 11px;
@@ -474,7 +481,12 @@
 
 .modal {
   width: 100%;
-  max-width: 540px;
+  /* Create Post modal matched to the Reports modal's max-width
+     (1200 px). Lets the post-type chip strip + form fields stretch
+     comfortably on wide monitors instead of capping at the older
+     820 px. Both surfaces now share the same cap so they read as
+     consistent shell sizes. */
+  max-width: 1200px;
   max-height: 85vh;
   overflow-y: auto;
   background: linear-gradient(180deg, #0d0f12 0%, #060708 100%);
@@ -527,27 +539,38 @@
 /* ── Type Selector ── */
 
 .typeSelector {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  /* Single-row strip — uses repeat(auto-fit, ...) so all post-type
+     buttons sit on one tight line at the new modal width (820px).
+     Replaces the prior 2-column stacked grid which forced two rows. */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .typeBtn {
-  display: flex;
-  flex-direction: column;
+  /* Compact horizontal pill — icon left, label right. Replaces the
+     previous column-stacked card layout. Padding tightened on both
+     axes per spec (14×10 → 6×10) so the strip is shorter vertically
+     and each button is narrower horizontally; the row sits more like
+     a tab strip than a card grid. */
+  flex: 1 1 auto;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 14px 10px;
-  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: rgba(255,255,255,0.018);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: all var(--transition);
   text-align: center;
+  white-space: nowrap;
 }
 .typeBtn:hover {
   border-color: rgba(255,255,255,0.18);
@@ -562,7 +585,10 @@
 }
 
 .typeIcon {
-  font-size: 20px;
+  /* Smaller icon to match the compact pill — 20 → 13 keeps the
+     icon proportional to the new 11px label. */
+  font-size: 13px;
+  line-height: 1;
 }
 
 /* ── Form Fields ── */
@@ -600,6 +626,37 @@
 .fieldTextarea {
   min-height: 80px;
   resize: vertical;
+}
+
+/* Compact file picker that sits BELOW the matching URL input — same
+   border-radius/border treatment as the URL field above it so the
+   pair reads as one control. */
+.fileInput {
+  margin-top: 6px;
+  width: 100%;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.018);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.fileInput::file-selector-button {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.fileInput::file-selector-button:hover {
+  background: rgba(255,255,255,0.1);
 }
 
 .fieldSelect {
@@ -849,4 +906,30 @@
   .statsGrid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .statCard { padding: 14px; }
   .statValue { font-size: 24px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — Dashboard bubbles flip to the canonical
+   `--panel-bg-light` (`#dee1e5` cool slate) so every Dashboard
+   surface matches the Hitting Snapshot bubble color used app-wide.
+
+   Applies to:
+     • Weekly Schedule strip (player dashboard's WeeklyScheduleStrip)
+     • Stat cards (Total Athletes / Grad Years / Commitments / Pro
+       Signings — the four-card grid on the coach dashboard)
+     • Post cards (the post-feed bubbles for both coach and player
+       dashboards)
+   ════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .weekStrip,
+[data-theme="light"] .statCard,
+[data-theme="light"] .postCard {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08);
+}
+[data-theme="light"] .statCard:hover,
+[data-theme="light"] .postCard:hover {
+  border-color: rgba(0, 0, 0, 0.18);
 }

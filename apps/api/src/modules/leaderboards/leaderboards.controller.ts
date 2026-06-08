@@ -31,4 +31,18 @@ export class LeaderboardsController {
       gradYear ? parseInt(gradYear) : undefined,
     );
   }
+
+  /**
+   * Player-rank summary — every leaderboard metric this player qualifies
+   * for, with their rank within their grad-year class.
+   *
+   * Powers the "Class Rankings" widget on the Player Summary tab so an
+   * athlete sees where they stand without leaving their profile.
+   */
+  @Get('player/:playerId')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get a player\'s ranks across every leaderboard metric' })
+  getPlayerRank(@Param('playerId') playerId: string) {
+    return this.leaderboardsService.getPlayerRank(playerId);
+  }
 }

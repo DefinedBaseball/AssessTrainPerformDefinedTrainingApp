@@ -1,0 +1,293 @@
+/* HittingVideoSection — gallery + Play-All playlist modal.
+ * Visual language matches the rest of the Hitting Snapshot bubble: dark
+ * surface, soft border, accent gold for primary actions. */
+
+.section {
+  margin-top: 18px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+.subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.playAllBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, rgba(232, 175, 52, 0.20), rgba(232, 175, 52, 0.10));
+  border: 1px solid rgba(232, 175, 52, 0.45);
+  color: var(--gold, #E8AF34);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.playAllBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(232, 175, 52, 0.30), rgba(232, 175, 52, 0.16));
+  transform: translateY(-1px);
+}
+
+/* Disabled state — keeps the affordance visible (so coaches/players
+   know the feature exists in an empty session) but makes it clear the
+   button is inactive until a clip is attached. */
+.playAllBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: rgba(232, 175, 52, 0.08);
+  border-color: rgba(232, 175, 52, 0.20);
+}
+
+/* ── Thumbnail grid ── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  background: rgba(20, 24, 32, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.card:hover:not(:disabled) {
+  border-color: var(--accent-light, #7eb6ff);
+  transform: translateY(-1px);
+}
+.card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.thumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbIcon {
+  font-size: 28px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Play-button glyph that surfaces on hover so the card reads as
+   "click to play" without a permanent visual on every thumbnail. */
+.playOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.0);
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  pointer-events: none;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+.card:hover .playOverlay {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.cardBody {
+  padding: 9px 12px 11px;
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardMeta {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ── Playlist modal ── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.player {
+  width: min(1000px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 22, 30, 0.98);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.playerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  gap: 12px;
+}
+
+.playerTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerPos {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.playerActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.navBtn,
+.closeBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: background 0.12s;
+}
+.navBtn:hover,
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.closeBtn {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.playerBody {
+  position: relative;
+  background: #000;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playerVideo {
+  width: 100%;
+  max-height: 78vh;
+  display: block;
+  background: #000;
+}
+
+.playerEmpty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 40px;
+  font-style: italic;
+}
+
+.playerOverlayMsg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  gap: 12px;
+}
+
+.skipBtn {
+  padding: 6px 14px;
+  background: rgba(232, 175, 52, 0.18);
+  border: 1px solid rgba(232, 175, 52, 0.45);
+  color: var(--gold, #E8AF34);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.skipBtn:hover {
+  background: rgba(232, 175, 52, 0.28);
+}

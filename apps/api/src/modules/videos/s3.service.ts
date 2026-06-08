@@ -67,4 +67,36 @@ export class S3Service {
     const cmd = new GetObjectCommand({ Bucket: this.bucket!, Key: key });
     return getSignedUrl(client, cmd, { expiresIn: expiresInSec });
   }
+
+  /**
+   * Upload bytes directly from a Buffer (server-side).
+   * Used by routes that receive a multipart upload server-side then forward
+   * to S3 — e.g. drill demo videos. The presigned-PUT path is preferred for
+   * large user-facing video uploads (zero API memory pressure), but for
+   * small files where the API server already has the bytes in memory,
+   * proxying through is simpler and one fewer round-trip for the client.
+   */
+  async putObjectFromBuffer(key: string, body: Buffer, contentType: string): Promise<string> {
+    const client = this.requireClient();
+    const cmd = new PutObjectCommand({
+      Bucket: this.bucket!,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    });
+    await client.send(cmd);
+    return key;
+  }
+
+  /**
+   * Translate an S3 object key to a publicly-fetchable URL. Prefers the
+   * configured CDN_BASE_URL (CloudFront distribution domain) and falls
+   * back to the canonical s3.amazonaws.com URL — only useful when the
+   * bucket is public, otherwise consumers must call presignGetUrl.
+   */
+  publicUrlFor(key: string): string {
+    const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
+    if (cdn) return `${cdn}/${key}`;
+    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
+  }
 }

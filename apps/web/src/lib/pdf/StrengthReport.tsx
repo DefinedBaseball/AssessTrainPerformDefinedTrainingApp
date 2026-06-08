@@ -33,9 +33,10 @@ export function StrengthReportPages({ data }: { data: StrengthPdfData }) {
   const hasBody = bodyKeys.some(k => metrics[k]);
 
   return (
+    /* Top `PdfPlayerInfoBar` retired — Cover Page already carries
+       the player's name + vitals on PDF page 1, so the black bar
+       on page 2 was redundant. */
     <Page size="LETTER" style={s.page}>
-      <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
-
       {/* ── Athletic Testing ── */}
       <PdfSectionHeader title="Athletic Testing" subtitle="Speed, power & explosiveness" />
 

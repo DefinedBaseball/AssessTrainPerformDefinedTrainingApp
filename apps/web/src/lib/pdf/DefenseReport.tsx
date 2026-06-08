@@ -110,9 +110,10 @@ export function DefenseReportPages({ data }: { data: DefensePdfData }) {
   const hasAnyData = positions.isCatcher || positions.isInfielder || positions.isOutfielder;
 
   return (
+    /* Top `PdfPlayerInfoBar` retired — Cover Page already carries
+       the player's name + vitals on PDF page 1, so the black bar
+       on page 2 was redundant. */
     <Page size="LETTER" style={s.page}>
-      <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
-
       {!hasAnyData && (
         <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 20 }}>
           No defensive position data available for this player.

@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -14,12 +15,21 @@ interface NavItem {
   playerOnly?: boolean;
   coachLabel?: string;
   playerLabel?: string;
+  /** Nested nav items rendered indented beneath this row. Used by the
+   *  Data Analytics group to surface Live + Program as sub-items under
+   *  the parent Data Analytics entry. */
+  children?: NavItem[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   {
     href: '/',
     label: 'Dashboard',
+    /* Dashboard is the home / news-feed surface — visible to both
+       coaches AND players. Page-level UI elements that are
+       coach-only (e.g. "+ Create Post") gate themselves via
+       `isCoach` inside the page; the sidebar nav entry itself is
+       always shown. */
     coachLabel: 'Dashboard',
     playerLabel: 'Dashboard',
     // 2x2 telemetry grid with an accent tick in the top-right module
@@ -73,21 +83,10 @@ const NAV_ITEMS: NavItem[] = [
       </svg>
     ),
   },
-  {
-    href: '/program',
-    label: 'Program',
-    coachOnly: true,
-    // Clipboard with a roster of horizontal lines
-    icon: (
-      <svg viewBox="0 0 24 24">
-        <rect x="5" y="4.5" width="14" height="16" rx="1" />
-        <rect x="9" y="2.5" width="6" height="3" rx="0.6" />
-        <path d="M8 10h8" />
-        <path d="M8 13h8" />
-        <path d="M8 16h5" />
-      </svg>
-    ),
-  },
+  /* Live + Program retired from the top-level rail — they're now nested
+     sub-items beneath Data Analytics (see the `children:` array on the
+     Data Analytics entry below). Their routes are unchanged so existing
+     bookmarks / links still work; only the sidebar grouping moved. */
   {
     href: '/education',
     label: 'Education',
@@ -132,7 +131,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: '/analytics',
-    label: 'Data Analytics',
+    label: 'Data',
     coachOnly: true,
     // Ascending bars with an overlaid trend vector
     icon: (
@@ -143,6 +142,28 @@ const NAV_ITEMS: NavItem[] = [
         <path d="m4 11 6-4 5 2 5-4" />
       </svg>
     ),
+    /* Live retired from this sub-list — it now lives as a mode card
+       on the top-level `/videos` page (alongside Video Library and
+       Training). Program stays here. Both `/live`, `/live/training`,
+       and `/live/at-bat` routes remain intact; they're just no
+       longer surfaced from the sidebar. */
+    children: [
+      {
+        href: '/program',
+        label: 'Program',
+        coachOnly: true,
+        // Clipboard with a roster of horizontal lines
+        icon: (
+          <svg viewBox="0 0 24 24">
+            <rect x="5" y="4.5" width="14" height="16" rx="1" />
+            <rect x="9" y="2.5" width="6" height="3" rx="0.6" />
+            <path d="M8 10h8" />
+            <path d="M8 13h8" />
+            <path d="M8 16h5" />
+          </svg>
+        ),
+      },
+    ],
   },
 ];
 
@@ -154,11 +175,59 @@ export function Sidebar() {
   if (!user && pathname !== '/login') return null;
   if (pathname === '/login') return null;
 
-  const visibleItems = NAV_ITEMS.filter(item => {
+  /** Per-role visibility filter. Used at the top level AND recursively
+   *  on each item's children so a coach-only sub-item doesn't leak
+   *  into a player's sidebar. */
+  function isVisible(item: NavItem): boolean {
     if (item.coachOnly && !isCoach) return false;
     if (item.playerOnly && isCoach) return false;
     return true;
-  });
+  }
+  const visibleItems = NAV_ITEMS.filter(isVisible);
+
+  /** Render a single nav row (top-level or child). When the item has
+   *  children, render the row followed by each visible child rendered
+   *  with `isChild=true` so it picks up the indented sub-item style. */
+  function renderNavItem(item: NavItem, isChild: boolean): React.ReactNode {
+    const label = isCoach
+      ? (item.coachLabel || item.label)
+      : (item.playerLabel || item.label);
+    const isActive = pathname === item.href
+      || (item.href !== '/' && pathname.startsWith(item.href));
+    const visibleChildren = (item.children || []).filter(isVisible);
+
+    return (
+      <React.Fragment key={item.href}>
+        <Link
+          href={item.href}
+          className={`${styles.navItem}${isChild ? ' ' + styles.navItemChild : ''}${isActive ? ' ' + styles.active : ''}`}
+          title={label}
+          aria-label={label}
+          onClick={() => {
+            /* When the user is already on this section's path (e.g. on
+               /education while drilled into Classes), fire a global
+               "sidebar-nav-home" event so the page can reset its
+               internal view state back to the section landing. Doing
+               it on every click is a no-op for first-visits since the
+               page is mounting fresh. */
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('sidebar-nav-home', { detail: { href: item.href } }),
+              );
+            }
+          }}
+        >
+          <span className={styles.iconBox} aria-hidden="true">
+            {item.icon}
+          </span>
+          <span className={styles.labelWrap}>
+            <strong className={styles.labelTitle}>{label}</strong>
+          </span>
+        </Link>
+        {visibleChildren.map(child => renderNavItem(child, true))}
+      </React.Fragment>
+    );
+  }
 
   return (
     <aside className={styles.sidebar} data-theme="dark">
@@ -169,45 +238,14 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* ── Nav ── */}
+      {/* ── Nav ──
+          Two-level rendering: top-level items render with the normal
+          `.navItem` chrome; their children (if any) render right
+          beneath with `.navItemChild` for the indented sub-item look.
+          Used by Data Analytics to surface Live + Program as nested
+          rows. The same `sidebar-nav-home` event fires for both. */}
       <nav className={styles.nav}>
-        {visibleItems.map(item => {
-          const label = isCoach
-            ? (item.coachLabel || item.label)
-            : (item.playerLabel || item.label);
-          const isActive = pathname === item.href
-            || (item.href !== '/' && pathname.startsWith(item.href));
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.navItem} ${isActive ? styles.active : ''}`}
-              title={label}
-              aria-label={label}
-              onClick={() => {
-                /* When the user is already on this section's path (e.g. on
-                   /education while drilled into Classes), fire a global
-                   "sidebar-nav-home" event so the page can reset its
-                   internal view state back to the section landing.
-                   Doing it on every click is a no-op for first-visits
-                   since the page is mounting fresh. */
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(
-                    new CustomEvent('sidebar-nav-home', { detail: { href: item.href } }),
-                  );
-                }
-              }}
-            >
-              <span className={styles.iconBox} aria-hidden="true">
-                {item.icon}
-              </span>
-              <span className={styles.labelWrap}>
-                <strong className={styles.labelTitle}>{label}</strong>
-              </span>
-            </Link>
-          );
-        })}
+        {visibleItems.map(item => renderNavItem(item, false))}
       </nav>
 
       {/* ── Bottom stack: theme toggle / settings / sign-out ── */}

@@ -1,0 +1,686 @@
+/* ─────────────────────────────────────────────────────────
+ * PDF Builder Modal styles
+ *
+ * Standalone modal overlay shown when the coach clicks the
+ * Download PDF button on the Player Summary tab. Visual
+ * language matches the rest of the app's dark-graphite
+ * panel chrome (rgba(10,14,20) base + radial-highlight,
+ * accent-blue interactive elements).
+ * ───────────────────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+}
+
+.modal {
+  width: 100%;
+  max-width: 1100px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(80% 50% at 50% 0%, rgba(255, 255, 255, 0.06), transparent 60%),
+    linear-gradient(180deg, #101116 0%, #060709 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+/* ─── Header ─── */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-bright);
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  max-width: 640px;
+}
+
+/* Right-side action cluster — pairs the "Download Default Report"
+   shortcut with the close button so both live in the modal header. */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.closeBtn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: var(--text-muted);
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.closeBtn:hover {
+  color: var(--text-bright);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Default-report shortcut — accent-blue chrome, leads with the same
+   download glyph used elsewhere in the app. Lives in the modal's
+   header next to the close (×) button. */
+.defaultDownloadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, rgba(126, 182, 255, 0.18) 0%, rgba(126, 182, 255, 0.04) 100%);
+  border: 1px solid rgba(126, 182, 255, 0.42);
+  border-radius: 10px;
+  color: #cfe0ff;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(61, 139, 253, 0.18);
+}
+
+.defaultDownloadBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(126, 182, 255, 0.32) 0%, rgba(126, 182, 255, 0.08) 100%);
+  border-color: rgba(126, 182, 255, 0.65);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.defaultDownloadBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ─── Body — two-column layout ─── */
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  flex: 1;
+  min-height: 0;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 11, 18, 0.94);
+  padding: 16px 20px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.colHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent-light);
+  background: rgba(126, 182, 255, 0.10);
+  border: 1px solid rgba(126, 182, 255, 0.30);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.linkBtn {
+  background: transparent;
+  border: none;
+  color: var(--accent-light);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+}
+
+.linkBtn:hover {
+  color: #ffffff;
+}
+
+/* ─── Section rows (LEFT column) ─── */
+
+.sectionRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 10px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sectionRow:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.sectionRowLocked {
+  background: rgba(126, 182, 255, 0.05);
+  border-color: rgba(126, 182, 255, 0.20);
+}
+
+.sectionRowDisabled {
+  opacity: 0.55;
+}
+
+.sectionInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionLock {
+  font-size: 13px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.sectionMeta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-bright, #7eb6ff);
+}
+
+.sectionControls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.iconBtn {
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 6px;
+  color: var(--text-bright);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: rgba(126, 182, 255, 0.14);
+  border-color: rgba(126, 182, 255, 0.35);
+  color: #ffffff;
+}
+
+.iconBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ─── Y-offset slider ─── */
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sliderLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sliderValue {
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+.slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-bright, #7eb6ff);
+}
+
+.sliderTicks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* ─── Preview pane (RIGHT column) ─── */
+
+.previewScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.previewPage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.previewPageHead {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.previewPageCanvas {
+  position: relative;
+  aspect-ratio: 11 / 8.5;
+  background:
+    radial-gradient(60% 50% at 50% 35%, rgba(255, 255, 255, 0.05), transparent 65%),
+    rgba(20, 24, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.previewSection {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  height: 60%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px dashed rgba(126, 182, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(126, 182, 255, 0.06);
+  color: var(--accent-light);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.previewSectionHint {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ─── Draggable section thumbnail ─── */
+
+.previewThumb {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  width: 88%;
+  cursor: grab;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45),
+              0 0 0 1px rgba(126, 182, 255, 0.18);
+  outline: 1px solid rgba(126, 182, 255, 0.30);
+  transition: box-shadow 0.15s ease, outline-color 0.15s ease;
+  user-select: none;
+  touch-action: none;
+}
+
+.previewThumb:hover {
+  outline-color: rgba(126, 182, 255, 0.55);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55),
+              0 0 0 1px rgba(126, 182, 255, 0.30);
+}
+
+.previewThumb:focus-visible {
+  outline: 2px solid rgba(126, 182, 255, 0.85);
+  outline-offset: -1px;
+}
+
+.previewThumbDragging {
+  cursor: grabbing;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65),
+              0 0 0 1px rgba(126, 182, 255, 0.55);
+  outline-color: rgba(126, 182, 255, 0.75);
+}
+
+.previewThumbImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #0a0e14;
+}
+
+.previewThumbGrip {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 11, 18, 0.85);
+  border: 1px solid rgba(126, 182, 255, 0.45);
+  border-radius: 50%;
+  color: var(--accent-light);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.previewMissing {
+  position: absolute;
+  inset: 12%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(221, 105, 116, 0.45);
+  border-radius: 8px;
+  background: rgba(221, 105, 116, 0.06);
+  color: #f7a4ac;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 12px;
+}
+
+.previewSpinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(126, 182, 255, 0.20);
+  border-top-color: rgba(126, 182, 255, 0.85);
+  margin: 0 auto 10px;
+  animation: pdfBuilderSpin 0.9s linear infinite;
+}
+
+@keyframes pdfBuilderSpin {
+  to { transform: rotate(360deg); }
+}
+
+.titleMock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.titleMockName {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-bright);
+}
+
+.titleMockSub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.previewEmpty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+/* ─── Footer — presets + action buttons ─── */
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 11, 18, 0.96);
+}
+
+.presetArea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.presetLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.presetSelect {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text-bright);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.presetInput {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text-bright);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  width: 180px;
+}
+
+.presetInput:focus {
+  outline: none;
+  border-color: rgba(126, 182, 255, 0.45);
+}
+
+.presetDivider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 0 4px;
+}
+
+.smallBtn {
+  background: rgba(126, 182, 255, 0.14);
+  border: 1px solid rgba(126, 182, 255, 0.35);
+  border-radius: 8px;
+  color: var(--accent-light);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.smallBtn:hover:not(:disabled) {
+  background: rgba(126, 182, 255, 0.24);
+  color: #ffffff;
+}
+
+.smallBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.smallBtnDanger {
+  background: rgba(221, 105, 116, 0.10);
+  border: 1px solid rgba(221, 105, 116, 0.35);
+  border-radius: 8px;
+  color: #f7a4ac;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.smallBtnDanger:hover {
+  background: rgba(221, 105, 116, 0.22);
+  color: #ffffff;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btnSecondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: var(--text-bright);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btnSecondary:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btnPrimary {
+  background: linear-gradient(180deg, #7eb6ff 0%, #3d8bfd 100%);
+  border: 1px solid rgba(126, 182, 255, 0.55);
+  border-radius: 10px;
+  color: #0e1116;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 9px 22px;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(61, 139, 253, 0.25);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(61, 139, 253, 0.35);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ─── Responsive collapse ─── */
+
+@media (max-width: 800px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+  .presetInput { width: 140px; }
+}

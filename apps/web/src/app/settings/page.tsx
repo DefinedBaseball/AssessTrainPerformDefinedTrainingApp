@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -8,7 +8,9 @@ import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 
-type TabKey = 'account' | 'appearance' | 'notifications' | 'data' | 'teams' | 'myProfile';
+import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
+
+type TabKey = 'account' | 'appearance' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myProfile';
 
 const ACCENT_CHOICES = [
   { name: 'Gold', value: '#D4AF37' },
@@ -39,6 +41,12 @@ export default function SettingsPage() {
     { key: 'notifications', label: 'Notifications' },
     { key: 'data', label: 'Data & Integrations' },
     ...(isCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
+    /* Coach-only "Cameras" tab — OBS-style friendly names for each
+       attached video input. Used by Live Training's multi-angle
+       recording flow so the coach sees "Side Angle" / "Behind Net"
+       on each preview tile instead of the browser's raw device
+       name. */
+    ...(isCoach ? ([{ key: 'cameras' as TabKey, label: 'Cameras' }]) : []),
   ];
 
   return (
@@ -68,6 +76,173 @@ export default function SettingsPage() {
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'data' && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isCoach && <TeamsAndCollegesTab />}
+      {tab === 'cameras' && isCoach && <CamerasTab />}
+    </div>
+  );
+}
+
+/* ─── Cameras ──────────────────────────────────────────────────
+   Lists every detected video input device (built-in cameras, USB
+   webcams, capture cards). The coach types a friendly OBS-style
+   label per device; labels are saved to localStorage via the shared
+   helper and consumed by Live Training's multi-angle capture flow.
+
+   Permission gating: browsers hide device labels until the page has
+   been granted camera access at least once. The panel surfaces a
+   "Grant camera access" button when needed so coaches see actual
+   names like "Logitech BRIO" instead of "Camera 1" / "Camera 2".
+   ──────────────────────────────────────────────────────────────── */
+function CamerasTab() {
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [labels, setLabels] = useState<Record<string, string>>(() => getAllCameraLabels());
+  const [permissionState, setPermissionState] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  /* Refresh the device list. Calls enumerateDevices() and filters
+     to video inputs only. Re-runs when `refreshKey` bumps (after
+     a permission grant) so the now-labeled devices appear. */
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
+    let cancelled = false;
+    navigator.mediaDevices.enumerateDevices().then((list) => {
+      if (cancelled) return;
+      /* Hide virtual cameras (OBS Virtual Camera, NVIDIA Broadcast,
+         etc.) — they wrap physical cams and just clutter the
+         settings list. Same filter the Live Training page uses so
+         the two surfaces report the same camera roster. */
+      const VIRTUAL_CAM_PATTERNS = [
+        /obs\s*virtual/i,
+        /\bvirtual\s*camera\b/i,
+        /nvidia\s*broadcast/i,
+        /snap\s*camera/i,
+        /xsplit\s*vcam/i,
+      ];
+      const isVirtual = (label: string | undefined) =>
+        !!label && VIRTUAL_CAM_PATTERNS.some((re) => re.test(label));
+      const videoInputs = list.filter(
+        (d) => d.kind === 'videoinput' && !isVirtual(d.label),
+      );
+      setDevices(videoInputs);
+      /* If any device reports an empty `label`, permission probably
+         hasn't been granted yet — Chrome / Firefox hide the label
+         until then. Surface the prompt button below. */
+      const anyEmpty = videoInputs.some((d) => !d.label);
+      setPermissionState(anyEmpty ? 'unknown' : 'granted');
+    }).catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [refreshKey]);
+
+  async function requestPermission() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      /* Immediately stop the stream — we only needed the permission
+         grant; the device list will refresh with real labels on the
+         next enumerateDevices() pass below. */
+      stream.getTracks().forEach((t) => t.stop());
+      setPermissionState('granted');
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setPermissionState('denied');
+    }
+  }
+
+  function handleLabelChange(deviceId: string, newLabel: string) {
+    setCameraLabel(deviceId, newLabel);
+    /* Update the local mirror so the input re-renders with the new
+       value immediately (the shared helper is the source of truth
+       for everyone else). */
+    setLabels((prev) => {
+      const next = { ...prev };
+      if (newLabel.trim()) next[deviceId] = newLabel.trim();
+      else delete next[deviceId];
+      return next;
+    });
+  }
+
+  return (
+    <div className={styles.section}>
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>Camera Inputs</h2>
+        <p className={styles.cardDesc}>
+          Type a friendly name for each connected camera (OBS-style).
+          Names are used by Live Training&apos;s multi-angle recording —
+          each saved clip&apos;s title appends the camera label so the
+          gallery reads at a glance.
+        </p>
+
+        {permissionState !== 'granted' && (
+          <div style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={requestPermission}
+            >
+              Grant camera access
+            </button>
+            {permissionState === 'denied' && (
+              <p style={{ marginTop: 8, color: 'var(--danger, #fda4af)', fontSize: 12 }}>
+                Camera permission was denied. Enable it in your browser settings, then refresh.
+              </p>
+            )}
+          </div>
+        )}
+
+        {devices.length === 0 ? (
+          <p className={styles.cardDesc}>No cameras detected. Plug one in and refresh the page.</p>
+        ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {devices.map((d, i) => {
+            const fallback = d.label || `Camera ${i + 1}`;
+            const saved = labels[d.deviceId] || '';
+            return (
+              <div
+                key={d.deviceId || i}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                    {fallback}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'DM Mono', ui-monospace, monospace", marginTop: 2 }}>
+                    {/* Short id chip so the coach can match the
+                        camera back if browsers display the same name
+                        for two devices. */}
+                    {d.deviceId.slice(0, 8) || '—'}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g. Side Angle, Bullpen Mound, Cage Front"
+                  value={saved}
+                  onChange={(e) => handleLabelChange(d.deviceId, e.target.value)}
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    color: 'var(--text)',
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -349,6 +524,13 @@ function EntityCrudCard({
   const [editingId, setEditingId] = useState<string | null>(null); // null = no form open; 'new' = adding
   const [formName, setFormName] = useState('');
   const [formLogo, setFormLogo] = useState('');
+  /* Logo file uploader state — when set, the file's contents win over
+     `formLogo` (the URL field) on save. We read the file with
+     FileReader → base64 data URL and persist that into the same
+     `logoUrl` column on the College / ClubTeam record. */
+  const [formLogoFile, setFormLogoFile] = useState<File | null>(null);
+  const [formLogoDataUrl, setFormLogoDataUrl] = useState<string | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [formWebsite, setFormWebsite] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -374,6 +556,8 @@ function EntityCrudCard({
     setEditingId('new');
     setFormName('');
     setFormLogo('');
+    setFormLogoFile(null);
+    setFormLogoDataUrl(null);
     setFormWebsite('');
   }
 
@@ -381,6 +565,8 @@ function EntityCrudCard({
     setEditingId(r.id);
     setFormName(r.name);
     setFormLogo(r.logoUrl || '');
+    setFormLogoFile(null);
+    setFormLogoDataUrl(null);
     setFormWebsite(r.websiteUrl || '');
   }
 
@@ -388,7 +574,33 @@ function EntityCrudCard({
     setEditingId(null);
     setFormName('');
     setFormLogo('');
+    setFormLogoFile(null);
+    setFormLogoDataUrl(null);
     setFormWebsite('');
+  }
+
+  /* Read the picked logo file into a base64 data URL. Stored in
+     `formLogoDataUrl`; on save this value wins over the typed-in
+     Logo URL so the file upload takes precedence when both are
+     populated. */
+  function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+    setFormLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setFormLogoDataUrl(typeof reader.result === 'string' ? reader.result : null);
+    reader.onerror = () => {
+      setError('Failed to read file');
+      setFormLogoFile(null);
+      setFormLogoDataUrl(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearLogoFile() {
+    setFormLogoFile(null);
+    setFormLogoDataUrl(null);
   }
 
   async function save() {
@@ -400,9 +612,16 @@ function EntityCrudCard({
     setSaving(true);
     setError('');
     try {
+      /* Precedence for the logo column: an uploaded file (read as a
+         base64 data URL) overrides any URL typed into the URL field.
+         If neither is present, the column is cleared to null. */
+      const resolvedLogo =
+        formLogoDataUrl
+          ? formLogoDataUrl
+          : (formLogo.trim() || null);
       const payload: ClubTeamInput | CollegeInput = {
         name: trimmed,
-        logoUrl: formLogo.trim() || null,
+        logoUrl: resolvedLogo,
         websiteUrl: formWebsite.trim() || null,
       };
       if (editingId === 'new') {
@@ -465,6 +684,7 @@ function EntityCrudCard({
             gap: 10,
           }}
         >
+          {/* TOP ROW — Name (full width) */}
           <div className={styles.builderField} style={{ gridColumn: '1 / -1' }}>
             <label>Name</label>
             <input
@@ -475,6 +695,10 @@ function EntityCrudCard({
               autoFocus
             />
           </div>
+
+          {/* MIDDLE ROW — Logo URL + Logo File Upload, side by side.
+              When both are populated, the uploaded file wins on save
+              (see `resolvedLogo` in the save handler). */}
           <div className={styles.builderField}>
             <label>Logo URL (optional)</label>
             <input
@@ -482,9 +706,74 @@ function EntityCrudCard({
               value={formLogo}
               onChange={(e) => setFormLogo(e.target.value)}
               placeholder="https://..."
+              /* Visually de-emphasize the URL field when a file is
+                 staged, so it's clear the file takes precedence. */
+              style={formLogoFile ? { opacity: 0.55 } : undefined}
             />
           </div>
           <div className={styles.builderField}>
+            <label>
+              Logo File (optional)
+              {formLogoFile && (
+                <span style={{
+                  marginLeft: 8,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: 'var(--accent-light, #7eb6ff)',
+                  letterSpacing: '0.08em',
+                }}>
+                  ACTIVE
+                </span>
+              )}
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => logoFileInputRef.current?.click()}
+                style={{ flexShrink: 0 }}
+              >
+                {formLogoFile ? 'Replace file…' : 'Choose file…'}
+              </button>
+              {formLogoFile ? (
+                <>
+                  <span style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 12,
+                    color: 'var(--text-bright, #ffffff)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }} title={formLogoFile.name}>
+                    {formLogoFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    onClick={clearLogoFile}
+                    style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11 }}
+                  >
+                    Remove
+                  </button>
+                </>
+              ) : (
+                <span style={{ fontSize: 12, color: 'var(--muted)', opacity: 0.7 }}>
+                  No file chosen
+                </span>
+              )}
+              <input
+                ref={logoFileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleLogoFileChange}
+              />
+            </div>
+          </div>
+
+          {/* THIRD ROW — Website URL (full width) */}
+          <div className={styles.builderField} style={{ gridColumn: '1 / -1' }}>
             <label>Website URL (optional)</label>
             <input
               className={styles.input}
@@ -493,6 +782,7 @@ function EntityCrudCard({
               placeholder="https://..."
             />
           </div>
+
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button className={styles.btnSecondary} onClick={cancel} disabled={saving}>Cancel</button>
             <button className={styles.btn} onClick={save} disabled={saving}>

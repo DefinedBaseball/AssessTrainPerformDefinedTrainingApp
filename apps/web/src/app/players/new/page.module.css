@@ -124,6 +124,13 @@
   color: #f1f4f6;
   border-color: rgba(255,255,255,0.14);
 }
+/* Light theme: translucent-white fill + near-white text → white-on-light.
+   Solid accent pill reads as clearly selected. */
+[data-theme="light"] .chipActive {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
 
 /* ── Height Input ── */
 .heightRow {

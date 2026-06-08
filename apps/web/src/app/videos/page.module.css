@@ -50,7 +50,13 @@
   padding: 10px 14px;
   border-radius: var(--radius-md, 14px);
   border: 1px solid var(--border);
-  background: var(--card);
+  /* `var(--card)` resolves to `rgba(255,255,255,0.015)` in globals.css
+     (effectively transparent), which made this trigger read as a
+     bare outline floating on the page. Matched to the Chart Builder
+     `.datePopoverTrigger` fill (rgba(255,255,255,0.04)) so it now
+     reads as a faint dark chip — same treatment as the Leaderboard
+     filter selects. */
+  background: rgba(255,255,255,0.04);
   color: var(--text);
   font-size: 14px;
   font-weight: 600;
@@ -97,7 +103,15 @@
   left: 0;
   right: 0;
   z-index: 50;
-  background: var(--card);
+  /* Solid dark surface — `var(--card)` (rgba(255,255,255,0.015)) was
+     transparent enough that the panel read as "clear" against the
+     page background and the list items underneath were unreadable.
+     Stacked the panel-fill gradient over a solid dark base so the
+     panel always reads opaque, matching the Chart Builder
+     `.datePopoverPanel` treatment. */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%),
+    #0d1218;
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 14px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
@@ -283,6 +297,13 @@
   background: rgba(255,255,255,0.08);
   color: #f1f4f6;
   border-color: rgba(255,255,255,0.14);
+}
+/* Light theme: translucent-white fill + near-white text → white-on-light.
+   Solid accent pill reads as clearly selected. */
+[data-theme="light"] .catChipActive {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
 
 /* ── Grad Year Multi-Select ── */
@@ -926,4 +947,23 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 1),
     0 4px 14px rgba(15, 20, 30, 0.06);
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — Athlete (player-select) dropdown trigger
+   ══════════════════════════════════════════════
+   The athlete-picker dropdown is the "Player select bubble" for
+   this page. Flip the trigger button to the cool-slate
+   `--panel-bg-light` fill (same color the Player Name bubble on
+   the athlete profile uses) so it visually pairs with the
+   /training & /live player-select bubbles across the coaching
+   app in light mode. */
+[data-theme="light"] .athleteDropdownBtn {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: var(--text);
+}
+[data-theme="light"] .athleteDropdownBtn:hover,
+[data-theme="light"] .athleteDropdownBtnOpen {
+  border-color: rgba(0, 0, 0, 0.22);
 }

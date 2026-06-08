@@ -254,8 +254,8 @@ function LineView({
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-      <line x1={PAD} y1={H - PAD} x2={W - 4} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
-      <line x1={PAD} y1={4} x2={PAD} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
+      <line x1={PAD} y1={H - PAD} x2={W - 4} y2={H - PAD} stroke="var(--border-light)" />
+      <line x1={PAD} y1={4} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
 
       {band && band.min != null && band.max != null && (
         <rect
@@ -309,8 +309,8 @@ function LineView({
         );
       })}
 
-      <text x={PAD} y={H - 6} fontSize="9" fill="rgba(255,255,255,0.5)">{yMin.toFixed(0)}</text>
-      <text x={PAD} y={10} fontSize="9" fill="rgba(255,255,255,0.5)">{yMax.toFixed(0)}</text>
+      <text x={PAD} y={H - 6} fontSize="9" fill="var(--text-muted)">{yMin.toFixed(0)}</text>
+      <text x={PAD} y={10} fontSize="9" fill="var(--text-muted)">{yMax.toFixed(0)}</text>
     </svg>
   );
 }
@@ -400,13 +400,13 @@ function MovementPlotView({ series }: { series: ChartEvaluation['series'] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-      <line x1={PAD} y1={H - PAD} x2={W - 4} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
-      <line x1={PAD} y1={4} x2={PAD} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
+      <line x1={PAD} y1={H - PAD} x2={W - 4} y2={H - PAD} stroke="var(--border-light)" />
+      <line x1={PAD} y1={4} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
       {xMin <= 0 && xMax >= 0 && (
-        <line x1={toX(0)} y1={4} x2={toX(0)} y2={H - PAD} stroke="rgba(255,255,255,0.20)" strokeDasharray="3 4" />
+        <line x1={toX(0)} y1={4} x2={toX(0)} y2={H - PAD} stroke="var(--border-strong)" strokeDasharray="3 4" />
       )}
       {yMin <= 0 && yMax >= 0 && (
-        <line x1={PAD} y1={toY(0)} x2={W - 4} y2={toY(0)} stroke="rgba(255,255,255,0.20)" strokeDasharray="3 4" />
+        <line x1={PAD} y1={toY(0)} x2={W - 4} y2={toY(0)} stroke="var(--border-strong)" strokeDasharray="3 4" />
       )}
       {pairs.map((p, i) => (
         <circle key={i} cx={toX(p.x)} cy={toY(p.y)} r="3.5" fill="#4682FF" fillOpacity="0.75" stroke="#D4AF37" strokeWidth="0.5" />
@@ -455,7 +455,7 @@ function StrikeZoneHeatView({
                 width={cell - 1}
                 height={cell - 1}
                 fill={`hsla(${hue},70%,55%,${0.12 + intensity * 0.6})`}
-                stroke="rgba(255,255,255,0.08)"
+                stroke="var(--border)"
               />
               <text
                 x={c * cell + cell / 2}

@@ -66,6 +66,35 @@
     0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
+/* ── Light-theme override ──
+   Page bg is white; every Player Summary panel (Tool Grades,
+   Sub-Grade Breakdown, Sub-Grade Compare, Metric Trend,
+   Upcoming Drills, Player Videos) flips to the canonical
+   15%-greyer-than-white bubble fill defined as
+   `--panel-bg-light` in globals.css. The radial highlight +
+   dark-mode shadow stack are retired in favor of a soft
+   dark-grey outer shadow that gives each bubble lift on the
+   white page. Border drops to a low-opacity black for a
+   crisp edge instead of the dark-mode white rim. */
+[data-theme="light"] .panel {
+  /* Per coach-spec the Player Summary panels (Tool Grades,
+     Sub-Grade Breakdown, Upcoming Drills, Player Videos)
+     now flip to the FLAT `#ededed` surface — same color as
+     the Hitting Snapshot + Player Name bubble — so every
+     "frame" bubble across the player profile reads in one
+     unified grey. */
+  background: var(--panel-bg-light);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  /* Inherits the shared `--bubble-shadow` from the parent
+     `.pageRoot` on athlete profile pages so every panel gets
+     a uniform shadow lift; falls back to the original soft
+     shadow on any other page that doesn't define the
+     variable. */
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04));
+}
+
 /* Decorative top hairline + bottom-right vignette removed for the
    reversed (dark) scheme — they introduced a light→dark directional
    fade that didn't match the uniform Movement-Plot canvas look. */
@@ -75,6 +104,12 @@
 /* ════════════════════════════════════════════════
    Section title + tiny label
    ════════════════════════════════════════════════ */
+/* Section title row across the Player Summary panels (Sub-Grade
+   Breakdown, Trends categories, etc.) now adopts the exact Tool
+   Grades rhythm: 0.7rem padding-bottom + a full-width 1px accent
+   line + 0.85rem margin below the accent line. Drops the previous
+   1rem margin-bottom in favor of the padding/border combo so each
+   panel reads with the same "title → accent → content" cadence. */
 .sectionTitle {
   position: relative;
   z-index: 2;
@@ -82,7 +117,9 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -93,12 +130,27 @@
 .panelTitle {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 23px;
+  /* Trimmed 23 → 20.7 (−10 %) so every uppercase blue-bubble title
+     reads a touch quieter. Paired with matching −10 % reductions
+     on `.sectionTitle` in assessment.module.css (Snapshot headers),
+     `.hudHead` in PitchingTab (Pitch Report), and `.title` in
+     LiveAtBatsList (Live At-Bats / Live Results) so the entire
+     app's section titles stay visually consistent. */
+  font-size: 20.7px;
   font-weight: 600;
   font-style: italic;
   letter-spacing: -0.025em;
   line-height: 1.05;
   color: #ffffff;
+  /* Every blue-bubble title across the Player Summary tab now reads
+     in all caps — Tool Grades, Sub-Grade Breakdown, Metric Trend,
+     Upcoming Drills, Videos, per-category video headers. Paired
+     with matching uppercase rules on `.sectionTitle` in
+     assessment.module.css (Snapshot headers), `.hudHead` in
+     PitchingTab (Pitch Report), and `.title` in LiveAtBatsList
+     (Live At-Bats / Live Results) so the entire app's section
+     titles read consistently. */
+  text-transform: uppercase;
 }
 
 .tiny {
@@ -260,7 +312,90 @@
   justify-content: space-between;
   gap: 1rem;
   padding-bottom: 0.7rem;
-  border-bottom: 1px solid var(--border);
+  /* 50% darker than the standard `var(--border)` — see
+     `--tool-grades-line` in globals.css. Applied only to the
+     two Tool Grades accent lines. */
+  border-bottom: 1px solid var(--tool-grades-line);
+}
+
+/* ── Upcoming Drills — category drill card ──
+   Both themes share the SAME structural treatment:
+     • Card body has no tinted fill behind the drill-name list
+       — it sits flush on the panel surface (panel grey in dark
+       theme, white in light theme).
+     • Title text + count chip carry the per-TAB anchor shade
+       (`--drill-tab-anchor`) so every title in a column reads
+       as one unified darker shade.
+     • The hairline divider beneath the title uses the per-
+       CATEGORY color (`--drill-cat-color`) so the lightest →
+       darkest gradient is preserved on the divider line as a
+       subtle category indicator.
+
+   The `--drill-cat-bg` subtle 13% tint that previously filled
+   the dark-theme card was retired so the dark-theme drill
+   list reads as plain white text on the panel grey — the
+   coach wanted the same "transparent card + colored title +
+   colored divider" structure across both themes. */
+.drillCard {
+  background: transparent;
+  overflow: hidden;
+}
+[data-theme="light"] .drillCard {
+  background: #ffffff;
+}
+
+/* Drill-card title + count chip — theme-aware per-TAB anchor
+   shade in BOTH themes:
+     • DARK  → `--drill-tab-anchor-dark` (Drills shade — one
+       step lighter so titles still pop against the dark panel
+       surface).
+     • LIGHT → `--drill-tab-anchor` (deeper core-activity shade
+       — Machine for Hitting, Bullpen for Pitching, …) so the
+       titles read confidently against the white card body.
+   The hairline divider beneath each title keeps the per-
+   CATEGORY gradient in both themes so the Movement Prep →
+   Live progression still reads as a subtle category cue. */
+.drillCardHeaderTitle {
+  color: var(--drill-tab-anchor-dark, var(--drill-cat-color, #3B82F6)) !important;
+}
+.drillCardHeaderCount {
+  color: var(--drill-tab-anchor-dark, var(--drill-cat-color, #3B82F6)) !important;
+  opacity: 0.7;
+}
+[data-theme="light"] .drillCardHeaderTitle {
+  color: var(--drill-tab-anchor, var(--drill-cat-color, #3B82F6)) !important;
+}
+[data-theme="light"] .drillCardHeaderCount {
+  color: var(--drill-tab-anchor, var(--drill-cat-color, #3B82F6)) !important;
+}
+
+/* Hairline divider between the drill card's title and its
+   list of drill names — picks up the per-CATEGORY color in
+   BOTH themes so the divider gradient still steps through
+   Movement Prep pale → Live deep regardless of theme. */
+.drillCardDivider {
+  background: var(--drill-cat-color, #3B82F6);
+}
+
+/* Upcoming Drills column-header pill — SOLID accent-colored
+   pill (Hitting blue / Pitching orange / Catching teal / …)
+   with white text in BOTH themes, matching the unified
+   "filled pill + colored title + colored divider" Upcoming
+   Drills structure per coach-spec. The accent color comes
+   from the inline `--tab-accent` CSS var which the TSX
+   surfaces from `TAB_COLORS[tabKey].text`. */
+.upcomingTabHeader {
+  background: var(--tab-accent, #3B82F6);
+  border-bottom: none !important;
+  border-radius: 6px;
+  padding: 4px 8px !important;
+}
+.upcomingTabHeaderTitle {
+  color: #ffffff !important;
+}
+.upcomingTabHeaderCount {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
 }
 
 .toolBubbleHead h2 {
@@ -281,6 +416,342 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+}
+
+/* ─────────────────────────────────────────────────────────
+ * VERTICAL TOOL-GRADE GRAPHS
+ *
+ * Tool Grades layout: one upright bar-chart card per section
+ * (Hitting / Pitching / Catching / Infield / Outfield /
+ * Strength — whichever the player has). Each card stacks:
+ *   1. Total score (large number) at the top
+ *   2. Section label
+ *   3. A row of vertical bars — one per underlying sub-grade
+ *      with its 20-80 value at the top of the column and the
+ *      sub-grade name at the bottom.
+ * The cards stay click-selectable so the Sub-Grade Breakdown
+ * panel below still drives off `selectedSection`.
+ * ───────────────────────────────────────────────────────── */
+.toolGraphGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.toolGraphCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px 10px;
+  border-radius: 12px;
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  min-width: 0;
+}
+
+.toolGraphCard:hover {
+  background: var(--card-elev-hover), var(--card-elev-bg);
+}
+
+.toolGraphCard:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.toolGraphCardActive {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card-hi);
+}
+
+/* ── Light-theme: Hitting Tool Grades card override ──
+   Hitting card wears the shared `--bubble-chrome-bg` token
+   (the canonical #f3f3f3 → #e5e5e5 off-white gradient defined
+   in globals.css) so it stays in lockstep with the Pitching +
+   Physical Tool Grades cards AND every movement-plot / pitch-
+   report style bubble in the Hitting + Pitching tabs (Spray
+   Chart, Coach Grades, Full Swing, Blast Motion, HitTrax,
+   ArsenalCards, Movement / Location / Release plots, Break &
+   Spin, Release & Extension). One source of truth for the
+   whole bubble system. */
+[data-theme="light"] .toolGraphCard[data-section="hitting"],
+[data-theme="light"] .toolGraphCard[data-section="hitting"]:hover {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+/* ── Light-theme: per-card label color overrides ──
+   `.toolGraphLabel` is hardcoded white (matches every other
+   section title across the app's grey-bubble system). In light
+   mode, the Hitting / Pitching / Physical cards sit on lighter
+   greys per the per-card overrides — white text disappears
+   into those tinted surfaces, so each label flips to solid
+   black for contrast. Catching / Infield / Outfield cards
+   still inherit the default white label (their card chrome
+   stays at the near-white default where white text reads as
+   intended on the inverted bubble's inner gradient). */
+[data-theme="light"] .toolGraphCard[data-section="hitting"] .toolGraphLabel,
+[data-theme="light"] .toolGraphCard[data-section="pitching"] .toolGraphLabel,
+[data-theme="light"] .toolGraphCard[data-section="strength"] .toolGraphLabel {
+  color: #000000;
+}
+
+/* ── Light-theme: per-card accent-hairline overrides ──
+   `.toolGraphRule` is a transparent → white → transparent
+   gradient (the soft accent line between each card's label
+   and its total score). The default gradient is invisible on
+   the lighter Hitting / Pitching / Physical cards in light
+   mode — flip THIS rule to a transparent → black → transparent
+   gradient on those three cards so the hairline reads as a
+   crisp dark accent matching the new black label. Catching /
+   Infield / Outfield cards keep the default white rule (their
+   card chrome stays at the near-white default). */
+[data-theme="light"] .toolGraphCard[data-section="hitting"] .toolGraphRule,
+[data-theme="light"] .toolGraphCard[data-section="pitching"] .toolGraphRule,
+[data-theme="light"] .toolGraphCard[data-section="strength"] .toolGraphRule {
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 50%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+/* ── Light-theme: Pitching + Physical Tool Grades card override ──
+   Both cards wear the off-white-with-tiny-gradient chrome via
+   `--bubble-chrome-bg` — same `#f3f3f3 → #e5e5e5` linear gradient
+   used by the Hitting card and every movement-plot / pitch-report
+   style bubble across the Hitting + Pitching tabs. Selector gated
+   to `[data-theme="light"]` so dark mode is untouched. */
+[data-theme="light"] .toolGraphCard[data-section="pitching"],
+[data-theme="light"] .toolGraphCard[data-section="pitching"]:hover,
+[data-theme="light"] .toolGraphCard[data-section="strength"],
+[data-theme="light"] .toolGraphCard[data-section="strength"]:hover {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+/* Accent hairline between the section label and the total score.
+   Stretches across the full inner card width via `align-self:
+   stretch` (the parent card uses `align-items: center`, which
+   would otherwise shrink the rule to content width). A symmetric
+   transparent → white → transparent gradient softens the ends so
+   the rule reads as a center-weighted accent rather than a hard
+   edge meeting the card border. */
+.toolGraphRule {
+  align-self: stretch;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.38) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  /* Pulls the rule slightly closer to the label/number it sits
+     between — the card's 8px gap is already in play, so the
+     negative margin trims the visual whitespace without changing
+     the gap rhythm for other children. */
+  margin: -2px 0;
+}
+
+.toolGraphTotal {
+  /* Unified score typography across every Tool Grades card —
+     matches the Swing GradeRow composite score in the Hitting tab.
+     Inherited Satoshi (body sans-serif) at 26 px / weight 800 with
+     tight -0.02em tracking and tabular figures for column-aligned
+     two-digit scores. This replaces the previous per-card mix
+     (Syne 800 19.2 px on the four non-Hitting cards, Satoshi 800
+     26 px on the Hitting override) so all five cards now read as
+     one consistent number system. Per-section identity stays in
+     the bandColor inline-style override and the bar fills. */
+  font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Per-section number-face overrides retired. The base
+   `.toolGraphTotal` and `.toolGraphBarScore` rules now apply
+   uniformly to every card (Hitting / Pitching / Infield / Catching
+   / S & C) — single Satoshi 800 number system across the row.
+   `data-section="hitting"` is still set on the card element in
+   case you want to bring per-section number styling back later. */
+
+
+.toolGraphTotalLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-top: -2px;
+}
+
+.toolGraphLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Section labels (Hitting / Pitching / Catching / Infield /
+     S & C) now share the inherited Satoshi family with every other
+     grey-bubble title across the app — the previous Brown display
+     family was retired so the entire grey-bubble system reads in
+     one typeface (Font D family) end to end. Size + weight +
+     tracking + casing preserved: 1 rem upright, 600, -0.025em,
+     uppercase, bright white. */
+  font-family: inherit;
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Inner bubble inside each Tool Grades section card. Wraps the
+   big aggregate total + the bar chart together. Wears the same
+   `.panel` chrome the OUTER Tool Grades bubble uses — dark-navy
+   radial top highlight + rgba(10,14,20,0.38) base + 12% white rim
+   + triple inset shadow stack — so the inner bubble reads as a
+   tiny sibling of the outer bubble rather than a flatter darker
+   surface. Matched by the GradeRow inner bubble in SwingTab.tsx so
+   the Hitting tab and Player Summary tab share this look. */
+.toolGraphBubble {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 8px;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.toolGraphBars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 6px;
+  width: 100%;
+  padding-top: 2px;
+}
+
+.toolGraphBarCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+  /* `max-width` retired so each bar column can grow to accommodate
+     its full label text. With Tool Grades cards now spanning the
+     entire bar width (the grid is `repeat(N, 1fr)` per visible
+     section count), each card has plenty of horizontal room — the
+     50 px cap was forcing labels like "Movement Prep" / "Mechanics"
+     / "Execution" to ellipsis-truncate. The bar TRACK itself is
+     still fixed at 22 px wide via `.toolGraphBarTrack`, so the
+     visual bars stay compact while their labels read in full. */
+}
+
+.toolGraphBarScore {
+  /* Per-bar score now shares the same Satoshi 800 number system as
+     the big total above it — same family, same weight, same -0.02em
+     tracking, same tabular figures. The size stays small (10.08 px)
+     so the scores sit quietly above each bar without competing with
+     the total. */
+  font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 10.08px;
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+  line-height: 1;
+  min-height: 13px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.toolGraphBarTrack {
+  position: relative;
+  /* Widened 18 → 22 (~20% wider) so each bar reads more substantial. */
+  width: 22px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.toolGraphBarFill {
+  width: 100%;
+  box-shadow: 0 0 8px -2px currentColor;
+  transition: height 0.4s cubic-bezier(0.25, 1, 0.3, 1);
+  border-radius: 5px 5px 0 0;
+}
+
+.toolGraphBarLabel {
+  /* Per-bar names (Swing / Quality of Contact / Swing Decision /
+     Coach Grades on Hitting; equivalent breakdowns on Pitching /
+     Infield / Catching / S & C) now use "Font D" — the small all-
+     caps Satoshi eyebrow voice that drives the Break & Spin "Pitch"
+     column header. Treats every grey-bubble secondary label across
+     the app consistently. Inherited Satoshi family, 9 px, weight
+     600, 0.05em tracking, uppercase, bright white. */
+  font-family: inherit;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text-bright);
+  line-height: 1.2;
+  /* Ellipsis-truncation retired — labels like "Movement Prep" /
+     "Mechanics" / "Execution" / "Quality of Contact" were getting
+     cut to "Moveme…" / "Mechan…" / "Executi…" because the previous
+     `-webkit-line-clamp: 2` capped the label at 2 lines AND the
+     column was capped at 50 px wide. Both caps are gone now: words
+     wrap freely with `overflow-wrap: anywhere` so long compound
+     labels can break across as many lines as they need without
+     overflowing the column. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+  width: 100%;
+  min-height: 22px;
+}
+
+/* Light-theme polish — match the existing toolBarRow flip. */
+[data-theme="light"] .toolGraphCard {
+  background: rgba(0, 0, 0, 0.02);
+}
+[data-theme="light"] .toolGraphBarTrack {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.10);
 }
 
 /* Each Tool Grades row gets the Movement-Plot tone so every section
@@ -758,7 +1229,7 @@
 }
 .devSaveBtn {
   background: var(--accent);
-  color: #000;
+  color: var(--on-accent);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 7px 16px;
@@ -840,9 +1311,14 @@
 }
 
 /* Condensed header + KPI treatment scoped to the Sub-grade Breakdown card.
-   Keeps the bar chart full-size but tightens everything above it. */
+   `.playerCard` is a CSS grid with `gap: 0.55rem` between rows — that
+   gap is added on top of `.sectionTitle`'s margin-bottom, so without
+   compensation the accent → first inner content distance blows past
+   the Tool Grades reference (0.85rem). Override the .sectionTitle's
+   margin-bottom to 0.3rem so 0.3rem + 0.55rem (grid gap) = 0.85rem
+   total — same accent-to-content cadence as Tool Grades. */
 .playerCard .sectionTitle {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
 }
 .playerCard .sectionTitle h2 {
   /* Override removed — let the shared .sectionTitle h2 rule above
@@ -967,10 +1443,18 @@
   border-bottom: 1px solid var(--border-light);
 }
 .subGradeChartTitle {
+  /* Inherited Satoshi (Font D family) — unified across every
+     grey-bubble title so the breakdown tiers read in one typeface
+     end to end. Brown display retired here. Same upright weight
+     600, -0.025em tracking, uppercase, bright white as `.toolGraphLabel`. */
+  font-family: inherit;
   font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text-bright);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  color: #ffffff;
+  line-height: 1.05;
   text-align: center;
 }
 .subGradeChartScore {
@@ -996,6 +1480,41 @@
   margin-top: 0;
   margin-bottom: 0;
   padding: 0;
+}
+
+/* Inner blue bubble inside each Sub-Grade Breakdown / Hitting
+   Breakdown mini-card. Wears the same `.panel` chrome the Tool
+   Grades OUTER bubble (and Tool Grades inner section-card bubble)
+   use — dark-navy radial top highlight + rgba(10,14,20,0.38) base
+   + 12 % white rim + triple inset shadow stack. Wraps the entire
+   chart card content (header + bar chart) so the breakdown mini-
+   cards read consistently with the Tool Grades section cards
+   above them. */
+.subGradeChartInnerBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 8px;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Coach Grades variant — Sub-Grade Breakdown card for the Hitting
+   section's Coach Grades bar uses a shorter chart wrap (200px → 160px,
+   20% shorter) so the bubble reads as a quieter secondary diagnostic
+   next to its taller Swing / QoC / Swing-Decision siblings. */
+.subGradeChartCardShort .subGradeChartWrap {
+  height: 160px;
+  min-height: 160px;
 }
 
 /* Row of per-bar bubbles — sits inside the same panel as the bar chart,
@@ -1254,15 +1773,64 @@
 
 /* Outer panel — same shape as the shared profilePanel light override. */
 [data-theme="light"] .panel {
+  /* Per coach-spec the Player Summary panels (Tool Grades,
+     Sub-Grade Breakdown, Upcoming Drills, Player Videos) flip
+     to the FLAT `#ededed` surface — same color as the Hitting
+     Snapshot + Player Name bubble — so every "frame" bubble
+     across the player profile reads in one unified grey.
+     Shadow inherits `--bubble-shadow` from the parent
+     `.pageRoot` wrapper on athlete profile pages so every
+     panel gets the same lift; falls back to a soft default
+     on pages that don't define the variable. */
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04));
+}
+
+/* Tool Grades outer bubble + interior cards now share the
+   universal player-profile palette: the outer `.toolBubble`
+   reads from `var(--panel-bg-light)` (white-with-shine, same
+   recipe as Hitting Snapshot / Strength / etc.) via the
+   inherited `.panel` rule above, and the interior `.tool-
+   GraphCard` instances inherit `--card-elev-bg` from
+   `.pageRoot` (`#ededed`, same as Force & Athletic Testing).
+   The earlier per-section Hitting-only override + the Tool
+   Grades grey-bubble override were retired here per coach-
+   spec — every outer panel + every interior sub-bubble in
+   the profile reads in one consistent two-layer palette. */
+
+/* ── Current Grades / Trends sub-tab bar ──
+   Top-of-page sub-tab pill containing "Current Grades" + "Trends"
+   tabs. Was inline-styled in PlayerSummaryTab.tsx; pulled into a
+   class so the light-theme override below can flip the background
+   to `--panel-bg-light` in lockstep with the rest of the bubble
+   system. */
+.subTabBar {
+  position: relative;
   background:
     radial-gradient(ellipse at 50% 35%,
-      rgba(0, 0, 0, 0.02) 0%,
+      rgba(255, 255, 255, 0.04) 0%,
       transparent 60%),
-    #ffffff;
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+[data-theme="light"] .subTabBar {
+  background: var(--panel-bg-light);
   border-color: rgba(0, 0, 0, 0.10);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    0 4px 14px rgba(15, 20, 30, 0.06);
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 /* Inner sub-bubbles inside the panel — Tool-grades rows + dev sections

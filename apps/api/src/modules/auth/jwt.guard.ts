@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
   SetMetadata,
@@ -17,6 +18,26 @@ export const Roles = (...roles: ('COACH' | 'PLAYER')[]) => SetMetadata(ROLES_KEY
 
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
+}
+
+/**
+ * Ownership guard for "/:playerId/..." style routes. Coaches see everything;
+ * players may only access data tied to their own linked playerId. Throws
+ * ForbiddenException if a player tries to peek at another athlete.
+ *
+ * Centralised here so every controller routes through the same check —
+ * adding a new player-scoped read endpoint is a one-liner instead of a
+ * handwritten conditional that's easy to forget.
+ */
+export function assertPlayerOwnership(
+  req: AuthenticatedRequest,
+  requestedPlayerId: string,
+) {
+  const user = req.user;
+  if (!user) throw new UnauthorizedException();
+  if (user.role === 'COACH') return;
+  if (user.role === 'PLAYER' && user.playerId && user.playerId === requestedPlayerId) return;
+  throw new ForbiddenException('You can only access your own data.');
 }
 
 @Injectable()

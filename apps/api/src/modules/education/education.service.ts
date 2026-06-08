@@ -59,11 +59,11 @@ export class EducationService {
     return player;
   }
 
-  async createMlbPlayer(data: { name: string; positions: string; bats?: string; throws?: string; team?: string; emoji?: string }) {
+  async createMlbPlayer(data: { name: string; positions: string; bats?: string; throws?: string; team?: string; emoji?: string; coverImageUrl?: string }) {
     return this.prisma.mlbPlayer.create({ data });
   }
 
-  async updateMlbPlayer(id: string, data: { name?: string; positions?: string; bats?: string; throws?: string; team?: string; emoji?: string }) {
+  async updateMlbPlayer(id: string, data: { name?: string; positions?: string; bats?: string; throws?: string; team?: string; emoji?: string; coverImageUrl?: string | null }) {
     return this.prisma.mlbPlayer.update({ where: { id }, data });
   }
 

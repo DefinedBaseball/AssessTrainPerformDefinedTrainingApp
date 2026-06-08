@@ -56,6 +56,7 @@
 }
 .sportTab:hover { color: var(--text); }
 .sportTabActive { color: #f1f4f6 !important; background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.14); }
+[data-theme="light"] .sportTabActive { color: var(--on-accent) !important; background: var(--accent); border-color: var(--accent); }
 
 /* ── Filter Pills — Movement-Plot tone per pill ── */
 .filterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -477,4 +478,44 @@
   .classDetailEmoji { width: 56px; height: 56px; font-size: 28px; }
   .classDetailName { font-size: 22px; }
   .classDetailBody { padding: 20px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — every "outer bubble" surface on the
+   Education hub flips to the canonical Player Name bubble fill
+   (`--panel-bg-light`, currently #e6e6e6) so each card reads as
+   the same neutral grey panel as the rest of the bubble system
+   app-wide (Tool Grades, Coach Grades, page headers, etc.).
+   Applies to:
+     • Classes / Drills / Major League Video hub cards
+     • Each row in the Classes list
+     • Each row in the Drills list
+     • Each MLB player card
+   ════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .hubCard,
+[data-theme="light"] .classCard,
+[data-theme="light"] .drillCard,
+[data-theme="light"] .playerCard {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08);
+}
+
+/* Hub card title labels (Classes / Drills / Major League
+   Video) pick up the same dark-graphite gradient the
+   PageHeader title uses for "Assess / Train / Athletes / …"
+   — keeps the type system consistent across page headers and
+   card titles in light theme. */
+[data-theme="light"] .hubCardTitle {
+  background: linear-gradient(180deg,
+    #1a1f25 0%,
+    #2a3138 40%,
+    #404a52 85%,
+    #5a646c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
 }

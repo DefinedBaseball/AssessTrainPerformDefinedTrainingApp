@@ -1,9 +1,31 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class TrainingService {
   constructor(private prisma: PrismaService) {}
+
+  /** When a Drill carries a videoUrl that points at our local upload
+   *  directory, delete the underlying file so it doesn't orphan on
+   *  disk after the Drill row is removed. URLs like "/api/videos/file/
+   *  abc.mp4" map to "uploads/videos/abc.mp4" relative to cwd. Falls
+   *  back to a no-op if the URL is external (e.g. YouTube embed) or
+   *  the file is already gone. */
+  private cleanupDrillVideoFile(videoUrl: string | null | undefined) {
+    if (!videoUrl) return;
+    const FILE_PREFIX = '/api/videos/file/';
+    if (!videoUrl.startsWith(FILE_PREFIX)) return;
+    const filename = videoUrl.slice(FILE_PREFIX.length);
+    if (!filename || filename.includes('/') || filename.includes('..')) return; // guard against path traversal
+    const filePath = path.join(process.cwd(), 'uploads', 'videos', filename);
+    try {
+      fs.unlinkSync(filePath);
+    } catch {
+      // Already gone or never existed — fine.
+    }
+  }
 
   // ─── Drill Library ─────────────────────────────────────────────
 
@@ -50,11 +72,31 @@ export class TrainingService {
     description?: string;
     videoUrl?: string;
   }) {
+    /* If a coach replaces the drill's video, the previous file becomes
+       orphaned on disk. Look up the existing drill, compare URLs, and
+       delete the old file when it changes. */
+    if (data.videoUrl !== undefined) {
+      const prev = await this.prisma.drill.findUnique({ where: { id }, select: { videoUrl: true } });
+      if (prev && prev.videoUrl && prev.videoUrl !== data.videoUrl) {
+        this.cleanupDrillVideoFile(prev.videoUrl);
+      }
+    }
     return this.prisma.drill.update({ where: { id }, data });
   }
 
   async deleteDrill(id: string) {
-    return this.prisma.drill.delete({ where: { id } });
+    /* Read the drill first so we can clean up its videoUrl file before
+       the row is gone. ScheduledDrill rows pointing here have an
+       onDelete: SetNull rule (see schema.prisma) so they survive but
+       lose the FK link — which is the right behaviour because the
+       calendar slot itself shouldn't disappear when the Drill template
+       is removed. */
+    const drill = await this.prisma.drill.findUnique({
+      where: { id }, select: { videoUrl: true },
+    });
+    const result = await this.prisma.drill.delete({ where: { id } });
+    if (drill?.videoUrl) this.cleanupDrillVideoFile(drill.videoUrl);
+    return result;
   }
 
   // ─── Scheduled Drills (Calendar) ───────────────────────────────
@@ -126,6 +168,10 @@ export class TrainingService {
   }
 
   async updateScheduledDrill(id: string, data: {
+    /* playerId is included so the program-board's drag-drop flow can
+       reassign a scheduled drill from one athlete to another with a
+       single PATCH (rather than delete+recreate). */
+    playerId?: string;
     drillId?: string;
     tab?: string;
     category?: string;
@@ -133,7 +179,7 @@ export class TrainingService {
     date?: string;
     time?: string;
     duration?: number;
-    notes?: string;
+    notes?: string | null;
   }) {
     return this.prisma.scheduledDrill.update({
       where: { id },

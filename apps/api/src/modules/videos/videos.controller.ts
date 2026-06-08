@@ -129,8 +129,48 @@ export class VideosController {
    */
   @Post('upload')
   @Roles('COACH')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a video file (COACH only)' })
+  @UseInterceptors(FileInterceptor('file', {
+    /* 500 MB cap — enough for typical training-day clips at 1080p, small
+     * enough to avoid OOMing the container on a runaway upload. The
+     * presigned-PUT path (above) is the recommended route for anything
+     * larger; that streams direct to S3 and never lands in API memory. */
+    limits: { fileSize: 500 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      /* Accept any of:
+       *   1. mimetype starts with `video/` (the happy path — most
+       *      browsers attach the right Content-Type on the multipart
+       *      part directly).
+       *   2. filename ends in a known video extension (`.mp4`,
+       *      `.webm`, `.mov`, `.mkv`, `.avi`, `.m4v`, `.ogv`). This
+       *      handles the Live-tracker MediaRecorder path: some
+       *      browsers strip codec parameters from the blob's MIME
+       *      during the File→multipart conversion and the server
+       *      receives an empty / generic mimetype (e.g.
+       *      `application/octet-stream`), even though the file is a
+       *      legitimate `.webm` clip the recorder just produced.
+       *
+       * Anything that fails BOTH checks is rejected — still blocks
+       * the original threat model (executables or images smuggled
+       * into the video upload endpoint). The error message echoes
+       * the received mimetype so the client can debug malformed
+       * uploads quickly. */
+      const VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv'];
+      const mime = (file.mimetype || '').toLowerCase();
+      const name = (file.originalname || '').toLowerCase();
+      const mimeOk = mime.startsWith('video/');
+      const extOk = VIDEO_EXTS.some(ext => name.endsWith(ext));
+      if (!mimeOk && !extOk) {
+        return cb(
+          new BadRequestException(
+            `Only video files are allowed (got mimetype="${file.mimetype || '(none)'}", filename="${file.originalname || '(none)'}")`,
+          ),
+          false,
+        );
+      }
+      cb(null, true);
+    },
+  }))
+  @ApiOperation({ summary: 'Upload a video file (COACH only, 500MB max, video/* only)' })
   @ApiConsumes('multipart/form-data')
   async uploadVideo(
     @UploadedFile() file: any,
@@ -142,34 +182,57 @@ export class VideosController {
     if (!file) throw new BadRequestException('No video file provided');
     if (!playerId) throw new BadRequestException('playerId is required');
 
-    // Ensure upload directory exists
-    if (!fs.existsSync(UPLOAD_DIR)) {
-      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    }
-
-    // Save file to disk
     const ext = path.extname(file.originalname) || '.mp4';
     const filename = `${uuid()}${ext}`;
-    const filePath = path.join(UPLOAD_DIR, filename);
-    fs.writeFileSync(filePath, file.buffer);
 
-    // Create DB record
+    /* Storage routing — same pattern as the drill upload. STORAGE_DRIVER=s3
+     * uploads to the configured bucket (and the URL points at CloudFront
+     * via CDN_BASE_URL); otherwise writes to local disk for dev. The
+     * presigned-PUT path on this controller is still the recommended
+     * route for large client-side uploads — this server-side path is
+     * here for legacy clients and small files. */
+    const driver = process.env.STORAGE_DRIVER || 'local';
+    let originalUrl: string;
+
+    if (driver === 's3' && this.s3.isConfigured()) {
+      const ym = new Date().toISOString().slice(0, 7);
+      const key = `uploads/${ym}/${filename}`;
+      await this.s3.putObjectFromBuffer(key, file.buffer, file.mimetype || 'video/mp4');
+      originalUrl = this.s3.publicUrlFor(key);
+    } else {
+      if (!fs.existsSync(UPLOAD_DIR)) {
+        fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      }
+      const filePath = path.join(UPLOAD_DIR, filename);
+      /* Async file write — was `fs.writeFileSync` which blocks the
+         Node event loop for the duration of the write. With the new
+         adaptive 4K-up-to-240 fps capture giving ~50–60 Mbps bitrates,
+         individual clips can be 100–500 MB; a sync write on a clip
+         that big stalls EVERY other API call (auth, status pings,
+         the parallel video uploads from the same save) for seconds.
+         `fs.promises.writeFile` releases the event loop on the I/O
+         wait so the other parallel uploads + their auth checks can
+         interleave normally. */
+      await fs.promises.writeFile(filePath, file.buffer);
+      originalUrl = `/api/videos/file/${filename}`;
+    }
+
     const videoTitle = title || file.originalname.replace(/\.[^.]+$/, '');
     const video = await this.videosService.create({
       playerId,
       uploadedById: uploadedById || undefined,
       title: videoTitle,
       category: category || 'HITTING',
-      originalUrl: `/api/videos/file/${filename}`,
+      originalUrl,
     });
 
-    // Mark as READY immediately (no transcoding in dev)
+    // Mark as READY immediately (no transcoding step in this path)
     await this.videosService.updateStatus(video.id, 'READY');
 
     return {
       ...video,
       status: 'READY',
-      originalUrl: `/api/videos/file/${filename}`,
+      originalUrl,
       fileSize: file.size,
     };
   }
@@ -196,7 +259,13 @@ export class VideosController {
    *
    * Returns videos with embedded player info.
    */
+  /* Read endpoints require an authenticated user (coach OR player). The
+     previous behaviour was open — any authenticated request could pull
+     any other player's video listing. Locking to the two known roles
+     is the academy-appropriate floor; finer-grained "this player can
+     only see THEIR OWN videos" can layer on later if needed. */
   @Get('browse')
+  @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Browse all videos with filters (includes player info)' })
   async browse(
     @Query('playerId') playerId?: string,
@@ -218,7 +287,8 @@ export class VideosController {
   }
 
   @Get('player/:playerId')
-  @ApiOperation({ summary: 'Get all videos for a player' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get all videos for a player (auth required)' })
   findByPlayer(
     @Param('playerId') playerId: string,
     @Query('category') category?: string,
@@ -227,7 +297,8 @@ export class VideosController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a video with annotations and voice-overs' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get a video with annotations and voice-overs (auth required)' })
   findOne(@Param('id') id: string) {
     return this.videosService.findOne(id);
   }

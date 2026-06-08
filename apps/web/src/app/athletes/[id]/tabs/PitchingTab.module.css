@@ -5,67 +5,107 @@
 
 .hudConsole {
   position: relative;
-  /* Was tinted blue (61,139,253). Re-toned to a neutral graphite glow
-     so the HUD bubble matches the rest of the player profile chrome
-     while keeping its soft-corner radial accent vibe. */
+  /* Match the page-hero Command Deck (the player name bubble) — same
+     deep dark-navy surface with a single centered radial highlight, a
+     1px white-rim border, and the layered inset shadow stack. The
+     decorative corner glow + animated beacon bar below also mirror
+     the Command Deck so the Pitch Report bubble reads as a smaller
+     sibling of the hero bubble at the top of the page. */
   background:
-    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
-  border: 1px solid var(--border-light);
-  border-radius: 14px;
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
   padding: 10px 12px 12px;
   overflow: hidden;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
   /* Fill the parent so the HUD bubble aligns with the sub-tab nav above
      it instead of capping at 960px and floating in dead space. */
   width: 100%;
 }
-.hudConsole::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 14%; right: 14%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent);
-  pointer-events: none;
-}
-.hudConsole::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 12%; right: 12%;
-  height: 1px;
-  background: var(--grad-edge);
-  opacity: 0.5;
-  pointer-events: none;
-}
+/* Soft blue glow in the top-left corner — RETIRED per coach-spec.
+   The decorative `rgba(61,139,253, ...)` blue corner radial was
+   removed so the Pitch Report HUD reads as a clean neutral panel
+   in both dark + light themes. `content: none` prevents the
+   pseudo-element from rendering at all. */
+.hudConsole::before { content: none; }
+/* White beacon bar retired — on the Command Deck (page hero) it
+   lives in the padding gutter to the left of the identity block, but
+   the Pitch Report HUD packs its plots edge-to-edge so the bar was
+   slicing through the left side of the Movement Plot. Removed; the
+   corner glow via ::before stays as the lone decoration. */
+.hudConsole::after { content: none; }
 
+/* Pitch Report HUD header — rhythm + size now mirror Tool Grades:
+   23px title, 0.7rem padding below, 0.85rem breathing room after
+   the accent line. The HUD's MONO font-family is preserved per the
+   earlier "don't change Pitch Report's font" instruction — only the
+   text SIZE was bumped up to 23px so the "Pitch Report" label reads
+   at the same scale as Tool Grades' "Tool Grades" h2. Letter-spacing
+   tightened 0.22em → 0.04em because the previous tracking was sized
+   for an 8.5px label; at 23px the 0.22em rendered as a 5px gap
+   between each glyph, which spread the title across the bubble's
+   full width. The dot bullet scaled in step so it doesn't look
+   anemic against the now-23px text. */
 .hudHead {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 7px;
-  margin-bottom: 3px;
+  align-items: flex-end;
+  gap: 7px;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.85rem;
   border-bottom: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 8.5px;
+  /* Typography now mirrors the Hitting Snapshot title
+     (`.sectionTitle` in assessment.module.css): Brown italic display
+     face, 23 px, weight 600, tight -0.025em tracking, bright white.
+     Replaces the previous DM Mono 13.8 px uppercase accent-blue
+     eyebrow so the Pitch Report header reads in the same voice as
+     every other Snapshot title across the app. Inline chips inside
+     this row (the "X pitches" counter, the top-right date chip)
+     carry their own font-family / font-style / text-transform
+     overrides so they keep their mono upright look against the
+     italic display title. */
+  font-family: var(--font-display);
+  /* Trimmed 23 → 20.7 (−10 %) to match the matching trim on the
+     other blue-bubble title rules across the app. */
+  font-size: 15.84px;
+  font-style: italic;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: #ffffff;
+  /* "Pitch Report" reads in uppercase to match every other
+     blue-bubble title across the app (Tool Grades, Snapshot headers,
+     Live At-Bats). Inline chips inside this row — the "X pitches"
+     counter and the top-right date chip — pin their own
+     `textTransform` overrides so they stay in their original
+     casing against the uppercase italic display title. */
   text-transform: uppercase;
-  color: var(--accent-bright);
+}
+/* Light theme: the "Pitch Report" title is hardcoded white above (for
+   the dark HUD), which renders near-invisible on the light HUD. Flip
+   it to near-black so it reads — matches the Hitting Snapshot title's
+   light-theme treatment. (Inline chips in this row pin their own
+   colors, so they're unaffected.) */
+[data-theme="light"] .hudHead {
+  color: var(--text-bright);
 }
 .hudHeadDot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--accent-bright);
   box-shadow: 0 0 6px rgba(255,255,255,0.7);
+  margin-bottom: 4px;
 }
-.hudHead::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.24), transparent);
-}
+/* Trailing gradient hairline retired — the row's own full-width
+   `border-bottom` now serves as the accent line, matching the
+   Tool Grades bubble exactly. */
+.hudHead::after { content: none; }
 
 .hudBody {
   display: flex;
@@ -101,30 +141,23 @@
       ≤ ~7 cards: each card grows to share the row evenly (parity with old grid).
       8+ cards:   row overflows horizontally with a slim themed scrollbar. ── */
 .hudArsenal {
+  /* Wraps to a second row whenever there are more than 5 pitch-type
+     bubbles. Previously this strip was a single non-wrapping row that
+     scrolled horizontally; now it wraps so a sixth pitch type pushes
+     onto row 2 instead of hiding behind a scrollbar. */
   display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
   gap: 7px;
   margin-top: 10px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(126, 182, 255, 0.35) transparent;
 }
-.hudArsenal::-webkit-scrollbar {
-  height: 6px;
-}
-.hudArsenal::-webkit-scrollbar-track {
-  background: transparent;
-}
-.hudArsenal::-webkit-scrollbar-thumb {
-  background: rgba(126, 182, 255, 0.35);
-  border-radius: 3px;
-}
-.hudArsenal::-webkit-scrollbar-thumb:hover {
-  background: rgba(126, 182, 255, 0.55);
-}
-/* Each ArsenalCard: 112 px floor, allowed to grow to fill when there's room. */
+/* Each ArsenalCard: 1/5 of the row width (so exactly 5 fit per row)
+   with the 112 px floor preserved for narrow viewports. `flex-grow: 0`
+   keeps every card at this width even when the row isn't full — so
+   the sixth card lands on row 2 at the SAME width as its siblings on
+   row 1 (rather than being stretched to fill the leftover space). The
+   horizontal-scroll fallback was retired alongside the wrap change. */
 .hudArsenal > * {
-  flex: 1 0 112px;
+  flex: 0 1 calc((100% - 4 * 7px) / 5);
   min-width: 112px;
 }
 
@@ -146,7 +179,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 7.23px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -167,6 +200,11 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
+  /* Match the 10px breathing room above the Pitch Readout bar so the
+     rhythm Arsenal → Readout → Plots reads with equal spacing. The
+     standalone `.hudSubHead` row that previously gave this gap was
+     retired when each title moved inside its own canvas. */
+  margin-top: 10px;
 }
 .hudPlotPane {
   min-width: 0;
@@ -177,10 +215,15 @@
 .hudPlotPaneHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Center the title inside the canvas bubble so the three plot
+     titles read symmetrically. The trailing-gradient hairline was
+     retired (used to flex-grow alongside a left-aligned title) — the
+     bottom-border alone is enough separation now that the title is
+     centered. */
+  justify-content: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 7.65px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -188,27 +231,37 @@
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
 }
-.hudPlotPaneHead::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.18), transparent);
-  margin-left: 6px;
-}
+.hudPlotPaneHead::after { content: none; }
 .hudPlotCanvas {
   flex: 1 1 auto;
+  /* Stack the in-canvas title at the top with the chart below it,
+     instead of centering a single SVG inside the bubble. The title
+     row (`.hudPlotPaneHead`) now lives inside each canvas so each
+     chart bubble carries its own header — the previous standalone
+     `.hudSubHead` row above the grid was retired. */
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  justify-content: flex-start;
   min-height: 0;
-  /* Lighter graphite shell so each plot reads as a clean inner card
-     inside the darker outer HUD bubble (reversed scheme). */
+  /* Match the outer Pitch Report bubble (.hudConsole) exactly —
+     same neutral graphite radial accents over a faint linear
+     gradient so every chart/bubble in the Pitching tab reads in one
+     unified visual language. Border kept on the inner card so each
+     plot is still distinguishable from the outer HUD shell. */
   position: relative;
-  background: var(--card-elev), var(--card-elev-bg);
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  padding: 8px;
+  /* Gentle drop shadow — same `0 4px 12px / 0.10` used by every
+     other off-white bubble across Hitting + Pitching. Previously
+     used the heavier `var(--shadow-card)` token. */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+  padding: 8px 10px 10px;
   overflow: hidden;
 }
 .hudPlotCanvas svg {
@@ -223,19 +276,19 @@
 }
 
 /* ── Shared readout bar (mirrors .readoutBar in Swing tab) ──
-   Re-toned to match the Movement Plot canvas — slight blue/dark hue
-   with the faint center highlight, so the readout reads as a sibling
-   bubble to the three plots above it. */
+   Same Pitch Report bubble gradient as `.hudPlotCanvas` so every chart
+   + bubble in the Pitching tab shares one unified visual scheme. */
 .hudReadoutBar {
   position: relative;
-  background: var(--card-elev), var(--card-elev-bg);
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%);
   border: 1px solid var(--border-light);
   border-radius: 12px;
   padding: 10px 12px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
+  /* Readout head was retired — body now owns the full bar width. */
+  display: block;
   overflow: hidden;
   box-shadow: var(--shadow-card);
   margin-top: 10px;
@@ -248,12 +301,18 @@
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent);
   pointer-events: none;
 }
+/* Light-theme accent — darker grey gradient so the hairline at the
+   top of the Pitch Report HUD readout bar reads against the
+   off-white bubble surface in light mode. */
+[data-theme="light"] .hudReadoutBar::before {
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.32), transparent);
+}
 .hudReadoutHead {
   display: flex;
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 9.35px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -271,7 +330,7 @@
 .hudReadoutEmpty {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -308,18 +367,27 @@
    the HUD console + plot canvases read on a light background.
    ════════════════════════════════════════════════════════════════════ */
 [data-theme="light"] .hudConsole {
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(0, 0, 0, 0.025) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 100%, rgba(0, 0, 0, 0.020) 0%, transparent 55%),
-    #ffffff;
+  /* Pitch Report HUD now wears the canonical `--panel-bg-light`
+     (#e6e6e6) so the outermost Pitching-tab bubble matches the
+     Tool Grades panel + Hitting Snapshot + every other top-of-tab
+     bubble in light mode. Previous radial-on-white look was
+     retired so the bubble system across the app reads in lockstep. */
+  background: var(--panel-bg-light);
   border-color: rgba(0, 0, 0, 0.10);
   box-shadow: 0 6px 18px rgba(15, 20, 30, 0.08);
 }
-[data-theme="light"] .hudConsole::before {
-  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.18), transparent);
-}
+/* `.hudConsole::before` was retired in the base rule above
+   (`content: none`) so the light-theme override is gone too —
+   no decorative blue/black corner glow in either theme. */
 [data-theme="light"] .hudPlotCanvas,
 [data-theme="light"] .hudReadoutBar {
+  /* Match the Arsenal cards (and every other Pitch-Report bubble):
+     the readout bar + the three plot canvases (Movement / Location /
+     Release) now use the same off-white `--bubble-chrome-bg` (#eaeaea)
+     as the cards instead of pure white, so the whole Pitch Report
+     reads as one uniform grey and the cards no longer appear "darker"
+     by contrast with neighbouring white panels. */
+  background: var(--bubble-chrome-bg);
   border-color: rgba(0, 0, 0, 0.08);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),

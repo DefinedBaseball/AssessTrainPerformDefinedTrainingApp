@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.4.1",
+    "@sentry/nextjs": "^10.52.0",
+    "html2canvas": "^1.4.1",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

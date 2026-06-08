@@ -169,6 +169,13 @@
   color: #f1f4f6;
   border-color: rgba(255,255,255,0.14);
 }
+/* Light theme: translucent-white fill + near-white text → white-on-light.
+   Solid accent pill reads as clearly active. */
+[data-theme="light"] .viewBtnActive {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
 
 /* ── Legend Bar ── */
 .legend {
@@ -433,6 +440,23 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  /* Column header is a clickable <button> that drills into the focused
+   * single-tab view. Reset the browser button defaults so it still
+   * looks like a header. */
+  width: 100%;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.dayColHeader:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.dayColHeader:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .dayColTitle {
@@ -500,12 +524,174 @@
   margin-top: 2px;
 }
 
+/* ── Category-bubble drill name list (multi-column view) ────────────
+ * Cards now hold one bubble per category (Movement Prep / Drills /
+ * Live / etc.). Inside the bubble we stack the actual drill names —
+ * each name is its own click target that opens DrillVideoModal. */
+.dayColCardList {
+  display: flex;
+  flex-direction: column;
+  /* No gap — the hairline border on each item gives the separation.
+   * gap would put empty space between dividers and break the
+   * continuous-list look. */
+  gap: 0;
+  margin-top: 6px;
+}
+
+.dayColCardItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 2px;
+  /* Thin hairline divider between drills inside a category bubble —
+   * replaces the previous per-drill background pill. Last item has no
+   * border (handled below) so the list ends cleanly. The hover state
+   * is a faint background tint so clickability is still obvious. */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  transition: background 0.12s;
+}
+.dayColCardItem:last-child { border-bottom: none; }
+.dayColCardItem:hover { background: rgba(255, 255, 255, 0.08); }
+
+.dayColCardItemName {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+  flex: 1;
+  /* Wrap long drill names rather than truncating — coaches need to
+   * read the full name in the daily schedule, not guess at it. */
+  word-break: break-word;
+}
+
 /* ── Clickable drill cards ── */
 .dayColCardClickable { cursor: pointer; }
 .dayColCardClickable:hover { opacity: 0.85; }
 
 .weekListItemClickable { cursor: pointer; }
 .weekListItemClickable:hover { opacity: 0.8; }
+
+/* ── Focused single-tab view ─────────────────────────────────────────
+ * Activated when a coach/player clicks a column header in the day grid.
+ * Shows the same drill cards as the multi-column layout but stacked
+ * full-width so the area's plan reads like a list. The colored top
+ * border + tinted header carry the tab's identity (Hitting blue,
+ * Pitching orange, etc.) so it's obvious which area you're focused on. */
+.dayFocus {
+  display: flex;
+  flex-direction: column;
+}
+
+.dayFocusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dayFocusTitle {
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dayFocusCount {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dayFocusBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px 18px;
+}
+
+.dayFocusEmpty {
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+  font-style: italic;
+  padding: 28px 0;
+}
+
+.dayFocusCard {
+  padding: 12px 14px;
+  border-radius: 8px;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.dayFocusCard:hover { opacity: 0.92; }
+
+.dayFocusCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.dayFocusCardName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.dayFocusCardDesc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+/* ── Category-bubble drill name list (focused single-area view) ─────
+ * Larger, more legible variant of the multi-column list — coaches and
+ * athletes use this view to actually run a session, so the names need
+ * to be readable at arm's length. */
+.dayFocusBubbleCount {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+  letter-spacing: 0.06em;
+}
+
+.dayFocusCardList {
+  display: flex;
+  flex-direction: column;
+  /* Hairline divider lives on each row — no extra gap needed. */
+  gap: 0;
+  margin-top: 10px;
+}
+
+.dayFocusCardItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 4px;
+  /* Hairline divider between drills inside a category bubble. Same
+   * pattern as .dayColCardItem but slightly thicker / softer to match
+   * the focused-view's larger typography. */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  transition: background 0.12s;
+}
+.dayFocusCardItem:last-child { border-bottom: none; }
+.dayFocusCardItem:hover { background: rgba(255, 255, 255, 0.10); }
+
+.dayFocusCardItemName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+  flex: 1;
+  word-break: break-word;
+}
 
 /* ── Video Player Modal ── */
 .videoModal {
@@ -1159,4 +1345,68 @@
     linear-gradient(180deg, rgba(61, 139, 253, 0.10) 0%, rgba(61, 139, 253, 0.03) 100%),
     #ffffff;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Calendar bubble — drop shadow in light theme so the calendar
+   grid lifts visibly off the page surface, matching the shadow
+   treatment used on the Athlete Hub + player profile bubbles.
+   The default dark-theme `var(--shadow-card)` was too subtle
+   (~6 % alpha) to read against the light page background.
+   Applied to all three calendar views (Month / Week / Day) so
+   the lift is consistent whichever layout the coach picks. */
+[data-theme="light"] .monthGrid,
+[data-theme="light"] .weekListGrid,
+[data-theme="light"] .dayGrid {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 14px 30px rgba(15, 20, 30, 0.14) !important;
+  border-radius: 12px;
+}
+
+/* ── Page-wrapper background flip (light theme only) ──
+   Match the inverted palette used on /athletes + /athletes/[id]:
+   the page surface flips to the canonical `--panel-bg-light`
+   grey (#e6e6e6) — i.e. the same color the athlete bubble
+   (`.profilePanel`) carries — so the page reads as one
+   continuous grey ground with the calendar's white bubbles
+   floating on top. Negative margins cancel `.app-main`'s
+   24 px padding so the grey extends edge-to-edge inside the
+   main content area (with responsive variants for the 16 px
+   / 12 px viewports). */
+[data-theme="light"] .page {
+  /* Page bg uses the global `--bg` token (`#aeaeae` in light
+     theme) so the Training page floor matches the canonical
+     medium grey across the app — separate from `--panel-bg-
+     light` which now drives the outer-bubble color. */
+  background: var(--bg);
+  margin: -24px;
+  padding: 24px;
+  min-height: 100vh;
+}
+@media (max-width: 768px) {
+  [data-theme="light"] .page {
+    margin: -16px -12px;
+    padding: 16px 12px;
+  }
+}
+@media (max-width: 480px) {
+  [data-theme="light"] .page {
+    margin: -12px -8px;
+    padding: 12px 8px;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — Athlete (player-select) bubble
+   ══════════════════════════════════════════════
+   The Coach roster <select> at the top of /training is the
+   "Player select bubble" for this page. Flip it to the cool-slate
+   `--panel-bg-light` fill that the Player Name bubble (and the
+   /videos & /live player-select bubbles) wear so every
+   player-picker surface across the coaching app reads in one
+   unified outer-bubble tone in light mode. */
+[data-theme="light"] .athleteSelect {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: var(--text);
 }

@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MetricsService } from './metrics.service';
-import { Roles } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 
 class CreateMetricDto {
   playerId!: string;
@@ -31,8 +31,10 @@ export class MetricsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get metrics with date filtering' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get metrics with date filtering (ownership-checked)' })
   findByPlayer(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Query('source') source?: string,
     @Query('date') date?: string,
@@ -42,6 +44,7 @@ export class MetricsController {
     @Query('to') to?: string,
     @Query('uploadIds') uploadIds?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     return this.metricsService.findByPlayer(playerId, {
       source,
       date,
@@ -54,27 +57,35 @@ export class MetricsController {
   }
 
   @Get('progress/:metricType')
-  @ApiOperation({ summary: 'Get progress data for a specific metric over time' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get progress data for a specific metric over time (ownership-checked)' })
   getProgress(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Param('metricType') metricType: string,
     @Query('source') source?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     return this.metricsService.getProgressData(playerId, metricType, source);
   }
 
   @Get('dates/:source')
-  @ApiOperation({ summary: 'Get available report dates for a data source' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get available report dates for a data source (ownership-checked)' })
   getDates(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Param('source') source: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     return this.metricsService.getAvailableDates(playerId, source);
   }
 
   @Get('session-data/:source')
-  @ApiOperation({ summary: 'Get raw session data points for spray charts' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get raw session data points for spray charts (ownership-checked)' })
   getSessionData(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Param('source') source: string,
     @Query('types') types: string,
@@ -83,6 +94,7 @@ export class MetricsController {
     @Query('to') to?: string,
     @Query('uploadIds') uploadIds?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     const metricTypes = types ? types.split(',') : ['spray_angle', 'distance', 'max_exit_velo', 'launch_angle'];
     return this.metricsService.getSessionData(playerId, source, metricTypes, {
       date, from, to,
@@ -91,13 +103,16 @@ export class MetricsController {
   }
 
   @Get('trackman-pitches')
-  @ApiOperation({ summary: 'Get all Trackman pitch-level data for visualizations' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get all Trackman pitch-level data for visualizations (ownership-checked)' })
   getTrackmanPitches(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('uploadIds') uploadIds?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     return this.metricsService.getTrackmanPitches(playerId, {
       from, to,
       uploadIds: uploadIds ? uploadIds.split(',').map(s => s.trim()).filter(Boolean) : undefined,
@@ -105,12 +120,15 @@ export class MetricsController {
   }
 
   @Get('batted-ball-summary')
-  @ApiOperation({ summary: 'Get aggregated batted ball stats (avg, max, count)' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get aggregated batted ball stats (ownership-checked)' })
   getBattedBallSummary(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Query('source') source?: string,
     @Query('uploadIds') uploadIds?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     return this.metricsService.getBattedBallSummary(
       playerId,
       source,

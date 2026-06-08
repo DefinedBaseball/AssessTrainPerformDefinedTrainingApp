@@ -13,6 +13,7 @@ export class AnalyticsController {
   }
 
   @Get('configs')
+  @Roles('COACH', 'PLAYER')
   listConfigs(@Request() req: any, @Query('section') section?: string) {
     return this.analytics.listConfigs(req.user.sub, section);
   }
@@ -36,6 +37,7 @@ export class AnalyticsController {
   }
 
   @Get('configs/:id/evaluate/:playerId')
+  @Roles('COACH', 'PLAYER')
   evaluate(@Param('id') id: string, @Param('playerId') playerId: string) {
     return this.analytics.evaluate(id, playerId);
   }

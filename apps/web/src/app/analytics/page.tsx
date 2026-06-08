@@ -157,6 +157,8 @@ function BuilderPane({ userId }: { userId: string }) {
   const [pbDirection, setPbDirection] = useState<'MAX' | 'MIN'>('MAX');
   const [zoneGrid, setZoneGrid] = useState<'3x3' | '5x5'>('3x3');
   const [zoneMetric, setZoneMetric] = useState<'COUNT' | 'AVG' | 'WHIFF'>('COUNT');
+  const [cohortEnabled, setCohortEnabled] = useState(false);
+  const [cohortMode, setCohortMode] = useState<'GRAD_YEAR' | 'POSITION' | 'ALL'>('GRAD_YEAR');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -230,10 +232,13 @@ function BuilderPane({ userId }: { userId: string }) {
     pbDirection: chartType === 'PERSONAL_BEST' ? pbDirection : null,
     zoneGrid: chartType === 'STRIKE_ZONE_HEAT' ? zoneGrid : null,
     zoneMetric: chartType === 'STRIKE_ZONE_HEAT' ? zoneMetric : null,
+    cohortEnabled,
+    cohortMode: cohortEnabled ? cohortMode : null,
   }), [
     title, section, chartType, scope, selected, dateMode, dateFrom, dateTo, lastNDays,
     playerScope, scopePlayerIds, dataMode, selectedReportIds,
     rollingWindow, rollingMode, targetMin, targetMax, pbDirection, zoneGrid, zoneMetric,
+    cohortEnabled, cohortMode,
   ]);
 
   // Debounced live preview — refetch whenever config or player changes
@@ -292,6 +297,8 @@ function BuilderPane({ userId }: { userId: string }) {
     setPbDirection('MAX');
     setZoneGrid('3x3');
     setZoneMetric('COUNT');
+    setCohortEnabled(false);
+    setCohortMode('GRAD_YEAR');
     setError('');
   };
 
@@ -318,6 +325,8 @@ function BuilderPane({ userId }: { userId: string }) {
     setPbDirection((cfg.pbDirection as 'MAX' | 'MIN') || 'MAX');
     setZoneGrid((cfg.zoneGrid as '3x3' | '5x5') || '3x3');
     setZoneMetric((cfg.zoneMetric as 'COUNT' | 'AVG' | 'WHIFF') || 'COUNT');
+    setCohortEnabled(!!cfg.cohortEnabled);
+    setCohortMode((cfg.cohortMode as 'GRAD_YEAR' | 'POSITION' | 'ALL') || 'GRAD_YEAR');
     setError('');
   };
 
@@ -666,6 +675,36 @@ function BuilderPane({ userId }: { userId: string }) {
             </div>
           )}
 
+          {/* ── Cohort overlay ── */}
+          <div className={styles.builderField} style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={cohortEnabled}
+                onChange={(e) => setCohortEnabled(e.target.checked)}
+              />
+              <span>Overlay class average ("vs cohort")</span>
+            </label>
+            {cohortEnabled && (
+              <>
+                <select
+                  className={styles.select}
+                  style={{ marginTop: 8 }}
+                  value={cohortMode}
+                  onChange={(e) => setCohortMode(e.target.value as 'GRAD_YEAR' | 'POSITION' | 'ALL')}
+                >
+                  <option value="GRAD_YEAR">Same grad year</option>
+                  <option value="POSITION">Same position(s)</option>
+                  <option value="ALL">All other athletes</option>
+                </select>
+                <div className={styles.cardDesc} style={{ marginTop: 4 }}>
+                  Adds a dashed comparison line per series — daily mean across peers, excluding the
+                  preview athlete. Best on LINE, ROLLING_AVG, and TARGET_BAND charts.
+                </div>
+              </>
+            )}
+          </div>
+
           {TWO_AXIS_TYPES.has(chartType) && selected.length > 0 && selected.length < 2 && (
             <div
               className={`${styles.feedback} ${styles.feedbackErr}`}
@@ -801,6 +840,57 @@ function BuilderPane({ userId }: { userId: string }) {
 
 /* ─── Preview card ──────────────────────────────────────── */
 
+/**
+ * Flatten a ChartEvaluation to a wide-format CSV: one row per date, one
+ * column per series. Empty cells where a series has no datapoint on that
+ * date — Excel pivots and Sheets handle the gaps cleanly.
+ */
+function evaluationToCsv(evaluation: ChartEvaluation, title: string): string {
+  const series = evaluation.series.filter((s) => s.points.length > 0);
+  if (series.length === 0) return '';
+
+  // Build a sorted union of all dates across every series.
+  const dateSet = new Set<string>();
+  for (const s of series) for (const p of s.points) dateSet.add(p.date);
+  const dates = Array.from(dateSet).sort();
+
+  // Index each series by date for O(1) cell lookup.
+  const byDate = series.map((s) => {
+    const m = new Map<string, number>();
+    for (const p of s.points) m.set(p.date, p.value);
+    return m;
+  });
+
+  const escape = (v: string) => {
+    if (v.includes(',') || v.includes('"') || v.includes('\n')) {
+      return `"${v.replace(/"/g, '""')}"`;
+    }
+    return v;
+  };
+
+  const header = ['Date', ...series.map((s) => s.label)].map(escape).join(',');
+  const rows = dates.map((d) => {
+    const cells = [d, ...byDate.map((m) => {
+      const v = m.get(d);
+      return v == null ? '' : String(v);
+    })];
+    return cells.map(escape).join(',');
+  });
+  return `# ${title}\n${header}\n${rows.join('\n')}\n`;
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 interface ChartOptions {
   rollingWindow: number;
   rollingMode: 'SMA' | 'EMA';
@@ -825,12 +915,33 @@ function PreviewCard({
   const hasData = series.some((s) => s.points.length > 0);
   const needsTwoAxis = TWO_AXIS_TYPES.has(chartType);
   const enoughColumns = needsTwoAxis ? series.length >= 2 : series.length >= 1;
+  const canExport = !!evaluation && hasData;
+
+  const handleExportCsv = () => {
+    if (!evaluation) return;
+    const csv = evaluationToCsv(evaluation, title);
+    if (!csv) return;
+    const safeName = title.replace(/[^a-z0-9-_ ]/gi, '').trim().replace(/\s+/g, '_') || 'chart';
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`${safeName}_${stamp}.csv`, csv);
+  };
 
   return (
     <div className={styles.previewCard}>
       <div className={styles.previewHeader}>
         <div className={styles.previewTitle}>{title}</div>
-        <span className={styles.previewTypeTag}>{chartType}</span>
+        <div className={styles.previewActions}>
+          <button
+            type="button"
+            className={styles.csvBtn}
+            onClick={handleExportCsv}
+            disabled={!canExport}
+            title={canExport ? 'Download chart data as CSV' : 'No data to export yet'}
+          >
+            ⬇ CSV
+          </button>
+          <span className={styles.previewTypeTag}>{chartType}</span>
+        </div>
       </div>
       {loading ? (
         <div className={styles.previewEmpty}>Loading preview…</div>
@@ -933,24 +1044,301 @@ function RunningAvgPane() {
   );
 }
 
-/* ─── Compare pane (placeholder) ─────────────────────────── */
+/* ─── Compare pane ──────────────────────────────────────── */
 
+/**
+ * Side-by-side multi-athlete view. Pick a metric column and 2+ athletes;
+ * each athlete's series renders on a shared axis so trends line up
+ * visually. Powers head-to-head questions like "who's converting drill
+ * work into exit velo gains fastest?"
+ *
+ * Implementation note: we reuse the existing /analytics/preview endpoint
+ * once per athlete (parallel) instead of building a new bulk endpoint —
+ * keeps the contract narrow and the auth model unchanged.
+ */
 function ComparePane() {
+  const [columns, setColumns] = useState<AnalyticsColumn[]>([]);
+  const [allPlayers, setAllPlayers] = useState<Player[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string>('');
+  const [selectedMetric, setSelectedMetric] = useState<string>('');
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [dateMode, setDateMode] = useState<'ALL_TIME' | 'LAST_N_DAYS'>('ALL_TIME');
+  const [lastNDays, setLastNDays] = useState('60');
+  const [series, setSeries] = useState<Array<{ playerId: string; label: string; points: Array<{ date: string; value: number }> }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [cols, plyrs] = await Promise.all([
+          api.getAnalyticsColumns(),
+          api.getPlayers(),
+        ]);
+        setColumns(cols);
+        setAllPlayers(plyrs);
+      } catch (e: any) {
+        setError(e.message || 'Failed to load');
+      }
+    })();
+  }, []);
+
+  // Reset the metric pick whenever the source changes — metric names are
+  // namespaced to a source.
+  useEffect(() => {
+    setSelectedMetric('');
+  }, [selectedSource]);
+
+  const sources = useMemo(() => {
+    const s = new Set<string>();
+    columns.forEach((c) => s.add(c.source));
+    return Array.from(s).sort();
+  }, [columns]);
+
+  const metricsForSource = useMemo(
+    () => columns.filter((c) => c.source === selectedSource),
+    [columns, selectedSource],
+  );
+
+  // Refetch whenever inputs change.
+  useEffect(() => {
+    if (!selectedSource || !selectedMetric || selectedPlayerIds.length === 0) {
+      setSeries([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+
+    const dto: ChartConfigInput = {
+      title: 'Compare',
+      section: 'OVERVIEW',
+      chartType: 'LINE',
+      dataSources: [{ source: selectedSource, metricType: selectedMetric }],
+      dateMode: dateMode === 'LAST_N_DAYS' ? 'LAST_N_DAYS' : 'ALL_TIME',
+      lastNDays: dateMode === 'LAST_N_DAYS' ? (parseInt(lastNDays, 10) || 60) : null,
+      dataMode: 'DATE_RANGE',
+    };
+
+    Promise.all(
+      selectedPlayerIds.map(async (pid) => {
+        const p = allPlayers.find((x) => x.id === pid);
+        const label = p ? `${p.firstName} ${p.lastName}` : pid;
+        try {
+          const ev = await api.previewChartConfig(pid, dto);
+          // The preview returns one series per data source; we asked for one
+          // so just take the first.
+          const s = ev.series[0];
+          return { playerId: pid, label, points: s ? s.points : [] };
+        } catch {
+          return { playerId: pid, label, points: [] as Array<{ date: string; value: number }> };
+        }
+      }),
+    ).then((rows) => {
+      if (!cancelled) setSeries(rows);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [selectedSource, selectedMetric, selectedPlayerIds, dateMode, lastNDays, allPlayers]);
+
+  const togglePlayer = (id: string) => {
+    setSelectedPlayerIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  };
+
+  // Cap render to the top N selected to keep the chart readable. We don't
+  // limit selection because the user may want to slowly cycle through.
+  const renderableSeries = series.filter((s) => s.points.length > 0);
+
   return (
     <div className={styles.card}>
       <div className={styles.cardHeader}>
         <div>
           <h3 className={styles.cardTitle}>Compare</h3>
           <p className={styles.cardDesc}>
-            Side-by-side comparisons between athletes, date ranges, and metrics. Use this view to
-            spot themes — who's ahead of schedule, which drills correlate with improvement, and how
-            cohorts stack up against each other.
+            Pick a metric and 2+ athletes — every series renders on a shared axis. Best for
+            head-to-head trends like exit-velo growth or pop-time progression.
           </p>
         </div>
       </div>
-      <div className={styles.empty} style={{ padding: 48, textAlign: 'center' }}>
-        Configuration UI coming soon — we'll let you pin 2+ athletes, 2+ windows, or 2+ metrics and
-        render them on a shared axis.
+
+      {error && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div>}
+
+      <div className={styles.builderGrid}>
+        <div className={styles.builderField}>
+          <label>Source</label>
+          <select
+            className={styles.select}
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value)}
+          >
+            <option value="">Choose data source…</option>
+            {sources.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.builderField}>
+          <label>Metric</label>
+          <select
+            className={styles.select}
+            value={selectedMetric}
+            onChange={(e) => setSelectedMetric(e.target.value)}
+            disabled={!selectedSource}
+          >
+            <option value="">Choose a metric…</option>
+            {metricsForSource.map((m) => (
+              <option key={m.metricType} value={m.metricType}>
+                {m.metricType} ({m.unit})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.builderField}>
+          <label>Date window</label>
+          <select
+            className={styles.select}
+            value={dateMode}
+            onChange={(e) => setDateMode(e.target.value as 'ALL_TIME' | 'LAST_N_DAYS')}
+          >
+            <option value="ALL_TIME">All time</option>
+            <option value="LAST_N_DAYS">Last N days</option>
+          </select>
+        </div>
+
+        {dateMode === 'LAST_N_DAYS' && (
+          <div className={styles.builderField}>
+            <label>Days</label>
+            <input
+              className={styles.input}
+              type="number"
+              min="1"
+              value={lastNDays}
+              onChange={(e) => setLastNDays(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className={`${styles.builderField} ${styles.columnPicker}`} style={{ gridColumn: '1 / -1' }}>
+          <label>Athletes ({selectedPlayerIds.length} selected)</label>
+          <DropdownPanel
+            label={
+              selectedPlayerIds.length === 0
+                ? 'Pick athletes…'
+                : `${selectedPlayerIds.length} athlete${selectedPlayerIds.length === 1 ? '' : 's'} selected`
+            }
+            placeholder={selectedPlayerIds.length === 0}
+          >
+            <div className={styles.columnList} style={{ maxHeight: 320, border: 'none', padding: 0, background: 'transparent' }}>
+              {allPlayers.map((p) => (
+                <label key={p.id} className={styles.columnItem}>
+                  <input
+                    type="checkbox"
+                    checked={selectedPlayerIds.includes(p.id)}
+                    onChange={() => togglePlayer(p.id)}
+                  />
+                  <span>{p.firstName} {p.lastName}</span>
+                  <span className={styles.columnUnit}>
+                    {p.gradYear ? `'${String(p.gradYear).slice(-2)} ` : ''}{p.positions || ''}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </DropdownPanel>
+        </div>
+      </div>
+
+      <div className={styles.previewCard} style={{ marginTop: 16 }}>
+        <div className={styles.previewHeader}>
+          <div className={styles.previewTitle}>
+            {selectedMetric ? `${selectedMetric} · ${selectedPlayerIds.length} athletes` : 'Select a metric to compare'}
+          </div>
+          <span className={styles.previewTypeTag}>COMPARE</span>
+        </div>
+        {loading ? (
+          <div className={styles.previewEmpty}>Loading…</div>
+        ) : !selectedMetric ? (
+          <div className={styles.previewEmpty}>Choose a source and metric above.</div>
+        ) : selectedPlayerIds.length < 2 ? (
+          <div className={styles.previewEmpty}>Pick at least two athletes to compare.</div>
+        ) : renderableSeries.length === 0 ? (
+          <div className={styles.previewEmpty}>
+            No data points for the selected athletes in this window.<br />
+            Try widening the date window or picking different athletes.
+          </div>
+        ) : (
+          <CompareLineView series={renderableSeries} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Multi-athlete line view — like LineView but each series is a player and
+ * series share x/y scales so heights are directly comparable.
+ */
+function CompareLineView({
+  series,
+}: {
+  series: Array<{ playerId: string; label: string; points: Array<{ date: string; value: number }> }>;
+}) {
+  const W = 720;
+  const H = 280;
+  const PAD = 40;
+  const allPoints = series.flatMap((s) => s.points);
+  if (allPoints.length === 0) return <div className={styles.previewEmpty}>No points</div>;
+
+  const xs = allPoints.map((p) => new Date(p.date).getTime());
+  const ys = allPoints.map((p) => p.value);
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const yMin = Math.min(...ys);
+  const yMax = Math.max(...ys);
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
+
+  const colors = ['#4682FF', '#D4AF37', '#34D399', '#E11D48', '#8B5CF6', '#F472B6', '#22D3EE', '#FB923C'];
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
+        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
+        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
+        {series.map((s, i) => {
+          if (s.points.length === 0) return null;
+          const color = colors[i % colors.length];
+          const points = s.points.map((p) => {
+            const x = PAD + ((new Date(p.date).getTime() - xMin) / xRange) * (W - PAD - 6);
+            const y = 6 + (1 - (p.value - yMin) / yRange) * (H - PAD - 6);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+          }).join(' ');
+          return (
+            <g key={s.playerId}>
+              <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
+              {s.points.map((p, j) => {
+                const x = PAD + ((new Date(p.date).getTime() - xMin) / xRange) * (W - PAD - 6);
+                const y = 6 + (1 - (p.value - yMin) / yRange) * (H - PAD - 6);
+                return <circle key={j} cx={x} cy={y} r="3" fill={color} />;
+              })}
+            </g>
+          );
+        })}
+        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMin.toFixed(1)}</text>
+        <text x={PAD - 6} y={12} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMax.toFixed(1)}</text>
+      </svg>
+      <div className={styles.legend}>
+        {series.map((s, i) => (
+          <span key={s.playerId} className={styles.legendItem}>
+            <span className={styles.legendDot} style={{ background: colors[i % colors.length] }} />
+            {s.label}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -2018,20 +2406,29 @@ function LineView({ series }: { series: ChartEvaluation['series'] }) {
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
-        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
+        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
+        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
         {series.map((s, i) => {
           if (s.points.length === 0) return null;
-          const color = colors[i % colors.length];
+          const isCohort = (s as any).cohort === true;
+          // Cohort overlays get muted gray + dashed stroke + no point dots.
+          // Keeps the focal athlete's line as the visual hero.
+          const color = isCohort ? 'rgba(255,255,255,0.55)' : colors[i % colors.length];
           const points = s.points.map((p) => {
             const x = PAD + ((new Date(p.date).getTime() - xMin) / xRange) * (W - PAD - 6);
             const y = 6 + (1 - (p.value - yMin) / yRange) * (H - PAD - 6);
             return `${x.toFixed(1)},${y.toFixed(1)}`;
           }).join(' ');
           return (
-            <g key={`${s.source}::${s.metricType}`}>
-              <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
-              {s.points.map((p, j) => {
+            <g key={`${s.source}::${s.metricType}::${isCohort ? 'cohort' : 'self'}`}>
+              <polyline
+                fill="none"
+                stroke={color}
+                strokeWidth={isCohort ? 1.5 : 2}
+                strokeDasharray={isCohort ? '5 4' : undefined}
+                points={points}
+              />
+              {!isCohort && s.points.map((p, j) => {
                 const x = PAD + ((new Date(p.date).getTime() - xMin) / xRange) * (W - PAD - 6);
                 const y = 6 + (1 - (p.value - yMin) / yRange) * (H - PAD - 6);
                 return <circle key={j} cx={x} cy={y} r="3" fill={color} />;
@@ -2039,16 +2436,24 @@ function LineView({ series }: { series: ChartEvaluation['series'] }) {
             </g>
           );
         })}
-        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="rgba(255,255,255,0.55)" textAnchor="end">{yMin.toFixed(1)}</text>
-        <text x={PAD - 6} y={12} fontSize="10" fill="rgba(255,255,255,0.55)" textAnchor="end">{yMax.toFixed(1)}</text>
+        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMin.toFixed(1)}</text>
+        <text x={PAD - 6} y={12} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMax.toFixed(1)}</text>
       </svg>
       <div className={styles.legend}>
-        {series.map((s, i) => (
-          <span key={`${s.source}::${s.metricType}`} className={styles.legendItem}>
-            <span className={styles.legendDot} style={{ background: colors[i % colors.length] }} />
-            {s.label}
-          </span>
-        ))}
+        {series.map((s, i) => {
+          const isCohort = (s as any).cohort === true;
+          const color = isCohort ? 'rgba(255,255,255,0.55)' : colors[i % colors.length];
+          return (
+            <span
+              key={`${s.source}::${s.metricType}::${isCohort ? 'cohort' : 'self'}`}
+              className={styles.legendItem}
+              style={isCohort ? { opacity: 0.85, fontStyle: 'italic' } : undefined}
+            >
+              <span className={styles.legendDot} style={{ background: color }} />
+              {s.label}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -2100,22 +2505,22 @@ function MovementPlotView({ series }: { series: ChartEvaluation['series'] }) {
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
         {/* axes */}
-        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
-        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
+        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
+        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
         {/* zero lines */}
         {xMin <= 0 && xMax >= 0 && (
-          <line x1={toX(0)} y1={6} x2={toX(0)} y2={H - PAD} stroke="rgba(255,255,255,0.20)" strokeDasharray="3 4" />
+          <line x1={toX(0)} y1={6} x2={toX(0)} y2={H - PAD} stroke="var(--border-strong)" strokeDasharray="3 4" />
         )}
         {yMin <= 0 && yMax >= 0 && (
-          <line x1={PAD} y1={toY(0)} x2={W - 6} y2={toY(0)} stroke="rgba(255,255,255,0.20)" strokeDasharray="3 4" />
+          <line x1={PAD} y1={toY(0)} x2={W - 6} y2={toY(0)} stroke="var(--border-strong)" strokeDasharray="3 4" />
         )}
         {pairs.map((p, i) => (
           <circle key={i} cx={toX(p.x)} cy={toY(p.y)} r="5" fill="#4682FF" fillOpacity="0.75" stroke="#D4AF37" strokeWidth="0.75" />
         ))}
-        <text x={W - 8} y={H - PAD - 6} fontSize="10" fill="rgba(255,255,255,0.55)" textAnchor="end">
+        <text x={W - 8} y={H - PAD - 6} fontSize="10" fill="var(--text-muted)" textAnchor="end">
           X: {xSeries.label}
         </text>
-        <text x={PAD + 6} y={14} fontSize="10" fill="rgba(255,255,255,0.55)">
+        <text x={PAD + 6} y={14} fontSize="10" fill="var(--text-muted)">
           Y: {ySeries.label}
         </text>
       </svg>
@@ -2295,8 +2700,8 @@ function LineViewAnnotated({
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
-        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="rgba(255,255,255,0.12)" />
+        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
+        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
 
         {/* Target band */}
         {band && band.min != null && band.max != null && (
@@ -2354,8 +2759,8 @@ function LineViewAnnotated({
           );
         })}
 
-        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="rgba(255,255,255,0.55)" textAnchor="end">{yMin.toFixed(1)}</text>
-        <text x={PAD - 6} y={12} fontSize="10" fill="rgba(255,255,255,0.55)" textAnchor="end">{yMax.toFixed(1)}</text>
+        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMin.toFixed(1)}</text>
+        <text x={PAD - 6} y={12} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMax.toFixed(1)}</text>
       </svg>
       <div className={styles.legend}>
         {series.map((s, i) => (
@@ -2445,7 +2850,7 @@ function StrikeZoneHeatView({
                   width={cellSize - 1}
                   height={cellSize - 1}
                   fill={`hsla(${hue}, 70%, 55%, ${0.15 + intensity * 0.65})`}
-                  stroke="rgba(255,255,255,0.08)"
+                  stroke="var(--border)"
                 />
                 <text
                   x={ox + c * cellSize + cellSize / 2}

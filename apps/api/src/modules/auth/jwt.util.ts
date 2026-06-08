@@ -5,8 +5,22 @@
  */
 import { createHmac, timingSafeEqual } from 'crypto';
 
-const SECRET =
-  process.env.JWT_SECRET || 'dev-secret-change-in-production-please-use-aws-secrets-manager';
+/**
+ * JWT signing secret. In production we fail fast at boot if it's missing —
+ * a default secret would let anyone forge tokens against a deployed env.
+ * Local dev (NODE_ENV !== 'production') keeps the convenience fallback so
+ * `npm run dev` and the seed scripts still work without env setup.
+ */
+const SECRET = (() => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'JWT_SECRET environment variable is required in production. ' +
+        'Set it via your secrets manager (AWS Secrets Manager / SSM / etc).',
+    );
+  }
+  return 'dev-secret-change-in-production-please-use-aws-secrets-manager';
+})();
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 

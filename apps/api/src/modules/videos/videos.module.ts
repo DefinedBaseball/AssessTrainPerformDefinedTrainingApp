@@ -14,6 +14,9 @@ import { S3Service } from './s3.service';
   ],
   controllers: [VideosController],
   providers: [VideosService, S3Service],
-  exports: [VideosService],
+  // Export S3Service so other modules (TrainingModule for drill clips,
+  // future avatar/upload features) can reuse the same configured client
+  // without re-instantiating it. Single source of truth for storage.
+  exports: [VideosService, S3Service],
 })
 export class VideosModule {}

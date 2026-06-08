@@ -57,6 +57,84 @@ function playerMatchesSchedule(player: Player, schedule: ScheduleKey): boolean {
 
 /* ── Small helpers ── */
 
+/* ── Per-tab, per-category color matrix ────────────────────────────
+ * Mirrors the same matrix in training/page.tsx so program and
+ * training render identical color treatments for each category.
+ * Each tab has a base hue, with categories graduating lightest →
+ * darkest from top to bottom. */
+const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> = {
+  hitting: {
+    'Movement Prep':    { dot: '#B8D8F8', bg: 'rgba(184,216,248,0.13)', text: '#B8D8F8' },
+    'Drills':           { dot: '#82B8E8', bg: 'rgba(130,184,232,0.13)', text: '#82B8E8' },
+    'Batting Practice': { dot: '#4A90D9', bg: 'rgba(74,144,217,0.13)',  text: '#4A90D9' },
+    'Machine':          { dot: '#2E6DB5', bg: 'rgba(46,109,181,0.13)',  text: '#2E6DB5' },
+    'Live':             { dot: '#1B4F8A', bg: 'rgba(27,79,138,0.15)',   text: '#1B4F8A' },
+  },
+  pitching: {
+    'Movement Prep': { dot: '#FDD9A8', bg: 'rgba(253,217,168,0.13)', text: '#FDD9A8' },
+    'Drills':        { dot: '#F8B85E', bg: 'rgba(248,184,94,0.13)',  text: '#F8B85E' },
+    'Bullpen':       { dot: '#F59E0B', bg: 'rgba(245,158,11,0.13)',  text: '#F59E0B' },
+    'Live':          { dot: '#C77A09', bg: 'rgba(199,122,9,0.15)',   text: '#C77A09' },
+    'Post-Throw':    { dot: '#8B4F08', bg: 'rgba(139,79,8,0.18)',    text: '#8B4F08' },
+  },
+  catching: {
+    'Movement Prep': { dot: '#A0E8D8', bg: 'rgba(160,232,216,0.13)', text: '#A0E8D8' },
+    'Drills':        { dot: '#5FD4B5', bg: 'rgba(95,212,181,0.13)',  text: '#5FD4B5' },
+    'Machine':       { dot: '#14B8A6', bg: 'rgba(20,184,166,0.13)',  text: '#14B8A6' },
+    'Live':          { dot: '#0E8E70', bg: 'rgba(14,142,112,0.15)',  text: '#0E8E70' },
+  },
+  infield: {
+    'Movement Prep': { dot: '#B0F0B0', bg: 'rgba(176,240,176,0.13)', text: '#B0F0B0' },
+    'Drills':        { dot: '#6ED06E', bg: 'rgba(110,208,110,0.13)', text: '#6ED06E' },
+    'Machine':       { dot: '#38A850', bg: 'rgba(56,168,80,0.13)',   text: '#38A850' },
+    'Live':          { dot: '#1E7A32', bg: 'rgba(30,122,50,0.15)',   text: '#1E7A32' },
+  },
+  outfield: {
+    'Movement Prep': { dot: '#DAF0A0', bg: 'rgba(218,240,160,0.13)', text: '#DAF0A0' },
+    'Drills':        { dot: '#B8D870', bg: 'rgba(184,216,112,0.13)', text: '#B8D870' },
+    'Machine':       { dot: '#88B838', bg: 'rgba(136,184,56,0.13)',  text: '#88B838' },
+    'Live':          { dot: '#5A8418', bg: 'rgba(90,132,24,0.15)',   text: '#5A8418' },
+  },
+  strength: {
+    'Movement Prep': { dot: '#F8B8B8', bg: 'rgba(248,184,184,0.13)', text: '#F8B8B8' },
+    'Exercises':     { dot: '#EF4444', bg: 'rgba(239,68,68,0.13)',   text: '#EF4444' },
+    'Cool Down':     { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
+  },
+};
+
+const DEFAULT_CAT_COLOR = { dot: '#5A9BD5', bg: 'rgba(90,155,213,0.13)', text: '#5A9BD5' };
+
+/* Per-sport label anchor — the single shade EVERY category-card label
+   in a column resolves to, regardless of which category that card is
+   for. Replaces the prior "per-category light → dark gradient" treatment
+   on the bubble head text, where a Movement Prep card label was pale
+   blue and a Live card label was dark navy. Coach-spec called for all
+   labels in a Hitting column to read in Batting Practice blue, all
+   Pitching labels in Bullpen orange, and so on — picks the "core
+   activity" shade per sport so every label sits at a consistent depth
+   regardless of its position in the per-tab gradient. Applied
+   universally (both themes) — the chosen shades are mid-saturation
+   values that read against both the dark-mode surface and the light-
+   mode `--panel-bg-light` surface. */
+const TAB_LABEL_ANCHOR: Record<string, string> = {
+  hitting:  '#4A90D9',  // Batting Practice
+  pitching: '#F59E0B',  // Bullpen
+  catching: '#14B8A6',  // Machine
+  infield:  '#38A850',  // Machine
+  outfield: '#88B838',  // Machine
+  strength: '#EF4444',  // Exercises
+};
+
+function getTabCatStyle(tab: string, category: string) {
+  const c = TAB_CAT_COLORS[tab]?.[category] || DEFAULT_CAT_COLOR;
+  return {
+    dotStyle: { background: c.dot },
+    bgStyle: { background: c.bg, borderLeft: `3px solid ${c.dot}` },
+    textStyle: { color: c.text },
+    color: c.dot,
+  };
+}
+
 function formatTime(t: string | null | undefined): string {
   if (!t) return '';
   /* Accept HH:MM (24h) or already-formatted strings */
@@ -70,11 +148,37 @@ function formatTime(t: string | null | undefined): string {
 }
 
 function todayIso(): string {
-  const d = new Date();
+  return formatLocalDate(new Date());
+}
+
+/* ── Timezone-safe date helpers ──────────────────────────────────────────
+   `new Date('2026-04-30')` parses as UTC midnight, which displays as the
+   PREVIOUS calendar day for any user west of UTC. The two helpers below
+   keep every YYYY-MM-DD ↔ Date conversion in LOCAL time, so the calendar
+   always lands on the day the coach actually picked regardless of the
+   viewer's timezone. */
+
+/** Parse a `YYYY-MM-DD` string as local-midnight (NOT UTC midnight). */
+function parseLocalDate(s: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return new Date(s);
+  return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+}
+
+/** Format a Date as `YYYY-MM-DD` using its LOCAL date components. */
+function formatLocalDate(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Add a number of calendar days to a `YYYY-MM-DD` string, returning a new
+ *  `YYYY-MM-DD` (handles month/year rollovers correctly via Date math). */
+function addDays(yyyymmdd: string, days: number): string {
+  const d = parseLocalDate(yyyymmdd);
+  d.setDate(d.getDate() + days);
+  return formatLocalDate(d);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -216,13 +320,30 @@ function AthletePicker({
 function AthleteColumn({
   player,
   drills,
+  schedule,
   scheduleColor,
   loading,
+  isCoach,
+  onDragStartDrill,
+  onDropOnAthlete,
+  onClickDrill,
 }: {
   player: Player;
   drills: ScheduledDrill[];
+  /** The active schedule key (hitting / pitching / catching / ...) —
+   *  drives per-category color lookups so this column's bubbles
+   *  graduate light→dark the same way the training calendar does. */
+  schedule: ScheduleKey;
   scheduleColor: string;
   loading: boolean;
+  isCoach: boolean;
+  /** Coach started dragging this drill from this athlete's column. */
+  onDragStartDrill: (drillId: string, fromPlayerId: string) => void;
+  /** Coach dropped a drill onto this athlete's column.
+   *  Swallow the event in the parent — the parent has the source info. */
+  onDropOnAthlete: (toPlayerId: string) => void;
+  /** Coach clicked a scheduled drill — opens the inline edit popover. */
+  onClickDrill: (drill: ScheduledDrill) => void;
 }) {
   /* Group drills by category so the card reads as
        Movement Prep
@@ -242,6 +363,10 @@ function AthleteColumn({
     return [...map.entries()].map(([category, items]) => ({ category, items }));
   }, [drills]);
 
+  /* Drag-over highlight for the column body. Visual cue that a dropped
+     drill will land on this athlete. Coach-only — players never drag. */
+  const [dragOver, setDragOver] = useState(false);
+
   return (
     <div className={styles.athleteCard}>
       <div className={styles.athleteCardHead} style={{ borderTopColor: scheduleColor }}>
@@ -250,41 +375,276 @@ function AthleteColumn({
         </div>
         <div className={styles.athletePositions}>{player.positions || '—'}</div>
       </div>
-      <div className={styles.athleteCardBody}>
+      <div
+        className={styles.athleteCardBody}
+        onDragOver={(e) => {
+          if (!isCoach) return;
+          e.preventDefault(); // required for onDrop to fire
+          if (!dragOver) setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          if (!isCoach) return;
+          e.preventDefault();
+          setDragOver(false);
+          onDropOnAthlete(player.id);
+        }}
+        style={dragOver ? {
+          // Soft highlight for drop target — kept inline so we don't have
+          // to add a new CSS class to the existing module.
+          outline: `2px dashed ${scheduleColor}`,
+          outlineOffset: -2,
+          background: 'rgba(126, 182, 255, 0.04)',
+        } : undefined}
+      >
         {loading ? (
           <div className={styles.athleteEmpty}>Loading…</div>
         ) : drills.length === 0 ? (
-          <div className={styles.athleteEmpty}>No drills scheduled for today.</div>
+          <div className={styles.athleteEmpty}>
+            {isCoach ? 'No drills scheduled for today. Drag drills here from another athlete.' : 'No drills scheduled for today.'}
+          </div>
         ) : (
-          grouped.map(({ category, items }) => (
-            <div key={category} className={styles.athleteGroup}>
-              <div className={styles.athleteGroupHead}>
-                <span className={styles.athleteGroupDot} style={{ background: scheduleColor }} />
-                {category}
-              </div>
-              <ol className={styles.athleteDrillList}>
-                {items.map(d => (
-                  <li key={d.id} className={styles.athleteDrillItem}>
-                    <div className={styles.athleteDrillName}>{d.name}</div>
-                    <div className={styles.athleteDrillMeta}>
-                      {formatTime(d.time)}
-                      {d.duration > 0 && (
-                        <span className={styles.athleteDrillDuration}> · {d.duration} min</span>
-                      )}
+          /* Category bubble layout — matches the training calendar's
+             DayView. One tinted bubble per category, drill names listed
+             inside separated by hairline dividers. Notes/time/duration
+             drop out of the row to mirror the training-cal treatment;
+             coaches still see and edit those by clicking a name (opens
+             DrillEditor with the full record). Click + drag handlers
+             attach to each name row, so reassign-by-drag still works. */
+          grouped.map(({ category, items }) => {
+            /* Per-category shading from the same matrix the training
+             * calendar uses, so a Movement Prep bubble in /program
+             * looks identical to a Movement Prep bubble in /training.
+             * Categories within a schedule still graduate from
+             * lightest (Movement Prep) → darkest (Live / Post-Throw). */
+            const catStyle = getTabCatStyle(schedule, category);
+            /* Per-sport label anchor — every category label in this
+               column flips to the SAME `TAB_LABEL_ANCHOR[schedule]`
+               shade (Hitting → Batting Practice blue, Pitching →
+               Bullpen orange, etc.) regardless of which category the
+               card represents. The card background + left border still
+               graduate per-category via `catStyle.bgStyle` so the
+               gradient cue lives on the card chrome instead of the
+               label text. Falls back to `catStyle.textStyle` if the
+               schedule key isn't in the anchor map (e.g. a future
+               sport that hasn't been wired up yet). */
+            const labelAnchor = TAB_LABEL_ANCHOR[schedule];
+            const headStyle = labelAnchor ? { color: labelAnchor } : catStyle.textStyle;
+            return (
+              <div
+                key={category}
+                className={styles.athleteBubble}
+                style={catStyle.bgStyle}
+              >
+                <div className={styles.athleteBubbleHead} style={headStyle}>
+                  <span>{category}</span>
+                  <span className={styles.athleteBubbleCount}>{items.length}</span>
+                </div>
+                <div className={styles.athleteBubbleList}>
+                  {items.map((d) => (
+                    <div
+                      key={d.id}
+                      className={styles.athleteBubbleItem}
+                      draggable={isCoach}
+                      onDragStart={(e) => {
+                        if (!isCoach) return;
+                        onDragStartDrill(d.id, player.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', d.id);
+                      }}
+                      onClick={() => { if (isCoach) onClickDrill(d); }}
+                      title={isCoach ? 'Click to edit · drag to reassign' : undefined}
+                      style={isCoach ? { cursor: 'grab' } : undefined}
+                    >
+                      <span className={styles.athleteBubbleItemName}>{d.name}</span>
                     </div>
-                    {d.notes && (
-                      <div className={styles.athleteDrillNotes}>{d.notes}</div>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ))
+                  ))}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Inline drill editor — small centered modal a coach gets when they click
+   a scheduled drill card on the program board. Edits the four fields a
+   coach actually wants to tweak day-of-session: Name, Time, Duration,
+   Notes. Save returns the patch to the parent; Delete removes the slot.
+   ───────────────────────────────────────────────────────────────────────── */
+
+function DrillEditor({
+  drill, onClose, onSave, onDelete,
+}: {
+  drill: ScheduledDrill;
+  onClose: () => void;
+  onSave: (patch: { name: string; time: string; duration: number; notes: string | null }) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(drill.name);
+  const [time, setTime] = useState(drill.time);
+  const [duration, setDuration] = useState(drill.duration);
+  const [notes, setNotes] = useState(drill.notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    onSave({
+      name: name.trim() || drill.name,
+      time,
+      duration: Number.isFinite(duration) ? duration : drill.duration,
+      notes: notes.trim() ? notes.trim() : null,
+    });
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'min(440px, 92vw)',
+          background: 'var(--surface, #1a1f25)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          padding: '18px 20px 16px',
+          boxShadow: '0 18px 60px rgba(0,0,0,0.55)',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+          marginBottom: 14,
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
+          }}>
+            Edit Drill
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', color: 'var(--text-muted)',
+              fontSize: 20, lineHeight: 1, cursor: 'pointer', padding: 0,
+            }}
+            aria-label="Close"
+          >×</button>
+        </div>
+
+        <FieldLabel>Name</FieldLabel>
+        <input
+          type="text" value={name} onChange={(e) => setName(e.target.value)}
+          style={inputStyle}
+        />
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Time</FieldLabel>
+            <input
+              type="time" value={time} onChange={(e) => setTime(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <FieldLabel>Duration (min)</FieldLabel>
+            <input
+              type="number" min={1} max={240} step={1}
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value, 10) || 0)}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <FieldLabel>Notes</FieldLabel>
+          <textarea
+            value={notes} onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+            placeholder="Cues, reps, etc."
+          />
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginTop: 16, gap: 10,
+        }}>
+          {confirmDelete ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text)' }}>Delete?</span>
+              <button type="button" onClick={onDelete}
+                style={{ ...btnStyle, background: '#dc2626', borderColor: '#dc2626', color: 'var(--text-bright)' }}>
+                Yes
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(false)} style={btnStyle}>No</button>
+            </div>
+          ) : (
+            <button
+              type="button" onClick={() => setConfirmDelete(true)}
+              style={{ ...btnStyle, color: '#f87171', borderColor: 'rgba(248,113,113,0.4)' }}
+            >Delete</button>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={onClose} style={btnStyle}>Cancel</button>
+            <button
+              type="button" onClick={submit} disabled={saving}
+              style={{
+                ...btnStyle,
+                background: 'var(--accent, #3d8bfd)',
+                borderColor: 'var(--accent, #3d8bfd)',
+                color: 'var(--text-bright)', fontWeight: 700,
+                cursor: saving ? 'wait' : 'pointer',
+              }}
+            >{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const FieldLabel = ({ children }: { children: React.ReactNode }) => (
+  <div style={{
+    fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em',
+    textTransform: 'uppercase', color: 'var(--text-muted)',
+    marginBottom: 4,
+  }}>
+    {children}
+  </div>
+);
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box',
+  padding: '8px 10px',
+  background: 'rgba(20,24,32,0.85)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  color: 'var(--text)',
+  fontSize: 13,
+  outline: 'none',
+};
+
+const btnStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  color: 'var(--text)',
+  fontSize: 12,
+  cursor: 'pointer',
+};
 
 /* ─────────────────────────────────────────────────────────────────────────────
    PAGE
@@ -355,6 +715,70 @@ export default function ProgramPage() {
   const [drillsByPlayer, setDrillsByPlayer] = useState<Record<string, ScheduledDrill[]>>({});
   const [loadingByPlayer, setLoadingByPlayer] = useState<Record<string, boolean>>({});
 
+  /* Refetch one or more athletes' schedule for the current sessionDate +
+     schedule. Reused by the drag-drop and inline-edit handlers below so
+     we don't have to do a full page reload after each mutation. */
+  const refetchAthletes = async (playerIds: string[]) => {
+    await Promise.all(playerIds.map(async (id) => {
+      try {
+        const rows = await api.getScheduledDrills(id, { date: sessionDate, tab: schedule });
+        const sorted = [...rows].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+        setDrillsByPlayer(prev => ({ ...prev, [id]: sorted }));
+      } catch {
+        setDrillsByPlayer(prev => ({ ...prev, [id]: prev[id] ?? [] }));
+      }
+    }));
+  };
+
+  /* Active drag state — set when a coach starts dragging a drill, read
+     when they drop on a column. We keep both the drillId AND the source
+     playerId so we know whether to refetch one column or two on drop. */
+  const dragRef = useRef<{ drillId: string; fromPlayerId: string } | null>(null);
+  const onDragStartDrill = (drillId: string, fromPlayerId: string) => {
+    dragRef.current = { drillId, fromPlayerId };
+  };
+  const onDropOnAthlete = async (toPlayerId: string) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) return;
+    if (drag.fromPlayerId === toPlayerId) return; // dropped on self — no-op
+    try {
+      await api.updateScheduledDrill(drag.drillId, { playerId: toPlayerId } as any);
+      // Refetch both columns so the moved drill disappears from source
+      // and appears in target without a full page reload.
+      await refetchAthletes([drag.fromPlayerId, toPlayerId]);
+    } catch (e) {
+      console.error('Drag-drop reassign failed', e);
+    }
+  };
+
+  /* Inline-edit popover — set when coach clicks a drill, cleared on save
+     / cancel / delete. Render is a small modal anchored center-screen. */
+  const [editingDrill, setEditingDrill] = useState<ScheduledDrill | null>(null);
+  const closeEditor = () => setEditingDrill(null);
+  const saveEditor = async (patch: { name: string; time: string; duration: number; notes: string | null }) => {
+    if (!editingDrill) return;
+    try {
+      await api.updateScheduledDrill(editingDrill.id, patch as any);
+      await refetchAthletes([editingDrill.playerId]);
+    } catch (e) {
+      console.error('Inline-edit save failed', e);
+    } finally {
+      closeEditor();
+    }
+  };
+  const deleteEditor = async () => {
+    if (!editingDrill) return;
+    try {
+      await api.deleteScheduledDrill(editingDrill.id);
+      await refetchAthletes([editingDrill.playerId]);
+    } catch (e) {
+      console.error('Inline-edit delete failed', e);
+    } finally {
+      closeEditor();
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const want = new Set(selectedIds);
@@ -398,9 +822,11 @@ export default function ProgramPage() {
     setJumping(true);
     try {
       const today = todayIso();
+      // Use the local-date helpers so the "next year" / "last year" window
+      // doesn't wobble across a UTC date boundary.
       const oneYear = new Date();
       oneYear.setFullYear(oneYear.getFullYear() + 1);
-      const endDate = oneYear.toISOString().slice(0, 10);
+      const endDate = formatLocalDate(oneYear);
       const all = await Promise.all(selectedIds.map(id =>
         api.getScheduledDrills(id, { startDate: today, endDate, tab: schedule })
           .catch(() => [] as ScheduledDrill[]),
@@ -410,7 +836,7 @@ export default function ProgramPage() {
         // Fall back to the past year — maybe everything they have is older.
         const aYearAgo = new Date();
         aYearAgo.setFullYear(aYearAgo.getFullYear() - 1);
-        const startBack = aYearAgo.toISOString().slice(0, 10);
+        const startBack = formatLocalDate(aYearAgo);
         const back = await Promise.all(selectedIds.map(id =>
           api.getScheduledDrills(id, { startDate: startBack, endDate: today, tab: schedule })
             .catch(() => [] as ScheduledDrill[]),
@@ -591,7 +1017,12 @@ export default function ProgramPage() {
               player={p}
               drills={drillsByPlayer[p.id] ?? []}
               loading={loadingByPlayer[p.id] ?? false}
+              schedule={schedule}
               scheduleColor={scheduleColor}
+              isCoach={isCoach}
+              onDragStartDrill={onDragStartDrill}
+              onDropOnAthlete={onDropOnAthlete}
+              onClickDrill={(d) => setEditingDrill(d)}
             />
           ))}
         </div>
@@ -614,6 +1045,19 @@ export default function ProgramPage() {
           </svg>
           Full Screen
         </button>
+      )}
+
+      {/* Inline drill editor — opens when a coach clicks a scheduled drill
+          card. Edits Name / Time / Duration / Notes in place without
+          going through the day-edit modal. Save calls
+          api.updateScheduledDrill; Delete removes the slot entirely. */}
+      {editingDrill && (
+        <DrillEditor
+          drill={editingDrill}
+          onClose={closeEditor}
+          onSave={saveEditor}
+          onDelete={deleteEditor}
+        />
       )}
     </div>
   );

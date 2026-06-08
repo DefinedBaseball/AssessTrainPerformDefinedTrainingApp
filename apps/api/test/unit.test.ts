@@ -8,6 +8,7 @@
  */
 
 import { signJwt, verifyJwt } from '../src/modules/auth/jwt.util';
+import { assertPlayerOwnership, AuthenticatedRequest } from '../src/modules/auth/jwt.guard';
 import { detectParser, getParserBySource, getRegisteredSources } from '../src/modules/uploads/parsers/parser-registry';
 import { BlastMotionParser } from '../src/modules/uploads/parsers/blast-motion-parser';
 import { TrackmanParser } from '../src/modules/uploads/parsers/trackman-parser';
@@ -148,23 +149,43 @@ async function blastParserTests() {
     const result = parser.parse(rows, new Date('2026-04-01'));
     assertEqual(result.totalRows, 1, 'totalRows');
     assertEqual(result.errors.length, 0, 'no errors');
-    assertEqual(result.success.length, 2, '2 metrics extracted');
-    const batSpeed = result.success.find(m => m.metricType === 'max_bat_speed');
-    assert(batSpeed !== undefined, 'bat speed metric exists');
-    assertEqual(batSpeed!.value, 72.5, 'bat speed value');
-    assertEqual(batSpeed!.unit, 'mph', 'bat speed unit');
-    assertEqual(batSpeed!.playerName, 'John Smith', 'player name');
+    /* Bat Speed expands into TWO session-summary metrics
+       (`max_bat_speed` AND `avg_bat_speed`) — see parser comment
+       "Bat speed produces both max_bat_speed (top swing) and
+       avg_bat_speed (mean across every swing)". Attack Angle emits
+       one metric. So a row with Bat Speed + Attack Angle = 3 emits. */
+    assertEqual(result.success.length, 3, '3 metrics extracted (max+avg bat speed, attack angle)');
+    const maxBatSpeed = result.success.find(m => m.metricType === 'max_bat_speed');
+    assert(maxBatSpeed !== undefined, 'max bat speed metric exists');
+    assertEqual(maxBatSpeed!.value, 72.5, 'max bat speed value');
+    assertEqual(maxBatSpeed!.unit, 'mph', 'max bat speed unit');
+    assertEqual(maxBatSpeed!.playerName, 'John Smith', 'player name');
+    const avgBatSpeed = result.success.find(m => m.metricType === 'avg_bat_speed');
+    assert(avgBatSpeed !== undefined, 'avg bat speed metric exists');
+    assertEqual(avgBatSpeed!.value, 72.5, 'avg bat speed value (single-row mean = the value itself)');
+    const attackAngle = result.success.find(m => m.metricType === 'attack_angle');
+    assert(attackAngle !== undefined, 'attack angle metric exists');
+    assertEqual(attackAngle!.value, 12.3, 'attack angle value');
   });
 
-  await test('Blast parser reports row with no player name as error', () => {
+  await test('Blast parser falls back to placeholder name for rows with no player name', () => {
+    /* The current Blast parser is "session-summary first": it pools
+       every numeric reading across every row into per-metric buckets
+       and emits ONE summary metric per bucket at the end. When no
+       row provides a player name, the parser falls back to the
+       sentinel `_blast_upload_` (a placeholder the upload service
+       later resolves to the report's `playerId`). It does NOT
+       error out — the session is still valuable even when the CSV
+       header didn't carry a name. This test pins that behavior. */
     const parser = new BlastMotionParser();
     const rows = [
       { 'Player Name': '', 'Bat Speed (mph)': '70.0' },
     ];
     const result = parser.parse(rows, new Date());
-    assertEqual(result.success.length, 0, 'no metrics');
-    assertEqual(result.errors.length, 1, 'one error');
-    assert(result.errors[0].message.includes('player name'), 'error mentions player name');
+    assertEqual(result.errors.length, 0, 'no errors for missing player name');
+    /* Bat Speed → 2 metrics (max + avg). */
+    assertEqual(result.success.length, 2, 'both max_bat_speed + avg_bat_speed emitted');
+    assertEqual(result.success[0].playerName, '_blast_upload_', 'placeholder name used');
   });
 
   await test('Blast parser skips non-numeric values', () => {
@@ -173,7 +194,7 @@ async function blastParserTests() {
       { 'Player Name': 'X', 'Bat Speed (mph)': 'not-a-number', 'Attack Angle (deg)': '10' },
     ];
     const result = parser.parse(rows, new Date());
-    assertEqual(result.success.length, 1, 'only numeric metric extracted');
+    assertEqual(result.success.length, 1, 'only the numeric metric extracted');
     assertEqual(result.success[0].metricType, 'attack_angle', 'kept the valid one');
   });
 
@@ -216,6 +237,65 @@ async function hittraxParserTests() {
   });
 }
 
+// ─── assertPlayerOwnership Tests ────────────────────────────────────────
+// Pure-function tests for the ownership gate that protects every player-
+// scoped GET endpoint. If anyone refactors and forgets the call, these
+// catch the regression without needing a live server.
+
+function mockReq(role: 'COACH' | 'PLAYER', playerId: string | null): AuthenticatedRequest {
+  return {
+    user: {
+      sub: 'user-1',
+      email: 'a@b.com',
+      role,
+      playerId,
+      iat: 0,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+  } as any;
+}
+
+function expectThrows(fn: () => void, msg: string) {
+  let threw = false;
+  try { fn(); } catch { threw = true; }
+  if (!threw) throw new Error(`Expected to throw: ${msg}`);
+}
+
+async function ownershipTests() {
+  await test('coach can access any player', () => {
+    assertPlayerOwnership(mockReq('COACH', null), 'player-anything');
+    assertPlayerOwnership(mockReq('COACH', 'their-own-link'), 'player-different');
+  });
+
+  await test('player can access their own playerId', () => {
+    assertPlayerOwnership(mockReq('PLAYER', 'p-mine'), 'p-mine');
+  });
+
+  await test('player blocked from another player\'s id', () => {
+    expectThrows(
+      () => assertPlayerOwnership(mockReq('PLAYER', 'p-mine'), 'p-someone-else'),
+      'cross-player access',
+    );
+  });
+
+  await test('player without linked playerId is blocked even from a matching id', () => {
+    // playerId === null on the JWT means the user role is PLAYER but no
+    // Player record was linked. Should never pass — falsy guard catches
+    // null === null lookalikes.
+    expectThrows(
+      () => assertPlayerOwnership(mockReq('PLAYER', null), 'any-id'),
+      'unlinked player',
+    );
+  });
+
+  await test('missing user object throws unauthorized', () => {
+    expectThrows(
+      () => assertPlayerOwnership({} as any, 'any-id'),
+      'no user on request',
+    );
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -226,6 +306,7 @@ async function run() {
   await blastParserTests();
   await trackmanParserTests();
   await hittraxParserTests();
+  await ownershipTests();
 
   console.log('\n' + '='.repeat(60));
   for (const r of results) {

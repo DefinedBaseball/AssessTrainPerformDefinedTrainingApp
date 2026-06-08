@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrainingService } from './training.service';
-import { Roles } from '../auth/jwt.guard';
+import { S3Service } from '../videos/s3.service';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -37,6 +38,10 @@ class CreateScheduledDrillDto {
 }
 
 class UpdateScheduledDrillDto {
+  // playerId enables drag-drop reassignment on /program — moving a drill
+  // from one athlete's column to another's is a single PATCH instead of
+  // delete + recreate.
+  playerId?: string;
   drillId?: string;
   tab?: string;
   category?: string;
@@ -44,7 +49,7 @@ class UpdateScheduledDrillDto {
   date?: string;
   time?: string;
   duration?: number;
-  notes?: string;
+  notes?: string | null;
 }
 
 // Legacy DTOs
@@ -67,23 +72,29 @@ class AddExerciseDto {
 @ApiBearerAuth()
 @Controller('training')
 export class TrainingController {
-  constructor(private trainingService: TrainingService) {}
+  constructor(
+    private trainingService: TrainingService,
+    private s3: S3Service,
+  ) {}
 
   // ─── Drill Library ─────────────────────────────────────────────
 
   @Get('drills')
+  @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Get all drills, optionally filtered by tab' })
   getDrills(@Query('tab') tab?: string) {
     return this.trainingService.getAllDrills(tab);
   }
 
   @Get('drills/search')
+  @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Search drills by name' })
   searchDrills(@Query('q') query: string, @Query('tab') tab?: string) {
     return this.trainingService.searchDrills(query || '', tab);
   }
 
   @Get('drills/:id')
+  @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Get a single drill by ID' })
   getDrill(@Param('id') id: string) {
     return this.trainingService.getDrill(id);
@@ -112,39 +123,66 @@ export class TrainingController {
 
   @Post('drills/:id/upload-video')
   @Roles('COACH')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a video file for a drill (COACH only)' })
+  @UseInterceptors(FileInterceptor('file', {
+    /* Drill demo clips are short — 100MB is well above what a 30-second
+     * 1080p iPhone clip produces. Anything larger is almost certainly a
+     * mis-clicked file. */
+    limits: { fileSize: 100 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype || !file.mimetype.startsWith('video/')) {
+        return cb(new BadRequestException('Only video files are allowed'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  @ApiOperation({ summary: 'Upload a video file for a drill (COACH only, 100MB max, video/* only)' })
   async uploadDrillVideo(
     @Param('id') id: string,
     @UploadedFile() file: any,
   ) {
-    if (!file) throw new Error('No file uploaded');
-
-    // Save to local uploads/drills directory
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'drills');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    if (!file) throw new BadRequestException('No file uploaded');
 
     const ext = path.extname(file.originalname) || '.mp4';
     const filename = `${id}-${Date.now()}${ext}`;
-    const filePath = path.join(uploadsDir, filename);
-    fs.writeFileSync(filePath, file.buffer);
 
-    // Update drill with the video URL
-    const videoUrl = `/api/training/drills/video/${filename}`;
+    /* Storage routing — STORAGE_DRIVER=s3 sends bytes straight to the
+     * configured bucket; anything else (default local) writes to disk in
+     * uploads/drills/ and serves via express.static. The S3 path is what
+     * production uses; local is for dev convenience and the docker-compose
+     * single-container deploy where a volume mount works fine. */
+    const driver = process.env.STORAGE_DRIVER || 'local';
+    let videoUrl: string;
+
+    if (driver === 's3' && this.s3.isConfigured()) {
+      const key = `drills/${filename}`;
+      await this.s3.putObjectFromBuffer(key, file.buffer, file.mimetype || 'video/mp4');
+      // Use CloudFront if CDN_BASE_URL is set, fall back to direct S3 URL.
+      videoUrl = this.s3.publicUrlFor(key);
+    } else {
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'drills');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filePath, file.buffer);
+      videoUrl = `/api/training/drills/video/${filename}`;
+    }
+
     return this.trainingService.updateDrill(id, { videoUrl });
   }
 
   // ─── Scheduled Drills (Calendar) ───────────────────────────────
 
   @Get('schedule/:playerId')
-  @ApiOperation({ summary: 'Get scheduled drills for a player (filter by date range and tab)' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get scheduled drills for a player (ownership-checked)' })
   getScheduledDrills(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('date') date?: string,
     @Query('tab') tab?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     if (startDate && endDate) {
       return this.trainingService.getScheduledDrillsForRange(playerId, startDate, endDate, tab);
     }
@@ -193,14 +231,17 @@ export class TrainingController {
   }
 
   @Get('programs/:id')
+  @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Get a training program with all days and exercises' })
   getProgram(@Param('id') id: string) {
     return this.trainingService.getProgram(id);
   }
 
   @Get('player/:playerId')
-  @ApiOperation({ summary: 'Get all training programs for a player' })
-  getPlayerPrograms(@Param('playerId') playerId: string) {
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Get all training programs for a player (ownership-checked)' })
+  getPlayerPrograms(@Request() req: AuthenticatedRequest, @Param('playerId') playerId: string) {
+    assertPlayerOwnership(req, playerId);
     return this.trainingService.getPlayerPrograms(playerId);
   }
 

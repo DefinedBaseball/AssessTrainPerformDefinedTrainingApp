@@ -147,6 +147,20 @@
 /* Hide the legacy active left-rail bar (not needed with filled bubble) */
 .active::before { display: none; }
 
+/* ── Nested child nav item (e.g. Live + Program under Data) ──
+   Renders with the SAME padding, icon size, and label position as
+   every other top-level row so the labels line up across the entire
+   sidebar — no indent, no smaller icon. The only nesting cue is a
+   slightly muted text + icon color so the parent stays the primary
+   read while the children sit visually beneath it. Active highlight
+   still wins (handled via .active having `!important`). */
+.navItemChild {
+  color: rgba(255, 255, 255, 0.48);
+}
+.navItemChild:hover {
+  color: rgba(255, 255, 255, 0.92);
+}
+
 /* ── Icon box (inner) ── */
 .iconBox {
   width: 24px;

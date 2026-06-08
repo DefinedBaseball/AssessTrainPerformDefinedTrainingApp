@@ -5,7 +5,9 @@ import { StyleSheet, Font } from '@react-pdf/renderer';
 
 /* ── Brand Colors ── */
 export const colors = {
-  // Primary
+  // Primary — true black for the cover page; navy is kept as a softer
+  // dark tone for in-body accents (player info bar, table headers, etc.).
+  black:      '#000000',
   navy:       '#0D1117',
   navyLight:  '#161B22',
   surface:    '#1C2128',
@@ -23,23 +25,41 @@ export const colors = {
   // Text
   white:      '#FFFFFF',
   textPrimary:'#CDD9E5',
-  textMuted:  '#768390',
+  /* textMuted darkened 40% (RGB × 0.6) so PDF axis labels, grid-line
+     tick chips, and table-cell unit suffixes ("mph", "ft") read with
+     stronger contrast against the page-white background and the new
+     darker card surfaces below. Old: #768390. */
+  textMuted:  '#474F56',
   textDark:   '#1C2128',
 
-  // Grade badges — Red (bad) / Yellow (average) / Green (good)
-  elite:      '#16A34A',     // green text
+  // Grade badges — Red (bad) / Yellow (average) / Green (good).
+  // EXACT match for the in-app `scoreColor()` palette so PDF chips and
+  // value text render identically to the on-screen Hitting Snapshot.
+  //   in-app: < 40 red   #EF4444
+  //          40-59 yellow #EAB308
+  //          ≥ 60 green   #22C55E
+  elite:      '#22C55E',     // green text
   eliteBg:    '#DCFCE7',     // light green bg (white-page friendly)
-  aboveAvg:   '#CA8A04',     // yellow text
+  aboveAvg:   '#EAB308',     // yellow text
   aboveAvgBg: '#FEF9C3',     // light yellow bg
-  developing: '#DC2626',     // red text
+  developing: '#EF4444',     // red text
   developingBg:'#FEE2E2',    // light red bg
 
   // Page
   pageBg:     '#FFFFFF',
-  cardBg:     '#F6F8FA',
-  cardBorder: '#E1E4E8',
-  tableBg:    '#F0F3F6',
-  tableAlt:   '#FAFBFC',
+  /* Bubble + table FILLS are pure white so each card / KPI / plot pane
+     reads as a clean panel on the white page. The darker contrast lives
+     ONLY in the BORDERS (`cardBorder`) and graph-line strokes — those
+     stay at 40%-darker greys so the section divisions and plot axes
+     are clearly visible against the white fills.
+       cardBg     #F6F8FA → #FFFFFF (white bubble fill)
+       cardBorder #E1E4E8 → #87898B (40% darker; borders + grid lines)
+       tableBg    #F0F3F6 → #FFFFFF (white table fill)
+       tableAlt   #FAFBFC → #FFFFFF (no row striping — all rows white) */
+  cardBg:     '#FFFFFF',
+  cardBorder: '#87898B',
+  tableBg:    '#FFFFFF',
+  tableAlt:   '#FFFFFF',
 };
 
 /* ── Common Styles ── */
@@ -47,9 +67,12 @@ export const s = StyleSheet.create({
   /* ── Page ── */
   page: {
     backgroundColor: colors.pageBg,
-    paddingTop: 40,
-    paddingBottom: 50,
-    paddingHorizontal: 40,
+    /* Tightened top padding to give the snapshot + notes more vertical
+       room on page 2. Bottom padding keeps the existing footer breathing
+       space. */
+    paddingTop: 24,
+    paddingBottom: 36,
+    paddingHorizontal: 36,
     fontSize: 9,
     fontFamily: 'Helvetica',
     color: colors.textDark,
@@ -67,7 +90,7 @@ export const s = StyleSheet.create({
 
   /* ── Cover ── */
   coverPage: {
-    backgroundColor: colors.navy,
+    backgroundColor: colors.black,
     padding: 0,
     justifyContent: 'center',
     alignItems: 'center',
@@ -79,7 +102,9 @@ export const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     marginTop: 18,
-    borderBottom: `1.5px solid ${colors.teal}`,
+    /* Section header underline switched from teal to black for the new
+       white / grey / black body palette. */
+    borderBottom: `1.5px solid ${colors.black}`,
     paddingBottom: 6,
   },
   sectionIcon: {
@@ -123,7 +148,11 @@ export const s = StyleSheet.create({
   },
   kpiLabel: {
     fontSize: 7,
-    color: colors.textMuted,
+    /* All KPI labels (Avg EV, Max EV, Launch Angle, Distance, Max Bat
+       Speed, Avg Bat Speed, Attack Angle, Plane Angle, Time to Contact,
+       Plane Score, Connection Score, Rotation Score, etc.) render in
+       solid black so they read at parity with the section headers. */
+    color: colors.black,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -159,7 +188,8 @@ export const s = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: colors.navy,
+    /* Header row — solid black, mirroring the player info bar above it. */
+    backgroundColor: colors.black,
     paddingVertical: 6,
     paddingHorizontal: 8,
   },
@@ -225,15 +255,18 @@ export const s = StyleSheet.create({
     backgroundColor: colors.cardBg,
     border: `1px solid ${colors.cardBorder}`,
     borderRadius: 6,
-    padding: 12,
-    marginBottom: 12,
+    padding: 10,
+    marginBottom: 0,
   },
   notesLabel: {
-    fontSize: 7,
+    /* DIAGNOSIS NOTES heading — bumped to fontSize 8 (matches the
+       SPRAY CHART / HITTING GRADES section eyebrows above it) and
+       solid black for visual parity. */
+    fontSize: 8,
     fontFamily: 'Helvetica-Bold',
-    color: colors.textMuted,
+    color: colors.black,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.4,
     marginBottom: 6,
   },
   notesText: {
@@ -242,24 +275,31 @@ export const s = StyleSheet.create({
     lineHeight: 1.5,
   },
 
-  /* ── Player Info Bar ── */
+  /* ── Player Info Bar ──
+     Top bar on body pages — solid black with white text + soft grey
+     secondary labels. Matches the cover-page palette so the report reads
+     as one cohesive black/white/grey theme on the body pages. */
   playerInfoBar: {
     flexDirection: 'row',
-    backgroundColor: colors.navy,
+    backgroundColor: colors.black,
     borderRadius: 8,
-    padding: 14,
-    marginBottom: 16,
+    /* Tighter vertical padding + smaller marginBottom so the bar takes
+       less of page 2's vertical budget — leaves more room for the notes
+       block below. Horizontal padding kept generous for breathing room. */
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 10,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   playerInfoName: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Helvetica-Bold',
     color: colors.white,
   },
   playerInfoDetail: {
     fontSize: 8,
-    color: colors.tealLight,
+    color: 'rgba(255,255,255,0.65)',
     marginTop: 2,
   },
   playerInfoStat: {
@@ -268,7 +308,7 @@ export const s = StyleSheet.create({
   },
   playerInfoStatLabel: {
     fontSize: 6,
-    color: colors.textMuted,
+    color: 'rgba(255,255,255,0.55)',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },

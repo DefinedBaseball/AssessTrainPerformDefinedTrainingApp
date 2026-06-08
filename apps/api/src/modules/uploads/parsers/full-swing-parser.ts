@@ -85,11 +85,24 @@ export class FullSwingParser implements VendorParser {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const playerName = this.findPlayerName(row);
-      if (!playerName) {
-        errors.push({ row: i + 1, message: 'No player name found', rawData: row });
-        continue;
-      }
+      /* Sentinel-name fallback (mirrors the HitTrax parser):
+         the upload endpoint can be invoked with an explicit
+         `playerId`, in which case csv-processing.service.ts
+         direct-assigns every parsed metric to that player and
+         skips fuzzy name matching entirely. Some Full Swing
+         exports (notably the at-bat live-data flavor used by
+         the Hitting "Swing Decision" section) ship without a
+         `Batter` column, or ship one with blank cells — under
+         the old strict-skip rule the parser dropped every row
+         and the upload landed with metricsCreated: 0, leaving
+         the Spray Chart empty even though the user attached a
+         valid CSV. Fall back to a sentinel so those rows still
+         emit metrics; the `playerId` parameter then routes them
+         to the correct player on insert. When no `playerId` is
+         provided the downstream fuzzy match will reject the
+         sentinel and the rows drop, preserving the original
+         multi-player-CSV semantics. */
+      const playerName = this.findPlayerName(row) || '_fullswing_upload_';
 
       const rowDate = this.findDate(row) || recordedAt;
 
@@ -97,7 +110,12 @@ export class FullSwingParser implements VendorParser {
         const mapping = COLUMN_MAP[csvCol.toLowerCase().trim()];
         if (!mapping) continue;
 
-        // Skip null/empty values (Full Swing uses literal "null" for misses)
+        // Skip null/empty values (Full Swing writes literal "null" for
+        // misses / non-squared-up swings). The downstream aggregator
+        // computes the average over only the non-null rows, which is
+        // the correct definition of "Squared-Up %" — it's the average
+        // squared-up rating ACROSS measured contact swings, not across
+        // every pitch including whiffs.
         if (!value || value.trim() === '' || value.trim().toLowerCase() === 'null') continue;
 
         let num = parseFloat(value);

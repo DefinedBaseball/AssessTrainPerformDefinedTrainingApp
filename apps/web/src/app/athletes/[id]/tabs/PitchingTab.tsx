@@ -3,24 +3,111 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   SectionHeader, Section,
-  NotesBox, VideoPlaceholder, ReportSelector, AddReportButton, EditProfileButton,
+  VideoPlaceholder, VideoBundleCard, ReportSelector, EditProfileButton, DownloadPdfButton, VideosIconButton,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import hud from './PitchingTab.module.css';
 import {
   TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport,
-  getPitchingGrades, PITCHING_GRADE_SECTIONS, pitchingGradeKey,
+  getPitchingGrades, PITCHING_GRADE_SECTIONS, PITCHING_MECHANICS_SECTION_KEYS, pitchingGradeKey,
   scoreColor,
   type ReportSummary, type PitchingGrades, type PitchingGradeEntry,
   type PitchingGradeItemConfig, type PitchingGradeSectionConfig,
 } from '../helpers';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import type { TrackmanPitch } from '@/lib/api';
+import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
 import { generatePitchingPdf } from '@/lib/pdf';
 import { CustomCharts } from '@/components/CustomCharts';
+import { LiveAtBatsList } from '@/components/LiveAtBatsList';
 import { TabBarActions } from '@/components/assessment';
+
+/* ── Shared Pitch-Report-bubble surface style ──
+   Mirrors the outer .hudConsole gradient so every chart / bubble
+   in the Pitching tab (ArsenalCards, plot canvases, readout bar,
+   mechanical summary, pitching notes, video panel, break/release
+   table shells) reads in one unified visual language. Inline so
+   it can override the `aStyles.innerPanel` className without
+   editing the shared module.
+
+   References the `--bubble-chrome-bg` CSS variable defined in
+   globals.css so the surface auto-flips between the dark-mode
+   triple-layer radial+linear gradient and the light-mode
+   `#f3f3f3 → #e5e5e5` off-white linear gradient with no JS-side
+   theme check needed. */
+const PITCH_REPORT_BUBBLE_BG = 'var(--bubble-chrome-bg)';
+
+const pitchReportBubbleStyle: React.CSSProperties = {
+  background: PITCH_REPORT_BUBBLE_BG,
+  border: '1px solid var(--border-light)',
+  borderRadius: 12,
+  position: 'relative',
+  /* Drop shadow matched to `movementPlotBubbleStyle` (the Swing /
+     Quality of Contact / Coach Diagnosis bubbles) + the Spray Chart
+     bubble, which all use `0 5px 14px / 0.21`. The Arsenal cards
+     (Fastball / Curveball / Slider / ChangeUp) and every other
+     pitch-report bubble already share the `--bubble-chrome-bg`
+     surface, so matching the shadow makes them read identically to
+     the Hitting-tab bubbles. (Was the lone outlier at 0.10.) */
+  boxShadow: '0 5px 14px rgba(0, 0, 0, 0.21)',
+};
+
+/* ── Shared Player-Name-bubble (Command Deck) surface style ──
+   Same chrome the page-hero `.commandDeck` carries (and now the
+   Pitch Report `.hudConsole` too): deep dark-navy radial highlight,
+   white-rim border, layered inset shadow stack. Used for any
+   *outer* shell around grouped sub-bubbles so it reads as a sibling
+   of the page hero rather than a generic surface. */
+const COMMAND_DECK_BG =
+  'radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),' +
+  'rgba(10, 14, 20, 0.38)';
+
+const commandDeckBubbleStyle: React.CSSProperties = {
+  background: COMMAND_DECK_BG,
+  border: '1px solid var(--border-light)',
+  borderRadius: 28,
+  boxShadow:
+    'inset 0 1px 0 rgba(255, 255, 255, 0.05),' +
+    'inset 0 0 24px rgba(0, 0, 0, 0.35),' +
+    '0 1px 2px rgba(0, 0, 0, 0.25)',
+  overflow: 'hidden',
+  position: 'relative',
+};
+
+/* ── Trackman brand badge ──
+   Inline SVG version of the Trackman logo — an orange rounded square
+   tile with a white stylized "track mark" slash from the upper-right
+   curving down to the lower-middle. Used as the post-title icon on the
+   Break & Spin + Release & Extension section header (same `iconAfter`
+   treatment Coach Grades / Full Swing / Blast Motion / HitTrax use in
+   the Swing tab). The SVG is square so it fills the 36×36 sectionIcon
+   slot cleanly. */
+function TrackmanLogo() {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width="100%"
+      height="100%"
+      role="img"
+      aria-label="Trackman"
+      style={{ display: 'block' }}
+    >
+      {/* Orange rounded tile — Trackman brand fill */}
+      <rect x="0" y="0" width="100" height="100" rx="14" fill="#F37021" />
+      {/* White track-mark slash: starts at the upper-right corner area,
+          curves down and inward, then flares back out across the bottom
+          band so the resulting shape reads like the Trackman logo's
+          stylized "1" / track-trail mark. */}
+      <path
+        d="M 78 16 L 64 16 Q 60 16 57 22 L 33 76 Q 31 80 26 80 L 22 80 Q 18 80 18 84 L 18 84 Q 18 88 22 88 L 38 88 Q 44 88 47 82 L 70 28 Q 72 24 76 24 L 80 24 Q 84 24 84 20 L 84 20 Q 84 16 80 16 Z"
+        fill="var(--text-bright)"
+      />
+    </svg>
+  );
+}
 
 /* ── Pitch type colors ── */
 const PITCH_COLORS: Record<string, string> = {
@@ -146,43 +233,77 @@ function ArsenalCard({ row }: { row: ArsenalRow }) {
 
   return (
     <div
-      // Slight blue/dark hue with center highlight — matches the
-      // Movement Plot canvas so every interior bubble inside the HUD
-      // reads with the same depth.
-      className={aStyles.innerPanel}
+      // Match the outer Pitch Report bubble's gradient so the four
+      // Arsenal chips (Fastball / Curveball / Slider / ChangeUp) read
+      // in the same visual scheme as every other bubble on the tab.
+      // `flex` + `minWidth` lifted off this inline style — they live in
+      // the parent `.hudArsenal > *` rule now, so the 5-per-row + wrap
+      // sizing rules in PitchingTab.module.css can take effect (inline
+      // flex/minWidth here was beating the CSS class and forcing all
+      // 8 cards onto a single row for Andy Johnson).
       style={{
-        padding: '9px 11px', flex: 1, minWidth: 108,
+        ...pitchReportBubbleStyle,
+        padding: '9px 11px',
       }}
     >
-      <div style={{ fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 5 }}>
+      {/* Pitch label — centered card title in Font B (Brown display,
+          upright, 1 rem, weight 600, -0.025em, uppercase, bright
+          white) so the Arsenal card titles match every other grey-
+          bubble eyebrow across the app. White rule under the label
+          mirrors the GradeRow table layout over in the Hitting tab:
+          padding-bottom 8 px above the rule, margin-bottom 8 px
+          below it before the velo grid. */}
+      <div style={{
+        fontFamily: 'inherit', fontSize: '0.85rem',
+        fontWeight: 600, fontStyle: 'normal',
+        letterSpacing: '-0.025em', textTransform: 'uppercase',
+        color: 'var(--text-bright)', lineHeight: 1.05,
+        paddingBottom: 8,
+        borderBottom: '1px solid var(--border)',
+        marginBottom: 8,
+        textAlign: 'center',
+      }}>
         {PITCH_DISPLAY[row.pitchType] || row.pitchType}
       </div>
       {hasData ? (
         <>
-          {/* Max Velocity — biggest */}
-          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, lineHeight: 1 }}>
-            {row.maxVelo.toFixed(1)}
-          </div>
-          <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>mph max</div>
-
-          {/* Avg Velocity — medium */}
-          <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, lineHeight: 1, marginTop: 5 }}>
-            {row.avgVelo.toFixed(1)}
-          </div>
-          <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>mph avg</div>
-
-          {/* Velocity Range — smallest */}
-          <div style={{ marginTop: 6 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: 'var(--text)', lineHeight: 1 }}>
-              {row.minVelo.toFixed(1)} – {row.maxVelo.toFixed(1)}
+          {/* Max Velo / Avg Velo / Low Velo — three centered columns
+              reading left to right. Captions in white above the big
+              mono numeral the pitch-color tint takes. The separate
+              Velocity Range row beneath was retired; Low Velo replaces
+              its role on the right edge of the trio. Border-bottom +
+              padding-bottom add a matching white rule below the
+              numbers so the card reads as: label / line / numbers /
+              line — same rhythm as the Hitting GradeRow table. */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
+            paddingBottom: 8,
+            borderBottom: '1px solid var(--border)',
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 6.8, color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Max Velo</div>
+              <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
+                {row.maxVelo.toFixed(1)}
+              </div>
             </div>
-            <div style={{ fontSize: 7.5, color: 'var(--faint)', marginTop: 1, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Velo Range (mph)</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 6.8, color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Velo</div>
+              <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
+                {row.avgVelo.toFixed(1)}
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 6.8, color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Low Velo</div>
+              <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
+                {row.minVelo.toFixed(1)}
+              </div>
+            </div>
           </div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: 'var(--faint)', lineHeight: 1 }}>--</div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 3 }}>No data yet</div>
+          <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color: 'var(--faint)', lineHeight: 1 }}>--</div>
+          <div style={{ fontSize: 7.65, color: 'var(--text-muted)', marginTop: 3 }}>No data yet</div>
         </>
       )}
     </div>
@@ -197,8 +318,8 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         height: '100%', gap: 6, opacity: 0.5, padding: '12px 0',
       }}>
-        <span style={{ fontSize: 22 }}>&#127919;</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>Click a pitch</span>
+        <span style={{ fontSize: 18.7 }}>&#127919;</span>
+        <span style={{ fontSize: 9.35, color: 'var(--text-muted)', textAlign: 'center' }}>Click a pitch</span>
       </div>
     );
   }
@@ -214,13 +335,19 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
   ];
   return (
     <>
-      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 4 }}>
+      <div style={{
+        fontFamily: 'inherit', fontSize: '0.85rem',
+        fontWeight: 600, fontStyle: 'normal',
+        letterSpacing: '-0.025em', textTransform: 'uppercase',
+        color: 'var(--text-bright)', lineHeight: 1.05,
+        marginBottom: 4,
+      }}>
         Selected Pitch
       </div>
       {items.map(([label, val, color]) => (
         <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 9, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)' }}>{label}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono', monospace", color }}>{val}</span>
+          <span style={{ fontSize: 7.65, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)' }}>{label}</span>
+          <span style={{ fontSize: 11.05, fontWeight: 700, fontFamily: 'inherit', color }}>{val}</span>
         </div>
       ))}
     </>
@@ -283,23 +410,27 @@ function MovementPlot({
             {/* Origin beacon */}
             <circle cx={cx} cy={cy} r={90} fill="url(#mvBeacon)" pointerEvents="none" />
 
-            {/* Minor grid lines — dashed silver hairlines every 5 units */}
+            {/* Minor grid lines — theme-aware via `--spray-gridline-color`
+                so the Movement Plot grid matches the Spray Chart's
+                gridline tone in both light + dark themes. */}
             {minorTicks.map(v => (
               <g key={`mx${v}`}>
                 <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
-                  stroke="rgba(183,190,201,0.10)" strokeWidth={0.6} strokeDasharray="3 5" />
+                  stroke="var(--spray-gridline-color)" strokeWidth={0.6} strokeDasharray="3 5" />
                 <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
-                  stroke="rgba(183,190,201,0.10)" strokeWidth={0.6} strokeDasharray="3 5" />
+                  stroke="var(--spray-gridline-color)" strokeWidth={0.6} strokeDasharray="3 5" />
               </g>
             ))}
 
-            {/* Major grid + tick chips at ±10, ±20 */}
+            {/* Major grid + tick chips at ±10, ±20 — gridlines use the
+                shared spray gridline color so the major grid steps up
+                via stroke width only, not hue. */}
             {majorTicks.map(v => (
               <g key={`mj${v}`}>
                 <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
-                  stroke="rgba(183,190,201,0.18)" strokeWidth={0.75} strokeDasharray="3 5" />
+                  stroke="var(--spray-gridline-color)" strokeWidth={0.75} strokeDasharray="3 5" />
                 <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
-                  stroke="rgba(183,190,201,0.18)" strokeWidth={0.75} strokeDasharray="3 5" />
+                  stroke="var(--spray-gridline-color)" strokeWidth={0.75} strokeDasharray="3 5" />
 
                 {/* X-axis chip (bottom) */}
                 <g transform={`translate(${sx(v)}, ${pad.top + plotH + 14})`}>
@@ -308,7 +439,7 @@ function MovementPlot({
                     stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
                   <text x={0} y={2.5}
                     fill="rgba(183,190,201,0.8)"
-                    fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                    fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
                     fontWeight={600} letterSpacing="0.12em"
                     textAnchor="middle">{v > 0 ? `+${v}` : v}</text>
                 </g>
@@ -320,18 +451,21 @@ function MovementPlot({
                     stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
                   <text x={0} y={3}
                     fill="rgba(183,190,201,0.8)"
-                    fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                    fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
                     fontWeight={600} letterSpacing="0.12em"
                     textAnchor="middle">{v > 0 ? `+${v}` : v}</text>
                 </g>
               </g>
             ))}
 
-            {/* Crosshair axes — bright silver rails at x=0, y=0 */}
+            {/* Crosshair axes — the heaviest gridlines (x=0, y=0). Use
+                the shared spray-gridline color so the entire grid system
+                reads in one hue; stroke width (1.2) keeps the crosshair
+                anchored as the primary axis even with the matched color. */}
             <line x1={pad.left} y1={cy} x2={pad.left + plotW} y2={cy}
-              stroke="rgba(223,227,232,0.42)" strokeWidth={1.2} />
+              stroke="var(--spray-gridline-color)" strokeWidth={1.2} />
             <line x1={cx} y1={pad.top} x2={cx} y2={pad.top + plotH}
-              stroke="rgba(223,227,232,0.42)" strokeWidth={1.2} />
+              stroke="var(--spray-gridline-color)" strokeWidth={1.2} />
 
             {/* Origin marker — tiny silver pentagon (like the home-plate on spray) */}
             <circle cx={cx} cy={cy} r={4} fill="rgba(223,227,232,0.92)"
@@ -340,18 +474,18 @@ function MovementPlot({
             {/* Axis labels — mono, uppercase, tracked */}
             <text x={pad.left} y={pad.top + plotH + 36}
               fill="rgba(183,190,201,0.55)"
-              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
               fontWeight={600} letterSpacing="0.28em"
               textAnchor="start">← ARM</text>
             <text x={pad.left + plotW} y={pad.top + plotH + 36}
               fill="rgba(183,190,201,0.55)"
-              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
               fontWeight={600} letterSpacing="0.28em"
               textAnchor="end">GLOVE →</text>
             <g transform={`translate(16, ${pad.top + plotH / 2}) rotate(-90)`}>
               <text x={0} y={0}
                 fill="rgba(183,190,201,0.55)"
-                fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
                 fontWeight={600} letterSpacing="0.28em"
                 textAnchor="middle">DROP · RISE</text>
             </g>
@@ -418,7 +552,7 @@ function MovementPlot({
                     style={{ filter: `drop-shadow(0 0 4px ${pitchGlow(t, 0.7)})` }} />
                   <text x={18} y={3.5}
                     fill="rgba(183,190,201,0.82)"
-                    fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+                    fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
                     fontWeight={600} letterSpacing="0.14em"
                     textAnchor="start">{PITCH_SHORT[t] || t}</text>
                 </g>
@@ -496,20 +630,23 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
             Location plots so clicking empty space clears selection. */}
         <rect width={width} height={height} fill="transparent"
           onClick={() => onSelect(null)} />
-        {/* Grid lines */}
+        {/* Grid lines — theme-aware via `--spray-gridline-color` so the
+            Release Point Plot grid matches the Spray Chart's gridline
+            tone in both light + dark themes. The center axis (v=0) uses
+            a heavier stroke (1.0) so it anchors visually while sharing
+            the same hue as the lighter gridlines. */}
         {xTicks.map((v, i) => (
           <g key={`x${i}`}>
             <line x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
-              stroke={v === 0 ? 'var(--text-muted)' : 'var(--border)'}
+              stroke="var(--spray-gridline-color)"
               strokeWidth={v === 0 ? 1 : 0.5}
-              opacity={v === 0 ? 0.5 : 1}
               pointerEvents="none" />
             <text x={sx(v)} y={height - 6} textAnchor="middle" fontSize={9} fill="var(--text-muted)" pointerEvents="none">{v}</text>
           </g>
         ))}
         {yTicks.map((v, i) => (
           <g key={`y${i}`}>
-            <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)} stroke="var(--border)" strokeWidth={0.5} />
+            <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)} stroke="var(--spray-gridline-color)" strokeWidth={0.5} />
             <text x={pad.left - 6} y={sy(v) + 3} textAnchor="end" fontSize={9} fill="var(--text-muted)">{v}</text>
           </g>
         ))}
@@ -521,15 +658,10 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
         <text x={12} y={pad.top + plotH / 2} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--text-muted)"
           transform={`rotate(-90, 12, ${pad.top + plotH / 2})`}>Release Height (ft)</text>
 
-        {/* Handedness side indicator */}
-        <text x={sx(-3)} y={pad.top + 14} textAnchor="middle" fontSize={9} fontWeight={600}
-          fill={!isLefty ? 'var(--green)' : 'var(--text-muted)'} opacity={0.6}>
-          {!isLefty ? 'RHP Side' : ''}
-        </text>
-        <text x={sx(3)} y={pad.top + 14} textAnchor="middle" fontSize={9} fontWeight={600}
-          fill={isLefty ? 'var(--green)' : 'var(--text-muted)'} opacity={0.6}>
-          {isLefty ? 'LHP Side' : ''}
-        </text>
+        {/* Handedness side indicator retired — the chart bubble's own
+            title strip already labels the chart as "Release Point ·
+            Pitcher's View", and the RHP/LHP Side hint inside the plot
+            was adding clutter without much utility. */}
 
         {/* Data points — flip X for lefties so they appear on the right side.
             Clickable, with a halo + bright ring on the selected pitch and
@@ -565,15 +697,10 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
         {/* Border */}
         <rect x={pad.left} y={pad.top} width={plotW} height={plotH} fill="none" stroke="var(--border)" strokeWidth={1} />
 
-        {/* Handedness chip — replaces the header div that lived above the
-            old wrapping bubble. Sits in the top-center of the SVG. */}
-        <text x={width / 2} y={16} textAnchor="middle"
-          fontSize={10} fontWeight={600}
-          letterSpacing="0.1em"
-          fill="var(--text-bright)"
-          style={{ textTransform: 'uppercase' }}>
-          Release Point {isLefty ? '(LHP)' : '(RHP)'}
-        </text>
+        {/* Handedness chip retired — the canvas bubble's own header
+            strip already titles the chart as "Release Point · Pitcher's
+            View", so the in-SVG "Release Point (RHP/LHP)" duplicate
+            was redundant. */}
 
         {/* Legend */}
         {types.map((t, i) => (
@@ -651,28 +778,30 @@ function PitchLocationPlot({
       {/* Strike-zone beacon glow */}
       <circle cx={szCx} cy={szCy} r={90} fill="url(#locBeacon)" pointerEvents="none" />
 
-      {/* Minor grid — dashed silver hairlines at 0.5ft / 1ft */}
+      {/* Minor grid — theme-aware via `--spray-gridline-color` so the
+          Location Plot grid matches the Spray Chart's gridline tone in
+          both light + dark themes. */}
       {[-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2].map(v => (
         <line key={`xg${v}`} x1={sx(v)} y1={pad.top} x2={sx(v)} y2={pad.top + plotH}
-          stroke="rgba(183,190,201,0.08)" strokeWidth={0.6} strokeDasharray="3 5" />
+          stroke="var(--spray-gridline-color)" strokeWidth={0.6} strokeDasharray="3 5" />
       ))}
       {[0.5, 1.5, 2.5, 3.5, 4.5].map(v => (
         <line key={`yg${v}`} x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
-          stroke="rgba(183,190,201,0.08)" strokeWidth={0.6} strokeDasharray="3 5" />
+          stroke="var(--spray-gridline-color)" strokeWidth={0.6} strokeDasharray="3 5" />
       ))}
 
       {/* Integer-foot Y-axis ticks + mono pill chips */}
       {[1, 2, 3, 4, 5].map(v => (
         <g key={`yt${v}`}>
           <line x1={pad.left} y1={sy(v)} x2={pad.left + plotW} y2={sy(v)}
-            stroke="rgba(183,190,201,0.14)" strokeWidth={0.7} strokeDasharray="3 5" />
+            stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="3 5" />
           <g transform={`translate(${pad.left - 18}, ${sy(v)})`}>
             <rect x={-14} y={-7} width={28} height={14} rx={7}
               fill="rgba(10,12,18,0.75)"
               stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
             <text x={0} y={3}
               fill="rgba(183,190,201,0.8)"
-              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
               fontWeight={600} letterSpacing="0.12em"
               textAnchor="middle">{v}FT</text>
           </g>
@@ -687,7 +816,7 @@ function PitchLocationPlot({
             stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
           <text x={0} y={2.5}
             fill="rgba(183,190,201,0.8)"
-            fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+            fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
             fontWeight={600} letterSpacing="0.12em"
             textAnchor="middle">{v > 0 ? `+${v}` : v}</text>
         </g>
@@ -700,15 +829,17 @@ function PitchLocationPlot({
         const h = sy(szBot) - sy(szTop);
         return (
           <g pointerEvents="none">
-            {/* Zone subdividers */}
+            {/* Zone subdividers — gridlines inside the strike zone. Same
+                theme-aware spray-gridline color as the rest of the plot's
+                grid system. */}
             <line x1={sx(szLeft + szW / 3)} y1={sy(szTop)} x2={sx(szLeft + szW / 3)} y2={sy(szBot)}
-              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+              stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="2 3" />
             <line x1={sx(szLeft + 2 * szW / 3)} y1={sy(szTop)} x2={sx(szLeft + 2 * szW / 3)} y2={sy(szBot)}
-              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+              stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="2 3" />
             <line x1={sx(szLeft)} y1={sy(szTop - szH / 3)} x2={sx(szRight)} y2={sy(szTop - szH / 3)}
-              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+              stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="2 3" />
             <line x1={sx(szLeft)} y1={sy(szTop - 2 * szH / 3)} x2={sx(szRight)} y2={sy(szTop - 2 * szH / 3)}
-              stroke="rgba(183,190,201,0.24)" strokeWidth={0.7} strokeDasharray="2 3" />
+              stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="2 3" />
             {/* Zone frame */}
             <rect x={x} y={y} width={w} height={h}
               fill="none" stroke="rgba(223,227,232,0.55)" strokeWidth={1.25} />
@@ -718,7 +849,7 @@ function PitchLocationPlot({
                 x={sx(z.x + szW / 6)} y={sy(z.y + szH / 6) + 3.5}
                 fill="rgba(183,190,201,0.5)"
                 fontSize={10}
-                fontFamily="'DM Mono', ui-monospace, monospace"
+                fontFamily="'Satoshi', 'DM Sans', sans-serif"
                 fontWeight={600}
                 letterSpacing="0.08em"
                 textAnchor="middle">{z.n}</text>
@@ -784,12 +915,12 @@ function PitchLocationPlot({
       {/* Axis labels — mono, uppercase, tracked */}
       <text x={pad.left} y={pad.top + plotH + 36}
         fill="rgba(183,190,201,0.55)"
-        fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+        fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
         fontWeight={600} letterSpacing="0.28em"
         textAnchor="start">← INSIDE</text>
       <text x={pad.left + plotW} y={pad.top + plotH + 36}
         fill="rgba(183,190,201,0.55)"
-        fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+        fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
         fontWeight={600} letterSpacing="0.28em"
         textAnchor="end">OUTSIDE →</text>
 
@@ -808,7 +939,7 @@ function PitchLocationPlot({
               style={{ filter: `drop-shadow(0 0 4px ${pitchGlow(t, 0.7)})` }} />
             <text x={18} y={3.5}
               fill="rgba(183,190,201,0.82)"
-              fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
+              fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
               fontWeight={600} letterSpacing="0.14em"
               textAnchor="start">{PITCH_SHORT[t] || t}</text>
           </g>
@@ -820,20 +951,26 @@ function PitchLocationPlot({
 
 /* ── Arsenal Table ── */
 const thStyle: React.CSSProperties = {
-  textAlign: 'left', padding: '8px 10px', fontSize: 10, fontWeight: 600,
+  textAlign: 'left', padding: '8px 10px', fontSize: 8.5, fontWeight: 600,
   textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)',
 };
 const tdBase: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)' };
-const tdMono: React.CSSProperties = { ...tdBase, fontFamily: "'DM Mono', monospace", fontWeight: 600 };
+const tdMono: React.CSSProperties = { ...tdBase, fontFamily: 'inherit', fontWeight: 600 };
 
 function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
   const cols = '70px 1fr 1fr 1fr';
-  const headerStyle: React.CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
-  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: 'var(--text)' };
+  const headerStyle: React.CSSProperties = { fontSize: 7.65, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
+  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: 12.75, color: 'var(--text)' };
 
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 8 }}>
+      <div style={{
+        fontFamily: 'inherit', fontSize: '0.85rem',
+        fontWeight: 600, fontStyle: 'normal',
+        letterSpacing: '-0.025em', textTransform: 'uppercase',
+        color: 'var(--text-bright)', lineHeight: 1.05,
+        marginBottom: 8,
+      }}>
         Release &amp; Extension
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -845,17 +982,17 @@ function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
         </div>
         {rows.map(r => (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 12, color: getPitchColor(r.pitchType) }}>
+            <span style={{ fontWeight: 700, fontSize: 10.2, color: getPitchColor(r.pitchType) }}>
               {PITCH_SHORT[r.pitchType]}
             </span>
             <span style={cellStyle}>
-              {r.avgExt > 0 ? r.avgExt : '--'} <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
+              {r.avgExt > 0 ? r.avgExt : '--'} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
             </span>
             <span style={cellStyle}>
-              {r.avgRelHeight > 0 ? r.avgRelHeight : '--'} <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
+              {r.avgRelHeight > 0 ? r.avgRelHeight : '--'} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
             </span>
             <span style={cellStyle}>
-              {r.avgRelSide !== 0 ? r.avgRelSide : '--'} <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
+              {r.avgRelSide !== 0 ? r.avgRelSide : '--'} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
             </span>
           </div>
         ))}
@@ -872,7 +1009,12 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)' }}>
+      <div style={{
+        fontFamily: 'inherit', fontSize: '0.85rem',
+        fontWeight: 600, fontStyle: 'normal',
+        letterSpacing: '-0.025em', textTransform: 'uppercase',
+        color: 'var(--text-bright)', lineHeight: 1.05,
+      }}>
         Velocity Range by Pitch
       </div>
       {rows.filter(r => r.maxVelo > 0).map(r => {
@@ -880,7 +1022,7 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
         const w = ((r.maxVelo - r.minVelo) / range) * 100;
         return (
           <div key={r.pitchType} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', width: 40, fontFamily: "'DM Mono', monospace" }}>
+            <span style={{ fontSize: 9.35, fontWeight: 700, color: 'var(--text-muted)', width: 40, fontFamily: 'inherit' }}>
               {PITCH_SHORT[r.pitchType]}
             </span>
             <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--border)', position: 'relative' }}>
@@ -889,7 +1031,7 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
                 height: '100%', borderRadius: 4, background: getPitchColor(r.pitchType),
               }} />
             </div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', fontFamily: "'DM Mono', monospace", whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 9.35, fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
               {r.minVelo} &ndash; {r.maxVelo} MPH
             </span>
           </div>
@@ -901,18 +1043,29 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Break & Spin Table ── */
 function BreakTable({ rows }: { rows: ArsenalRow[] }) {
-  const cols = '70px 1fr 1fr 1fr 1fr 1fr';
-  const headerStyle: React.CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
-  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: 'var(--text)' };
+  /* Column track widened from 6 → 7 fr-columns to insert a new
+     "Avg Velo" cell between the Pitch label and H-Break. The
+     average velocity (avgVelo) is already computed per row inside
+     `computeArsenal`, so this is purely a UI addition. */
+  const cols = '70px 1fr 1fr 1fr 1fr 1fr 1fr';
+  const headerStyle: React.CSSProperties = { fontSize: 7.65, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
+  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: 12.75, color: 'var(--text)' };
 
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-bright)', marginBottom: 8 }}>
+      <div style={{
+        fontFamily: 'inherit', fontSize: '0.85rem',
+        fontWeight: 600, fontStyle: 'normal',
+        letterSpacing: '-0.025em', textTransform: 'uppercase',
+        color: 'var(--text-bright)', lineHeight: 1.05,
+        marginBottom: 8,
+      }}>
         Break &amp; Spin
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: cols, padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ ...headerStyle, textAlign: 'left' }}>Pitch</span>
+          <span style={headerStyle}>Avg Velo</span>
           <span style={headerStyle}>H-Break</span>
           <span style={headerStyle}>V-Break</span>
           <span style={headerStyle}>Spin</span>
@@ -921,8 +1074,12 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
         </div>
         {rows.map(r => (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 12, color: getPitchColor(r.pitchType) }}>
+            <span style={{ fontWeight: 700, fontSize: 10.2, color: getPitchColor(r.pitchType) }}>
               {PITCH_SHORT[r.pitchType]}
+            </span>
+            <span style={cellStyle}>
+              {r.avgVelo > 0 ? r.avgVelo.toFixed(1) : '--'}
+              <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
             </span>
             <span style={cellStyle}>
               {r.avgHBreak > 0 ? '+' : ''}{r.avgHBreak}&quot;
@@ -931,7 +1088,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
               {r.avgIVB > 0 ? '+' : ''}{r.avgIVB}&quot;
             </span>
             <span style={cellStyle}>
-              {r.avgSpin} <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)' }}>rpm</span>
+              {r.avgSpin} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>rpm</span>
             </span>
             <span style={cellStyle}>
               {r.tilt}
@@ -941,7 +1098,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
                 <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)' }}>
                   <div style={{ width: `${r.spinEff}%`, height: '100%', borderRadius: 3, background: getPitchColor(r.pitchType) }} />
                 </div>
-                <span style={{ fontSize: 11 }}>{r.spinEff}%</span>
+                <span style={{ fontSize: 9.35 }}>{r.spinEff}%</span>
               </div>
             </span>
           </div>
@@ -953,19 +1110,83 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Main PitchingTab ── */
 export function PitchingTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile,
+  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile, onOpenVideos,
 }: TabProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const [pitches, setPitches] = useState<TrackmanPitch[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPitch, setSelectedPitch] = useState<TrackmanPitch | null>(null);
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
-
-  // Extract uploadIds from the selected report for filtering
-  const reportUploadIds = useMemo(() => getReportUploadIds(selectedReport), [selectedReport]);
+  /* Pitching sub-tab — mirrors the Hitting tab's swing/decision
+     toggle. 'report' shows the unified Pitch Report HUD bubble
+     (Arsenal cards + Movement Plot + Location plot + Break & Spin
+     + Release & Extension tables). 'live' swaps that view out for
+     the LiveAtBatsList section ("Live Results") so the coach can
+     drill into pitch-by-pitch at-bat history at the same screen
+     position. Toggle button lives in the Pitch Report HUD header
+     next to the "Pitch Report" title. */
+  const [pitchingSubTab, setPitchingSubTab] = useState<'report' | 'live'>('report');
 
   // ── Coaching notes for the pitch report (mirrors the diagnosis-notes pattern from SwingTab) ──
   const latestPitching = useMemo(() => getLatestReport(reports, ['PITCHING']), [reports]);
+
+  /* All Pitching reports — used by the bundle modal's
+     "Attach to report" dropdown so coaches can stamp a Coach
+     Review onto a specific pitching session. */
+  const pitchingReports = useMemo(
+    () => reports.filter((r) => r.reportType === 'PITCHING')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [reports],
+  );
+
+  /* Active report drives both the bundle modal's report dropdown
+     pre-selection and the per-report Coach Reviews panel below the
+     Mechanical Grades summary. Falls back to the latest pitching
+     report if the coach hasn't explicitly picked one. */
+  const activePitchingReport = selectedReport ?? latestPitching;
+
+  /* Coach Reviews attached to the active PITCHING report — surface
+     in the dedicated panel under Coach Grades. Excluded from the
+     main Video gallery so the same clip doesn't double-render. */
+  const attachedReviewIds = useMemo(() => {
+    if (!activePitchingReport?.content) return [] as string[];
+    try {
+      const parsed = JSON.parse(activePitchingReport.content);
+      if (parsed && Array.isArray(parsed.coachReviewVideoIds)) {
+        return parsed.coachReviewVideoIds.filter((s: any) => typeof s === 'string') as string[];
+      }
+    } catch { /* ignore */ }
+    return [] as string[];
+  }, [activePitchingReport]);
+
+  /* When the parent re-fetches `reports` (e.g. after the report modal
+     saves), the local `selectedReport` still points at the STALE
+     object from before the save — its `content.csvUploads` doesn't
+     reflect the just-removed CSV slot. Re-sync from the fresh array
+     by matching on id so the pitch data fetch picks up the change
+     immediately. If the report was deleted entirely (no match), drop
+     the selection to fall back to the latest pitching report. */
+  useEffect(() => {
+    setSelectedReport((prev) => {
+      if (!prev) return prev;
+      const fresh = reports.find((r) => r.id === prev.id);
+      return fresh ?? null;
+    });
+  }, [reports]);
+
+  /* Upload-id scoping now follows the ACTIVE pitching report (the
+     user's explicit selection if any, else the latest pitching report
+     on file). The previous wiring keyed off `selectedReport` alone,
+     which meant removing a CSV from the latest report didn't refresh
+     the page when the user hadn't explicitly picked it from the
+     dropdown — `selectedReport` was null, `reportUploadIds` was [],
+     and the fetch fell through to "all pitches" (no scoping). */
+  const reportUploadIds = useMemo(
+    () => getReportUploadIds(selectedReport ?? latestPitching),
+    [selectedReport, latestPitching],
+  );
   const persistedPitchingNotes = useMemo(() => {
     if (!latestPitching?.content) return '';
     try {
@@ -1015,70 +1236,47 @@ export function PitchingTab({
     }
   }
 
+  /* `activePitchingReport` is declared earlier in this component
+     (near the per-position report list + attached-Coach-Review
+     memos) so it's available for those memos at render time. The
+     duplicate declaration that used to sit here was removed; every
+     downstream reference resolves to the earlier const. */
+
   useEffect(() => {
     if (!player?.id) return;
     setLoading(true);
+    /* Strict report-scoped fetch when ANY pitching report is on file:
+         • Active report has upload IDs → filter to those IDs.
+         • Active report has NO upload IDs (e.g. coach removed the
+           Trackman CSV from it) → show NO pitches. The previous
+           wiring fell through to `opts = undefined` here, which meant
+           "no filter" — i.e. the fetch returned every pitch ever
+           uploaded for the player, including the ones tied to the
+           freshly-deleted CSV. That's why removing a CSV "didn't
+           change the data" on Andy Johnson's profile.
+         • No pitching report at all → legacy behavior: return every
+           pitch on the player so orphan / pre-report data still
+           surfaces (matches how a brand-new player's data loads). */
+    if (activePitchingReport && reportUploadIds.length === 0) {
+      setPitches([]);
+      setLoading(false);
+      return;
+    }
     const opts = reportUploadIds.length > 0 ? { uploadIds: reportUploadIds } : undefined;
     api.getTrackmanPitches(player.id, opts)
       .then(data => setPitches(data))
       .catch(() => setPitches([]))
       .finally(() => setLoading(false));
-  }, [player?.id, refreshKey, reportUploadIds]);
-
-  // ── Sub-tab nav: Pitch Metrics (existing content) vs Mechanical Coach
-  // Grades (new). Mirrors HittingTab's pattern so the UX is consistent.
-  type PitchingSubTab = 'metrics' | 'mechanics';
-  const [subTab, setSubTab] = useState<PitchingSubTab>('metrics');
-
-  const activePitchingReport = selectedReport ?? latestPitching;
-  // Mechanical Grades panel reads the same pitchingGrades the report modal
-  // writes — so the 7-section delivery checkpoints surface directly on the
-  // profile tab. Switching reports refreshes the in-memory edit copy.
+  }, [player?.id, refreshKey, reportUploadIds, activePitchingReport]);
+  // Read-only pitchingGrades — used by the inline Mechanical Summary
+  // Strip inside the Pitch Report HUD. The standalone "Mechanical
+  // Grades" sub-tab was retired; grades are edited via the report
+  // modal now and surface here just as a summary read-out.
   const persistedPitchingGrades = useMemo(
     () => getPitchingGrades(activePitchingReport),
     [activePitchingReport],
   );
-  const [pitchingGrades, setPitchingGrades] = useState<PitchingGrades>(persistedPitchingGrades);
-  useEffect(() => { setPitchingGrades(persistedPitchingGrades); }, [persistedPitchingGrades]);
-  const [savingMech, setSavingMech] = useState(false);
-  const [mechSaveOk, setMechSaveOk] = useState(false);
-  const [mechSaveError, setMechSaveError] = useState<string | null>(null);
-  const mechDirty = JSON.stringify(pitchingGrades) !== JSON.stringify(persistedPitchingGrades);
-
-  async function saveMechanicalScores() {
-    if (!user || !activePitchingReport) {
-      setMechSaveError(activePitchingReport ? 'Not signed in.' : 'No pitching report to attach scores to. Create one first.');
-      return;
-    }
-    setSavingMech(true);
-    setMechSaveError(null);
-    setMechSaveOk(false);
-    try {
-      const userId = (user as any).id || (user as any).sub;
-      let prev: Record<string, any> = {};
-      if (activePitchingReport.content) {
-        try { prev = JSON.parse(activePitchingReport.content) || {}; } catch { /* ignore */ }
-      }
-      const newContent = {
-        ...prev,
-        // Save into pitchingGrades (same shape the modal writes) so the
-        // modal's edit view shows in-place edits made on this tab.
-        pitchingGrades: {
-          ...pitchingGrades,
-          updatedAt: new Date().toISOString(),
-          updatedBy: userId,
-        },
-      };
-      await api.updateReport(activePitchingReport.id, { content: JSON.stringify(newContent) });
-      setMechSaveOk(true);
-      onRefresh?.();
-    } catch (e) {
-      setMechSaveError((e as Error).message || 'Save failed');
-    } finally {
-      setSavingMech(false);
-      setTimeout(() => setMechSaveOk(false), 2200);
-    }
-  }
+  const pitchingGrades = persistedPitchingGrades;
 
   const hasPitchData = pitches.length > 0;
   const arsenal = hasPitchData ? computeArsenal(pitches) : [];
@@ -1099,10 +1297,25 @@ export function PitchingTab({
 
   return (
     <>
-      {/* ── Report Selector + Add Report + Download (portaled into TabBar) ── */}
+      {/* ── Report Selector + Download (portaled into TabBar) ── */}
       <TabBarActions>
-        <AddReportButton onClick={onNewReport} show={isCoach} />
+        {/* "+ Add Report" button retired — it now lives as the first
+            row inside the ReportSelector dropdown below. */}
         <EditProfileButton onClick={onEditProfile} show={!isCoach} />
+        {/* Top-level Download PDF — generates a PDF for the currently
+            selected PITCHING report. Disabled when no report is on
+            file. Mirrors the same icon-only square + per-row dropdown
+            pattern used on the Hitting tab. */}
+        <DownloadPdfButton
+          onDownload={async () => {
+            if (!activePitchingReport) return;
+            await generatePitchingPdf(player, [activePitchingReport]);
+          }}
+          disabled={!activePitchingReport}
+        />
+        {/* Videos jump — sits next to Download PDF, replaces the
+            standalone Videos tab. */}
+        <VideosIconButton onClick={onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={['PITCHING']}
@@ -1117,167 +1330,318 @@ export function PitchingTab({
         />
       </TabBarActions>
 
-      {/* ── Sub-tab nav: Pitch Metrics · Mechanical Grades ── */}
-      <div style={{
-        display: 'flex', gap: 6, padding: 4, borderRadius: 9,
-        background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
-        marginBottom: 14,
-      }}>
-        {([
-          { key: 'metrics' as const,    label: 'Pitch Metrics' },
-          { key: 'mechanics' as const,  label: 'Mechanical Grades' },
-        ]).map(t => {
-          const active = subTab === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setSubTab(t.key)}
-              style={{
-                flex: 1,
-                padding: '8px 14px',
-                borderRadius: 7,
-                background: active
-                  ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
-                  : 'transparent',
-                border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid transparent',
-                color: active ? '#cfe0ff' : 'var(--text-muted)',
-                fontSize: 12.5, fontWeight: 700, letterSpacing: '0.06em',
-                textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
-                transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
-                boxShadow: active ? '0 0 12px rgba(126,182,255,0.18) inset' : 'none',
-              }}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── MECHANICAL GRADES SUB-TAB ──
-          Renders the same 7-section delivery taxonomy that the report modal
-          writes (content.pitchingGrades). Coaches can edit + save inline;
-          non-coaches see a read-only display of the saved grades + tags. */}
-      {subTab === 'mechanics' && (
-        <MechanicalGradesPanel
-          grades={pitchingGrades}
-          setGrades={setPitchingGrades}
-          isCoach={isCoach}
-          dirty={mechDirty}
-          saving={savingMech}
-          saveOk={mechSaveOk}
-          saveError={mechSaveError}
-          hasReport={!!activePitchingReport}
-          onSave={saveMechanicalScores}
-          onReset={() => setPitchingGrades(persistedPitchingGrades)}
-        />
-      )}
-
-      {/* ── PITCH METRICS SUB-TAB ── (existing pitching content) */}
-      {subTab === 'metrics' && (
+      {/* Mechanical Grades sub-tab retired — grades are edited from
+          the report modal; the inline MechanicalSummaryStrip below
+          still surfaces the read-only roll-up inside the Pitch Report
+          HUD. */}
       <>
 
       {/* Loading */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 14 }}>
+        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 11.9 }}>
           Loading pitch data...
         </div>
       )}
 
       {/* ── Unified Pitch Report — Arsenal + Movement + Location in one HUD bubble ── */}
       {!loading && hasPitchData && (
-        <div className={hud.hudConsole} style={{ marginBottom: 24 }}>
-          {/* Console header */}
+        <div
+          data-pdf-section="pitch-report"
+          className={hud.hudConsole}
+          /* Bottom margin matches the shared `.section` 20px so the
+             Pitch Report bubble sits the same distance from the next
+             dark-blue bubble below it as every other section across
+             the app (Tool Grades → Sub-Grade Breakdown gap).
+
+             Padding overridden to match the Hitting Snapshot bubble
+             rhythm exactly per coach-spec:
+               • TOP    — 0.7rem (matches `.profilePanel` + Hitting
+                          Snapshot's halved top padding)
+               • SIDES  — 1.4rem (matches `.profilePanel` default)
+               • BOTTOM — 1.4rem (matches `.profilePanel` default)
+             The CSS class's own `padding: 10px 12px 12px` was kept
+             tight to give the inner HUD widgets edge-to-edge room,
+             but coach-spec wants the bubble's outer chrome to read
+             at the same scale as every other Snapshot header. */
+          style={{
+            marginBottom: 20,
+            padding: '0.7rem 1.4rem 1.4rem',
+          }}
+        >
+          {/* Console header — the leading circular `hudHeadDot`
+              bullet was retired so "Pitch Report" leads the row on
+              its own. The header now reads as a four-part flex row:
+                1. "Pitch Report" title (anchored flex-end / bottom)
+                2. Line segment A — 1 px hairline that starts right
+                   after the title and grows (flex: 1) up to the
+                   pitch-count chip.
+                3. Pitch-count chip — small `0.5em` label,
+                   vertically centered against the title mid-line.
+                4. Line segment B — 1 px hairline that resumes after
+                   the chip and grows (flex: 1) all the way to the
+                   bubble's right edge.
+              The two hairline segments together read as one
+              continuous line that "disappears" behind the chip and
+              "reappears" past it — automatically interrupted by
+              whatever inline text sits between them. Each segment
+              uses `align-self: flex-end` + `margin-bottom: 6 px`
+              (≈ half the 13.8 px title size) so the line lands at
+              the title's vertical mid-line instead of the row's
+              bottom (which is where the main accent border-bottom
+              lives). */}
           <div className={hud.hudHead}>
-            <span className={hud.hudHeadDot} />
-            Pitch Report
-            <span style={{ color: 'var(--text-muted)', letterSpacing: '0.18em', fontWeight: 500, marginLeft: 4 }}>
-              &middot; {pitches.length} pitches
+            Pitching Report
+            {/* Live Results toggle — sits IMMEDIATELY next to the
+                "Pitch Report" title per coach-spec (mirrors the
+                Hitting Snapshot's Live Results button). Click →
+                flips `pitchingSubTab` between 'report' and 'live'.
+                When active (`pitchingSubTab === 'live'`) the button
+                highlights blue and the hudConsole content swaps to
+                the LiveAtBatsList view. `alignSelf: flex-end` +
+                `marginBottom: 0` baseline-aligns the button bottom
+                with the "Pitch Report" title bottom — since both
+                have ~22 px box heights, sharing a baseline puts
+                their centers on the same horizontal axis. */}
+            <button
+              type="button"
+              onClick={() => setPitchingSubTab(pitchingSubTab === 'live' ? 'report' : 'live')}
+              style={{
+                alignSelf: 'flex-end',
+                marginBottom: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '3px 12px',
+                borderRadius: 6,
+                border: `1px solid ${pitchingSubTab === 'live' ? 'rgba(126,182,255,0.65)' : 'var(--border)'}`,
+                background: pitchingSubTab === 'live' ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.04)',
+                color: pitchingSubTab === 'live' ? '#cfe0ff' : 'var(--text-muted)',
+                /* `fontFamily: var(--font-body)` (Satoshi) — pinned
+                   explicitly so this button doesn't inherit the
+                   `var(--font-display)` (Syne, italic) face the
+                   parent `.hudHead` sets on its descendants. With
+                   the explicit override, the button reads in the
+                   same Satoshi-uppercase voice as the Hitting tab's
+                   Live Results button. */
+                fontFamily: 'var(--font-body)',
+                fontStyle: 'normal',
+                fontSize: 8.5,
+                fontWeight: 700,
+                letterSpacing: '0.10em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+                whiteSpace: 'nowrap',
+                marginLeft: 12,
+              }}
+              title="Toggle between Pitch Report view and Live Results view"
+            >
+              Live Results
+            </button>
+            {/* Line segment A — short stub after the title (was
+                `flex: 1`, which split the remaining row 50/50 with
+                segment B and parked the "X pitches" chip at the
+                horizontal midpoint). Now `flex: 0 0 32px` so the
+                line is a fixed 32 px stub and the chip sits close
+                to "Pitch Report" instead of floating mid-row. */}
+            <div style={{
+              flex: '0 0 32px',
+              height: 1,
+              background: 'var(--border)',
+              alignSelf: 'flex-end',
+              /* marginBottom bumped 6 → 12 so the hairline lands at
+                 the new 23 px title's mid-line (was calibrated for
+                 the previous 13.8 px mono title). Matches the
+                 Hitting Snapshot hairline marginBottom exactly. */
+              marginBottom: 12,
+            }} />
+            <span style={{
+              /* Pitch-count chip keeps its mono uppercase eyebrow
+                 look — the parent `.hudHead` was retyped to italic
+                 Brown 23 px white to match Hitting Snapshot, so this
+                 chip pins its own font-family / style / casing to
+                 stay in the mono-eyebrow voice it had before. */
+              fontFamily: 'var(--font-mono)',
+              fontStyle: 'normal',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              letterSpacing: '0.18em',
+              fontWeight: 500,
+              fontSize: '0.43em',
+              alignSelf: 'center',
+            }}>
+              {pitches.length} pitches
             </span>
+            <div style={{
+              flex: 1,
+              height: 1,
+              background: 'var(--border)',
+              alignSelf: 'flex-end',
+              /* Matches the segment-A hairline above + the Hitting
+                 Snapshot hairline at 12 — calibrated for the new
+                 23 px italic title midline. */
+              marginBottom: 12,
+            }} />
+            {/* Date-range chip — top-right corner of the Pitch Report
+                header, on the side opposite the "Pitch Report" title.
+                Sourced from the active pitching report's `createdAt`
+                so the chip reflects when the report (and its
+                underlying pitch data) was captured. Style matches the
+                Hitting Snapshot's date chip so all snapshot headers
+                share one date-bubble treatment. */}
+            {activePitchingReport && (
+              <span style={{
+                alignSelf: 'flex-end',
+                marginBottom: 8,
+                fontSize: 8.5,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.10em',
+                padding: '3px 9px',
+                borderRadius: 6,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--border)',
+                whiteSpace: 'nowrap',
+                /* Pinned to `var(--font-mono)` (DM Mono) to match the
+                   Hitting Snapshot's date chip exactly. Previously
+                   `fontFamily: 'inherit'` pulled the Syne italic
+                   display face from the parent `.hudHead`, which
+                   gave the chip a thicker, italic-leaning look that
+                   didn't match the Hitting tab's mono-stylized date
+                   chip. The `fontStyle: normal` + `textTransform:
+                   none` overrides keep the date readable as plain
+                   numerals against the uppercase italic title. */
+                fontFamily: 'var(--font-mono)',
+                fontStyle: 'normal',
+                textTransform: 'none',
+              }}>
+                {new Date(activePitchingReport.createdAt).toLocaleDateString(undefined, {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                })}
+              </span>
+            )}
           </div>
 
-          {/* Arsenal strip */}
+          {/* Arsenal strip — the "Pitch Info" row at the top of the HUD. */}
           <div className={hud.hudArsenal}>
             {arsenalCards.map((row) => (
               <ArsenalCard key={row.pitchType} row={row} />
             ))}
           </div>
 
-          {/* Plot pane headers */}
-          <div className={hud.hudSubHead}>
-            <span className={hud.hudSubTitle}>
-              <span className={hud.hudSubTitleDot} /> Movement &middot; Pitcher&rsquo;s View
-            </span>
-            <span className={hud.hudSubTitle}>
-              <span className={hud.hudSubTitleDot} /> Location &middot; Catcher&rsquo;s View
-            </span>
-            <span className={hud.hudSubTitle}>
-              <span className={hud.hudSubTitleDot} /> Release Point &middot; Pitcher&rsquo;s View
-            </span>
+          {/* Pitch Readout bar — now sits BETWEEN the Arsenal (Pitch Info)
+              row above and the plot grid below, so the readout for the
+              currently-selected pitch reads alongside the arsenal summary
+              instead of trailing off underneath the plots. */}
+          <div className={hud.hudReadoutBar}>
+            {/* "Pitch Readout" / "Selected Pitch" head retired — the
+                bar's eight cells now stretch across the full width.
+                Each cell pairs its label inline with its value on the
+                same line so the extra horizontal space goes back into
+                bigger metric typography. */}
+            {/* Each cell packs label + value tight (`gap: 6`) so the
+                number sits right next to its label, then the parent
+                grid's `auto-fit minmax(...) 1fr` columns distribute
+                equal space BETWEEN each cluster. `justify-content:
+                center` on each cell centers the label+value pair inside
+                each grid track so the gap to neighbours stays symmetrical. */}
+            {(() => {
+              const valueColor = selectedPitch
+                ? getPitchColor(selectedPitch.pitchType)
+                : 'var(--text-muted)';
+              return (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+              alignItems: 'baseline',
+              gap: 4,
+              width: '100%',
+            }}>
+              {([
+                ['Pitch',
+                  selectedPitch ? (PITCH_SHORT[selectedPitch.pitchType] || selectedPitch.pitchType) : '--',
+                  valueColor],
+                ['Velocity',
+                  selectedPitch?.relSpeed != null ? `${selectedPitch.relSpeed.toFixed(1)} mph` : '--',
+                  valueColor],
+                ['Spin',
+                  selectedPitch?.spinRate != null ? `${Math.round(selectedPitch.spinRate)} rpm` : '--',
+                  valueColor],
+                ['H-Break',
+                  selectedPitch?.horzBreak != null ? `${selectedPitch.horzBreak.toFixed(1)}"` : '--',
+                  valueColor],
+                ['IVB',
+                  selectedPitch?.inducedVertBreak != null ? `${selectedPitch.inducedVertBreak.toFixed(1)}"` : '--',
+                  valueColor],
+                ['Extension',
+                  selectedPitch?.extension != null ? `${selectedPitch.extension.toFixed(1)} ft` : '--',
+                  valueColor],
+                ['Rel Ht',
+                  selectedPitch?.relHeight != null ? `${selectedPitch.relHeight.toFixed(1)} ft` : '--',
+                  valueColor],
+                ['Rel Side',
+                  selectedPitch?.relSide != null ? `${selectedPitch.relSide.toFixed(1)} ft` : '--',
+                  valueColor],
+              ] as [string, string, string][]).map(([label, val, color]) => (
+                <div key={label} style={{
+                  display: 'flex', flexDirection: 'row', alignItems: 'baseline',
+                  /* Pinned LEFT so the label stays anchored at the cell's
+                     left edge regardless of whether the value is "--" or
+                     a full reading. Prevents the label from shifting
+                     position once data populates. */
+                  justifyContent: 'flex-start', gap: 6, minWidth: 0,
+                }}>
+                  <span style={{
+                    fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase',
+                    letterSpacing: '0.14em', color: 'var(--text-bright)',
+                    fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  }}>
+                    {label}
+                  </span>
+                  <span style={{
+                    fontSize: 12.75, fontWeight: 700, fontFamily: 'inherit',
+                    color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {val}
+                  </span>
+                </div>
+              ))}
+            </div>
+              );
+            })()}
           </div>
 
-          {/* Plots side by side: Movement · Location · Release Point */}
+          {/* Plots side by side: Movement · Location · Release Point.
+              Each chart's title now lives INSIDE its own canvas via the
+              `.hudPlotPaneHead` strip at the top of each bubble — the
+              standalone header row above the grid was retired. */}
           <div className={hud.hudPlotsGrid}>
             <div className={hud.hudPlotPane}>
               <div className={hud.hudPlotCanvas}>
+                <div className={hud.hudPlotPaneHead}>
+                  <span className={hud.hudSubTitle}>
+                    <span className={hud.hudSubTitleDot} /> Movement &middot; Pitcher&rsquo;s View
+                  </span>
+                </div>
                 <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
               </div>
             </div>
             <div className={hud.hudPlotPane}>
               <div className={hud.hudPlotCanvas}>
+                <div className={hud.hudPlotPaneHead}>
+                  <span className={hud.hudSubTitle}>
+                    <span className={hud.hudSubTitleDot} /> Location &middot; Catcher&rsquo;s View
+                  </span>
+                </div>
                 <PitchLocationPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
               </div>
             </div>
             <div className={hud.hudPlotPane}>
               <div className={hud.hudPlotCanvas}>
+                <div className={hud.hudPlotPaneHead}>
+                  <span className={hud.hudSubTitle}>
+                    <span className={hud.hudSubTitleDot} /> Release Point &middot; Pitcher&rsquo;s View
+                  </span>
+                </div>
                 <ReleasePointPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
-              </div>
-            </div>
-          </div>
-
-          {/* Shared readout bar */}
-          <div className={hud.hudReadoutBar}>
-            <div className={hud.hudReadoutHead}>
-              <span className={hud.hudHeadDot} />
-              {selectedPitch ? 'Selected Pitch' : 'Pitch Readout'}
-            </div>
-            <div className={hud.hudReadoutBody}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8, width: '100%' }}>
-                {([
-                  ['Pitch',
-                    selectedPitch ? (PITCH_SHORT[selectedPitch.pitchType] || selectedPitch.pitchType) : '--',
-                    selectedPitch ? getPitchColor(selectedPitch.pitchType) : 'var(--text-muted)'],
-                  ['Velocity',
-                    selectedPitch?.relSpeed != null ? `${selectedPitch.relSpeed.toFixed(1)} mph` : '--',
-                    'var(--text)'],
-                  ['Spin',
-                    selectedPitch?.spinRate != null ? `${Math.round(selectedPitch.spinRate)} rpm` : '--',
-                    'var(--text)'],
-                  ['H-Break',
-                    selectedPitch?.horzBreak != null ? `${selectedPitch.horzBreak.toFixed(1)}"` : '--',
-                    'var(--text)'],
-                  ['IVB',
-                    selectedPitch?.inducedVertBreak != null ? `${selectedPitch.inducedVertBreak.toFixed(1)}"` : '--',
-                    'var(--text)'],
-                  ['Extension',
-                    selectedPitch?.extension != null ? `${selectedPitch.extension.toFixed(1)} ft` : '--',
-                    'var(--text)'],
-                  ['Rel Ht',
-                    selectedPitch?.relHeight != null ? `${selectedPitch.relHeight.toFixed(1)} ft` : '--',
-                    'var(--text)'],
-                  ['Rel Side',
-                    selectedPitch?.relSide != null ? `${selectedPitch.relSide.toFixed(1)} ft` : '--',
-                    'var(--text)'],
-                ] as [string, string, string][]).map(([label, val, color]) => (
-                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 7.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-bright)', fontFamily: "'DM Mono', monospace" }}>
-                      {label}
-                    </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {val}
-                    </span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
@@ -1290,27 +1654,36 @@ export function PitchingTab({
 
           {/* ── Coaching notes — beneath Movement + Location plots ── */}
           <div
-            className={aStyles.innerPanel}
-            style={{ margin: '10px 0 0', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}
+            style={{
+              ...pitchReportBubbleStyle,
+              margin: '10px 0 0', padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}
           >
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
             }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
-                fontSize: 10.5, fontWeight: 700, letterSpacing: '0.22em',
-                textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
+                /* Font B treatment — Brown display, upright, 1 rem,
+                   weight 600, -0.025em, uppercase, bright white. The
+                   leading blue dot is preserved so the eyebrow still
+                   reads as a sub-section bullet, just with the unified
+                   grey-bubble title typography. */
+                fontFamily: 'inherit', fontSize: '0.85rem',
+                fontStyle: 'normal', fontWeight: 600,
+                letterSpacing: '-0.025em', textTransform: 'uppercase',
+                color: 'var(--text-bright)', lineHeight: 1.05,
               }}>
-                <span style={{
-                  display: 'inline-block', width: 7, height: 7, borderRadius: 4,
-                  background: '#7eb6ff', boxShadow: '0 0 6px rgba(126,182,255,0.6)',
-                }} />
+                {/* Leading blue-dot bullet retired per spec — the
+                   eyebrow now reads as a plain title without the
+                   sub-section indicator dot. */}
                 Pitching Notes
               </span>
               {isCoach && (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: 11 }}>Saved.</span>}
-                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: 11 }}>{notesSaveError}</span>}
+                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: 9.35 }}>Saved.</span>}
+                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: 9.35 }}>{notesSaveError}</span>}
                   <button
                     type="button"
                     onClick={savePitchingNotes}
@@ -1325,7 +1698,7 @@ export function PitchingTab({
                         ? '1px solid rgba(74,222,128,0.55)'
                         : '1px solid var(--border)',
                       color: notesDirty ? '#ecfdf5' : 'var(--text-muted)',
-                      fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                      fontSize: 9.35, fontWeight: 700, letterSpacing: '0.04em',
                       cursor: savingNotes || !notesDirty ? 'not-allowed' : 'pointer',
                       opacity: savingNotes ? 0.6 : 1,
                     }}
@@ -1342,12 +1715,15 @@ export function PitchingTab({
                 placeholder="Pitching observations — arsenal trends, command, release consistency, sequencing notes…"
                 rows={3}
                 style={{
-                  background: 'rgba(20,24,32,0.85)',
+                  /* Notes-bubble surface token: dark navy in dark theme,
+                     near-white (--bubble-chrome-bg) in light — matches the
+                     Hitting / Player Summary notes bubbles. */
+                  background: 'var(--notes-bg)',
                   border: '1px solid var(--border)',
                   color: 'var(--text)',
                   padding: '10px 12px',
                   borderRadius: 7,
-                  fontSize: 12,
+                  fontSize: 10.2,
                   lineHeight: 1.55,
                   resize: 'vertical',
                   fontFamily: 'inherit',
@@ -1358,11 +1734,13 @@ export function PitchingTab({
               />
             ) : (
               <div style={{
-                fontSize: 12, lineHeight: 1.55,
+                fontSize: 10.2, lineHeight: 1.55,
                 color: pitchingNotes ? 'var(--text)' : 'var(--text-muted)',
                 fontStyle: pitchingNotes ? 'normal' : 'italic',
                 padding: '10px 12px',
-                background: 'rgba(20,24,32,0.55)',
+                /* Notes-bubble surface token — white in light theme,
+                   dark navy in dark (matches the textarea + other tabs). */
+                background: 'var(--notes-bg)',
                 border: '1px solid var(--border)',
                 borderRadius: 7,
                 minHeight: 50,
@@ -1371,26 +1749,216 @@ export function PitchingTab({
               </div>
             )}
           </div>
+
+          {/* ── Coach Reviews — sits directly beneath the Pitching
+              Notes bubble inside the same Pitch Metrics block.
+              Uses `pitchReportBubbleStyle` (the warm Curveball-style
+              grey wash + neutral border) so it visually matches the
+              Pitching Notes bubble above it. Surfaces only Coach
+              Review clips attached to THIS report via the bundle
+              modal's Attach-to-Report dropdown; unattached reviews
+              stay in the main Video section at the bottom. */}
+          {(() => {
+            if (!activePitchingReport || attachedReviewIds.length === 0) return null;
+            const attachedVideos = playerVideos.filter((v) => attachedReviewIds.includes(v.id));
+            if (attachedVideos.length === 0) return null;
+            return (
+              <div
+                style={{
+                  ...pitchReportBubbleStyle,
+                  margin: '10px 0 0',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  fontFamily: 'inherit', fontSize: '0.85rem',
+                  fontStyle: 'normal', fontWeight: 600,
+                  letterSpacing: '-0.025em', textTransform: 'uppercase',
+                  color: 'var(--text-bright)', lineHeight: 1.05,
+                }}>
+                  Coach Reviews — attached to this report
+                </span>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                  gridAutoRows: 'max-content',
+                  gap: 12,
+                  maxHeight: 720,
+                  overflowY: 'auto',
+                  paddingRight: 4,
+                }}>
+                  {bundleVideos(attachedVideos).map((b) => (
+                    <VideoBundleCard
+                      key={b.key}
+                      videos={b.videos}
+                      size="md"
+                      playerId={player.id}
+                      recordingCategory="PITCHING"
+                      onUploaded={onRefresh}
+                      reports={pitchingReports}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       )}
 
       {/* ── Break & Spin + Release & Extension tables ──
           Outer grey bubble holds the section header chrome; each table
           is now wrapped in its own innerPanel (Movement-Plot-toned) so
-          the two sub-sections read as their own callouts. */}
+          the two sub-sections read as their own callouts.
+          Bottom margin synced with the shared `.section` 20px so the
+          Break & Spin bubble lines up with the rest of the app's
+          dark-blue main-bubble cadence. */}
       {hasPitchData && (
-        <div style={{ marginBottom: 48 }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className={aStyles.innerPanel} style={{ padding: 14 }}>
+        <div style={{ marginBottom: 20 }}>
+          {/* Outer shell now carries the Command Deck (player name)
+              chrome so it reads as a sibling of the Pitch Report HUD
+              bubble above it. Inner Break / Release cards keep the
+              graphite Pitch-Report-bubble gradient for clean inner
+              contrast. */}
+          <div style={{
+            ...commandDeckBubbleStyle,
+            /* Light theme: match the Pitch Report HUD (.hudConsole's
+               light override) instead of the dark-navy Command-Deck
+               chrome — that chrome is an inline style, so it can't flip
+               via the [data-theme="light"] CSS rule and would otherwise
+               stay dark. Now the Trackman bubble reads the same
+               cool-slate (--panel-bg-light) as the Pitch Report bubble
+               above it. Dark theme keeps the Command-Deck look. */
+            ...(isLight ? {
+              background: 'var(--panel-bg-light)',
+              borderColor: 'rgba(0, 0, 0, 0.10)',
+              boxShadow: '0 6px 18px rgba(15, 20, 30, 0.08)',
+            } : {}),
+            padding: 16,
+            /* gap: 16 → 14 (≈0.85rem) so the Trackman SectionHeader's
+               accent line sits the same distance above the Break &
+               Spin table as the Tool Grades accent line sits above
+               its first inner bubble. */
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            {/* Branded section header — matches the Swing-tab pattern
+                (Coach Grades / Full Swing / Blast Motion / HitTrax)
+                where the title sits left and a brand logo badge sits
+                immediately to its right via `iconAfter`. The Trackman
+                logo identifies the data provenance for the Break &
+                Spin + Release & Extension tables below. */}
+            <SectionHeader
+              icon={<TrackmanLogo />}
+              iconColor="gold"
+              title="Trackman"
+              iconAfter
+            />
+            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
               <BreakTable rows={arsenal} />
             </div>
-            <div className={aStyles.innerPanel} style={{ padding: 14 }}>
+            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
               <ReleaseTable rows={arsenal} />
             </div>
           </div>
         </div>
       )}
 
+
+      {/* ── Live Results (Phase 6) — surfaces every at-bat this
+          pitcher pitched in a Live Session, with Last 25 / 50 / 100 /
+          Year / All-Time filter chips and rollup stats (Barrel %,
+          Line-Drive %, Fly-Ball %, Ground %, K %, BB %). Mirror of
+          the Hitting tab's "Live At-Bats" section, scoped by
+          pitcherId instead of hitterId.
+
+          Gated behind the `pitchingSubTab === 'live'` check — the
+          "Live Results" toggle button in the Pitch Report HUD
+          header controls its visibility. Default state hides this
+          section so the Pitch Report HUD bubble owns the screen;
+          coaches click the Live Results toggle to reveal the
+          at-bat list below. */}
+      {pitchingSubTab === 'live' && (
+        <Section>
+          <LiveAtBatsList
+            pitcherId={player.id}
+            title="Live Results"
+          />
+        </Section>
+      )}
+
+      {/* ── Main Video gallery — BOTTOM-most section on this tab.
+          Lifted here from its previous spot above the Trackman
+          tables so the long video roll never pushes the other
+          sections down the page.
+          Per coach-spec, Coach Reviews now populate HERE TOO (in
+          addition to the dedicated bubble near Coach Grades above).
+          The previous `!attachedReviewIds.includes(v.id)` exclusion
+          was retired so a coach can find a narrated review from
+          either spot. */}
+      {hasPitchData && (() => {
+        const videoIds = getReportVideoIds(selectedReport);
+        const reportVideos = playerVideos.filter(v =>
+          (videoIds.includes(v.id) || v.category === 'PITCHING')
+        ).sort((a, b) => {
+          const aR = a.title.startsWith('Coach Review') ? 0 : 1;
+          const bR = b.title.startsWith('Coach Review') ? 0 : 1;
+          return aR - bR;
+        });
+        const contentVideos = getReportContentVideos(selectedReport);
+        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0;
+        return (
+          <Section>
+            <div
+              className={aStyles.profilePanel}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+              <SectionHeader title="Video" />
+              {hasVideos ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                  gridAutoRows: 'max-content',
+                  gap: 12,
+                  marginBottom: 24,
+                }}>
+                  {/* Cap at 10 most-recent tiles (2 rows × 5 cols);
+                      overflow lives in the all-videos page. */}
+                  {bundleVideos(reportVideos).slice(0, 10).map((b) => {
+                    const { prefix } = splitVideoTitle(b.videos[0].title || '');
+                    return (
+                      <VideoBundleCard
+                        key={b.key}
+                        videos={b.videos}
+                        size="md"
+                        playerId={player.id}
+                        recordingCategory="PITCHING"
+                        onUploaded={onRefresh}
+                        reports={pitchingReports}
+                      />
+                    );
+                  })}
+                  {reportVideos.length === 0 && contentVideos.map((v, i) => (
+                    <VideoPlaceholder
+                      key={`content-${i}`} tag="PITCHING"
+                      title={v.name.replace(/\.[^.]+$/, '')}
+                      subtitle={`${(v.size / 1024 / 1024).toFixed(1)} MB`} size="md"
+                      videoUrl={v.url}
+                      playerId={player.id}
+                      recordingCategory="PITCHING"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.emptyMsg}>No video data.</div>
+              )}
+            </div>
+          </Section>
+        );
+      })()}
 
       {/* ── No data ── */}
       {!loading && !hasPitchData && (
@@ -1402,184 +1970,22 @@ export function PitchingTab({
         </div>
       )}
 
-      {/* ── Coaching Notes ── */}
-      {(() => {
-        const notesArr = selectedReport?.notes
-          ? [{ text: selectedReport.notes }]
-          : [
-              { text: 'Pitch arsenal observations, command trends, and development plan.', placeholder: true },
-              { text: 'Mechanical notes and drill recommendations.', placeholder: true },
-            ];
-        return (
-          <Section>
-            <SectionHeader icon="&#128203;" iconColor="gold" title="Coaching Notes" />
-            <NotesBox label="PITCHING ASSESSMENT" notes={notesArr} />
-          </Section>
-        );
-      })()}
-
-      {/* ── Video ── */}
-      {(() => {
-        const videoIds = getReportVideoIds(selectedReport);
-        const reportVideos = playerVideos.filter(v =>
-          videoIds.includes(v.id) || v.category === 'PITCHING'
-        );
-        const contentVideos = getReportContentVideos(selectedReport);
-        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0;
-        return (
-          <Section>
-            <SectionHeader icon="&#127916;" iconColor="teal" title="Video" />
-            {hasVideos ? (
-              <div className={aStyles.twoCol}>
-                {reportVideos.map(v => (
-                  <VideoPlaceholder
-                    key={v.id}
-                    tag={v.category}
-                    title={v.title}
-                    subtitle={new Date(v.createdAt).toLocaleDateString()}
-                    size="md"
-                    videoUrl={v.originalUrl}
-                  />
-                ))}
-                {reportVideos.length === 0 && contentVideos.map((v, i) => (
-                  <VideoPlaceholder
-                    key={`content-${i}`}
-                    tag="PITCHING"
-                    title={v.name.replace(/\.[^.]+$/, '')}
-                    subtitle={`${(v.size / 1024 / 1024).toFixed(1)} MB`}
-                    size="md"
-                    videoUrl={v.url}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className={styles.emptyMsg}>No video data.</div>
-            )}
-          </Section>
-        );
-      })()}
+      {/* Coaching Notes section removed — coach notes now live inline
+          inside the Pitch Report HUD bubble as "Pitching Notes". The
+          Video section moved up there too so videos sit directly under
+          the notes the coach is writing about them. */}
 
       <CustomCharts section="PITCHING" playerId={player.id} />
 
       </>
-      )}{/* /metrics sub-tab */}
 
     </>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   MechanicalGradesPanel — renders the 7-section pitching delivery taxonomy
-   (PITCHING_GRADE_SECTIONS) for the active PITCHING report. Reads from and
-   writes to content.pitchingGrades, the same storage the report modal uses,
-   so grades populate here directly from the report upload form.
-   ───────────────────────────────────────────────────────────────────────── */
-function MechanicalGradesPanel({
-  grades, setGrades, isCoach, dirty, saving, saveOk, saveError,
-  hasReport, onSave, onReset,
-}: {
-  grades: PitchingGrades;
-  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
-  isCoach: boolean;
-  dirty: boolean;
-  saving: boolean;
-  saveOk: boolean;
-  saveError: string | null;
-  hasReport: boolean;
-  onSave: () => void;
-  onReset: () => void;
-}) {
-  const totalItems = PITCHING_GRADE_SECTIONS.reduce((n, s) => n + s.items.length, 0);
-  // An item counts as "graded" if it has a score OR at least one tag picked.
-  const filled = PITCHING_GRADE_SECTIONS.reduce((n, s) => {
-    return n + s.items.filter((it) => {
-      const e = grades[pitchingGradeKey(s.key, it.key)];
-      return !!e && (e.score != null || (e.options?.length ?? 0) > 0);
-    }).length;
-  }, 0);
-  const allScores = Object.values(grades)
-    .map((g) => g?.score)
-    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-  const avg = allScores.length === 0
-    ? null
-    : Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length);
-
-  return (
-    <Section>
-      <div className={aStyles.profilePanel}
-        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <SectionHeader icon="✍️" iconColor="teal" title="Mechanical Grades" subtitle="20-80 scale · delivery checkpoints" />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-bright)', letterSpacing: '0.10em', textTransform: 'uppercase', fontWeight: 600 }}>
-              {filled} / {totalItems} graded
-            </span>
-            <span style={{
-              fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 28,
-              color: avg !== null ? scoreColor(avg) : 'var(--text-muted)', lineHeight: 1, letterSpacing: '-0.02em',
-            }}>
-              {avg ?? '—'}
-            </span>
-            <span style={{ fontSize: 10.5, color: 'var(--text-bright)', letterSpacing: '0.16em', fontWeight: 600 }}>AVG</span>
-          </div>
-        </div>
-
-        {!hasReport && isCoach && (
-          <div style={{
-            padding: '10px 12px', borderRadius: 8,
-            background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.35)',
-            color: '#fde68a', fontSize: 12,
-          }}>
-            No Pitching Report yet — add one (or upload TrackMan data) to attach grades.
-          </div>
-        )}
-
-        {/* One sub-panel per delivery section. Coaches edit inline; non-coaches
-            see the saved grade + tags read-only. */}
-        {PITCHING_GRADE_SECTIONS.map((section) => (
-          <DeliverySectionPanel
-            key={section.key}
-            section={section}
-            grades={grades}
-            setGrades={setGrades}
-            isCoach={isCoach}
-          />
-        ))}
-
-        {/* Save bar — only meaningful for coaches with an attached report */}
-        {isCoach && hasReport && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10,
-          }}>
-            {saveError && <span style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</span>}
-            {saveOk && <span style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>Saved</span>}
-            {dirty && (
-              <button type="button" onClick={onReset}
-                style={{
-                  background: 'rgba(255,255,255,0.06)', color: 'var(--text)',
-                  border: '1px solid var(--border)', borderRadius: 8,
-                  padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}>
-                Reset
-              </button>
-            )}
-            <button type="button" onClick={onSave} disabled={!dirty || saving}
-              style={{
-                background: dirty && !saving ? 'var(--accent)' : 'rgba(255,255,255,0.06)',
-                color: dirty && !saving ? '#000' : 'var(--text-muted)',
-                border: '1px solid var(--border)', borderRadius: 8,
-                padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: dirty && !saving ? 'pointer' : 'default',
-                opacity: !dirty || saving ? 0.6 : 1,
-              }}>
-              {saving ? 'Saving...' : 'Save Grades'}
-            </button>
-          </div>
-        )}
-      </div>
-    </Section>
-  );
-}
+/* MechanicalGradesPanel retired — grades are edited from the report
+   modal now. The MechanicalSummaryStrip below is kept; it surfaces a
+   compact read-only roll-up inside the Pitch Report HUD. */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    MechanicalSummaryStrip — compact read-only view of the 7 delivery sections,
@@ -1594,26 +2000,61 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
   if (!hasAnyData) return null;
   return (
     <div
-      className={aStyles.innerPanel}
-      style={{ margin: '10px 0 0', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}
+      style={{
+        ...pitchReportBubbleStyle,
+        margin: '10px 0 0', padding: '12px 14px',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}
     >
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
-        fontSize: 10.5, fontWeight: 700, letterSpacing: '0.22em',
-        textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
+        /* Font B treatment — matches every other grey-bubble eyebrow
+           across the app. Leading blue dot retained as a section
+           bullet. */
+        fontFamily: 'inherit', fontSize: '0.85rem',
+        fontStyle: 'normal', fontWeight: 600,
+        letterSpacing: '-0.025em', textTransform: 'uppercase',
+        color: 'var(--text-bright)', lineHeight: 1.05,
       }}>
-        <span style={{
-          display: 'inline-block', width: 7, height: 7, borderRadius: 4,
-          background: '#7eb6ff', boxShadow: '0 0 6px rgba(126,182,255,0.6)',
-        }} />
+        {/* Leading blue-dot bullet retired per spec — eyebrow reads
+           as a plain title without the sub-section indicator dot. */}
         Mechanical Grades
       </span>
+      {/* Top accent hairline — sits above the 7-section row, matching
+         the Swing GradeRow's white rule between the progress bar and
+         the chip-table labels (line 3 in the spec). */}
+      <div aria-hidden="true" style={{ height: 1, background: 'var(--border)' }} />
+      {/* Coach Grades strip renders ONLY the 7 delivery-mechanics
+          sections (Gather → Arm Path → Direction → LHFS → UHFS →
+          Lower Half Rotation → Arm Deceleration). The two outcome
+          sections (Movement + Execution) are intentionally excluded
+          here — they remain editable in the Report Modal so their
+          values still feed the Player Summary's Tool Grades bars,
+          but they don't clutter the per-delivery Coach Grades summary
+          on the Pitching tab. */}
+      {(() => {
+        const coachGradeSections = PITCHING_GRADE_SECTIONS.filter(
+          (s) => PITCHING_MECHANICS_SECTION_KEYS.includes(s.key)
+        );
+        return (
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 8,
+        /* Dynamic column count — one cell per delivery-mechanics
+           section, now back to the 7-section row width since
+           Movement + Execution were removed from this display.
+           `minmax(0, 1fr)` lets each cell shrink below its content
+           width so the row never wraps; titles wrap internally on
+           narrow viewports instead. */
+        gridTemplateColumns: `repeat(${coachGradeSections.length}, minmax(0, 1fr))`,
+        gap: 4,
+        padding: '6px 0',
+        /* Bottom accent hairline — closes the section row, matching
+           the Swing GradeRow's white rule below the chip numbers
+           (line 6 in the spec, supplied by the table's data-row
+           `border-bottom` over there). */
+        borderBottom: '1px solid var(--border)',
       }}>
-        {PITCHING_GRADE_SECTIONS.map((section) => {
+        {coachGradeSections.map((section) => {
           const sectionScores = section.items
             .map((it) => grades[pitchingGradeKey(section.key, it.key)]?.score)
             .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
@@ -1621,10 +2062,11 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
             ? null
             : Math.round(sectionScores.reduce((a, b) => a + b, 0) / sectionScores.length);
           const tone = avg !== null ? scoreColor(avg) : '#475569';
-          const pct = avg !== null ? Math.max(0, Math.min(100, ((avg - 20) / 60) * 100)) : 0;
+          // `pct` retired alongside the progress-bar — section cards
+          // now render Label + Score only.
           // Flatten every selected descriptor across the section's items so
           // coaches see the read-out at a glance — the granular per-item
-          // breakdown lives on the Mechanical Grades sub-tab.
+          // breakdown lives on the Coach Grades sub-tab.
           const selectedTags = section.items.flatMap((it) => {
             const e = grades[pitchingGradeKey(section.key, it.key)];
             return e?.options ?? [];
@@ -1632,45 +2074,49 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
           return (
             <div
               key={section.key}
-              className={aStyles.innerPanel}
-              style={{ padding: '7px 9px', display: 'flex', flexDirection: 'column', gap: 6 }}
+              style={{
+                /* Per-section bubble chrome retired. Each cell is now
+                   a transparent flex column — the surrounding outer
+                   Coach Grades bubble already provides the warm-grey
+                   surface, and the top + bottom accent hairlines on
+                   the row supply the visual containment. Mirrors the
+                   Swing GradeRow chip-strip treatment in the Hitting
+                   tab (no per-chip background; the strip is bounded
+                   by horizontal accent rules instead). */
+                padding: '0 4px',
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}
             >
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 13 }}>{section.icon}</span>
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
-                    textTransform: 'uppercase', color: 'var(--text-bright)',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {section.title}
-                  </span>
-                </span>
+              {/* Section title + aggregate score + descriptor tags.
+                  Type sizes scaled down from the previous 7-section
+                  layout (Label 11.88 → 10 px; Value 19.8 → 16 px;
+                  Tag 9.5 → 8.5 px) so all 9 sections — including
+                  the new Movement + Execution outcome bubbles —
+                  still fit comfortably on a single row at standard
+                  viewport widths. Titles still wrap internally on
+                  narrow viewports via the line-height rule. */}
+              <div style={{
+                fontSize: 8.5, fontWeight: 600, letterSpacing: '0.04em',
+                textTransform: 'uppercase', color: 'var(--text-bright)',
+                textAlign: 'center', lineHeight: 1.1,
+              }}>
+                {section.title}
+              </div>
+              <div style={{ textAlign: 'center' }}>
                 <span style={{
-                  fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 17,
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 13.6,
                   color: tone, lineHeight: 1, letterSpacing: '-0.02em',
                 }}>
                   {avg ?? '—'}
                 </span>
               </div>
-              <div style={{
-                height: 4, borderRadius: 2,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid var(--border)',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: `${pct}%`, height: '100%',
-                  background: tone, transition: 'width 0.18s ease',
-                }} />
-              </div>
               {selectedTags.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
                   {selectedTags.map((tag, i) => (
                     <span key={`${tag}-${i}`} style={{
-                      padding: '1px 6px',
-                      borderRadius: 4,
-                      fontSize: 9.5,
+                      padding: '1px 4px',
+                      borderRadius: 3,
+                      fontSize: 7.23,
                       fontWeight: 600,
                       background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
                       border: '1px solid rgba(126,182,255,0.40)',
@@ -1686,11 +2132,13 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
           );
         })}
       </div>
+        );
+      })()}
     </div>
   );
 }
 
-function DeliverySectionPanel({
+function DeliverySectionPanel_RETIRED({
   section, grades, setGrades, isCoach,
 }: {
   section: PitchingGradeSectionConfig;
@@ -1719,9 +2167,9 @@ function DeliverySectionPanel({
           on the right. The aggregate averages every populated item in this
           section so coaches see the rolled-up checkpoint score at a glance. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 16 }}>{section.icon}</span>
+        <span style={{ fontSize: 13.6 }}>{section.icon}</span>
         <span style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
+          fontSize: 9.35, fontWeight: 700, letterSpacing: '0.16em',
           textTransform: 'uppercase', color: 'var(--text-bright)',
           whiteSpace: 'nowrap',
         }}>
@@ -1741,7 +2189,7 @@ function DeliverySectionPanel({
             }} />
           </div>
           <span style={{
-            fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 18,
+            fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 15.3,
             color: sectionTone, lineHeight: 1, letterSpacing: '-0.02em',
             minWidth: 26, textAlign: 'right',
           }}>
@@ -1815,7 +2263,7 @@ function DeliveryGradeItem({
               ? '1px solid rgba(126,182,255,0.55)'
               : '1px solid var(--border)',
             color: editing ? 'var(--accent-light)' : 'var(--text-muted)',
-            fontSize: 10, lineHeight: 1, padding: 0,
+            fontSize: 8.5, lineHeight: 1, padding: 0,
             cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
@@ -1837,13 +2285,13 @@ function DeliveryGradeItem({
         paddingRight: isCoach ? 22 : 0, // leave room for edit button
       }}>
         <span style={{
-          fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
+          fontSize: 7.65, fontWeight: 700, letterSpacing: '0.12em',
           textTransform: 'uppercase', color: 'var(--text-bright)',
         }}>
           {item.label}
         </span>
         <span style={{
-          fontWeight: 800, fontSize: 17,
+          fontWeight: 800, fontSize: 14.45,
           color: tone, lineHeight: 1, letterSpacing: '-0.02em',
         }}>
           {value ?? '—'}
@@ -1878,7 +2326,7 @@ function DeliveryGradeItem({
                 style={{
                   padding: '4px 9px',
                   borderRadius: 6,
-                  fontSize: 11,
+                  fontSize: 9.35,
                   fontWeight: 600,
                   cursor: 'pointer',
                   border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
@@ -1901,7 +2349,7 @@ function DeliveryGradeItem({
             <span key={tag} style={{
               padding: '1px 6px',
               borderRadius: 4,
-              fontSize: 9.5,
+              fontSize: 8.07,
               fontWeight: 600,
               background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
               border: '1px solid rgba(126,182,255,0.40)',
@@ -1937,7 +2385,7 @@ function DeliveryGradeItem({
               onChange({ ...entry, score: Math.max(20, Math.min(80, Math.round(n / 5) * 5)) });
             }}
             style={{
-              width: 56, padding: '4px 6px', fontSize: 12, fontWeight: 700,
+              width: 56, padding: '4px 6px', fontSize: 10.2, fontWeight: 700,
               background: 'rgba(0,0,0,0.25)', color: 'var(--text)',
               border: '1px solid var(--border)', borderRadius: 6, textAlign: 'center',
             }}
@@ -1947,7 +2395,7 @@ function DeliveryGradeItem({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 6,
-                padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+                padding: '4px 8px', fontSize: 9.35, cursor: 'pointer',
               }} title="Clear this checkpoint">x</button>
           )}
         </div>

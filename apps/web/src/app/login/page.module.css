@@ -82,3 +82,49 @@
 .quickRow button {
   flex: 1;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — Sign-in page palette matches the rest of
+   the app per coach-spec:
+     • Page background = `--bg` (`#aeaeae` medium grey) — inherited
+       from `body` via the `.container`'s transparent fill.
+     • Sign-in card (the "first" bubble) = `--panel-bg-light`
+       (`#dee1e5` cool slate, same as the Hitting Snapshot frame
+       and every other outer bubble across the app).
+     • Form inputs (the "inner" bubbles inside the card) = white
+       so the input fields read as clean white cards floating on
+       the slate sign-in card.
+   ════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .card {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.10);
+}
+
+[data-theme="light"] .logoIcon {
+  /* Logo plate stays BLACK in light theme — the Defined Baseball
+     Academy logo is white-on-transparent, so the plate has to
+     stay dark for the mark to read. The plate is the one
+     intentional exception to the "interior bubbles = white" rule
+     because the contrast requirement of the white-text logo
+     outweighs the palette consistency. */
+  background: #000000;
+  border-color: rgba(0, 0, 0, 0.30);
+}
+
+[data-theme="light"] .form input {
+  /* Email + password input fields render as clean white "inner
+     bubbles" against the slate sign-in card. */
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--text);
+}
+
+[data-theme="light"] .divider::before,
+[data-theme="light"] .divider::after {
+  /* Soften the "or quick login" divider rules so they read on
+     the slate card instead of disappearing. */
+  background: rgba(0, 0, 0, 0.10);
+}

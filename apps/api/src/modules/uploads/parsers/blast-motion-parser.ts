@@ -3,53 +3,36 @@ import { VendorParser, ParseResult, ParsedMetric } from './base-parser';
 /**
  * Blast Motion CSV Parser
  *
- * Expected columns (from Blast Connect export):
- *   Player Name, Date, Bat Speed (mph), Peak Hand Speed (mph),
- *   Attack Angle (deg), Time to Contact (s), Vertical Bat Angle (deg),
- *   On Plane Efficiency (%), Rotational Acceleration (g),
- *   Early Connection (%), Connection at Impact (%)
+ * Real Blast Connect export starts the actual data table at row 9 (rows 1-8
+ * are session metadata: player name, date, location, etc.). The csv-
+ * processing service auto-skips metadata rows by finding the first row with
+ * 4+ comma-separated columns, which lands on the row-9 header line.
  *
- * NOTE: Column names may vary by Blast firmware version.
- * If your CSV has different headers, update the COLUMN_MAP below.
+ * Column → metric mapping (per-row values):
+ *   H  Bat Speed (mph)              → max_bat_speed (MAX) + avg_bat_speed (MEAN)
+ *   J  On Plane Efficiency (%)      → on_plane_efficiency (MEAN)
+ *   K  Attack Angle (deg)           → attack_angle (MEAN)
+ *   N  Vertical Bat Angle (deg)     → plane_angle / Tilt (MEAN)
+ *   O  Power (kW)                   → power_output (MEAN)
+ *   P  Time to Contact (sec)        → time_to_contact (MEAN)
+ *      Peak Hand Speed (mph)        → peak_hand_speed (MEAN)
+ *
+ * Each session emits ONE summary row per metric (mean / max), tagged at the
+ * session's most-recent date. The Hitting Snapshot's Blast section reads
+ * those summary rows directly — no further aggregation needed downstream.
  */
-
-const COLUMN_MAP: Record<string, { metric: string; unit: string }> = {
-  'bat speed (mph)':           { metric: 'max_bat_speed', unit: 'mph' },
-  'bat speed':                 { metric: 'max_bat_speed', unit: 'mph' },
-  'avg bat speed':             { metric: 'avg_bat_speed', unit: 'mph' },
-  'avg bat speed (mph)':       { metric: 'avg_bat_speed', unit: 'mph' },
-  'peak hand speed (mph)':     { metric: 'peak_hand_speed', unit: 'mph' },
-  'peak hand speed':           { metric: 'peak_hand_speed', unit: 'mph' },
-  'hand speed (mph)':          { metric: 'peak_hand_speed', unit: 'mph' },
-  'attack angle (deg)':        { metric: 'attack_angle', unit: 'deg' },
-  'attack angle':              { metric: 'attack_angle', unit: 'deg' },
-  'time to contact (s)':       { metric: 'time_to_contact', unit: 'sec' },
-  'time to contact (sec)':     { metric: 'time_to_contact', unit: 'sec' },
-  'time to contact':           { metric: 'time_to_contact', unit: 'sec' },
-  'vertical bat angle (deg)':  { metric: 'vertical_bat_angle', unit: 'deg' },
-  'vertical bat angle':        { metric: 'vertical_bat_angle', unit: 'deg' },
-  'on plane efficiency (%)':   { metric: 'on_plane_efficiency', unit: '%' },
-  'on plane efficiency':       { metric: 'on_plane_efficiency', unit: '%' },
-  'on plane eff':              { metric: 'on_plane_efficiency', unit: '%' },
-  'rotational acceleration (g)': { metric: 'rotational_accel', unit: 'g' },
-  'rotational acceleration':   { metric: 'rotational_accel', unit: 'g' },
-  'early connection (%)':      { metric: 'early_connection', unit: '%' },
-  'early connection':          { metric: 'early_connection', unit: '%' },
-  'early connection (deg)':    { metric: 'early_connection', unit: 'deg' },
-  'connection at impact (%)':  { metric: 'connection_at_impact', unit: '%' },
-  'connection at impact':      { metric: 'connection_at_impact', unit: '%' },
-  'connection at impact (deg)': { metric: 'connection_at_impact', unit: 'deg' },
-  'plane score':               { metric: 'plane_angle', unit: 'deg' },
-  'plane angle':               { metric: 'plane_angle', unit: 'deg' },
-  'power (kw)':                { metric: 'power_output', unit: 'kW' },
-  'power':                     { metric: 'power_output', unit: 'kW' },
-};
 
 const BLAST_IDENTIFIERS = [
   'bat speed', 'attack angle', 'time to contact',
   'on plane', 'rotational acceleration', 'early connection',
-  'connection at impact', 'blast',
+  'connection at impact', 'blast', 'vertical bat angle',
 ];
+
+/** Header normaliser — trims, lowercases, and strips trailing unit suffix
+ *  in parens so "Bat Speed (mph)" / "Bat Speed" both match the same key. */
+function normHeader(h: string): string {
+  return h.toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
 
 export class BlastMotionParser implements VendorParser {
   source = 'BLAST_MOTION';
@@ -66,30 +49,103 @@ export class BlastMotionParser implements VendorParser {
     const success: ParsedMetric[] = [];
     const errors: ParseResult['errors'] = [];
 
+    /* Pull all per-row numeric values for each tracked column. We accept
+       multiple header aliases per metric (e.g. Blast versions sometimes
+       drop the "(mph)" suffix or use "Plane Score" for On Plane
+       Efficiency). The lookup is on the normalised header so trailing
+       unit suffixes don't break the match. */
+    /* Column → metric map. Real Blast Connect exports look like:
+         Date, Equipment, Handedness, Swing Details,
+         Plane Score, Connection Score, Rotation Score,
+         Bat Speed (mph), Rotational Acceleration (g),
+         On Plane Efficiency (%), Attack Angle (deg),
+         Early Connection (deg), Connection at Impact (deg),
+         Vertical Bat Angle (deg), Power (kW),
+         Time to Contact (sec), Peak Hand Speed (mph), ...
+       Critical: "Plane Score" (col E) and "On Plane Efficiency" (col J)
+       are DIFFERENT columns — Plane Score is Blast's 0-100 swing-quality
+       grade for the plane component, On Plane Efficiency is the % time
+       on plane. Mapping both into on_plane_efficiency was averaging two
+       unrelated columns together and producing nonsense. We use ONLY
+       the "On Plane Efficiency" column for the Plane chip; Plane Score
+       is ignored. Same intent for "vertical bat angle" → tilt
+       (plane_angle); we don't conflate it with anything else. */
+    const HEADER_TO_METRIC: Record<string, string> = {
+      'bat speed':                'bat_speed_raw',     // → max + avg
+      'attack angle':             'attack_angle',
+      'time to contact':          'time_to_contact',
+      'vertical bat angle':       'plane_angle',
+      'on plane efficiency':      'on_plane_efficiency',
+      'on plane eff':             'on_plane_efficiency',
+      'power':                    'power_output',
+      'peak hand speed':          'peak_hand_speed',
+      'hand speed':               'peak_hand_speed',
+    };
+
+    // Bucket every numeric value per target metric. No swing filter, no
+    // per-metric zero filter — coach spec is literally "the average of
+    // all numbers in this column". Empty cells parse as NaN and are
+    // skipped automatically; everything that parses as a number is in.
+    const buckets: Record<string, number[]> = {};
+
+    let lastDate: Date = recordedAt;
+    let lastPlayerName = '_blast_upload_';
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      // Use player name from CSV if present, otherwise use fallback
-      // (csv-processing service will override with direct playerId when provided)
       const playerName = this.findPlayerName(row) || '_blast_upload_';
-
       const rowDate = this.findDate(row) || recordedAt;
+      lastPlayerName = playerName;
+      lastDate = rowDate;
 
       for (const [csvCol, value] of Object.entries(row)) {
-        const mapping = COLUMN_MAP[csvCol.toLowerCase().trim()];
-        if (!mapping) continue;
-
+        const key = normHeader(csvCol);
+        const target = HEADER_TO_METRIC[key];
+        if (!target) continue;
         const num = parseFloat(value);
-        if (isNaN(num)) continue;
-
-        success.push({
-          playerName,
-          metricType: mapping.metric,
-          value: Math.round(num * 100) / 100,
-          unit: mapping.unit,
-          recordedAt: rowDate,
-          rawData: row,
-        });
+        if (!Number.isFinite(num)) continue;
+        if (!buckets[target]) buckets[target] = [];
+        buckets[target].push(num);
       }
+    }
+
+    /* Emit ONE summary metric per target. Bat speed produces both
+       max_bat_speed (the session's top swing) and avg_bat_speed (mean
+       across every swing); everything else is the per-session mean. */
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const mean = (arr: number[]) => arr.reduce((s, n) => s + n, 0) / arr.length;
+    const push = (metricType: string, value: number, unit: string) => {
+      success.push({
+        playerName: lastPlayerName,
+        metricType,
+        value: round2(value),
+        unit,
+        recordedAt: lastDate,
+        rawData: { type: 'session_summary' },
+      });
+    };
+
+    if (buckets.bat_speed_raw && buckets.bat_speed_raw.length > 0) {
+      push('max_bat_speed', Math.max(...buckets.bat_speed_raw), 'mph');
+      push('avg_bat_speed', mean(buckets.bat_speed_raw), 'mph');
+    }
+    if (buckets.attack_angle && buckets.attack_angle.length > 0) {
+      push('attack_angle', mean(buckets.attack_angle), 'deg');
+    }
+    if (buckets.time_to_contact && buckets.time_to_contact.length > 0) {
+      push('time_to_contact', mean(buckets.time_to_contact), 'sec');
+    }
+    if (buckets.plane_angle && buckets.plane_angle.length > 0) {
+      push('plane_angle', mean(buckets.plane_angle), 'deg');
+    }
+    if (buckets.on_plane_efficiency && buckets.on_plane_efficiency.length > 0) {
+      push('on_plane_efficiency', mean(buckets.on_plane_efficiency), '%');
+    }
+    if (buckets.power_output && buckets.power_output.length > 0) {
+      push('power_output', mean(buckets.power_output), 'kW');
+    }
+    if (buckets.peak_hand_speed && buckets.peak_hand_speed.length > 0) {
+      push('peak_hand_speed', mean(buckets.peak_hand_speed), 'mph');
     }
 
     return { success, errors, totalRows: rows.length };

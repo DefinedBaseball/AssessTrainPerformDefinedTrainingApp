@@ -41,6 +41,12 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      # Pure-function unit tests — JWT round-trip, parser registry,
+      # assertPlayerOwnership ownership boundary. No DB or running
+      # server required, so they run on every PR for free.
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Build
         run: npm run build
 

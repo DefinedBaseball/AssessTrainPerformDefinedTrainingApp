@@ -1,0 +1,1015 @@
+/* /live/training — Phase 2 styles. Three step layouts share the
+   same dark-navy bubble chrome (`.panel`) and the same Tool-Grades-
+   style header rhythm (italic title + accent line). */
+
+/* ── Stepper ──────────────────────────────────────────────────── */
+
+.stepperRow {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.stepDot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+
+.stepDot span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stepDot em { font-style: normal; }
+
+.stepDotActive {
+  border-color: rgba(126, 182, 255, 0.55);
+  color: #fff;
+  background: rgba(126, 182, 255, 0.12);
+}
+.stepDotActive span {
+  background: rgba(126, 182, 255, 0.40);
+  color: #fff;
+}
+
+/* ── Panels (shared with the Live page chrome) ───────────────── */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.4rem;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.panelHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panelTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: #fff;
+}
+
+.countChip {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Step 1 — position picker + roster ──────────────────────── */
+
+.positionGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.positionPill {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.positionPill:hover {
+  border-color: rgba(126, 182, 255, 0.45);
+}
+
+.positionPillActive {
+  background: rgba(126, 182, 255, 0.16);
+  border-color: rgba(126, 182, 255, 0.55);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(126, 182, 255, 0.30);
+}
+
+.rosterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.rosterRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.rosterRow:hover {
+  border-color: rgba(126, 182, 255, 0.40);
+}
+
+.rosterRowActive {
+  background: rgba(126, 182, 255, 0.10);
+  border-color: rgba(126, 182, 255, 0.55);
+}
+
+.rosterCheck {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #7eb6ff;
+  font-weight: 800;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.rosterRowActive .rosterCheck {
+  background: rgba(126, 182, 255, 0.30);
+  border-color: rgba(126, 182, 255, 0.65);
+}
+
+.rosterName {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.rosterMeta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Actions row (Back / Primary) ────────────────────────────── */
+
+.actionsRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.primaryBtn {
+  padding: 11px 22px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(126,182,255,0.40), rgba(126,182,255,0.20));
+  border: 1px solid rgba(126, 182, 255, 0.65);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(126,182,255,0.55), rgba(126,182,255,0.28));
+  box-shadow: 0 6px 18px rgba(126, 182, 255, 0.22);
+}
+
+.primaryBtn:disabled {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 18px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.12s ease;
+}
+
+.secondaryBtn:hover {
+  border-color: rgba(126, 182, 255, 0.40);
+}
+
+.dangerBtn {
+  padding: 11px 22px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(221,105,116,0.35), rgba(221,105,116,0.18));
+  border: 1px solid rgba(221, 105, 116, 0.55);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* ── Step 2 — recording layout ───────────────────────────────── */
+
+.recordLayout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+
+@media (max-width: 800px) {
+  .recordLayout { grid-template-columns: 1fr; }
+}
+
+.rosterColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 1rem;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+}
+
+.rosterColumnHead {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rosterColumnList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.rosterColumnRow {
+  display: flex;
+  /* `flex-wrap: wrap` so an optional meta sub-line (e.g. the hitter
+     outcome ratio "2-4" passed via `metaById`) can claim its own
+     row below the name + handedness chip. Single-line rows
+     (Pitchers column, hitters with no closed ABs yet) stay
+     unchanged — there's nothing to wrap. */
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.rosterColumnRow:hover { border-color: rgba(126, 182, 255, 0.45); }
+
+.rosterColumnRowActive {
+  background: rgba(126, 182, 255, 0.16);
+  border-color: rgba(126, 182, 255, 0.65);
+}
+
+.rosterColumnName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rosterColumnCount {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cameraColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Implement / drill-type tag bar ─────────────────────────────
+   Horizontal row of pills sitting just above the camera frame.
+   Tap-target sized so the coach can switch tags one-handed during
+   a session without aiming carefully. Wraps to a second row on
+   narrow viewports / when a position has many tags (Hitting's 6). */
+.implementBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.implementPill {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.implementPill:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.07);
+}
+.implementPillActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.implementPillActive:hover {
+  /* Keep the active pill stable on hover — coaches shouldn't see
+     the selected tag dim or shift when they mouse over it. */
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.cameraFrame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* ── Camera selector bar (pinned at the top of the video column) ──
+   Holds the "Cameras" label + count chip + the list of camera
+   pills. Sits above the multi-angle preview grid so the coach
+   picks angles first, then sees previews populate beneath. */
+.cameraSelectorBar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+}
+.cameraSelectorHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cameraSelectorLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+.cameraSelectorCount {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: 'DM Mono', ui-monospace, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* ── Multi-angle preview grid ─────────────────────────────────
+   Per-count layouts driven by the `data-count` attribute on the
+   grid container. Sizes:
+     1 → one big tile spans the full column
+     2 → two tiles side-by-side (50/50)
+     3 → three tiles in a single row (33/33/33)
+     4 → 2 × 2 grid (each tile is half width, half height)
+   The aspect-ratio rule on `.cameraFrame` keeps each tile in
+   16:9 so the row heights stay consistent regardless of count. */
+.cameraGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+.cameraGrid[data-count='1'] {
+  grid-template-columns: 1fr;
+}
+.cameraGrid[data-count='2'] {
+  grid-template-columns: 1fr 1fr;
+}
+.cameraGrid[data-count='3'] {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.cameraGrid[data-count='4'] {
+  grid-template-columns: 1fr 1fr;
+  /* 2 × 2 — implicit second row created by the four children. */
+}
+/* Narrow viewports — gracefully collapse the 3-up and 4-up grids
+   to two columns and then one column so each angle stays legible. */
+@media (max-width: 900px) {
+  .cameraGrid[data-count='3'],
+  .cameraGrid[data-count='4'] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .cameraGrid[data-count='2'],
+  .cameraGrid[data-count='3'],
+  .cameraGrid[data-count='4'] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Per-tile camera label chip — sits in the lower-left of each
+   `<video>` preview tile so the coach knows which angle is which
+   without having to read the camera-bar checkboxes above. */
+.cameraTileLabel {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+}
+
+/* Negotiated-fps chip — sits inline with the camera label so the
+   coach can verify whether the requested 120 fps actually
+   landed. Mono face for the number so it visually reads as a
+   technical readout. */
+.cameraTileFps {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.78);
+  padding-left: 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.20);
+}
+
+/* ── 4-second delayed-playback overlay ───────────────────────
+   The capture loop in `startDelayLoop` paints frames from
+   DELAY_MS ago onto this canvas. It sits on top of the live
+   `<video>` element using absolute positioning + `object-fit:
+   cover` semantics. The canvas is invisible by default; it
+   reveals when the parent tile carries `data-recording="1"`
+   AND the canvas has been "warmed" (at least one delayed frame
+   has been drawn). */
+.cameraDelayedCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+  background: #000;
+  pointer-events: none;
+}
+.cameraFrame[data-recording='1'] .cameraDelayedCanvas {
+  display: block;
+}
+/* "Buffering 4s delay…" overlay — sits on top of the live
+   video and the (still-blank) delayed canvas while recording is
+   active but no delayed frame has been painted yet. Disappears
+   the instant the delayed canvas has been "warmed" (signaled by
+   `data-warm="1"` on the canvas — set inside `startDelayLoop`
+   the first time it paints). Hidden whenever recording isn't
+   active so the chrome only shows when actually relevant. */
+.cameraBufferingOverlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+.cameraFrame[data-recording='1'] .cameraBufferingOverlay {
+  display: flex;
+}
+/* Once the canvas has been warmed (first delayed frame
+   painted), hide the overlay even while still recording — the
+   sibling selector relies on the canvas immediately preceding
+   the overlay div in the markup. */
+.cameraFrame[data-recording='1'] .cameraDelayedCanvas[data-warm='1'] + .cameraBufferingOverlay {
+  display: none;
+}
+
+/* "DELAY 4s" badge — sits beside the REC dot to communicate
+   that the visible preview is lagged so the coach doesn't
+   chase a perceived latency bug. */
+.delayBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(74, 222, 128, 0.92);
+  color: #052e16;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.cameraVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cameraError {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  background: rgba(221, 105, 116, 0.10);
+}
+
+.recDot {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(221, 105, 116, 0.85);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.cameraControls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+}
+
+.cameraSubject {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.cameraSubject strong { color: #fff; font-weight: 700; }
+
+.cameraButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dim {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ── Step 3 — save clips ─────────────────────────────────────── */
+
+.clipList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Bundle card ──────────────────────────────────────────────
+   Groups every clip recorded in a single Start Video press (one
+   per active camera). The header surfaces the shared player +
+   implement + timestamp + angle count and (for multi-angle
+   bundles) a "Save all / Discard all" pair. The angles list
+   below renders one `.clipRow` per camera. */
+.bundleCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+}
+.bundleHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.bundleHeaderInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bundleHeaderPlayer {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.bundleHeaderMeta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.bundleHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.bundleClips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clipRow {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .clipRow { grid-template-columns: 1fr; }
+}
+
+.clipPreview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 8px;
+}
+
+.clipMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clipPlayer {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.clipError {
+  font-size: 12px;
+  color: #dd6974;
+}
+
+.clipActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.clipSaved {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6daa45;
+}
+
+.clipDiscarded {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — Player select bubbles vs. action panels
+   ══════════════════════════════════════════════
+   Three-tier light palette across the Live training flow:
+     • Player-select containers (Athletes panel in Setup, Roster
+       column in Recording) → `--panel-bg-light` (#dee1e5 cool slate),
+       same color the Player Name bubble on the athlete profile uses
+       so the picker reads as "where the players live".
+     • Action panels (Position picker, Camera/Setup-Record column,
+       Save Clips) → `--bubble-chrome-bg` (#eaeaea near-white), the
+       same surface the Hitting Swing tool-grades card uses so every
+       action surface across the app reads in one off-white tone.
+     • Individual player chips inside the Roster column →
+       `--bubble-chrome-bg` near-white so each chip lifts off the
+       cool-slate column surface behind it. Active state still
+       carries the accent tint via the existing
+       `.rosterColumnRowActive` rule (no override needed). */
+
+/* Player-select OUTER bubbles → cool slate. */
+[data-theme="light"] .panel[data-panel-kind="players"],
+[data-theme="light"] .rosterColumn {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08));
+}
+
+/* Action / workflow OUTER bubbles → near-white (Swing color). */
+[data-theme="light"] .panel[data-panel-kind="position"],
+[data-theme="light"] .panel[data-panel-kind="save"],
+[data-theme="light"] .cameraColumn {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: var(--bubble-shadow,
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08));
+}
+
+/* Individual player CHIPS inside the Pitchers/Hitters roster
+   column (used by both /live/training Step 2 AND /live/at-bat
+   via the shared RosterColumn component) → near-white. */
+[data-theme="light"] .rosterColumnRow {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .rosterColumnRow:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+/* Inner roster rows in the SETUP step (RosterPicker on /live/at-bat
+   AND the Athletes panel on /live/training) — flip to near-white
+   `--bubble-chrome-bg` so each chip lifts off the cool-slate
+   player-select bubble behind it, matching the Recording step's
+   `.rosterColumnRow` treatment above. */
+[data-theme="light"] .rosterRow {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .rosterRow:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+/* ── Light-theme label color — section titles + roster column heads ──
+   "Athletes", "Pitchers", "Hitters", "Position", "Save Clips",
+   "Save Recordings" all render through `.panelTitle`; the Tracker
+   step's "Pitchers"/"Hitters" column heads use `.rosterColumnHead`.
+   Both are hardcoded `#fff` / `var(--text-bright)` in the base
+   rules above — invisible on the light-mode bubble fills. Flip to
+   the same dark-graphite gradient the `/live` mode-card titles
+   ("Training" / "Live") wear so every label across the Live flow
+   reads in one identity.
+   Uses background-clip:text — supported in every modern browser
+   that runs the rest of the app's text-gradient titles
+   (PageHeader, etc.). */
+[data-theme="light"] .panelTitle,
+[data-theme="light"] .rosterColumnHead {
+  color: transparent;
+  background: linear-gradient(180deg,
+    #1a1f25 0%,
+    #2a3138 40%,
+    #404a52 85%,
+    #5a646c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Bundle "Attach to report" row ──
+   Sits between the bundle header (player + meta + Save-all/Discard-all
+   buttons) and the per-camera clip list. One picker per bundle since
+   every camera angle from a single Start Video press records the same
+   player at the same moment, so they all attach to the same report
+   when the coach picks one. Mirrors the at-bat `.savePickerRow` /
+   `.savePickerSelect` rhythm so the two Live save dialogs read the
+   same visually. */
+.bundleAttachRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 0 4px 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.bundleAttachLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.bundleAttachSelect {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bundleAttachSelect:hover { border-color: rgba(126, 182, 255, 0.40); }
+.bundleAttachSelect:focus { outline: none; border-color: var(--accent); }
+
+/* Light theme — match the near-white interior surface every other
+   inner control on the Live save dialog uses in light mode so the
+   picker reads as part of the Save Clips bubble rather than a
+   floating dark chip. */
+[data-theme="light"] .bundleAttachRow {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .bundleAttachSelect {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: var(--text);
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — recording-flow surfaces
+   ══════════════════════════════════════════════
+   Comprehensive pass covering every dark-only surface in the
+   Setup → Recording → Save flow that wasn't already covered by
+   the panel/roster overrides above. Each rule flips the existing
+   `rgba(255,255,255,…)` dark tints to a matching black-alpha or
+   near-white surface so the recording UI reads in the same
+   palette as the rest of the coaching app in light mode. */
+
+/* Stepper dots (1 → 2 → 3 at the top of the page) — circular
+   step indicators flip from a pale-white-on-dark to a dim-
+   black-on-light treatment. The accent-blue active state keeps
+   its current treatment (already reads on light too). */
+[data-theme="light"] .stepDot span {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text);
+}
+[data-theme="light"] .stepDotActive {
+  background: rgba(126, 182, 255, 0.18);
+}
+
+/* Position pills (HITTING / PITCHING / INFIELD / OUTFIELD /
+   CATCHING toggle in Step 1). Idle = near-white chip on cool
+   slate; hover = slightly darker chip border; active = accent-
+   blue wash (same blue used in dark — works on light too). */
+[data-theme="light"] .positionPill {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: var(--text);
+}
+[data-theme="light"] .positionPill:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+/* Action buttons — primary / secondary / danger. Primary keeps
+   its blue gradient (translates fine to light); secondary flips
+   from a translucent-white chip to a translucent-black chip so
+   it reads as a quiet button on the new light surface. */
+[data-theme="light"] .secondaryBtn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+}
+[data-theme="light"] .secondaryBtn:hover {
+  border-color: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .primaryBtn:disabled {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: var(--text-muted);
+}
+
+/* Implement bar (Tee / BP / Machine selector in Step 2) — pills
+   flip from translucent-white to translucent-black. Active pill
+   keeps the accent wash. */
+[data-theme="light"] .implementPill {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+}
+[data-theme="light"] .implementPill:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+/* Camera selector bar — the controls strip sitting at the top
+   of the video column lists which cameras to record. Surface
+   flips to near-white. */
+[data-theme="light"] .cameraSelectorBar {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+/* Save-step bundle card chrome — outer card + inner clip rows
+   flip to a clean near-white surface. The category-colored
+   border-left accent on the bundle card stays untouched (the
+   inline `borderLeft` set in JSX already shows through). */
+[data-theme="light"] .bundleCard {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .clipRow {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .clipRow:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}

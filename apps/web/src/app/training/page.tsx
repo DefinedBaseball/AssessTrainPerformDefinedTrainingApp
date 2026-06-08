@@ -8,6 +8,13 @@ import type { Player, Drill, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
+/* Tab + category color system lives in a shared module so the Player
+   Summary's Upcoming Drills panel renders the same color treatment as
+   the Training day-column cards do here — single source of truth. */
+import {
+  TAB_LABELS, TAB_COLORS, TAB_CAT_COLORS, DEFAULT_CAT_COLOR,
+  LEGEND_CATEGORIES, getTabCatStyle,
+} from '@/lib/training-colors';
 
 /* ── Constants ──
    The full tab catalog. Visibility on the calendar is filtered per-athlete
@@ -62,66 +69,9 @@ function visibleTabsForPlayer(player: Player | null | undefined): typeof TABS {
   });
 }
 
-/* ── Tab+Category Color System ──
-   Each tab has a base hue (Blue/Red/Green/Orange/Yellow).
-   Categories within each tab graduate from LIGHTEST → DARKEST top-to-bottom. */
-const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> = {
-  /* Hitting — Blues: pastel → sky → blue → dark blue → navy */
-  hitting: {
-    'Movement Prep':    { dot: '#B8D8F8', bg: 'rgba(184,216,248,0.13)', text: '#B8D8F8' },
-    'Drills':           { dot: '#82B8E8', bg: 'rgba(130,184,232,0.13)', text: '#82B8E8' },
-    'Batting Practice': { dot: '#4A90D9', bg: 'rgba(74,144,217,0.13)',  text: '#4A90D9' },
-    'Machine':          { dot: '#2E6DB5', bg: 'rgba(46,109,181,0.13)',  text: '#2E6DB5' },
-    'Live':             { dot: '#1B4F8A', bg: 'rgba(27,79,138,0.15)',   text: '#1B4F8A' },
-  },
-  /* Pitching — Oranges: peach → tangerine → orange → burnt → ember */
-  pitching: {
-    'Movement Prep': { dot: '#FDD9A8', bg: 'rgba(253,217,168,0.13)', text: '#FDD9A8' },
-    'Drills':        { dot: '#F8B85E', bg: 'rgba(248,184,94,0.13)',  text: '#F8B85E' },
-    'Bullpen':       { dot: '#F59E0B', bg: 'rgba(245,158,11,0.13)',  text: '#F59E0B' },
-    'Live':          { dot: '#C77A09', bg: 'rgba(199,122,9,0.15)',   text: '#C77A09' },
-    'Post-Throw':    { dot: '#8B4F08', bg: 'rgba(139,79,8,0.18)',    text: '#8B4F08' },
-  },
-  /* Catching — Turquoise / teal-greens, lightest → darkest */
-  catching: {
-    'Movement Prep': { dot: '#A0E8D8', bg: 'rgba(160,232,216,0.13)', text: '#A0E8D8' },
-    'Drills':        { dot: '#5FD4B5', bg: 'rgba(95,212,181,0.13)',  text: '#5FD4B5' },
-    'Machine':       { dot: '#14B8A6', bg: 'rgba(20,184,166,0.13)',  text: '#14B8A6' },
-    'Live':          { dot: '#0E8E70', bg: 'rgba(14,142,112,0.15)',  text: '#0E8E70' },
-  },
-  /* Infield — True greens: mint → light green → green → forest */
-  infield: {
-    'Movement Prep': { dot: '#B0F0B0', bg: 'rgba(176,240,176,0.13)', text: '#B0F0B0' },
-    'Drills':        { dot: '#6ED06E', bg: 'rgba(110,208,110,0.13)', text: '#6ED06E' },
-    'Machine':       { dot: '#38A850', bg: 'rgba(56,168,80,0.13)',   text: '#38A850' },
-    'Live':          { dot: '#1E7A32', bg: 'rgba(30,122,50,0.15)',   text: '#1E7A32' },
-  },
-  /* Outfield — Lime / yellow-greens (warm side of the green family) */
-  outfield: {
-    'Movement Prep': { dot: '#DAF0A0', bg: 'rgba(218,240,160,0.13)', text: '#DAF0A0' },
-    'Drills':        { dot: '#B8D870', bg: 'rgba(184,216,112,0.13)', text: '#B8D870' },
-    'Machine':       { dot: '#88B838', bg: 'rgba(136,184,56,0.13)',  text: '#88B838' },
-    'Live':          { dot: '#5A8418', bg: 'rgba(90,132,24,0.15)',   text: '#5A8418' },
-  },
-  /* S&C — Reds: pink → salmon → red → maroon */
-  strength: {
-    'Movement Prep': { dot: '#F8B8B8', bg: 'rgba(248,184,184,0.13)', text: '#F8B8B8' },
-    'Exercises':     { dot: '#EF4444', bg: 'rgba(239,68,68,0.13)',   text: '#EF4444' },
-    'Cool Down':     { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
-  },
-};
-
-const DEFAULT_CAT_COLOR = { dot: '#5A9BD5', bg: 'rgba(90,155,213,0.13)', text: '#5A9BD5' };
-
-function getTabCatStyle(tab: string, category: string) {
-  const c = TAB_CAT_COLORS[tab]?.[category] || DEFAULT_CAT_COLOR;
-  return {
-    dotStyle: { background: c.dot },
-    bgStyle: { background: c.bg, borderLeft: `3px solid ${c.dot}` },
-    textStyle: { color: c.text },
-    color: c.dot,
-  };
-}
+/* TAB_CAT_COLORS / DEFAULT_CAT_COLOR / getTabCatStyle moved to
+   `@/lib/training-colors` so the Player Summary's Upcoming Drills
+   panel shares the same color palette + helpers. Imported above. */
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -133,25 +83,7 @@ function hexToRgba(hex: string, alpha: number): string {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/* Single-day-view tab badge colors — unified app-wide palette:
-     Hitting blue, Pitching red, Catching orange, IF/OF green, S&C yellow. */
-const TAB_COLORS: Record<string, { bg: string; text: string }> = {
-  hitting:  { bg: 'rgba(59,130,246,0.15)',  text: '#3B82F6' },
-  pitching: { bg: 'rgba(245,158,11,0.15)',  text: '#F59E0B' },
-  catching: { bg: 'rgba(20,184,166,0.15)',  text: '#14B8A6' },
-  infield:  { bg: 'rgba(34,197,94,0.15)',   text: '#22C55E' },
-  outfield: { bg: 'rgba(34,197,94,0.15)',   text: '#22C55E' },
-  strength: { bg: 'rgba(239,68,68,0.15)',   text: '#EF4444' },
-};
-
-const TAB_LABELS: Record<string, string> = {
-  hitting: 'Hitting',
-  pitching: 'Pitching',
-  catching: 'Catching',
-  infield: 'Infield',
-  outfield: 'Outfield',
-  strength: 'S&C',
-};
+/* TAB_COLORS + TAB_LABELS moved to `@/lib/training-colors`. */
 
 /* Modal dropdown config per tab — `dbCategory` is the Drill Library category it pulls from.
    Multiple dropdowns can share the same dbCategory (e.g. Tee & Front Toss both pull from "Drills").
@@ -204,15 +136,7 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
   ],
 };
 
-/* Unique DB categories per tab — for calendar legend */
-const LEGEND_CATEGORIES: Record<string, string[]> = {
-  hitting:  ['Movement Prep', 'Drills', 'Batting Practice', 'Machine', 'Live'],
-  pitching: ['Movement Prep', 'Drills', 'Bullpen', 'Live', 'Post-Throw'],
-  catching: ['Movement Prep', 'Drills', 'Machine', 'Live'],
-  infield:  ['Movement Prep', 'Drills', 'Machine', 'Live'],
-  outfield: ['Movement Prep', 'Drills', 'Machine', 'Live'],
-  strength: ['Movement Prep', 'Exercises', 'Cool Down'],
-};
+/* LEGEND_CATEGORIES moved to `@/lib/training-colors`. */
 
 function formatDate(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -220,6 +144,16 @@ function formatDate(y: number, m: number, d: number): string {
 
 function toDateStr(date: Date): string {
   return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/* Parse a YYYY-MM-DD string as LOCAL midnight, never UTC. The native
+   `new Date('2026-04-30')` form is interpreted as UTC midnight, which
+   bumps to the previous day for any user west of UTC and produces
+   off-by-one calendar bugs. Always use this helper. */
+function parseLocalDate(s: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return new Date(s);
+  return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
 }
 
 function parseTime(t: string): number {
@@ -244,8 +178,33 @@ export default function TrainingPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [activeTab, setActiveTab] = useState('all');
-  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 11));
+  /* Initial state is 'week' — the coach default. The useEffect below
+   * overrides to 'day' for player-role users once auth resolves. */
+  const [view, setView] = useState<'month' | 'week' | 'day'>('week');
+  /* Default date is today for everyone. The previous hardcoded
+   * `new Date(2026, 3, 11)` was stale dev seed data — it pointed at a
+   * specific demo session and silently skipped past today's schedule. */
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  /* Role-aware default view. Players land on the Day view of today's
+   * drills — that's the single piece of information they want most when
+   * opening the calendar. Coaches default to the Week view (set as the
+   * initial useState value above) which gives them a 7-day planning
+   * window without the density of the month grid.
+   *
+   * Done in a useEffect rather than a lazy useState initializer because
+   * the auth context loads asynchronously from localStorage; on first
+   * render `isCoach` is always false even for coaches, so a lazy
+   * initializer would incorrectly pin everyone to the player default.
+   * The ref guard ensures the role-based override fires only once —
+   * after the user manually changes view we never override their
+   * choice. */
+  const initialViewSetRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || !user || initialViewSetRef.current) return;
+    initialViewSetRef.current = true;
+    if (!isCoach) setView('day');
+  }, [authLoading, user, isCoach]);
   const [events, setEvents] = useState<ScheduledDrill[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
@@ -398,10 +357,22 @@ export default function TrainingPage() {
     setShowModal(true);
   };
 
-  // Copy day
+  // Copy day — copies EVERY tab's drills for the date.
   const handleCopyDay = (date: string) => {
     setCopiedDate(date);
     setCopiedDrills(allEventsByDate[date] || []);
+  };
+
+  /* Copy a single tab's drills for the date — same clipboard as the
+     full-day Copy, just filtered to one tab. Pasting still uses the
+     existing `handlePasteDay` so the workflow is consistent: copy
+     just Hitting → switch days → Paste places only those Hitting
+     drills on the target date. */
+  const handleCopyTab = (date: string, tabKey: string) => {
+    setCopiedDate(date);
+    setCopiedDrills(
+      (allEventsByDate[date] || []).filter((ev) => ev.tab === tabKey),
+    );
   };
 
   // Paste day
@@ -583,7 +554,7 @@ export default function TrainingPage() {
         <MonthView
           currentDate={currentDate}
           allEvents={events}
-          onDayClick={(date) => { setCurrentDate(new Date(date + 'T12:00:00')); setView('day'); }}
+          onDayClick={(date) => { setCurrentDate(parseLocalDate(date)); setView('day'); }}
         />
       )}
       {selectedPlayerId && view === 'week' && (
@@ -592,7 +563,7 @@ export default function TrainingPage() {
           eventsByDate={eventsByDate}
           allEvents={events}
           activeTab={activeTab}
-          onDayClick={(date) => { setCurrentDate(new Date(date + 'T12:00:00')); setView('day'); }}
+          onDayClick={(date) => { setCurrentDate(parseLocalDate(date)); setView('day'); }}
           onDrillClick={(drill) => setViewingDrill(drill)}
         />
       )}
@@ -604,6 +575,7 @@ export default function TrainingPage() {
           onDelete={handleDelete}
           onEdit={() => openEditModal(todayDateStr)}
           onCopy={() => handleCopyDay(todayDateStr)}
+          onCopyTab={(tabKey) => handleCopyTab(todayDateStr, tabKey)}
           onPaste={() => handlePasteDay(todayDateStr)}
           hasCopied={copiedDrills.length > 0}
           copiedFromDate={copiedDate}
@@ -829,6 +801,7 @@ function DayView({
   onDelete,
   onEdit,
   onCopy,
+  onCopyTab,
   onPaste,
   hasCopied,
   copiedFromDate,
@@ -841,6 +814,11 @@ function DayView({
   onDelete: (id: string) => void;
   onEdit: () => void;
   onCopy: () => void;
+  /** Copy a single tab's drills (just Hitting / just Pitching / etc.)
+   *  — same clipboard the day-wide `onCopy` uses, filtered to one
+   *  tab. Coaches can hit a per-column Copy button then paste those
+   *  drills onto another day's same column. */
+  onCopyTab: (tabKey: string) => void;
   onPaste: () => void;
   hasCopied: boolean;
   copiedFromDate: string | null;
@@ -849,6 +827,13 @@ function DayView({
   visibleTabs: typeof TABS;
 }) {
   const dateLabel = currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  /* Focused-tab state — null means "show full day across every visible
+   * column". Clicking a column header narrows the view to just that tab
+   * (Pitching only, Hitting only, etc.) so the user can read a single
+   * area's plan at a comfortable size. Click "← All areas" to return.
+   * Drill-click → DrillVideoModal flow is unchanged in both modes. */
+  const [focusedTab, setFocusedTab] = useState<string | null>(null);
 
   // Group events by tab
   const eventsByTab = useMemo(() => {
@@ -860,77 +845,301 @@ function DayView({
     return map;
   }, [allDayEvents]);
 
+  /* Group a tab's events into "category bubbles" preserving the natural
+   * ordering coaches expect (Movement Prep → Drills → Bullpen → Live → ...).
+   * Uses the LEGEND_CATEGORIES map as the canonical order; anything not
+   * in that list (legacy categories, one-offs) falls to the end sorted
+   * alphabetically so it never disappears from the UI. */
+  const groupByCategory = (events: ScheduledDrill[], tabKey: string) => {
+    const canonical = LEGEND_CATEGORIES[tabKey] || [];
+    const buckets = new Map<string, ScheduledDrill[]>();
+    for (const ev of events) {
+      const key = ev.category || 'Other';
+      const arr = buckets.get(key) || [];
+      arr.push(ev);
+      buckets.set(key, arr);
+    }
+    return Array.from(buckets.entries()).sort(([a], [b]) => {
+      const ai = canonical.indexOf(a);
+      const bi = canonical.indexOf(b);
+      if (ai === -1 && bi === -1) return a.localeCompare(b);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  };
+
+  // When entering focus mode, look up the tab's metadata once.
+  const focusedTabMeta = focusedTab ? visibleTabs.find((t) => t.key === focusedTab) ?? null : null;
+  const focusedEvents = focusedTab ? (eventsByTab[focusedTab] || []) : [];
+  const focusedColor = focusedTab ? (TAB_COLORS[focusedTab] || TAB_COLORS.hitting) : null;
+
   return (
     <div className={styles.dayView}>
       {/* Header with date + action buttons */}
       <div className={styles.dayViewHeader}>
         <div>
           <div className={styles.dayViewTitle}>{dateLabel}</div>
-          <div className={styles.dayViewSubtitle}>{allDayEvents.length} drill{allDayEvents.length !== 1 ? 's' : ''} scheduled</div>
-        </div>
-        {isCoach && (
-          <div className={styles.dayActions}>
-            <button className={styles.dayActionBtn} onClick={onEdit} title="Edit day's drills">
-              Edit
-            </button>
-            <button className={styles.dayActionBtn} onClick={onCopy} title="Copy this day's drills">
-              Copy
-            </button>
-            {hasCopied && (
-              <button className={styles.dayActionBtnAccent} onClick={onPaste} title={`Paste drills from ${copiedFromDate}`}>
-                Paste
-              </button>
+          <div className={styles.dayViewSubtitle}>
+            {focusedTabMeta ? (
+              <>
+                {focusedTabMeta.label} only · {focusedEvents.length} drill{focusedEvents.length !== 1 ? 's' : ''}
+              </>
+            ) : (
+              <>{allDayEvents.length} drill{allDayEvents.length !== 1 ? 's' : ''} scheduled</>
             )}
           </div>
-        )}
+        </div>
+        <div className={styles.dayActions}>
+          {focusedTabMeta && (
+            <button
+              className={styles.dayActionBtn}
+              onClick={() => setFocusedTab(null)}
+              title="Back to the full day across every area"
+            >
+              ← All areas
+            </button>
+          )}
+          {/* While focused on a single tab the coach can still copy
+              just THAT tab's drills via this button (mirrors the
+              column-header Copy in the multi-column view). Hidden
+              when the focused tab has no drills to copy. */}
+          {isCoach && focusedTabMeta && focusedEvents.length > 0 && (
+            <button
+              className={styles.dayActionBtn}
+              onClick={() => onCopyTab(focusedTabMeta.key)}
+              title={`Copy ${focusedTabMeta.label} drills only`}
+            >
+              Copy {focusedTabMeta.label}
+            </button>
+          )}
+          {isCoach && !focusedTabMeta && (
+            <>
+              <button className={styles.dayActionBtn} onClick={onEdit} title="Edit day's drills">
+                Edit
+              </button>
+              <button className={styles.dayActionBtn} onClick={onCopy} title="Copy this day's drills">
+                Copy
+              </button>
+              {hasCopied && (
+                <button className={styles.dayActionBtnAccent} onClick={onPaste} title={`Paste drills from ${copiedFromDate}`}>
+                  Paste
+                </button>
+              )}
+            </>
+          )}
+          {/* Paste also available in focused mode — pastes whatever
+              is on the clipboard (full-day OR single-tab) onto the
+              current day. */}
+          {isCoach && focusedTabMeta && hasCopied && (
+            <button
+              className={styles.dayActionBtnAccent}
+              onClick={onPaste}
+              title={`Paste drills from ${copiedFromDate}`}
+            >
+              Paste
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Position-aware columns — one per visible tab for this athlete */}
-      <div className={styles.dayGrid} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
-        {visibleTabs.map(tab => {
-          const tabEvents = eventsByTab[tab.key] || [];
-          const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
-          return (
-            <div key={tab.key} className={styles.dayCol}>
-              <div className={styles.dayColHeader} style={{ borderBottomColor: tabColor.text }}>
-                <span className={styles.dayColTitle} style={{ color: tabColor.text }}>{tab.label}</span>
-                {tabEvents.length > 0 && (
-                  <span className={styles.dayColCount} style={{ background: tabColor.bg, color: tabColor.text }}>
-                    {tabEvents.length}
-                  </span>
-                )}
+      {focusedTabMeta && focusedColor ? (
+        /* ── Focused single-tab view ──
+         * Same drill cards as the multi-column grid, but larger and
+         * stacked single-column so the area's plan reads like a list
+         * instead of being squeezed into a 1/6th-width column. Cards
+         * keep the click → DrillVideoModal behavior. */
+        <div
+          className={styles.dayFocus}
+          style={{ borderTop: `3px solid ${focusedColor.text}` }}
+        >
+          <div
+            className={styles.dayFocusHeader}
+            style={{ background: focusedColor.bg }}
+          >
+            <span className={styles.dayFocusTitle} style={{ color: focusedColor.text }}>
+              {focusedTabMeta.label}
+            </span>
+            <span className={styles.dayFocusCount}>
+              {focusedEvents.length} drill{focusedEvents.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className={styles.dayFocusBody}>
+            {focusedEvents.length === 0 ? (
+              <div className={styles.dayFocusEmpty}>
+                No {focusedTabMeta.label.toLowerCase()} drills scheduled for this day.
               </div>
-              <div className={styles.dayColBody}>
-                {tabEvents.length === 0 && (
-                  <div className={styles.dayColEmpty}>—</div>
-                )}
-                {tabEvents.map(ev => {
-                  const catStyle = getTabCatStyle(tab.key, ev.category);
-                  return (
-                    <div
-                      key={ev.id}
-                      className={`${styles.dayColCard} ${ev.drill ? styles.dayColCardClickable : ''}`}
-                      style={catStyle.bgStyle}
-                      onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
-                    >
-                      <div className={styles.dayColCardTop}>
-                        <span className={styles.dayColCardCat} style={catStyle.textStyle}>{ev.category}</span>
-                        {isCoach && (
-                          <button className={styles.dayEventDelete} onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }} title="Delete">×</button>
-                        )}
-                      </div>
-                      <div className={styles.dayColCardName}>{ev.name}</div>
-                      {ev.drill?.description && (
-                        <div className={styles.dayColCardDesc}>{ev.drill.description}</div>
-                      )}
+            ) : (
+              /* One category-bubble per category (Movement Prep / Drills /
+                 Live / etc.) — same grouping logic as the multi-column
+                 view. Inside each bubble: list of drill names, each
+                 individually clickable + deletable. */
+              groupByCategory(focusedEvents, focusedTabMeta.key).map(([category, items]) => {
+                const catStyle = getTabCatStyle(focusedTabMeta.key, category);
+                return (
+                  <div
+                    key={category}
+                    className={styles.dayFocusCard}
+                    style={catStyle.bgStyle}
+                  >
+                    <div className={styles.dayFocusCardTop}>
+                      <span className={styles.dayColCardCat} style={catStyle.textStyle}>
+                        {category}
+                      </span>
+                      <span className={styles.dayFocusBubbleCount} style={catStyle.textStyle}>
+                        {items.length}
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className={styles.dayFocusCardList}>
+                      {items.map((ev) => (
+                        <div
+                          key={ev.id}
+                          className={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                          onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                        >
+                          <span className={styles.dayFocusCardItemName}>{ev.name}</span>
+                          {isCoach && (
+                            <button
+                              className={styles.dayEventDelete}
+                              onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
+                              title="Delete"
+                            >×</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ── Default multi-column grid ── */
+        <div className={styles.dayGrid} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+          {visibleTabs.map(tab => {
+            const tabEvents = eventsByTab[tab.key] || [];
+            const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
+            return (
+              <div key={tab.key} className={styles.dayCol}>
+                {/* Column header — `<div>` wrapper instead of a single
+                    `<button>` so the focus-tab click and the per-tab
+                    Copy click can each be their own buttons (nested
+                    `<button>` would be invalid HTML). The CSS
+                    `.dayColHeader` styles still apply because the
+                    selector matches class only, not element type. */}
+                <div
+                  className={styles.dayColHeader}
+                  style={{ borderBottomColor: tabColor.text, cursor: 'default' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setFocusedTab(tab.key)}
+                    title={`Focus on ${tab.label}`}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      font: 'inherit',
+                      color: 'inherit',
+                    }}
+                  >
+                    <span className={styles.dayColTitle} style={{ color: tabColor.text }}>{tab.label}</span>
+                    {tabEvents.length > 0 && (
+                      <span className={styles.dayColCount} style={{ background: tabColor.bg, color: tabColor.text }}>
+                        {tabEvents.length}
+                      </span>
+                    )}
+                  </button>
+                  {/* Per-tab Copy button — always rendered for coaches
+                      so the affordance is visible regardless of
+                      whether the column currently has drills.
+                      Disabled (with a tooltip) when there's nothing
+                      to copy so the empty-clipboard case is obvious
+                      instead of the button silently disappearing. */}
+                  {isCoach && (
+                    <button
+                      type="button"
+                      disabled={tabEvents.length === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (tabEvents.length > 0) onCopyTab(tab.key);
+                      }}
+                      title={tabEvents.length > 0
+                        ? `Copy ${tab.label} drills only`
+                        : `No ${tab.label} drills to copy`}
+                      style={{
+                        background: tabEvents.length > 0
+                          ? tabColor.bg
+                          : 'transparent',
+                        border: `1px solid ${tabColor.text}`,
+                        color: tabColor.text,
+                        padding: '2px 8px',
+                        borderRadius: 5,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        cursor: tabEvents.length > 0 ? 'pointer' : 'not-allowed',
+                        opacity: tabEvents.length > 0 ? 1 : 0.4,
+                        marginLeft: 'auto',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Copy
+                    </button>
+                  )}
+                </div>
+                <div className={styles.dayColBody}>
+                  {tabEvents.length === 0 && (
+                    <div className={styles.dayColEmpty}>—</div>
+                  )}
+                  {/* Group this tab's drills into one bubble per category
+                      (Movement Prep / Drills / Bullpen / Live / ...). Drill
+                      names list inside the bubble; click any name to open
+                      the per-drill modal, × to delete that one entry. */}
+                  {groupByCategory(tabEvents, tab.key).map(([category, items]) => {
+                    const catStyle = getTabCatStyle(tab.key, category);
+                    return (
+                      <div
+                        key={category}
+                        className={styles.dayColCard}
+                        style={catStyle.bgStyle}
+                      >
+                        <div className={styles.dayColCardTop}>
+                          <span className={styles.dayColCardCat} style={catStyle.textStyle}>{category}</span>
+                        </div>
+                        <div className={styles.dayColCardList}>
+                          {items.map((ev) => (
+                            <div
+                              key={ev.id}
+                              className={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                              onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                            >
+                              <span className={styles.dayColCardItemName}>{ev.name}</span>
+                              {isCoach && (
+                                <button
+                                  className={styles.dayEventDelete}
+                                  onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
+                                  title="Delete"
+                                >×</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1115,9 +1324,17 @@ function DrillDashboardModal({
     setSaving(true);
 
     try {
-      // If editing, delete all existing drills for this date first
+      /* If editing, replace only the LIBRARY-linked events (those with a
+         drillId in selectedIds the recreate step can rebuild from). One-
+         off scheduled entries with no drillId can't be re-created from
+         the selection, so deleting them here would silently destroy
+         hand-entered drills. The save loop below adds back exactly the
+         currently-selected drill IDs, so library-linked existing events
+         that are still selected get a delete-then-recreate (idempotent)
+         and library-linked events that are NOT selected get removed. */
       if (isEdit) {
         for (const ev of existingEvents) {
+          if (ev.drillId == null) continue;       // preserve hand-entered
           await api.deleteScheduledDrill(ev.id);
         }
       }

@@ -62,8 +62,9 @@ export interface Player {
   highSchool: string | null;
   clubTeam: string | null;
   birthDate: string | null;
-  /** JSON-encoded map of `{ [aggregateSectionKey]: nextStepsText }` shown in
-   *  the Player Summary's Development snapshot. */
+  /** JSON-encoded map of `{ [aggregateSectionKey]: notesText }` rendered
+   *  as per-section Notes bubbles under the Tool Grades panel on the
+   *  Player Summary tab. Coach-editable; player view is read-only. */
   developmentNotes?: string | null;
   user?: { email: string; role: string };
 }
@@ -355,6 +356,23 @@ export async function getLeaderboard(gradYear: number, metricType: string, limit
 export async function recomputeLeaderboard(gradYear?: number) {
   const qs = gradYear ? `?gradYear=${gradYear}` : '';
   return request<{ status: string }>(`/leaderboards/recompute${qs}`, { method: 'POST' });
+}
+
+/** A single row of the per-player rank summary — the player's leaderboard
+ *  position for one metric within their grad-year class. */
+export interface PlayerRank {
+  metricType: string;
+  value: number;
+  rank: number;
+  outOf: number;
+  gradYear: number;
+}
+
+/** Every leaderboard metric the player qualifies for, with their rank
+ *  within their grad-year class. Used by the player profile's "Class
+ *  Rankings" widget to surface the data without leaving the profile. */
+export async function getPlayerRank(playerId: string) {
+  return request<PlayerRank[]>(`/leaderboards/player/${playerId}`);
 }
 
 // ---- Videos ----
@@ -652,6 +670,11 @@ export interface MlbPlayer {
   throws: string | null;
   team: string | null;
   emoji: string;
+  /** Cover photo as a base64 data URL string. When present,
+   *  the player's card thumb + detail-page avatar render the
+   *  image instead of the `emoji` icon. Uploaded by coaches
+   *  via clicking the avatar/thumb in the Coaching App. */
+  coverImageUrl?: string | null;
   videos?: MlbVideo[];
 }
 
@@ -672,12 +695,20 @@ export async function createMlbPlayer(data: Partial<MlbPlayer>) {
   return request<MlbPlayer>('/education/mlb/players', { method: 'POST', body: JSON.stringify(data) });
 }
 
+export async function updateMlbPlayer(id: string, data: Partial<MlbPlayer>) {
+  return request<MlbPlayer>(`/education/mlb/players/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
 export async function deleteMlbPlayer(id: string) {
   return request<void>(`/education/mlb/players/${id}`, { method: 'DELETE' });
 }
 
 export async function createMlbVideo(data: { playerId: string; title: string; category: string; url?: string; notes?: string }) {
   return request<MlbVideo>('/education/mlb/videos', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateMlbVideo(id: string, data: { title?: string; category?: string; url?: string; notes?: string }) {
+  return request<MlbVideo>(`/education/mlb/videos/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
 export async function deleteMlbVideo(id: string) {
@@ -808,6 +839,8 @@ export interface ChartConfig {
   pbDirection?: 'MAX' | 'MIN' | null;
   zoneGrid?: '3x3' | '5x5' | null;
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
+  cohortEnabled?: boolean | null;
+  cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -834,6 +867,8 @@ export interface ChartConfigInput {
   pbDirection?: 'MAX' | 'MIN' | null;
   zoneGrid?: '3x3' | '5x5' | null;
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
+  cohortEnabled?: boolean | null;
+  cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
 }
 
 export async function getAnalyticsColumns(): Promise<AnalyticsColumn[]> {
@@ -863,6 +898,8 @@ export interface ChartEvaluation {
     source: string;
     metricType: string;
     label: string;
+    /** When true this series is the class-average overlay, not the focal athlete. */
+    cohort?: boolean;
     points: Array<{ date: string; value: number }>;
   }>;
 }
@@ -943,4 +980,234 @@ export async function updateCollege(id: string, data: Partial<CollegeInput>): Pr
 
 export async function deleteCollege(id: string): Promise<void> {
   return request(`/colleges/${id}`, { method: 'DELETE' });
+}
+
+// ---- Live Sessions ----
+/* Coach-led capture flows backed by the LiveSessionsModule on the API.
+ * Two modes share the same surface:
+ *   • TRAINING — one row per athlete on each clip recorded; clips
+ *                attach to the player on session-end save.
+ *   • LIVE     — per-batter at-bats with pitch-by-pitch tracking;
+ *                video is optional per at-bat. (Phase 3+.) */
+
+export type LiveSessionMode = 'TRAINING' | 'LIVE';
+export type LiveSessionStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+export interface LiveSession {
+  id: string;
+  createdById: string;
+  mode: LiveSessionMode;
+  position: string | null;
+  status: LiveSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  notes: string | null;
+}
+
+export interface LiveSessionDetail extends LiveSession {
+  trainingClips: TrainingClipDetail[];
+  atBats: unknown[]; // shape filled in Phase 3
+}
+
+export interface TrainingClipDetail {
+  id: string;
+  liveSessionId: string;
+  playerId: string;
+  videoId: string | null;
+  savedToReportId: string | null;
+  recordedAt: string;
+  player: { id: string; firstName: string; lastName: string; positions: string | null; profilePhoto: string | null };
+  video: { id: string; originalUrl: string | null; hlsUrl: string | null; thumbnailUrl: string | null; status: string } | null;
+}
+
+export async function createLiveSession(input: {
+  mode: LiveSessionMode;
+  position?: string;
+  notes?: string;
+}): Promise<LiveSession> {
+  return request('/live-sessions', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function getLiveSession(id: string): Promise<LiveSessionDetail> {
+  return request(`/live-sessions/${id}`);
+}
+
+export async function getRecentLiveSessions(limit = 25): Promise<(LiveSession & { _count: { trainingClips: number; atBats: number } })[]> {
+  return request(`/live-sessions?limit=${limit}`);
+}
+
+export async function updateLiveSession(
+  id: string,
+  input: { notes?: string; status?: LiveSessionStatus },
+): Promise<LiveSession> {
+  return request(`/live-sessions/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+export async function endLiveSession(id: string): Promise<LiveSession> {
+  return request(`/live-sessions/${id}/end`, { method: 'POST' });
+}
+
+// ── Training Clips (nested under live-sessions) ──
+
+export async function createTrainingClip(
+  sessionId: string,
+  input: { playerId: string; videoId?: string; savedToReportId?: string },
+): Promise<TrainingClipDetail> {
+  return request(`/live-sessions/${sessionId}/training-clips`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateTrainingClip(
+  clipId: string,
+  input: { videoId?: string | null; savedToReportId?: string | null },
+): Promise<TrainingClipDetail> {
+  return request(`/live-sessions/training-clips/${clipId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteTrainingClip(clipId: string): Promise<void> {
+  return request(`/live-sessions/training-clips/${clipId}`, { method: 'DELETE' });
+}
+
+// ── At-Bats + Pitches (LIVE-mode capture) ──
+
+export const PITCH_TYPES = [
+  'FASTBALL', 'SINKER', 'CUTTER', 'SLIDER', 'CURVEBALL',
+  'SWEEPER', 'CHANGEUP', 'SPLITTER', 'KNUCKLEBALL',
+] as const;
+export type PitchType = (typeof PITCH_TYPES)[number];
+
+export const PITCH_RESULTS = [
+  'STRIKE_LOOKING', 'STRIKE_SWINGING', 'STRIKE_OUT_LOOKING', 'STRIKE_OUT_SWINGING',
+  'FOUL', 'BALL', 'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL', 'WALK',
+] as const;
+export type PitchResult = (typeof PITCH_RESULTS)[number];
+
+/** Pitch results that terminate the at-bat — closing it should
+ *  set the AB outcome and stamp endedAt. */
+export const TERMINAL_PITCH_RESULTS: ReadonlySet<PitchResult> = new Set<PitchResult>([
+  'STRIKE_OUT_LOOKING', 'STRIKE_OUT_SWINGING',
+  'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL',
+  'WALK',
+]);
+
+export interface AtBat {
+  id: string;
+  liveSessionId: string | null;
+  hitterId: string;
+  pitcherId: string | null;
+  pitcherHandedness: string | null;
+  reportId: string | null;
+  videoId: string | null;
+  outcome: string | null;
+  /** Normalized spray-chart coordinates set when the coach taps
+   *  the live-tracker mini field for in-play outcomes (BARREL /
+   *  FLY_BALL / GROUND_BALL / LINE_DRIVE). Both values in [0,1]
+   *  where x is horizontal (0 = pull-side foul, 1 = oppo-side
+   *  foul) and y is depth (0 = home plate, 1 = deep outfield).
+   *  Null for K / BB / in-progress. */
+  sprayX: number | null;
+  sprayY: number | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+export interface AtBatDetail extends AtBat {
+  hitter:  { id: string; firstName: string; lastName: string; positions: string | null };
+  pitcher: { id: string; firstName: string; lastName: string; positions: string | null; throws: string | null } | null;
+  pitches: Pitch[];
+}
+
+export interface Pitch {
+  id: string;
+  atBatId: string;
+  pitchNumber: number;
+  pitchType: string;
+  callBallStrike: string | null;
+  result: string | null;
+  recordedAt: string;
+}
+
+export async function createAtBat(sessionId: string, input: {
+  hitterId: string;
+  pitcherId?: string | null;
+  pitcherHandedness?: string | null;
+}): Promise<AtBat> {
+  return request(`/live-sessions/${sessionId}/at-bats`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateAtBat(atBatId: string, input: {
+  outcome?: string | null;
+  endedAt?: string | null;
+  reportId?: string | null;
+  videoId?: string | null;
+}): Promise<AtBat> {
+  return request(`/live-sessions/at-bats/${atBatId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function closeAtBat(
+  atBatId: string,
+  outcome: string,
+  spray?: { x: number; y: number } | null,
+): Promise<AtBat> {
+  return request(`/live-sessions/at-bats/${atBatId}/close`, {
+    method: 'POST',
+    body: JSON.stringify({
+      outcome,
+      sprayX: spray?.x ?? null,
+      sprayY: spray?.y ?? null,
+    }),
+  });
+}
+
+export async function listAtBats(filters: {
+  hitterId?: string;
+  pitcherId?: string;
+  pitcherHandedness?: 'L' | 'R';
+  limit?: number;
+  since?: string;
+}): Promise<AtBatDetail[]> {
+  const params = new URLSearchParams();
+  if (filters.hitterId)          params.set('hitterId', filters.hitterId);
+  if (filters.pitcherId)         params.set('pitcherId', filters.pitcherId);
+  if (filters.pitcherHandedness) params.set('pitcherHandedness', filters.pitcherHandedness);
+  if (filters.limit)             params.set('limit', String(filters.limit));
+  if (filters.since)             params.set('since', filters.since);
+  return request(`/live-sessions/at-bats?${params}`);
+}
+
+export async function createPitch(atBatId: string, input: {
+  pitchType: PitchType | string;
+  callBallStrike?: 'BALL' | 'STRIKE' | null;
+  result?: PitchResult | string | null;
+}): Promise<Pitch> {
+  return request(`/live-sessions/at-bats/${atBatId}/pitches`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updatePitch(pitchId: string, input: {
+  pitchType?: PitchType | string;
+  callBallStrike?: 'BALL' | 'STRIKE' | null;
+  result?: PitchResult | string | null;
+}): Promise<Pitch> {
+  return request(`/live-sessions/pitches/${pitchId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deletePitch(pitchId: string): Promise<void> {
+  return request(`/live-sessions/pitches/${pitchId}`, { method: 'DELETE' });
 }

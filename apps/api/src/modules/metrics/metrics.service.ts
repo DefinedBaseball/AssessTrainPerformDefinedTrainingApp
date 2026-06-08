@@ -162,7 +162,12 @@ export class MetricsService {
     }
     return this.prisma.metric.findMany({
       where,
-      orderBy: { recordedAt: 'asc' },
+      // `id` tiebreaker after `recordedAt` so old-style HitTrax data
+      // (every aggregate stamped to the same `lastDate`) comes back
+      // in insertion order — which mirrors CSV row order — letting
+      // the spray-chart frontend pair EV / LA / Distance to spray
+      // dots by sorted index when timestamps collide.
+      orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
       select: { metricType: true, value: true, unit: true, recordedAt: true, rawData: true },
     });
   }

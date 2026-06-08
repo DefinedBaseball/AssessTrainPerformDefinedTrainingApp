@@ -8,6 +8,7 @@ import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
 import { PageHeader } from '@/components/PageHeader';
+import { getAgeFromBirthDate } from './[id]/helpers';
 import styles from './page.module.css';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
@@ -21,17 +22,25 @@ export default function AthletesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !user) router.replace('/login');
-  }, [isLoading, user, router]);
+    if (isLoading) return;
+    if (!user) { router.replace('/login'); return; }
+    // Players don't see the team roster — bounce them to their own profile.
+    // The backend now blocks api.getPlayers() for the PLAYER role too, but
+    // gating the route here avoids a flash of empty state and wasted fetch.
+    if (!isCoach) {
+      const target = (user as any).playerId ? `/athletes/${(user as any).playerId}` : '/';
+      router.replace(target);
+    }
+  }, [isLoading, user, isCoach, router]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isCoach) return;
     api.getPlayers().then(p => {
       const athletes = p.filter(x => x.positions !== 'COACH');
       setPlayers(athletes.length > 0 ? athletes : MOCK_PLAYERS);
       setLoading(false);
     }).catch(() => { setPlayers(MOCK_PLAYERS); setLoading(false); });
-  }, [user]);
+  }, [user, isCoach]);
 
   const filtered = players.filter(p => {
     const name = `${p.firstName} ${p.lastName}`.toLowerCase();
@@ -45,7 +54,7 @@ export default function AthletesPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div>
+    <div className={styles.pageRoot}>
       <PageHeader
         eyebrow="Roster"
         title="Athlete"
@@ -105,9 +114,12 @@ export default function AthletesPage() {
             <span className={styles.colPg}>PG</span>
           </div>
           {filtered.map(p => {
-            const age = p.birthDate
-              ? Math.floor((Date.now() - new Date(p.birthDate).getTime()) / 31557600000)
-              : null;
+            // Age comes strictly from birthDate via the shared
+            // helper so the athletes-list and profile telemetry
+            // strip agree exactly. Replaces the previous
+            // `(now - birth) / 31557600000` approximation, which
+            // drifted by up to a day around the player's birthday.
+            const age = getAgeFromBirthDate(p.birthDate);
             const ht = p.heightInches
               ? `${Math.floor(p.heightInches / 12)}'${p.heightInches % 12}"`
               : '—';

@@ -37,6 +37,24 @@ interface ReportSelectorProps {
    *  individual reports, no per-row download/delete. The bar shows the
    *  currently-selected range label instead of a report title. */
   rangeOnly?: boolean;
+  /** When true, the bar text in the title slot is forced to the static
+   *  `label` value instead of being replaced by the selected report's
+   *  title. The meta line (creation date + author) still reflects the
+   *  selected report so the coach can tell which one is active, and the
+   *  click-to-edit behavior on the title button is preserved. Used by
+   *  the Player Summary tab where the bar should always read
+   *  "Player Summary" regardless of which report is currently picked. */
+  lockLabel?: boolean;
+  /** Optional priority list of report types used by the auto-select
+   *  logic. When provided, the selector picks the latest report whose
+   *  `reportType` appears first in this list, falling through to the
+   *  next type if none of the earlier ones exist. Only kicks in when
+   *  no selection is currently set (or the current selection has been
+   *  filtered out) — manual picks from the dropdown always win.
+   *  Used by the Player Summary tab: ['HITTING', 'PITCHING'] so a
+   *  player who carries both types lands on their latest Hitting
+   *  report first, and a pitcher-only player lands on Pitching. */
+  preferredTypes?: string[];
 }
 
 export function ReportSelector({
@@ -51,6 +69,8 @@ export function ReportSelector({
   onDownload,
   onEdit,
   rangeOnly = false,
+  lockLabel = false,
+  preferredTypes,
 }: ReportSelectorProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -58,18 +78,31 @@ export function ReportSelector({
   const dropRef = useRef<HTMLDivElement>(null);
 
   /** Date-range presets — "Last Report" = single most recent report; the rest
-   *  are time windows (days back from now). days=null means no time filter. */
+   *  are time windows (days back from now). days=null means no time filter.
+   *  Order: Last Report → progressive windows → All Time at the bottom. */
   type RangeKey = 'lastReport' | 'all' | 'week' | 'month' | '3months' | '6months' | 'year';
   const RANGE_OPTIONS: { key: RangeKey; label: string; days: number | null }[] = [
     { key: 'lastReport', label: 'Last Report',   days: null },
-    { key: 'all',        label: 'All Time',      days: null },
     { key: 'week',       label: 'Last Week',     days: 7 },
     { key: 'month',      label: 'Last Month',    days: 30 },
     { key: '3months',    label: 'Last 3 Months', days: 90 },
     { key: '6months',    label: 'Last 6 Months', days: 180 },
     { key: 'year',       label: 'Last Year',     days: 365 },
+    { key: 'all',        label: 'All Time',      days: null },
   ];
-  const [dateRange, setDateRange] = useState<RangeKey>('lastReport');
+  /* Default to 'All Time' when a priority list is provided, so the
+     priority pick can scan EVERY report for the preferred type.
+     Without this, the default `'lastReport'` collapses the candidate
+     pool to a single newest report — defeating the type filter if
+     the global newest happens to be a non-preferred type (e.g. a
+     Physical/STRENGTH report leaking into the Player Summary slot
+     when the player also has Hitting on file). Falls back to the
+     historical `'lastReport'` default whenever `preferredTypes` is
+     absent so every other call site (HittingTab, PitchingTab, etc.)
+     keeps the original behavior. */
+  const [dateRange, setDateRange] = useState<RangeKey>(
+    preferredTypes && preferredTypes.length > 0 ? 'all' : 'lastReport',
+  );
 
   // Filter by report type first, then sort newest-first.
   const typeFilteredReports = useMemo(() => {
@@ -93,7 +126,26 @@ export function ReportSelector({
     return typeFilteredReports.filter(r => new Date(r.createdAt).getTime() >= cutoff);
   }, [typeFilteredReports, dateRange]);
 
-  // Auto-select most recent if no selection (or selection no longer in list).
+  /** Pick the auto-default report from the filtered list, honoring
+   *  `preferredTypes` if it was passed. The priority list is scanned
+   *  in order — the first type that has at least one matching report
+   *  wins; `matchingReports` is already sorted newest-first so the
+   *  found report is automatically the latest of that type. Falls
+   *  through to the global newest report when none of the preferred
+   *  types are present. */
+  const pickDefaultReport = useMemo(() => {
+    if (matchingReports.length === 0) return null;
+    if (preferredTypes && preferredTypes.length > 0) {
+      for (const t of preferredTypes) {
+        const hit = matchingReports.find(r => r.reportType === t);
+        if (hit) return hit;
+      }
+    }
+    return matchingReports[0];
+  }, [matchingReports, preferredTypes]);
+
+  // Auto-select preferred (or most recent) if no selection — or if the
+  // current selection has been filtered out of the visible list.
   // Skipped in rangeOnly mode — that mode doesn't track an active report.
   useEffect(() => {
     if (rangeOnly) return;
@@ -102,10 +154,10 @@ export function ReportSelector({
       return;
     }
     const current = selectedId ? matchingReports.find(r => r.id === selectedId) : null;
-    if (!current) {
-      onSelect(matchingReports[0]);
+    if (!current && pickDefaultReport) {
+      onSelect(pickDefaultReport);
     }
-  }, [matchingReports, selectedId, rangeOnly]);
+  }, [matchingReports, selectedId, rangeOnly, pickDefaultReport]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -145,7 +197,11 @@ export function ReportSelector({
 
   const getEmailName = (email: string) => email.split('@')[0];
 
-  const selected = selectedId ? matchingReports.find(r => r.id === selectedId) : matchingReports[0];
+  /* Fallback display target on the bar before the auto-select effect
+     fires (or in the brief render where `selectedId` is still null).
+     Prefers the same priority pick as the auto-select so the bar
+     never momentarily shows a non-preferred report on first paint. */
+  const selected = selectedId ? matchingReports.find(r => r.id === selectedId) : (pickDefaultReport ?? matchingReports[0]);
 
   if (typeFilteredReports.length === 0 && !rangeOnly) {
     // Truly empty — no reports of this type exist for the player at all.
@@ -153,13 +209,20 @@ export function ReportSelector({
     //  them, we fall through to the populated branch so the user can still
     //  change the range from inside the dropdown. rangeOnly mode also falls
     //  through so the date picker stays visible regardless of report count.)
+    //
+    // For coaches with `onNewReport` wired, the bar is still interactive in
+    // this state so they can open the dropdown and click "+ Report" — the
+    // standalone "+ Add Report" button has been folded INTO this dropdown
+    // as its first option.
+    const canAdd = isCoach && !!onNewReport;
     return (
-      <div className={styles.reportSelector}>
+      <div className={styles.reportSelector} ref={dropRef}>
         <button
           type="button"
-          className={styles.reportSelectorBar}
-          disabled
-          style={{ cursor: 'default', opacity: 0.85 }}
+          className={`${styles.reportSelectorBar} ${open ? styles.reportSelectorBarOpen : ''}`}
+          onClick={canAdd ? () => setOpen(o => !o) : undefined}
+          disabled={!canAdd}
+          style={!canAdd ? { cursor: 'default', opacity: 0.85 } : undefined}
         >
           <div className={styles.reportSelectorLeft}>
             <span className={styles.reportSelectorIcon}>📋</span>
@@ -170,9 +233,25 @@ export function ReportSelector({
           </div>
           <div className={styles.reportSelectorRight}>
             <span className={styles.reportSelectorCount}>0 reports</span>
-            <span className={styles.reportSelectorArrow}>▼</span>
+            <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>▼</span>
           </div>
         </button>
+        {open && canAdd && (
+          <div className={styles.reportSelectorDropdown}>
+            <button
+              type="button"
+              className={styles.reportSelectorNewRow}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewReport!();
+                setOpen(false);
+              }}
+            >
+              <span className={styles.reportSelectorNewIcon}>+</span>
+              <span className={styles.reportSelectorNewText}>Report</span>
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -224,8 +303,17 @@ export function ReportSelector({
               <div className={styles.reportSelectorLeft}>
                 <span className={styles.reportSelectorIcon}>📋</span>
                 <div className={styles.reportSelectorInfo}>
+                  {/* `lockLabel` (used by the Player Summary tab) pins
+                      the bar title to the static `label` so it always
+                      reads "Player Summary" regardless of which report
+                      is currently picked. The meta line below still
+                      reflects the selected report so the coach can tell
+                      which one is active, and the title click still
+                      calls `onEdit(selected)` to open the report. */}
                   <span className={styles.reportSelectorTitle}>
-                    {selected?.title || selected?.reportType?.replace(/_/g, ' ') || label}
+                    {lockLabel
+                      ? label
+                      : (selected?.title || selected?.reportType?.replace(/_/g, ' ') || label)}
                   </span>
                   <span className={styles.reportSelectorMeta}>
                     {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
@@ -269,6 +357,25 @@ export function ReportSelector({
       {/* ── Dropdown ── */}
       {open && (
         <div className={styles.reportSelectorDropdown}>
+          {/* "+ Report" — coach-only action row pinned at the very top of
+              the dropdown. Replaces the standalone "+ Add Report" button
+              that previously sat in TabBarActions next to this selector. */}
+          {isCoach && onNewReport && !rangeOnly && (
+            <button
+              type="button"
+              className={styles.reportSelectorNewRow}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewReport();
+                setOpen(false);
+                setConfirmId(null);
+              }}
+            >
+              <span className={styles.reportSelectorNewIcon}>+</span>
+              <span className={styles.reportSelectorNewText}>Report</span>
+            </button>
+          )}
+
           {/* Date-range presets — vertical dropdown list of options. Picks the
               report set used by the rest of the tab (filter by upload date). */}
           <div className={styles.reportSelectorRangeMenu}>
@@ -297,9 +404,11 @@ export function ReportSelector({
             })}
           </div>
 
-          {/* "+ New Report" row removed — the AddReportButton sits beside the
-              bar in TabBarActions and is the canonical entry point. */}
-
+          {/* ── List of individual reports — rendered beneath the
+              range filter. Each row shows the report title, creation
+              timestamp, creator, optional notes preview, and per-row
+              Download (anyone) + Delete (coach) actions. Clicking a
+              row activates that report on the surrounding tab. */}
           {matchingReports.length === 0 && !rangeOnly && (
             <div className={styles.reportSelectorRangeEmpty}>
               No reports in this date range.

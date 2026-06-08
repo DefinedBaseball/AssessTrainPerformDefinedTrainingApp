@@ -136,7 +136,14 @@
 }
 
 .sectionIcon {
-  font-size: 16px;
+  /* Emoji section-header icons removed per coach-spec — every report
+     section label (Throwing & Pop Time, Coach Grades, Coach Diagnosis,
+     Notes, Data Imports, Video, the Pitching delivery sections, the
+     Infield/Outfield snapshot headers, Summary, etc.) now reads as
+     clean text with no decorative emoji. Hidden via display:none so
+     the JSX can stay intact and the icons can be reinstated by
+     reverting this single rule. */
+  display: none;
 }
 
 .sectionTitle {
@@ -169,6 +176,17 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+/* Light theme — match the Pitching Report outer-section chrome
+   (Hitting-Snapshot slate). The CSV card IS the "Pitch Data bubble"
+   in the PITCHING report, so it reads as a sibling of the Gather /
+   Arm Path / etc. bubbles. The inner drop zone flips to off-white
+   below so the surfaces nest like the Pitching section → checkpoint
+   item pairing. */
+[data-theme="light"] .csvCard {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 6px 18px rgba(15, 20, 30, 0.08);
 }
 
 .csvCardHeader {
@@ -224,6 +242,18 @@
 .dropZone:hover {
   border-color: var(--border-light);
   background: rgba(255, 255, 255, 0.03);
+}
+
+/* Light theme — drop zone reads as an off-white inner card on the
+   slate `.csvCard` (matches the Curveball arsenal card surface). The
+   dashed border stays so the affordance is still obvious. */
+[data-theme="light"] .dropZone {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.18);
+}
+[data-theme="light"] .dropZone:hover {
+  background: #f5f5f5;
+  border-color: rgba(0, 0, 0, 0.28);
 }
 
 .dropIcon {
@@ -392,6 +422,13 @@
   color: #f1f4f6;
   border-color: rgba(255,255,255,0.14);
 }
+/* Light theme: translucent-white fill + near-white text → white-on-light.
+   Solid accent pill reads as clearly selected. */
+[data-theme="light"] .posChipActive {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
 
 .logoUpload {
   background: var(--card);
@@ -470,6 +507,14 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
+}
+/* Light theme — video items render as off-white cards (Curveball
+   surface) so they read as sibling inner-bubbles of the CSV drop
+   zone above them, matching the Pitching Report's outer-slate /
+   inner-off-white pairing. */
+[data-theme="light"] .videoItem {
+  background: var(--bubble-chrome-bg);
+  border-color: var(--border-light);
 }
 
 .videoFileIcon {

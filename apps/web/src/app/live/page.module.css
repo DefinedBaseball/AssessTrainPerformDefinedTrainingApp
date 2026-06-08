@@ -1,0 +1,150 @@
+/* ─────────────────────────────────────────────────────────────────
+   /live page — mode picker styles. Two large mode cards (Training,
+   Live) side-by-side on desktop, stacked on narrow viewports.
+   Visual chrome matches the dashboard's dark-navy bubble surface
+   (radial highlight + white-rim border + soft outer shadow) so the
+   mode cards read as siblings of the rest of the app's main bubbles.
+   ───────────────────────────────────────────────────────────────── */
+
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.modeCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 28px 24px;
+  /* Dark-navy main-bubble chrome — same recipe `.panel` uses on the
+     Summary tab. */
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.modeCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(126, 182, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 12px 28px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(126, 182, 255, 0.25);
+}
+
+.modeIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
+  color: var(--accent-bright);
+}
+
+.modeIcon svg {
+  width: 32px;
+  height: 32px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.modeLabel {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.modeBlurb {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 56ch;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — mode-picker cards (Video Library /
+   Training / Live on both /videos AND /live) flip to the
+   canonical Player Name bubble fill (`--panel-bg-light`) so the
+   landing tiles match the rest of the bubble system app-wide
+   in light mode. The dark-navy chrome (radial highlight + dark
+   rgba fill) was rendering as a hard navy patch on white in
+   light theme; this swap keeps the picker visually consistent
+   with every other outer bubble.
+   ════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .modeCard {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08);
+}
+
+/* Mode icon plate — light theme flips to the near-white
+   `--bubble-chrome-bg` (`#eaeaea`) so each mode card shows
+   the app's three-tier palette in miniature: darker-grey
+   page floor → lighter-grey card frame → near-white icon
+   plate inside. The dark-mode transparent white gradient is
+   retired here in favor of the flat interior-bubble color
+   token so the icon plate matches every other "interior"
+   sub-bubble across the app. */
+[data-theme="light"] .modeIcon {
+  background: var(--bubble-chrome-bg);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .modeCard:hover {
+  border-color: rgba(61, 139, 253, 0.55);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 12px 28px rgba(15, 20, 30, 0.14),
+    0 0 0 1px rgba(61, 139, 253, 0.25);
+}
+
+/* Mode-card title labels (Video Library / Training / Live)
+   pick up the same dark-graphite gradient the PageHeader
+   title uses for "Assess / Train / Athletes / …" — was
+   hardcoded `#ffffff` which became invisible on the
+   off-white card surface in light theme. */
+[data-theme="light"] .modeLabel {
+  color: transparent;
+  background: linear-gradient(180deg,
+    #1a1f25 0%,
+    #2a3138 40%,
+    #404a52 85%,
+    #5a646c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

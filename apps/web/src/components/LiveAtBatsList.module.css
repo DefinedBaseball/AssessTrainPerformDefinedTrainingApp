@@ -1,0 +1,239 @@
+/* LiveAtBatsList — Phase 6 consumer component. Renders inside the
+   shared dark-navy panel chrome the rest of the app uses (matches
+   .panel + Tool Grades rhythm: italic Brown-display title, full-
+   width accent border-bottom, 0.85rem gap before the first inner
+   row). */
+
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.4rem;
+  background:
+    radial-gradient(ellipse at 50% 35%,
+      rgba(255, 255, 255, 0.04) 0%,
+      transparent 60%),
+    rgba(10, 14, 20, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  /* Trimmed 23 → 20.7 (−10 %) to match the matching trim on the
+     other blue-bubble title rules across the app. */
+  font-size: 20.7px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: #fff;
+  /* All blue-bubble titles render in uppercase across the app —
+     Tool Grades, Snapshot headers, Pitch Report, Live Results. */
+  text-transform: uppercase;
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.openTag { color: var(--accent-bright); }
+
+/* ── Filter chips ─────────────────────────────────────────────── */
+
+.chipsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chipGroup {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.chip:hover { border-color: rgba(126, 182, 255, 0.40); }
+
+.chipActive {
+  background: rgba(126, 182, 255, 0.18);
+  border-color: rgba(126, 182, 255, 0.55);
+  color: #fff;
+}
+
+/* ── Rollup stat strip ────────────────────────────────────────── */
+
+.statStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.stat { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+
+.statLabel {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ── AB list ──────────────────────────────────────────────────── */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* `max-height: 360px` + `overflow-y: auto` retired so the list
+     grows to its natural content height and the PAGE handles
+     scrolling once the bubble overflows the viewport. Lets coaches
+     scroll past the bottom of the snapshot to see older at-bats
+     instead of being capped inside a 360 px window-within-a-window. */
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  /* Smooth tint transition so the green/red wash fades in gently
+     when an AB closes (and out cleanly when filters change). */
+  transition: background 0.18s ease, border-color 0.18s ease;
+  border: 1px solid transparent;
+}
+
+/* AB ended on a strike — strikeouts (looking/swinging) and balls-
+   in-play (fly ball / ground ball / line drive / barrel) all
+   resolve on a pitched strike the batter swung at. Soft green
+   wash + matching tinted border so the row reads as "pitcher win"
+   at a glance without overwhelming the row's text contents. */
+.rowStrike {
+  background: rgba(109, 170, 69, 0.16);
+  border-color: rgba(109, 170, 69, 0.32);
+}
+
+/* AB ended on a ball — currently only WALK. Soft red wash with the
+   same intensity as the strike row so the two tones read as
+   visually balanced opposites. */
+.rowBall {
+  background: rgba(221, 105, 116, 0.18);
+  border-color: rgba(221, 105, 116, 0.34);
+}
+
+.rowDate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.rowOpponent {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.rowHand {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--accent-bright);
+}
+
+.rowOutcome {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Final-pitch suffix shown after the outcome — e.g.
+   "Strikeout — Swinging · Slider". Muted color + mono face so the
+   pitch type reads as a contextual tag rather than competing with
+   the outcome name. */
+.rowFinalPitch {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.rowPitchCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.dim { font-size: 13px; color: var(--text-muted); }
+
+.error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(221, 105, 116, 0.10);
+  border: 1px solid rgba(221, 105, 116, 0.30);
+  color: #ffdde0;
+  font-size: 12.5px;
+}

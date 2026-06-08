@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, NotesBox, ReportSelector,
-  TabBarActions, AddReportButton, EditProfileButton,
+  TabBarActions, EditProfileButton,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -23,6 +23,19 @@ export function VisionTab({
   player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport, onEditProfile,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
+
+  /* Sync the selected report with the parent's fresh `reports` array
+     after every save. Without this, local state holds the PRE-save
+     snapshot and every derivation (per-report metrics, notes, video
+     filter, PDF download) reflects stale data until the user re-picks
+     the report from the dropdown. */
+  useEffect(() => {
+    setSelectedReport((prev) => {
+      if (!prev) return prev;
+      const fresh = reports.find((r) => r.id === prev.id);
+      return fresh ?? null;
+    });
+  }, [reports]);
 
   // Per-COGNITION-report metrics index — used for carry-forward fallback so a
   // missing metric on the active report is filled from the previous report
@@ -85,7 +98,8 @@ export function VisionTab({
     <>
       {/* ── Report Selector + Download (portaled into TabBar) ── */}
       <TabBarActions>
-        <AddReportButton onClick={onNewReport} show={isCoach} />
+        {/* "+ Add Report" button retired — it now lives as the first
+            row inside the ReportSelector dropdown below. */}
         <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
