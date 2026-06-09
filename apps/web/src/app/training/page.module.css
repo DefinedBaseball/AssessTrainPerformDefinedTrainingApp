@@ -99,7 +99,16 @@
 .calNav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+/* Thin separator between the Today button and the day-level actions. */
+.calNavDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 2px;
 }
 
 .navBtn {
@@ -414,6 +423,14 @@
 .dayViewSubtitle {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Date + "N drills scheduled" sit inline — count to the right of the date. */
+.dayViewHeadLeft {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 /* ── Day Grid (5-column layout) ── */
@@ -941,7 +958,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 12px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -950,6 +969,31 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
+}
+
+/* Selected-drill chips live INSIDE the trigger bubble; this wraps them
+   and grows the trigger height as more are added. */
+.multiTriggerChips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.multiPlaceholder {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* "N Selected" badge pinned to the far right of the trigger. */
+.multiCount {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 .multiTrigger:hover { border-color: var(--accent); }
 
@@ -1149,8 +1193,11 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 18px;
-  width: 620px;
-  max-width: 95vw;
+  /* Match the Reports modal bubble (.modalContent in athletes/[id]/
+     page.module.css): up to 1200px wide, with viewport margins on
+     narrower screens (the shared overlay is centered, no padding). */
+  width: 95vw;
+  max-width: 1200px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;

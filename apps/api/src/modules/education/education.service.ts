@@ -39,7 +39,9 @@ export class EducationService {
 
   async getMlbPlayers(position?: string, bats?: string, throws_?: string) {
     const players = await this.prisma.mlbPlayer.findMany({
-      include: { videos: { select: { id: true, category: true } } },
+      // title + url included so the Compare picker (Video Bundle modal)
+      // can browse & play MLB clips straight from the players list.
+      include: { videos: { select: { id: true, title: true, category: true, url: true } } },
       orderBy: { name: 'asc' },
     });
     return players.filter(p => {

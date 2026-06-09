@@ -15,14 +15,18 @@ const LEADERBOARD_METRICS = [
   'catcher_velo',
   'pop_time',
   'jump_height',
-  'sixty_yard',
+  // Speed keys MUST match what reports/profiles write. Was 'sixty_yard',
+  // which reports never emit — leaving that leaderboard permanently empty
+  // and disconnected from the profile's 60-yard time.
+  'sprint_60',
+  'sprint_10',
 ];
 
 /**
  * Metrics where a LOWER value = better performance.
  * These sort ascending instead of descending.
  */
-const LOWER_IS_BETTER = new Set(['pop_time', 'sixty_yard']);
+const LOWER_IS_BETTER = new Set(['pop_time', 'sprint_60', 'sprint_10']);
 
 @Injectable()
 export class LeaderboardsService {
@@ -72,7 +76,10 @@ export class LeaderboardsService {
           where: { gradYear: year },
           include: {
             metrics: {
-              where: { metricType, value: { gt: 0 } },
+              // Only per-report aggregated points (`REPORT_<id>`) — so the
+              // leaderboard ranks players on the SAME values their profile
+              // shows (one per report), never seeded / raw-CSV demo metrics.
+              where: { metricType, value: { gt: 0 }, source: { startsWith: 'REPORT_' } },
               orderBy: { value: lowerIsBetter ? 'asc' : 'desc' },
               take: 1,
             },
@@ -104,6 +111,39 @@ export class LeaderboardsService {
         if (ranked.length > 0) {
           await this.prisma.leaderboardEntry.createMany({ data: ranked });
         }
+      }
+    }
+
+    // "All Ages" board (sentinel gradYear=0) — ranks every player across all
+    // classes. Recomputed on any recompute so it always reflects the full
+    // player pool, matching the leaderboard's "All Ages" filter option.
+    for (const metricType of LEADERBOARD_METRICS) {
+      const lowerIsBetter = LOWER_IS_BETTER.has(metricType);
+      const players = await this.prisma.player.findMany({
+        include: {
+          metrics: {
+            where: { metricType, value: { gt: 0 }, source: { startsWith: 'REPORT_' } },
+            orderBy: { value: lowerIsBetter ? 'asc' : 'desc' },
+            take: 1,
+          },
+        },
+      });
+      const ranked = players
+        .filter(p => p.metrics.length > 0)
+        .map(p => ({ playerId: p.id, value: p.metrics[0].value }))
+        .filter(p => Number.isFinite(p.value) && p.value > 0)
+        .sort((a, b) => lowerIsBetter ? a.value - b.value : b.value - a.value)
+        .slice(0, 15)
+        .map((entry, i) => ({
+          gradYear: 0,
+          metricType,
+          playerId: entry.playerId,
+          value: entry.value,
+          rank: i + 1,
+        }));
+      await this.prisma.leaderboardEntry.deleteMany({ where: { gradYear: 0, metricType } });
+      if (ranked.length > 0) {
+        await this.prisma.leaderboardEntry.createMany({ data: ranked });
       }
     }
 

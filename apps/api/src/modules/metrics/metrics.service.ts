@@ -120,9 +120,20 @@ export class MetricsService {
        parser (e.g. 'HITTRAX' vs 'FULL_SWING') are returned. Lets the
        Hitting tab read HitTrax-only progress for the HitTrax section
        and Full Swing-only progress for the Full Swing section, even
-       though both vendors store the same metric_type names. */
+       though both vendors store the same metric_type names.
+
+       Special selector `source=REPORT` returns ONLY the per-report
+       aggregated points (`REPORT_<id>`), which is how the Player Summary
+       trend charts read one point per report — seeded / raw-CSV metrics
+       (many fabricated dates) never reach a trend. */
+    const sourceFilter =
+      source === 'REPORT'
+        ? { source: { startsWith: 'REPORT_' } }
+        : source
+          ? { source }
+          : {};
     return this.prisma.metric.findMany({
-      where: { playerId, metricType, ...(source ? { source } : {}) },
+      where: { playerId, metricType, ...sourceFilter },
       orderBy: { recordedAt: 'asc' },
       select: { value: true, recordedAt: true },
     });

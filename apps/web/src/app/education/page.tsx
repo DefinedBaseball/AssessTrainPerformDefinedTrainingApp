@@ -385,7 +385,7 @@ function ClassModal({ sport, onClose, onSaved }: { sport: string; onClose: () =>
           <div className={styles.field}><label className={styles.fieldLabel}>Class Name</label><input className={styles.fieldInput} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Hitting Fundamentals 101" /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Short Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Brief summary shown on the card" style={{ resize: 'vertical' }} /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Full Description</label><textarea className={styles.fieldInput} value={description} onChange={e => setDescription(e.target.value)} rows={5} placeholder="Detailed explanation athletes will read when they open the class..." style={{ resize: 'vertical' }} /></div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://youtube.com/... or direct video link" /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="Direct video file link" /></div>
           <div className={styles.fieldRow}>
             <div className={styles.field}><label className={styles.fieldLabel}>Lessons</label><input className={styles.fieldInput} type="number" value={lessons} min={1} onChange={e => setLessons(parseInt(e.target.value) || 1)} /></div>
             <div className={styles.field}><label className={styles.fieldLabel}>Duration (min)</label><input className={styles.fieldInput} type="number" value={duration} min={1} onChange={e => setDuration(parseInt(e.target.value) || 30)} /></div>
@@ -449,7 +449,7 @@ function EditClassModal({ cls, onClose, onSaved }: { cls: EduClass; onClose: () 
           <div className={styles.field}><label className={styles.fieldLabel}>Class Name</label><input className={styles.fieldInput} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Hitting Fundamentals 101" /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Short Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Brief summary shown on the card" style={{ resize: 'vertical' }} /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Full Description</label><textarea className={styles.fieldInput} value={description} onChange={e => setDescription(e.target.value)} rows={5} placeholder="Detailed explanation athletes will read when they open the class..." style={{ resize: 'vertical' }} /></div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="https://youtube.com/... or direct video link" /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="Direct video file link" /></div>
           <div className={styles.fieldRow}>
             <div className={styles.field}><label className={styles.fieldLabel}>Lessons</label><input className={styles.fieldInput} type="number" value={lessons} min={1} onChange={e => setLessons(parseInt(e.target.value) || 1)} /></div>
             <div className={styles.field}><label className={styles.fieldLabel}>Duration (min)</label><input className={styles.fieldInput} type="number" value={duration} min={1} onChange={e => setDuration(parseInt(e.target.value) || 30)} /></div>
@@ -471,21 +471,6 @@ function ClassDetailView({ cls }: { cls: EduClass }) {
   const sportObj = SPORTS.find(s => s.id === cls.sport);
   const lv = LEVELS.find(l => l.id === cls.level);
   const sportColor = sportObj?.color || '#3B82D2';
-
-  /* Try to extract YouTube embed from various URL formats */
-  const embedUrl = (() => {
-    if (!cls.videoUrl) return null;
-    const url = cls.videoUrl;
-    // YouTube watch URL
-    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
-    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
-    // Already an embed URL
-    if (url.includes('youtube.com/embed/')) return url;
-    // Direct video URL (mp4, etc.)
-    return null;
-  })();
-
-  const isDirectVideo = cls.videoUrl && !embedUrl;
 
   return (
     <div className={styles.classDetailPage}>
@@ -511,22 +496,12 @@ function ClassDetailView({ cls }: { cls: EduClass }) {
       {/* ── Video Player ── */}
       {cls.videoUrl && (
         <div className={styles.classDetailVideo}>
-          {embedUrl ? (
-            <iframe
-              className={styles.classDetailIframe}
-              src={embedUrl}
-              title={cls.name}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          ) : isDirectVideo ? (
-            <video
-              className={styles.classDetailVideoPlayer}
-              src={cls.videoUrl}
-              controls
-              playsInline
-            />
-          ) : null}
+          <video
+            className={styles.classDetailVideoPlayer}
+            src={cls.videoUrl}
+            controls
+            playsInline
+          />
         </div>
       )}
 
@@ -1317,22 +1292,10 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
 /* ══════════ MLB VIDEO PLAYER MODAL ══════════ */
 
 /**
- * Plays an MLB study video. YouTube URLs become an embed iframe; direct
- * video URLs (mp4, etc.) drop into a native <video> element. Mirrors the
- * pattern used by ClassDetailView so the two video experiences feel the
- * same.
+ * Plays an MLB study video — a direct video file dropped into the app —
+ * in a native <video> element.
  */
 function MlbVideoPlayerModal({ video, onClose }: { video: MlbVideo; onClose: () => void }) {
-  const embedUrl = (() => {
-    if (!video.url) return null;
-    const url = video.url;
-    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
-    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
-    if (url.includes('youtube.com/embed/')) return url;
-    return null;
-  })();
-  const isDirectVideo = video.url && !embedUrl;
-
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.videoModal} onClick={e => e.stopPropagation()}>
@@ -1341,24 +1304,16 @@ function MlbVideoPlayerModal({ video, onClose }: { video: MlbVideo; onClose: () 
           <button className={styles.modalClose} onClick={onClose}>×</button>
         </div>
         <div className={styles.videoContainer}>
-          {embedUrl ? (
-            <iframe
-              className={styles.classDetailIframe}
-              src={embedUrl}
-              title={video.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          ) : isDirectVideo ? (
+          {video.url ? (
             <video
               className={styles.videoPlayer}
-              src={video.url || undefined}
+              src={video.url}
               controls
               autoPlay
               playsInline
             />
           ) : (
-            <div className={styles.noVideo}>No video URL on this clip</div>
+            <div className={styles.noVideo}>No video on this clip</div>
           )}
         </div>
         {video.notes && (
@@ -1376,6 +1331,72 @@ function MlbVideoPlayerModal({ video, onClose }: { video: MlbVideo; onClose: () 
 }
 
 /* ══════════ EDIT MLB VIDEO MODAL ══════════ */
+
+/* Drag/drop (or click) video-file upload for the MLB Add/Edit Video
+   modals. Uploads via the standalone /videos/upload-file endpoint and
+   reports the resulting URL up to the parent, which saves it on the
+   MlbVideo row. */
+function VideoFileDrop({ url, onUrl }: { url: string; onUrl: (u: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [name, setName] = useState('');
+  const [err, setErr] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file?: File) => {
+    if (!file) return;
+    setErr('');
+    setName(file.name);
+    setUploading(true);
+    try {
+      const res = await api.uploadVideoFile(file);
+      onUrl(res.url);
+    } catch (e: any) {
+      setErr(e?.message || 'Upload failed');
+      setName('');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.fieldLabel}>Video File</label>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
+        style={{
+          border: '1px dashed var(--border-strong, rgba(128,128,128,0.55))',
+          borderRadius: 8,
+          padding: '16px 12px',
+          textAlign: 'center',
+          fontSize: 13,
+          lineHeight: 1.4,
+          cursor: uploading ? 'progress' : 'pointer',
+          color: url ? 'var(--green, #16a34a)' : 'var(--text-muted, #888)',
+          background: 'var(--input-bg, rgba(128,128,128,0.06))',
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="video/*"
+          style={{ display: 'none' }}
+          onChange={(e) => handleFile(e.target.files?.[0] || undefined)}
+        />
+        {uploading
+          ? `Uploading ${name}…`
+          : url
+            ? `✓ Video attached${name ? ` — ${name}` : ''} · click to replace`
+            : 'Drop a video file here, or click to choose'}
+      </div>
+      {err && <div style={{ color: 'var(--red, #dc2626)', fontSize: 12, marginTop: 4 }}>{err}</div>}
+    </div>
+  );
+}
 
 function EditVideoModal({ video, onClose, onSaved }: { video: MlbVideo; onClose: () => void; onSaved: (v: MlbVideo) => void }) {
   const [title, setTitle] = useState(video.title);
@@ -1412,7 +1433,8 @@ function EditVideoModal({ video, onClose, onSaved }: { video: MlbVideo; onClose:
               {['Swing', 'At-Bat', 'Mechanics', 'Pitching', 'Defense', 'Highlight', 'Interview'].map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/..." /></div>
+          <VideoFileDrop url={url} onUrl={setUrl} />
+          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={url} onChange={e => setUrl(e.target.value)} placeholder="Direct video file link" /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Notes</label><textarea className={styles.fieldInput} value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ resize: 'vertical' }} /></div>
         </div>
         <div className={styles.modalFooter}>
@@ -1454,7 +1476,8 @@ function VideoModal({ playerId, onClose, onSaved }: { playerId: string; onClose:
               {['Swing', 'At-Bat', 'Mechanics', 'Pitching', 'Defense', 'Highlight', 'Interview'].map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/..." /></div>
+          <VideoFileDrop url={url} onUrl={setUrl} />
+          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={url} onChange={e => setUrl(e.target.value)} placeholder="Direct video file link" /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Notes</label><textarea className={styles.fieldInput} value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="What to watch for..." style={{ resize: 'vertical' }} /></div>
         </div>
         <div className={styles.modalFooter}>

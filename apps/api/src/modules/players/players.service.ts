@@ -66,6 +66,8 @@ export class PlayersService {
     pbrPosition?: number | null;
     pgScore?: number | null;
     developmentNotes?: string | null;
+    playingLevelGoal?: string | null;
+    goals?: string | null;
   }) {
     return this.prisma.player.update({ where: { id }, data });
   }

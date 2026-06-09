@@ -42,6 +42,9 @@ export const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: st
      Live). */
   hitting: {
     'Movement Prep':    { dot: '#8DBED9', bg: 'rgba(141,190,217,0.13)', text: '#8DBED9' },
+    'Tee':              { dot: '#9AC8F0', bg: 'rgba(154,200,240,0.13)', text: '#9AC8F0' },
+    'Front Toss':       { dot: '#82B8E8', bg: 'rgba(130,184,232,0.13)', text: '#82B8E8' },
+    /* Legacy: pre-per-section records saved this shared category. */
     'Drills':           { dot: '#5E9ED2', bg: 'rgba(94,158,210,0.13)',  text: '#5E9ED2' },
     'Batting Practice': { dot: '#387EC0', bg: 'rgba(56,126,192,0.13)',  text: '#387EC0' },
     'Machine':          { dot: '#1E5DA0', bg: 'rgba(30,93,160,0.13)',   text: '#1E5DA0' },
@@ -139,7 +142,7 @@ export const TAB_ANCHOR_COLORS_DARK: Record<string, string> = {
  *  last, with the working categories in the middle in coach-spec
  *  order. */
 export const LEGEND_CATEGORIES: Record<string, string[]> = {
-  hitting:  ['Movement Prep', 'Drills', 'Batting Practice', 'Machine', 'Live'],
+  hitting:  ['Movement Prep', 'Tee', 'Front Toss', 'Drills', 'Batting Practice', 'Machine', 'Live'],
   pitching: ['Movement Prep', 'Drills', 'Bullpen', 'Live', 'Post-Throw'],
   catching: ['Movement Prep', 'Drills', 'Machine', 'Live'],
   infield:  ['Movement Prep', 'Drills', 'Machine', 'Live'],

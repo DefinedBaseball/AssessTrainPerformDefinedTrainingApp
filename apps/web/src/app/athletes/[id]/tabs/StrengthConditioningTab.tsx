@@ -72,6 +72,28 @@ export interface SCContent {
   };
   speed?: {
     sixty?: string; forty?: string; top?: string; accel?: string;
+    /** 10 Yard Dash (sec). The Speed section now surfaces 60 + 10 Yard
+     *  Dash; forty/top/accel are kept for older-report back-compat but
+     *  are no longer rendered. */
+    ten?: string;
+  };
+  /** Vision (Physical report). `acuity` = ratio achieved (e.g. "20/20");
+   *  `acuityWrong` = # missed on that line -> rendered "20/20 - 1". The
+   *  four fields below are coach-entered 20-80 grades. */
+  vision?: {
+    acuity?: string; acuityWrong?: string;
+    objectTracking?: string; timing?: string;
+    anticipation?: string; peripheral?: string;
+  };
+  /** Motor Preferences -- five coach-entered binary motor-preference
+   *  toggles. Report-only: saved with the report + shown in the report
+   *  form, but NOT rendered on the athlete's profile S&C tab. */
+  motorPreferences?: {
+    eye?: string;             // 'R' | 'L'
+    shoulder?: string;        // 'R' | 'L'
+    strengthSpacing?: string; // 'Axial' | 'Large'
+    groundUse?: string;       // 'Terrestrial' | 'Aerial'
+    movementPath?: string;    // 'Horizontal' | 'Vertical'
   };
   /** Indexed 1-12 to match the MOBILITY_TESTS catalog. Each entry
    *  is a free-form key→string map — the per-test field schema lives
@@ -1075,14 +1097,47 @@ function SpeedSection({ content }: { content: SCContent }) {
         <GreyMetricBubble title="60 Yard Dash" bg="#ededed">
           <DisplayValue unit="sec" value={speed.sixty} />
         </GreyMetricBubble>
-        <GreyMetricBubble title="40 Yard Dash" bg="#ededed">
-          <DisplayValue unit="sec" value={speed.forty} />
+        <GreyMetricBubble title="10 Yard Dash" bg="#ededed">
+          <DisplayValue unit="sec" value={speed.ten} />
         </GreyMetricBubble>
-        <GreyMetricBubble title="Top Speed" bg="#ededed">
-          <DisplayValue unit="mph" value={speed.top} />
+      </div>
+    </div>
+  );
+}
+
+/* Vision bubble — Visual Acuity readout ("20/20 - 1") + four coach-
+   entered 20-80 grades (Object Tracking / Timing / Anticipation /
+   Peripheral Awareness). Sits directly under Speed in the
+   Strength-and-Conditioning sub-tab. Read-only profile counterpart to
+   the report form's VisionSection. */
+function VisionSection({ content }: { content: SCContent }) {
+  const vision = content.vision ?? {};
+  const acuity = vision.acuity
+    ? `${vision.acuity}${vision.acuityWrong ? ` - ${vision.acuityWrong}` : ''}`
+    : undefined;
+  return (
+    <div className={aStyles.profilePanel} style={{ marginBottom: 18 }}>
+      <SectionHeader title="Vision" />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 14,
+        marginTop: 12,
+      }}>
+        <GreyMetricBubble title="Visual Acuity" bg="#ededed">
+          <DisplayValue value={acuity} />
         </GreyMetricBubble>
-        <GreyMetricBubble title="Acceleration" bg="#ededed">
-          <DisplayValue unit="m/s²" value={speed.accel} />
+        <GreyMetricBubble title="Object Tracking" bg="#ededed">
+          <DisplayValue unit="/80" value={vision.objectTracking} />
+        </GreyMetricBubble>
+        <GreyMetricBubble title="Timing" bg="#ededed">
+          <DisplayValue unit="/80" value={vision.timing} />
+        </GreyMetricBubble>
+        <GreyMetricBubble title="Anticipation" bg="#ededed">
+          <DisplayValue unit="/80" value={vision.anticipation} />
+        </GreyMetricBubble>
+        <GreyMetricBubble title="Peripheral Awareness" bg="#ededed">
+          <DisplayValue unit="/80" value={vision.peripheral} />
         </GreyMetricBubble>
       </div>
     </div>
@@ -1655,6 +1710,7 @@ export function StrengthConditioningTab({
         <>
           <StrengthSection content={content} />
           <SpeedSection content={content} />
+          <VisionSection content={content} />
         </>
       )}
       {subTab === 'mobility' && (

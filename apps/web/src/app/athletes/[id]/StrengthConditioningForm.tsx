@@ -39,6 +39,7 @@ export function emptyScForm(): SCContent {
     forceAthletic: {},
     gripStrength: {},
     speed: {},
+    vision: {},
     mobility: {},
   };
 }
@@ -61,6 +62,8 @@ export function StrengthConditioningForm({ data, setData }: Props) {
         <>
           <StrengthSection data={data} setData={setData} />
           <SpeedSection data={data} setData={setData} />
+          <VisionSection data={data} setData={setData} />
+          <MotorPreferencesSection data={data} setData={setData} />
         </>
       )}
       {subTab === 'mobility' && (
@@ -228,15 +231,115 @@ function SpeedSection({ data, setData }: Props) {
         <GreyMetricBubble title="60 Yard Dash">
           <InputCell unit="sec" value={speed.sixty ?? ''} onChange={(v) => update({ sixty: v })} />
         </GreyMetricBubble>
-        <GreyMetricBubble title="40 Yard Dash">
-          <InputCell unit="sec" value={speed.forty ?? ''} onChange={(v) => update({ forty: v })} />
+        <GreyMetricBubble title="10 Yard Dash">
+          <InputCell unit="sec" value={speed.ten ?? ''} onChange={(v) => update({ ten: v })} />
         </GreyMetricBubble>
-        <GreyMetricBubble title="Top Speed">
-          <InputCell unit="mph" value={speed.top ?? ''} onChange={(v) => update({ top: v })} />
+      </div>
+    </div>
+  );
+}
+
+/* VISION SECTION — Visual Acuity (ratio + # missed -> "20/20 - 1") +
+   four 20-80 grade inputs. Mirrors the read-only Vision bubble on the
+   profile S&C tab; sits directly under Speed. */
+function VisionSection({ data, setData }: Props) {
+  const vision = data.vision ?? {};
+  const update = (patch: Partial<NonNullable<SCContent['vision']>>) =>
+    setData({ ...data, vision: { ...vision, ...patch } });
+  return (
+    <div className={aStyles.profilePanel} style={{ marginBottom: 18, flexShrink: 0 }}>
+      <SectionTitle title="Vision" />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 14,
+        marginTop: 12,
+      }}>
+        <GreyMetricBubble title="Visual Acuity">
+          {/* Ratio (e.g. 20/20) then # missed -> reads "20/20 - 1". */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6 }}>
+            <input
+              type="text"
+              value={vision.acuity ?? ''}
+              onChange={(e) => update({ acuity: e.target.value || undefined })}
+              placeholder="20/20"
+              style={{ ...visionInputStyle, width: 72 }}
+            />
+            <span style={{ color: 'var(--text-bright)', fontWeight: 700 }}>-</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={vision.acuityWrong ?? ''}
+              onChange={(e) => update({ acuityWrong: e.target.value || undefined })}
+              placeholder="0"
+              style={{ ...visionInputStyle, width: 48 }}
+            />
+          </div>
         </GreyMetricBubble>
-        <GreyMetricBubble title="Acceleration">
-          <InputCell unit="m/s²" value={speed.accel ?? ''} onChange={(v) => update({ accel: v })} />
+        <GreyMetricBubble title="Object Tracking">
+          <InputCell unit="/80" value={vision.objectTracking ?? ''} onChange={(v) => update({ objectTracking: v })} />
         </GreyMetricBubble>
+        <GreyMetricBubble title="Timing">
+          <InputCell unit="/80" value={vision.timing ?? ''} onChange={(v) => update({ timing: v })} />
+        </GreyMetricBubble>
+        <GreyMetricBubble title="Anticipation">
+          <InputCell unit="/80" value={vision.anticipation ?? ''} onChange={(v) => update({ anticipation: v })} />
+        </GreyMetricBubble>
+        <GreyMetricBubble title="Peripheral Awareness">
+          <InputCell unit="/80" value={vision.peripheral ?? ''} onChange={(v) => update({ peripheral: v })} />
+        </GreyMetricBubble>
+      </div>
+    </div>
+  );
+}
+
+/* MOTOR PREFERENCES — five coach-entered binary motor-preference toggles
+   (Motor Eye / Motor Shoulder / Strength Spacing / Ground Use / Movement
+   Path). Each row is a label + two option buttons; clicking the active
+   one again clears it. Report-only: saved with the report but
+   intentionally NOT rendered on the athlete's profile S&C tab
+   (StrengthConditioningTab never reads this key). */
+function MotorPreferencesSection({ data, setData }: Props) {
+  const prefs = data.motorPreferences ?? {};
+  type PrefKey = keyof NonNullable<SCContent['motorPreferences']>;
+  const setPref = (key: PrefKey, v: string | undefined) =>
+    setData({ ...data, motorPreferences: { ...prefs, [key]: v } as NonNullable<SCContent['motorPreferences']> });
+  const rows: { key: PrefKey; label: string; options: [string, string] }[] = [
+    { key: 'eye',             label: 'Motor Eye',        options: ['R', 'L'] },
+    { key: 'shoulder',        label: 'Motor Shoulder',   options: ['R', 'L'] },
+    { key: 'strengthSpacing', label: 'Strength Spacing', options: ['Axial', 'Large'] },
+    { key: 'groundUse',       label: 'Ground Use',       options: ['Terrestrial', 'Aerial'] },
+    { key: 'movementPath',    label: 'Movement Path',    options: ['Horizontal', 'Vertical'] },
+  ];
+  return (
+    <div className={aStyles.profilePanel} style={{ marginBottom: 18, flexShrink: 0 }}>
+      <SectionTitle title="Motor Preferences" />
+      <div style={{ ...fieldLabelStyle, fontWeight: 400, textTransform: 'none', letterSpacing: '0.01em', marginTop: 2, marginBottom: 12 }}>
+        Report-only — not shown on the athlete profile.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {rows.map((r) => (
+          <div key={r.key} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 12, flexWrap: 'wrap',
+          }}>
+            <span style={fieldLabelStyle}>{r.label}</span>
+            <div style={{ display: 'inline-flex', gap: 6 }}>
+              {r.options.map((opt) => (
+                <ToggleButton
+                  key={opt}
+                  active={prefs[r.key] === opt}
+                  activeColor="rgba(126,182,255,0.20)"
+                  activeBorder="rgba(126,182,255,0.55)"
+                  activeText="#cfe0ff"
+                  onClick={() => setPref(r.key, prefs[r.key] === opt ? undefined : opt)}
+                >
+                  {opt}
+                </ToggleButton>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1209,6 +1312,20 @@ const fieldLabelStyle: React.CSSProperties = {
      own color directly in its own component so this shared label
      style stays consistently white across every field cell. */
   color: 'var(--text-bright)',
+};
+
+const visionInputStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid var(--border-light)',
+  color: 'var(--text-bright)',
+  padding: '4px 8px',
+  borderRadius: 6,
+  fontSize: 14,
+  fontWeight: 700,
+  fontVariantNumeric: 'tabular-nums',
+  fontFamily: 'inherit',
+  textAlign: 'center',
+  outline: 'none',
 };
 
 const baseInputStyle: React.CSSProperties = {

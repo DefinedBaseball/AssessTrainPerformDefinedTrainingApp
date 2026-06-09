@@ -24,7 +24,7 @@ import { VideoControlBar } from '../PlaybackSpeedControl';
 import { VideoDrawingOverlay } from '../VideoDrawingOverlay';
 import { useTheme } from '@/lib/theme-context';
 import * as api from '@/lib/api';
-import type { Player, Video } from '@/lib/api';
+import type { Player, Video, MlbPlayer } from '@/lib/api';
 
 interface BundleVideo {
   id: string;
@@ -153,6 +153,13 @@ export function VideoBundleModal({
   const [athleteVideos, setAthleteVideos] = useState<Video[]>([]);
   const [athletesLoading, setAthletesLoading] = useState(false);
   const [athleteVideosLoading, setAthleteVideosLoading] = useState(false);
+  /* MLB study-clip library — hydrated lazily the first time the coach
+     opens the "Major League Video" source in the Compare picker. Each
+     MlbPlayer carries its `videos` array inline, so one fetch fills
+     the whole browse grid. */
+  const [mlbPlayers, setMlbPlayers] = useState<MlbPlayer[]>([]);
+  const [mlbLoading, setMlbLoading] = useState(false);
+  const [mlbLoaded, setMlbLoaded] = useState(false);
 
   /* Refs for every <video> in the grid — index by videos array index.
      The first ref doubles as the "master" in synced mode; the rest
@@ -456,6 +463,18 @@ export function VideoBundleModal({
       .catch(() => setAthleteVideos([]))
       .finally(() => setAthleteVideosLoading(false));
   }, [picker.athleteId]);
+
+  /* MLB clips — fetched once when the coach first opens the Major
+     League Video library in the Compare picker. Cached for the rest
+     of the session via `mlbLoaded`. */
+  useEffect(() => {
+    if (!compareOn || picker.library !== 'mlb' || mlbLoaded || mlbLoading) return;
+    setMlbLoading(true);
+    api.getMlbPlayers()
+      .then((list) => { setMlbPlayers(Array.isArray(list) ? list : []); setMlbLoaded(true); })
+      .catch(() => setMlbPlayers([]))
+      .finally(() => setMlbLoading(false));
+  }, [compareOn, picker.library, mlbLoaded, mlbLoading]);
 
   /* Athletes filtered client-side by the Position dropdown. */
   const filteredAthletes = useMemo(() => {
@@ -1407,6 +1426,8 @@ export function VideoBundleModal({
                 athletesLoading={athletesLoading}
                 athleteVideos={athleteVideos}
                 athleteVideosLoading={athleteVideosLoading}
+                mlbPlayers={mlbPlayers}
+                mlbLoading={mlbLoading}
                 onPick={(src) => setCompareSrc(src)}
                 onHide={() => setCompareHidden(true)}
               />
@@ -1926,7 +1947,7 @@ export function VideoBundleModal({
                 type="button"
                 onClick={discardClip}
                 disabled={recordState === 'uploading'}
-                style={pendingBtnStyle('neutral', recordState === 'uploading')}
+                style={pendingBtnStyle('neutral', isLight, recordState === 'uploading')}
               >
                 Discard
               </button>
@@ -1934,7 +1955,7 @@ export function VideoBundleModal({
                 type="button"
                 onClick={restartClip}
                 disabled={recordState === 'uploading'}
-                style={pendingBtnStyle('neutral', recordState === 'uploading')}
+                style={pendingBtnStyle('neutral', isLight, recordState === 'uploading')}
               >
                 ⟳ Restart
               </button>
@@ -1942,7 +1963,7 @@ export function VideoBundleModal({
                 type="button"
                 onClick={saveClip}
                 disabled={recordState === 'uploading' || !playerId}
-                style={pendingBtnStyle('primary', recordState === 'uploading')}
+                style={pendingBtnStyle('primary', isLight, recordState === 'uploading')}
               >
                 {recordState === 'uploading' ? 'Saving…' : '✓ Save to Profile'}
               </button>
@@ -1957,15 +1978,26 @@ export function VideoBundleModal({
 /* ─── Pending preview button helper ────────────────────────────────── */
 function pendingBtnStyle(
   variant: 'primary' | 'neutral',
+  isLight: boolean,
   disabled: boolean,
 ): React.CSSProperties {
   const primary = variant === 'primary';
   return {
     padding: '10px 18px',
     borderRadius: 8,
-    border: '1px solid ' + (primary ? 'rgba(74,222,128,0.55)' : 'rgba(255,255,255,0.18)'),
-    background: primary ? 'rgba(74,222,128,0.18)' : 'rgba(255,255,255,0.05)',
-    color: primary ? '#bbf7d0' : '#fff',
+    border: '1px solid ' + (primary
+      ? 'rgba(74,222,128,0.55)'
+      : (isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.18)')),
+    background: primary
+      ? 'rgba(74,222,128,0.18)'
+      : (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'),
+    /* Text was light pastels (#bbf7d0 green / #fff) that vanished on the
+       near-white light-theme preview card. In light mode flip to
+       dark-readable shades: deep green for Save, near-black for
+       Discard / Restart. Dark theme keeps the original pastels. */
+    color: primary
+      ? (isLight ? '#15803d' : '#bbf7d0')
+      : (isLight ? '#0a0d12' : '#fff'),
     fontSize: 13,
     fontWeight: 700,
     letterSpacing: '0.03em',
@@ -1991,6 +2023,8 @@ function ComparePicker({
   athletesLoading,
   athleteVideos,
   athleteVideosLoading,
+  mlbPlayers,
+  mlbLoading,
   onPick,
   onHide,
 }: {
@@ -2002,6 +2036,8 @@ function ComparePicker({
   athletesLoading: boolean;
   athleteVideos: Video[];
   athleteVideosLoading: boolean;
+  mlbPlayers: MlbPlayer[];
+  mlbLoading: boolean;
   onPick: (src: { url: string; label: string }) => void;
   onHide: () => void;
 }) {
@@ -2078,7 +2114,13 @@ function ComparePicker({
       <PickerField label="Athlete">
         <select
           value={picker.athleteId}
-          onChange={(e) => setPicker((p) => ({ ...p, athleteId: e.target.value }))}
+          onChange={(e) => setPicker((p) => ({
+            ...p,
+            athleteId: e.target.value,
+            // Picking an athlete clears the library so the results
+            // pane shows that athlete's videos (sources are exclusive).
+            ...(e.target.value ? { library: '' as const } : {}),
+          }))}
           style={pickerSelectStyle}
         >
           <option value="">
@@ -2095,7 +2137,12 @@ function ComparePicker({
       <PickerField label="Library">
         <select
           value={picker.library}
-          onChange={(e) => setPicker((p) => ({ ...p, library: e.target.value as '' | 'mlb' | 'drills' }))}
+          onChange={(e) => {
+            const lib = e.target.value as '' | 'mlb' | 'drills';
+            // Picking a library clears the athlete/position selection
+            // so the results pane shows the library browse instead.
+            setPicker((p) => ({ ...p, library: lib, ...(lib ? { athleteId: '', position: '' } : {}) }));
+          }}
           style={pickerSelectStyle}
         >
           <option value="">— None —</option>
@@ -2146,10 +2193,75 @@ function ComparePicker({
             </div>
           )
         ) : picker.library === 'mlb' ? (
-          <div style={pickerEmptyStyle}>
-            Major League Video library — endpoint not yet wired. Ask
-            an admin to provision the MLB clip library to enable this.
-          </div>
+          mlbLoading ? (
+            <div style={pickerEmptyStyle}>Loading Major League library…</div>
+          ) : (() => {
+            // Flatten to players that actually have playable clips.
+            const groups = mlbPlayers
+              .map((p) => ({ player: p, vids: (p.videos || []).filter((v) => v.url) }))
+              .filter((g) => g.vids.length > 0);
+            if (groups.length === 0) {
+              return (
+                <div style={pickerEmptyStyle}>
+                  No Major League clips yet. Add them under
+                  Education → Major League Video.
+                </div>
+              );
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {groups.map(({ player, vids }) => (
+                  <div key={player.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={mlbPlayerHeaderStyle}>
+                      {player.name}
+                      {player.positions ? (
+                        <span style={{ opacity: 0.55, fontWeight: 600 }}> · {player.positions}</span>
+                      ) : null}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      {vids.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => onPick({ url: v.url as string, label: `${player.name} — ${v.title}` })}
+                          style={mlbVideoCardStyle}
+                          title={`${v.title} · ${v.category}`}
+                        >
+                          <video
+                            // Media fragment nudges the browser to paint the
+                            // first frame as a still preview instead of black
+                            // (skipped for data: URLs, which ignore fragments).
+                            src={v.url ? (v.url.startsWith('data:') ? v.url : `${v.url}#t=0.1`) : undefined}
+                            preload="metadata"
+                            muted
+                            playsInline
+                            style={{
+                              width: '100%', aspectRatio: '16 / 9', objectFit: 'cover',
+                              borderRadius: 5, background: '#000', display: 'block',
+                              pointerEvents: 'none',
+                            }}
+                          />
+                          <span style={{
+                            fontSize: 10.5, fontWeight: 600, color: 'var(--text-bright)',
+                            lineHeight: 1.25, marginTop: 4, overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
+                          }}>
+                            {v.title}
+                          </span>
+                          <span style={{
+                            fontSize: 8.5, color: 'rgba(255,255,255,0.5)',
+                            letterSpacing: '0.06em', textTransform: 'uppercase',
+                          }}>
+                            {v.category}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()
         ) : picker.library === 'drills' ? (
           <div style={pickerEmptyStyle}>
             Drills library — endpoint not yet wired. Ask an admin to
@@ -2202,6 +2314,35 @@ const pickerVideoRowStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'inherit',
   textAlign: 'left',
+};
+
+/* MLB browse — player name divider + clip cards (preview + select).
+   Mirrors the Education → Major League Video grid inside the compact
+   Compare picker. */
+const mlbPlayerHeaderStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: '#cfe0ff',
+  borderBottom: '1px solid var(--border)',
+  paddingBottom: 3,
+};
+
+const mlbVideoCardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'stretch',
+  gap: 1,
+  padding: 5,
+  borderRadius: 7,
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid var(--border)',
+  color: 'var(--text-bright)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  textAlign: 'left',
+  overflow: 'hidden',
 };
 
 const pickerEmptyStyle: React.CSSProperties = {

@@ -136,6 +136,10 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
   ],
 };
 
+/* Stable empty set passed to dropdowns with no current selection (avoids
+   allocating a fresh Set on every render). */
+const EMPTY_SET = new Set<string>();
+
 /* LEGEND_CATEGORIES moved to `@/lib/training-colors`. */
 
 function formatDate(y: number, m: number, d: number): string {
@@ -216,6 +220,10 @@ export default function TrainingPage() {
   // Copy/paste state
   const [copiedDate, setCopiedDate] = useState<string | null>(null);
   const [copiedDrills, setCopiedDrills] = useState<ScheduledDrill[]>([]);
+  // Weekly clipboard — an entire Sun–Sat of drills, replayed onto another
+  // week (same weekday + time) via "Paste Week".
+  const [copiedWeek, setCopiedWeek] = useState<ScheduledDrill[]>([]);
+  const [copiedWeekStart, setCopiedWeekStart] = useState<string | null>(null);
 
   // Drill video viewer state
   const [viewingDrill, setViewingDrill] = useState<Drill | null>(null);
@@ -396,6 +404,58 @@ export default function TrainingPage() {
     }
   };
 
+  // Sunday (week start) for a given Date, as a YYYY-MM-DD string.
+  const weekStartOf = (d: Date) => {
+    const s = new Date(d);
+    s.setDate(s.getDate() - s.getDay());
+    return toDateStr(s);
+  };
+
+  // Copy the whole week (Sun–Sat) containing the current date. The Day view
+  // only loads one day, so fetch the week's drills on demand.
+  const handleCopyWeek = async () => {
+    if (!selectedPlayerId) return;
+    const startStr = weekStartOf(currentDate);
+    const end = parseLocalDate(startStr);
+    end.setDate(end.getDate() + 6);
+    try {
+      const wk = await api.getScheduledDrills(selectedPlayerId, { startDate: startStr, endDate: toDateStr(end) });
+      setCopiedWeek(wk);
+      setCopiedWeekStart(startStr);
+    } catch (err) {
+      console.error('Copy week failed:', err);
+    }
+  };
+
+  // Paste the copied week onto the week containing the current date —
+  // mapping each drill to the SAME weekday + time in the target week.
+  const handlePasteWeek = async () => {
+    if (!selectedPlayerId || copiedWeek.length === 0 || !copiedWeekStart) return;
+    const targetStart = parseLocalDate(weekStartOf(currentDate));
+    const srcStart = parseLocalDate(copiedWeekStart);
+    const items = copiedWeek.map(ev => {
+      const offset = Math.round((parseLocalDate(ev.date).getTime() - srcStart.getTime()) / 86400000);
+      const tgt = new Date(targetStart);
+      tgt.setDate(tgt.getDate() + offset);
+      return {
+        playerId: selectedPlayerId,
+        drillId: ev.drillId || undefined,
+        tab: ev.tab,
+        category: ev.category,
+        name: ev.name,
+        date: toDateStr(tgt),
+        time: ev.time,
+        duration: ev.duration,
+      };
+    });
+    try {
+      await api.createScheduledDrillsBatch(items);
+      refreshEvents();
+    } catch (err) {
+      console.error('Paste week failed:', err);
+    }
+  };
+
   /* ── Hook calls below MUST come before any early return so the hook
      order stays stable across renders. ── */
 
@@ -516,6 +576,27 @@ export default function TrainingPage() {
           <span className={styles.calTitle}>{calTitle}</span>
           <button className={styles.navBtn} onClick={() => navigate(1)}>›</button>
           <button className={styles.todayBtn} onClick={goToday}>Today</button>
+          {/* Day/week actions live here next to Today. Edit/Copy/Paste act on
+              the selected day (Day view); Copy Week / Paste Week act on the
+              whole week and are available in Day + Week view. */}
+          {isCoach && selectedPlayerId && (view === 'day' || view === 'week') && (
+            <>
+              <span className={styles.calNavDivider} aria-hidden="true" />
+              {view === 'day' && (
+                <>
+                  <button className={styles.dayActionBtn} onClick={() => openEditModal(todayDateStr)} title="Edit this day's drills">Edit</button>
+                  <button className={styles.dayActionBtn} onClick={() => handleCopyDay(todayDateStr)} title="Copy this day's drills">Copy</button>
+                  {copiedDrills.length > 0 && (
+                    <button className={styles.dayActionBtnAccent} onClick={() => handlePasteDay(todayDateStr)} title={copiedDate ? `Paste day from ${copiedDate}` : 'Paste copied day'}>Paste</button>
+                  )}
+                </>
+              )}
+              <button className={styles.dayActionBtn} onClick={handleCopyWeek} title="Copy this whole week's drills">Copy Week</button>
+              {copiedWeek.length > 0 && (
+                <button className={styles.dayActionBtnAccent} onClick={handlePasteWeek} title={copiedWeekStart ? `Paste week from ${copiedWeekStart}` : 'Paste copied week'}>Paste Week</button>
+              )}
+            </>
+          )}
         </div>
         <div className={styles.viewSwitcher}>
           {(['month', 'week', 'day'] as const).map(v => (
@@ -878,9 +959,9 @@ function DayView({
     <div className={styles.dayView}>
       {/* Header with date + action buttons */}
       <div className={styles.dayViewHeader}>
-        <div>
-          <div className={styles.dayViewTitle}>{dateLabel}</div>
-          <div className={styles.dayViewSubtitle}>
+        <div className={styles.dayViewHeadLeft}>
+          <span className={styles.dayViewTitle}>{dateLabel}</span>
+          <span className={styles.dayViewSubtitle}>
             {focusedTabMeta ? (
               <>
                 {focusedTabMeta.label} only · {focusedEvents.length} drill{focusedEvents.length !== 1 ? 's' : ''}
@@ -888,7 +969,7 @@ function DayView({
             ) : (
               <>{allDayEvents.length} drill{allDayEvents.length !== 1 ? 's' : ''} scheduled</>
             )}
-          </div>
+          </span>
         </div>
         <div className={styles.dayActions}>
           {focusedTabMeta && (
@@ -913,21 +994,8 @@ function DayView({
               Copy {focusedTabMeta.label}
             </button>
           )}
-          {isCoach && !focusedTabMeta && (
-            <>
-              <button className={styles.dayActionBtn} onClick={onEdit} title="Edit day's drills">
-                Edit
-              </button>
-              <button className={styles.dayActionBtn} onClick={onCopy} title="Copy this day's drills">
-                Copy
-              </button>
-              {hasCopied && (
-                <button className={styles.dayActionBtnAccent} onClick={onPaste} title={`Paste drills from ${copiedFromDate}`}>
-                  Paste
-                </button>
-              )}
-            </>
-          )}
+          {/* Day-level Edit / Copy / Paste / Copy Week now live in the
+              calendar nav next to the Today button. */}
           {/* Paste also available in focused mode — pastes whatever
               is on the clipboard (full-day OR single-tab) onto the
               current day. */}
@@ -1188,17 +1256,35 @@ function MultiSelectDropdown({
     <div className={styles.field}>
       <label className={styles.fieldLabel}>{label}</label>
       <div className={styles.multiWrap} ref={wrapRef}>
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className={styles.multiTrigger}
           style={{ borderColor: color }}
           onClick={() => setOpen(!open)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o); } }}
         >
-          <span className={styles.multiTriggerText}>
-            {count === 0 ? `Select ${label}...` : `${count} selected`}
-          </span>
+          {/* Selected drills render as chips INSIDE the trigger bubble; the
+              "N Selected" badge sits at the far right. */}
+          <div className={styles.multiTriggerChips}>
+            {selectedDrills.length === 0 ? (
+              <span className={styles.multiPlaceholder}>Select {label}...</span>
+            ) : (
+              selectedDrills.map(d => (
+                <span key={d.id} className={styles.multiChip} style={{ background: hexToRgba(color, 0.13), color }}>
+                  {d.name}
+                  <button
+                    type="button"
+                    className={styles.multiChipRemove}
+                    onClick={e => { e.stopPropagation(); onToggle(d.id); }}
+                  >×</button>
+                </span>
+              ))
+            )}
+          </div>
+          {count > 0 && <span className={styles.multiCount}>{count} Selected</span>}
           <span className={styles.multiChevron}>{open ? '▲' : '▼'}</span>
-        </button>
+        </div>
 
         {open && (
           <div className={styles.multiPanel}>
@@ -1227,16 +1313,6 @@ function MultiSelectDropdown({
           </div>
         )}
 
-        {selectedDrills.length > 0 && (
-          <div className={styles.multiChips}>
-            {selectedDrills.map(d => (
-              <span key={d.id} className={styles.multiChip} style={{ background: hexToRgba(color, 0.13), color: color }}>
-                {d.name}
-                <button type="button" className={styles.multiChipRemove} onClick={() => onToggle(d.id)}>×</button>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1270,14 +1346,22 @@ function DrillDashboardModal({
   const [saving, setSaving] = useState(false);
   const isEdit = existingEvents.length > 0;
 
-  // Single set of selected drill IDs — persists across all tab switches
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
-    // Pre-populate from existing events when editing
-    const ids = new Set<string>();
+  // Per-dropdown selection — keyed by dropdown key (e.g. 'h-tee', 'h-ft') so
+  // the SAME drill can be picked in Tee but not Front Toss, even though both
+  // pull from the shared "Drills" library category.
+  const [selectedByDd, setSelectedByDd] = useState<Record<string, Set<string>>>(() => {
+    const init: Record<string, Set<string>> = {};
     for (const ev of existingEvents) {
-      if (ev.drillId) ids.add(ev.drillId);
+      if (!ev.drillId) continue;
+      const dds = MODAL_DROPDOWNS[ev.tab] || [];
+      // New records save the SECTION as the category (e.g. 'Tee'); older
+      // records saved the library dbCategory (e.g. 'Drills') — fall back to
+      // the first dropdown that pulls from it.
+      const dd = dds.find(d => d.label === ev.category) || dds.find(d => d.dbCategory === ev.category);
+      if (!dd) continue;
+      (init[dd.key] ||= new Set<string>()).add(ev.drillId);
     }
-    return ids;
+    return init;
   });
 
   // Load ALL drills from library once
@@ -1297,25 +1381,27 @@ function DrillDashboardModal({
     return map;
   }, [tabDrills, modalCategories]);
 
-  // Count selections per tab for badges
+  // Per-tab badge counts = sum of that tab's dropdown-section selections.
   const countsPerTab = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const t of TABS) counts[t.key] = 0;
-    for (const id of selectedIds) {
-      const drill = allDrills.find(d => d.id === id);
-      if (drill) counts[drill.tab] = (counts[drill.tab] || 0) + 1;
+    for (const t of TABS) {
+      const dds = MODAL_DROPDOWNS[t.key] || [];
+      counts[t.key] = dds.reduce((sum, dd) => sum + (selectedByDd[dd.key]?.size || 0), 0);
     }
     return counts;
-  }, [selectedIds, allDrills]);
+  }, [selectedByDd]);
 
-  const totalSelected = selectedIds.size;
+  const totalSelected = useMemo(
+    () => Object.values(selectedByDd).reduce((sum, set) => sum + set.size, 0),
+    [selectedByDd],
+  );
 
-  const toggleId = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  const toggleInDd = (ddKey: string, id: string) => {
+    setSelectedByDd(prev => {
+      const set = new Set(prev[ddKey] || []);
+      if (set.has(id)) set.delete(id);
+      else set.add(id);
+      return { ...prev, [ddKey]: set };
     });
   };
 
@@ -1325,13 +1411,14 @@ function DrillDashboardModal({
 
     try {
       /* If editing, replace only the LIBRARY-linked events (those with a
-         drillId in selectedIds the recreate step can rebuild from). One-
-         off scheduled entries with no drillId can't be re-created from
-         the selection, so deleting them here would silently destroy
-         hand-entered drills. The save loop below adds back exactly the
-         currently-selected drill IDs, so library-linked existing events
-         that are still selected get a delete-then-recreate (idempotent)
-         and library-linked events that are NOT selected get removed. */
+         drillId the recreate step can rebuild from the per-section
+         selection). One-off scheduled entries with no drillId can't be
+         re-created from the selection, so deleting them here would silently
+         destroy hand-entered drills. The save loop below adds back exactly
+         the currently-selected drills per section, so library-linked
+         existing events that are still selected get a delete-then-recreate
+         (idempotent) and library-linked events that are NOT selected get
+         removed. */
       if (isEdit) {
         for (const ev of existingEvents) {
           if (ev.drillId == null) continue;       // preserve hand-entered
@@ -1358,18 +1445,20 @@ function DrillDashboardModal({
           return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         };
 
-        // Group by tab, then order by each tab's dropdown order (uses dbCategory for the saved record)
+        // One scheduled-drill per (dropdown section × selected drill). The
+        // saved `category` is the SECTION label (Tee / Front Toss / Movement
+        // Prep …) — NOT the shared library dbCategory — so each section round-
+        // trips on edit and shows in its own area on the calendar.
         for (const tab of TABS) {
           let timeSlot = 9 * 60;
-          const tabSelected = allDrills.filter(d => d.tab === tab.key && selectedIds.has(d.id));
           const dropdowns = MODAL_DROPDOWNS[tab.key] || [];
-          const added = new Set<string>(); // avoid duplicates when multiple dropdowns share a dbCategory
-
           for (const dd of dropdowns) {
-            const ddDrills = tabSelected.filter(d => d.category === dd.dbCategory && !added.has(d.id));
-            for (const d of ddDrills) {
-              items.push({ playerId, drillId: d.id, tab: d.tab, category: d.category, name: d.name, date, time: makeTime(timeSlot), duration: 15 });
-              added.add(d.id);
+            const set = selectedByDd[dd.key];
+            if (!set || set.size === 0) continue;
+            for (const drillId of set) {
+              const drill = allDrills.find(d => d.id === drillId);
+              if (!drill) continue;
+              items.push({ playerId, drillId: drill.id, tab: tab.key, category: dd.label, name: drill.name, date, time: makeTime(timeSlot), duration: 15 });
               timeSlot += 15;
             }
           }
@@ -1436,8 +1525,8 @@ function DrillDashboardModal({
               key={dd.key}
               label={dd.label}
               drills={drillsByDropdown[dd.key] || []}
-              selected={selectedIds}
-              onToggle={toggleId}
+              selected={selectedByDd[dd.key] || EMPTY_SET}
+              onToggle={(id) => toggleInDd(dd.key, id)}
               color={dd.color}
             />
           ))}

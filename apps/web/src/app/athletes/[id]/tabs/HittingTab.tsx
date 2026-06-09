@@ -850,7 +850,7 @@ export function HittingTab(props: TabProps) {
              the canonical 1.4rem so the snapshot's left / right /
              bottom rhythm stays in sync with every other dark-blue
              bubble across the app. */
-          style={{ paddingTop: '10px' }}
+          style={{ paddingTop: '10px', borderRadius: 28, boxShadow: 'var(--report-outer-shadow)' }}
         >
         {/* Title row — Hitting Snapshot label on the left, an
             auto-expanding divider hairline filling the right side,

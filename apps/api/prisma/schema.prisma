@@ -52,6 +52,10 @@ model Player {
   // 'catching', 'infield', 'outfield', 'strength') so each Tool Grades
   // card carries its own paired Notes bubble.
   developmentNotes String?
+  // Player-entered aspirations (Edit Profile): target playing level
+  // (High School / College / D3 / D2 / D1 / Professional) + free-text goals.
+  playingLevelGoal String?
+  goals            String?
   // When true, the seed's cleanup phase + any future delete-player flow
   // will refuse to remove this player. Used for the long-lived
   // "Jack Setterland" sandbox player so uploaded data sticks around

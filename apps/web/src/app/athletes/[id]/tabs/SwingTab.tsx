@@ -1614,6 +1614,19 @@ function RichEditableNote({
     onChange(el.innerHTML);
   };
 
+  /* Text-size control — mirrors the report modal's RichTextEditor Size
+     dropdown. execCommand('fontSize', 1-7) wraps the current selection
+     (or the next typed text if nothing is selected) in a sized tag.
+     2 = Small, 3 = Normal, 5 = Large, 6 = XL. Persists in the note HTML
+     so it renders at the chosen size on the read-only display too. */
+  const applyFontSize = (size: string) => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    document.execCommand('fontSize', false, size);
+    onChange(el.innerHTML);
+  };
+
   const ToolbarBtn = ({
     cmd, label, style,
   }: { cmd: 'bold' | 'italic' | 'underline'; label: string; style: React.CSSProperties }) => (
@@ -1640,10 +1653,29 @@ function RichEditableNote({
       flex: fill ? '1 1 auto' : '0 0 auto',
       minHeight: 0,
     }}>
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         <ToolbarBtn cmd="bold"      label="B" style={{ fontWeight: 800 }} />
         <ToolbarBtn cmd="italic"    label="I" style={{ fontStyle: 'italic' }} />
         <ToolbarBtn cmd="underline" label="U" style={{ textDecoration: 'underline' }} />
+        {/* Text-size control — Small / Normal / Large / XL. Applies to the
+            selection, or to the next text typed if nothing is selected. */}
+        <select
+          aria-label="Text size"
+          defaultValue=""
+          onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); }}
+          onChange={(e) => { if (e.target.value) applyFontSize(e.target.value); e.currentTarget.value = ''; }}
+          style={{
+            height: 24, borderRadius: 4, padding: '0 4px', marginLeft: 2,
+            border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)',
+            color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          <option value="" disabled>Size</option>
+          <option value="2">Small</option>
+          <option value="3">Normal</option>
+          <option value="5">Large</option>
+          <option value="6">XL</option>
+        </select>
       </div>
       <div style={{ position: 'relative', flex: fill ? '1 1 auto' : '0 0 auto' }}>
         <div

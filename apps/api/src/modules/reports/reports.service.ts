@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { syncReportMetricsFor } from './report-metrics.util';
+import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -9,7 +11,10 @@ const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'videos');
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private leaderboards: LeaderboardsService,
+  ) {}
 
   async create(data: {
     playerId: string;
@@ -20,7 +25,10 @@ export class ReportsService {
     notes?: string;
     videoIds?: string;
   }) {
-    return this.prisma.report.create({ data });
+    const report = await this.prisma.report.create({ data });
+    await this.syncReportMetrics(report);
+    void this.recomputeLeaderboardFor(report.playerId);
+    return report;
   }
 
   async findByPlayer(playerId: string, reportType?: string) {
@@ -46,12 +54,52 @@ export class ReportsService {
   }
 
   async update(id: string, data: { title?: string; content?: string; notes?: string; videoIds?: string }) {
-    return this.prisma.report.update({ where: { id }, data });
+    const report = await this.prisma.report.update({ where: { id }, data });
+    await this.syncReportMetrics(report);
+    void this.recomputeLeaderboardFor(report.playerId);
+    return report;
+  }
+
+  /**
+   * Mirror a report's manual metric entries into the Metric table so they
+   * surface on the Player Summary trend charts. Tagged with a per-report
+   * source (`REPORT_<id>`) and re-synced on every save, so editing a report
+   * replaces its points (never duplicates) and one report yields one point
+   * per metric. Best-effort: a failure here never blocks the report save.
+   */
+  private async syncReportMetrics(report: {
+    id: string; playerId: string; reportType: string; content: string; createdAt: Date;
+  }) {
+    try {
+      await syncReportMetricsFor(this.prisma, report);
+    } catch (err) {
+      this.logger.warn(`Failed to sync metrics for report ${report.id}: ${err}`);
+    }
+  }
+
+  /** Recompute this player's grad-year leaderboards so rankings track the
+   *  report data. Fire-and-forget + error-safe — never blocks a report save. */
+  private async recomputeLeaderboardFor(playerId: string) {
+    try {
+      const player = await this.prisma.player.findUnique({
+        where: { id: playerId },
+        select: { gradYear: true },
+      });
+      if (player?.gradYear != null) {
+        await this.leaderboards.recompute(player.gradYear);
+      }
+    } catch (err) {
+      this.logger.warn(`Leaderboard recompute failed for player ${playerId}: ${err}`);
+    }
   }
 
   async remove(id: string) {
     const report = await this.prisma.report.findUnique({ where: { id } });
     if (!report) throw new NotFoundException('Report not found');
+
+    // Drop the trend points this report mirrored into the Metric table.
+    await this.prisma.metric.deleteMany({ where: { source: `REPORT_${id}` } });
+    void this.recomputeLeaderboardFor(report.playerId);
 
     // Collect video IDs from both report.videoIds and report.content.videos
     const videoIds = new Set<string>();

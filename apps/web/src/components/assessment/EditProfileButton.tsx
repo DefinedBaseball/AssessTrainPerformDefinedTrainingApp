@@ -12,28 +12,28 @@ interface EditProfileButtonProps {
 }
 
 /**
- * "Edit Profile" button rendered into TabBarActions on the player view.
- * Mirrors AddReportButton (same chrome via `.addReportBtn`) so the action
- * row reads consistently — coaches see "Add Report", players see this in
- * its place.
+ * "Edit Profile" button rendered into TabBarActions. Uses the SAME icon-only
+ * square chrome as the Download PDF button (`.downloadPdfBtn`) — same size
+ * and neutral color — so the action row reads as a consistent set of icon
+ * buttons. The "Edit Profile" label lives in the tooltip / aria-label.
  */
 export function EditProfileButton({ onClick, show = true, label = 'Edit Profile' }: EditProfileButtonProps) {
   if (!show || !onClick) return null;
   return (
     <button
       type="button"
-      className={styles.addReportBtn}
+      className={styles.downloadPdfBtn}
       onClick={onClick}
       title={label}
+      aria-label={label}
     >
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
            stroke="currentColor" strokeWidth="1.7"
            strokeLinecap="round" strokeLinejoin="round">
         {/* pencil-edit glyph */}
         <path d="M11.5 2.5l2 2-8 8H3.5v-2z" />
         <path d="M10 4l2 2" />
       </svg>
-      <span>{label}</span>
     </button>
   );
 }

@@ -22,7 +22,8 @@ const METRIC_TYPES = [
   { key: 'catcher_velo', label: 'Catcher Velo', unit: 'mph' },
   { key: 'pop_time', label: 'Pop Time', unit: 'sec' },
   { key: 'jump_height', label: 'Jump Height', unit: 'in' },
-  { key: 'sixty_yard', label: '60-Yard Dash', unit: 'sec' },
+  { key: 'sprint_60', label: '60-Yard Dash', unit: 'sec' },
+  { key: 'sprint_10', label: '10-Yard Sprint', unit: 'sec' },
 ];
 
 export default function LeaderboardPage() {
@@ -145,6 +146,8 @@ export default function LeaderboardPage() {
               value={gradYear ?? ''}
               onChange={e => setGradYear(parseInt(e.target.value))}
             >
+              {/* All Ages = sentinel 0 → backend ranks every grad year together. */}
+              <option value={0}>All Ages</option>
               {availableGradYears.map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
@@ -180,8 +183,8 @@ export default function LeaderboardPage() {
             <p className={styles.emptyTitle}>No rankings available</p>
             <p className={styles.emptyHint}>
               {isCoach
-                ? `No data for ${activeMetric?.label || metricType} in the ${gradYear} class. Upload metrics via CSV or manual entry, then click "Recompute Rankings" above.`
-                : `No data for ${activeMetric?.label || metricType} in the ${gradYear} class yet.`}
+                ? `No data for ${activeMetric?.label || metricType} ${gradYear === 0 ? 'across all ages' : `in the ${gradYear} class`}. Upload metrics via CSV or manual entry, then click "Recompute Rankings" above.`
+                : `No data for ${activeMetric?.label || metricType} ${gradYear === 0 ? 'across all ages' : `in the ${gradYear} class`} yet.`}
             </p>
           </div>
         ) : (

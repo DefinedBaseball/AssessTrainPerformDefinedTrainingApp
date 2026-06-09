@@ -1922,8 +1922,12 @@ function SnapshotDateChip({ label }: { label: string | null | undefined }) {
   return (
     <span style={{
       alignSelf: 'flex-end',
-      marginBottom: 12,
-      fontSize: 10,
+      /* marginBottom + fontSize matched to the Pitch Report header's date
+         chip (8 / 8.5) so this chip inflates the flex-end header row by the
+         same amount — keeping the Catching/Infield/Outfield Report title at
+         the SAME distance from the bubble top as Hitting/Pitching. */
+      marginBottom: 8,
+      fontSize: 8.5,
       color: 'var(--text-muted)',
       letterSpacing: '0.10em',
       padding: '3px 9px',
@@ -2012,8 +2016,8 @@ function DefensiveSnapshot({
            the two-column body grid as the Tool Grades accent line
            sits above its first inner row. */
         style={isOutfield
-          ? { ...ofOuterBubbleStyle, display: 'flex', flexDirection: 'column', gap: 14, padding: '10px 18px 18px' }
-          : { display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10 }}
+          ? { ...ofOuterBubbleStyle, display: 'flex', flexDirection: 'column', gap: 14, padding: '10px 18px 18px', boxShadow: 'var(--report-outer-shadow)' }
+          : { display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10, borderRadius: 28, boxShadow: 'var(--report-outer-shadow)' }}
       >
         {/* Header — italic title only; the leading emoji icon
             (🧤 / 🥎) was retired so the Infielder / Outfielder
@@ -2234,27 +2238,25 @@ function DefensiveSnapshot({
                   }}
                 >
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
+                    /* 1fr / auto / 1fr grid — the empty left cell balances the
+                       /80 grade pinned to the right, so the title sits CENTERED
+                       between the two underlying metrics in the row below. */
+                    display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
                     marginBottom: 8, paddingBottom: 8,
                     /* Divider between the title row and the metrics — uses the
                        shared `--border` token (theme-aware) so it matches the
                        dividers under Coach Grades in both light + dark themes. */
                     borderBottom: '1px solid var(--border)',
                   }}>
+                    <span aria-hidden="true" />
                     <span style={{
-                      display: 'flex', alignItems: 'center', gap: 8, flex: 1,
-                    }}>
-                      {/* Leading bullet dot removed per coach-spec — the title
-                          (Arm Strength / Glove / Range) now starts flush. */}
-                      <span style={{
-                        /* Font D */
-                        fontFamily: 'inherit',
-                        fontSize: 11.88, letterSpacing: '0.05em', textTransform: 'uppercase',
-                        color: 'var(--text-bright)', fontWeight: 600,
-                        lineHeight: 1.2,
-                      }}>{g.title}</span>
-                    </span>
-                    <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-bright)' }}>
+                      /* Font D */
+                      fontFamily: 'inherit',
+                      fontSize: 11.88, letterSpacing: '0.05em', textTransform: 'uppercase',
+                      color: 'var(--text-bright)', fontWeight: 600,
+                      lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap',
+                    }}>{g.title}</span>
+                    <span style={{ justifySelf: 'end', fontSize: 16, fontWeight: 600, color: 'var(--text-bright)' }}>
                       {g.grade ?? '—'}<span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 2 }}>/80</span>
                     </span>
                   </div>
@@ -2395,11 +2397,14 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
 }
 
 /* Reusable Snapshot bubble — wraps a 2-pane grid + underlying stats rows */
-function SnapshotBubble({ title, subtitle, leftPane, rightPane, notes, headerRightSlot }: {
+function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, notes, headerRightSlot }: {
   title: string;
   subtitle?: string;
   leftPane: { title: string; hint: string; node: React.ReactNode };
   rightPane: { title: string; hint: string; node: React.ReactNode };
+  /** Optional grades panel rendered between the two panes and the notes.
+   *  Catching embeds its Throwing Grades here, mirroring Infield/Outfield. */
+  coachGrades?: React.ReactNode;
   /** Optional content rendered between the two panes and the Underlying
    *  Stats section. Used by the Catching snapshot to host its inline
    *  Coaching Notes editor so it sits inside the bubble, directly under
@@ -2419,7 +2424,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, notes, headerRig
            SectionHeader's accent line sits the same distance above
            the two-pane body as the Tool Grades accent line sits
            above its first inner row. */
-        style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10, borderRadius: 28, boxShadow: 'var(--report-outer-shadow)' }}
       >
         {/* Catching Snapshot header — leading 🧤 icon retired so the
             title text reads alone, matching the other three Snapshot
@@ -2487,6 +2492,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, notes, headerRig
             </div>
           </div>
         </div>
+        {coachGrades && <div>{coachGrades}</div>}
         {notes && (
           /* Notes slot — sits between the two visual panes above and
            * the Underlying Stats below. No surrounding divider here
@@ -2655,28 +2661,10 @@ export function CatchingSubTab({
           because Coach Grades come from a separate content slot
           (`catchingCoachGrades`) and may be present even when the
           throwing/blocking assessment is empty. */}
-      <DefenseCoachGradesPanel
-        report={selectedReport}
-        position="catching"
-        /* Shuffle Velocity readout retired from this panel per coach-spec
-           — the value is still captured in the report's Throwing section
-           and saved on `catchingAssessment.throwing.shuffleVelocity`, so
-           it can be surfaced elsewhere later if needed. The Coach Grades
-           panel now reads as a clean 7-chip grade row only. */
-        /* Catching surfaces its 7 Throwing Grades here so the Coach
-           Grades panel mirrors the catching report exactly. Each grade
-           reads from `catchingAssessment.throwing.*.grade`; missing
-           values render as em-dash. */
-        customGrades={[
-          { title: 'Footwork',             score: catchingAssessment?.throwing?.footwork?.grade   ?? null },
-          { title: 'Transfer',             score: catchingAssessment?.throwing?.transfer?.grade   ?? null },
-          { title: 'Accuracy',             score: catchingAssessment?.throwing?.accuracy?.grade   ?? null },
-          { title: 'Arm Path',             score: catchingAssessment?.throwing?.armPath?.grade    ?? null },
-          { title: 'Foot Strike Position', score: catchingAssessment?.throwing?.footStrike?.grade ?? null },
-          { title: 'Rotation Sequence',    score: catchingAssessment?.throwing?.rotationSeq?.grade?? null },
-          { title: 'Arm Deceleration',     score: catchingAssessment?.throwing?.decel?.grade      ?? null },
-        ]}
-      />
+      {/* Throwing Grades moved INTO the Catching Report snapshot below
+          the panes and above the notes — via the SnapshotBubble
+          `coachGrades` slot — so the order reads panes -> Throwing Grades
+          -> notes, matching the Infield/Outfield embed. */}
 
       {!catchingAssessment ? (
         <Section>
@@ -2706,6 +2694,22 @@ export function CatchingSubTab({
           <SnapshotBubble
             title="Catching Report"
             headerRightSlot={<SnapshotDateChip label={formatSnapshotDate(selectedReport?.createdAt)} />}
+            coachGrades={
+              <DefenseCoachGradesPanel
+                report={selectedReport}
+                position="catching"
+                embedded
+                customGrades={[
+                  { title: 'Footwork',             score: catchingAssessment?.throwing?.footwork?.grade   ?? null },
+                  { title: 'Transfer',             score: catchingAssessment?.throwing?.transfer?.grade   ?? null },
+                  { title: 'Accuracy',             score: catchingAssessment?.throwing?.accuracy?.grade   ?? null },
+                  { title: 'Arm Path',             score: catchingAssessment?.throwing?.armPath?.grade    ?? null },
+                  { title: 'Foot Strike Position', score: catchingAssessment?.throwing?.footStrike?.grade ?? null },
+                  { title: 'Rotation Sequence',    score: catchingAssessment?.throwing?.rotationSeq?.grade?? null },
+                  { title: 'Arm Deceleration',     score: catchingAssessment?.throwing?.decel?.grade      ?? null },
+                ]}
+              />
+            }
             leftPane={{
               title: 'Receiving Heat Map',
               hint: 'Strike zone & borders',

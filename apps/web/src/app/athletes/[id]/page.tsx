@@ -89,10 +89,13 @@ const PROGRESS_METRICS = [
   // Hitting
   'max_exit_velo', 'max_bat_speed', 'avg_exit_velo', 'avg_bat_speed',
   'bat_speed', 'smash_factor', 'launch_angle', 'attack_angle', 'distance',
+  'squared_up_pct', 'plane_angle',
   // Defense
   'infield_velo', 'outfield_velo', 'catcher_velo', 'pop_time', 'exchange_time',
   // Pitching
-  'fb_max_velo', 'sprint_60', 'spin_rate',
+  'fb_max_velo', 'fb_avg_velo', 'spin_rate', 'h_break', 'v_break', 'sprint_60',
+  // Speed (Physical / defense sprint trends — 60-yd + 10-yd dash)
+  'sprint_10',
   // Strength
   'jump_height', 'broad_jump', 'squat_max', 'bench_max', 'deadlift_max',
   // Vision
@@ -164,8 +167,10 @@ export default function PlayerProfilePage() {
     setLoading(true);
     setError(null);
 
+    // `'REPORT'` → only per-report aggregated points (one per report), so
+    // the trend charts never show seeded / raw-CSV multi-date demo data.
     const progressPromises = PROGRESS_METRICS.map(mt =>
-      api.getMetricProgress(id, mt)
+      api.getMetricProgress(id, mt, 'REPORT')
         .then(data => ({ mt, data }))
         .catch(() => ({ mt, data: [] as { value: number; recordedAt: string }[] })),
     );

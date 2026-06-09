@@ -14,6 +14,29 @@ import { v4 as uuid } from 'uuid';
 // Local upload directory (dev only — production uses S3)
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'videos');
 
+/* Shared multer config for the standalone /upload-file route: 500 MB
+   cap; accept video/* mimetypes OR a known video extension (some
+   MediaRecorder blobs arrive with a generic octet-stream mimetype). */
+const VIDEO_UPLOAD_LIMITS = { fileSize: 500 * 1024 * 1024 };
+function videoFileFilter(
+  _req: any,
+  file: any,
+  cb: (err: Error | null, accept: boolean) => void,
+) {
+  const VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.mkv', '.avi', '.m4v', '.ogv'];
+  const mime = (file.mimetype || '').toLowerCase();
+  const name = (file.originalname || '').toLowerCase();
+  if (!mime.startsWith('video/') && !VIDEO_EXTS.some((ext) => name.endsWith(ext))) {
+    return cb(
+      new BadRequestException(
+        `Only video files are allowed (got mimetype="${file.mimetype || '(none)'}", filename="${file.originalname || '(none)'}")`,
+      ),
+      false,
+    );
+  }
+  cb(null, true);
+}
+
 class CreateVideoDto {
   playerId!: string;
   uploadedById?: string;
@@ -235,6 +258,38 @@ export class VideosController {
       originalUrl,
       fileSize: file.size,
     };
+  }
+
+  /**
+   * POST /api/videos/upload-file
+   *
+   * Store a video file and return its URL — WITHOUT creating a Video DB
+   * record. Used by the Education → Major League Video library, whose
+   * clips live in their own MlbVideo table and just need a playable URL.
+   * Same storage routing as /upload (S3 in prod, local disk in dev).
+   */
+  @Post('upload-file')
+  @Roles('COACH')
+  @UseInterceptors(FileInterceptor('file', { limits: VIDEO_UPLOAD_LIMITS, fileFilter: videoFileFilter }))
+  @ApiOperation({ summary: 'Upload a video file and return its URL only (COACH only, 500MB max)' })
+  @ApiConsumes('multipart/form-data')
+  async uploadFileOnly(@UploadedFile() file: any) {
+    if (!file) throw new BadRequestException('No video file provided');
+
+    const ext = path.extname(file.originalname) || '.mp4';
+    const filename = `${uuid()}${ext}`;
+    const driver = process.env.STORAGE_DRIVER || 'local';
+
+    if (driver === 's3' && this.s3.isConfigured()) {
+      const ym = new Date().toISOString().slice(0, 7);
+      const key = `uploads/${ym}/${filename}`;
+      await this.s3.putObjectFromBuffer(key, file.buffer, file.mimetype || 'video/mp4');
+      return { url: this.s3.publicUrlFor(key) };
+    }
+
+    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    await fs.promises.writeFile(path.join(UPLOAD_DIR, filename), file.buffer);
+    return { url: `/api/videos/file/${filename}` };
   }
 
   // Video file serving is handled by express.static middleware in main.ts

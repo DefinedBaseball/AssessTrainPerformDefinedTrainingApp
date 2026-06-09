@@ -66,6 +66,8 @@ export interface Player {
    *  as per-section Notes bubbles under the Tool Grades panel on the
    *  Player Summary tab. Coach-editable; player view is read-only. */
   developmentNotes?: string | null;
+  playingLevelGoal?: string | null;
+  goals?: string | null;
   user?: { email: string; role: string };
 }
 
@@ -439,6 +441,28 @@ export async function uploadVideo(
     throw new Error(`API ${res.status}: ${body}`);
   }
 
+  return res.json();
+}
+
+/**
+ * Upload a standalone video file and get back its URL — no Video DB
+ * record is created. Used by the MLB clip library (Education → Major
+ * League Video), where clips are stored as MlbVideo rows that just need
+ * a playable `url`.
+ */
+export async function uploadVideoFile(file: File): Promise<{ url: string }> {
+  const token = getAuthToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/videos/upload-file', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`API ${res.status}: ${body}`);
+  }
   return res.json();
 }
 

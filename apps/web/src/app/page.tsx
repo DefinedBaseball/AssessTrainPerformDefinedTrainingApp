@@ -471,11 +471,12 @@ function AnnouncementFeed({
               key={post.id}
               className={`${styles.postCard} ${post.urgency === 'IMPORTANT' ? styles.postCardImportant : ''}`}
             >
-              <div className={styles.postTop}>
+              {/* Full-width type bar — the announcement type, the Important
+                  marking, and the time live in this header strip, tinted by
+                  the post type. */}
+              <div className={`${styles.postTop} ${styles[tagClass]}`}>
                 <div className={styles.postMeta}>
-                  <span className={`${styles.postTag} ${styles[tagClass]}`}>
-                    {typeLabel}
-                  </span>
+                  <span className={styles.postBarLabel}>{typeLabel}</span>
                   {post.urgency === 'IMPORTANT' && (
                     <span className={styles.postUrgentBadge}>Important</span>
                   )}

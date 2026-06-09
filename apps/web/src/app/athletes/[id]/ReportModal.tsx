@@ -658,6 +658,7 @@ interface SummaryData {
   height: string; weight: string; gradYear: string; birthDate: string; highSchool: string;
   clubTeam: string; pbrNational: string; pbrState: string; pbrPosition: string; pgScore: string;
   collegeCommit: string; logoFile: File | null;
+  playingLevelGoal: string; goals: string;
 }
 
 function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: SummaryData) => void }) {
@@ -864,6 +865,30 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className={rs.section}>
+        <div className={rs.sectionHeader}><span className={rs.sectionIcon}>🎯</span><span className={rs.sectionTitle}>Goals & Aspirations</span></div>
+        <div className={rs.summaryGrid}>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Playing Level Goal</label>
+            <select className={rs.summarySelect} value={data.playingLevelGoal} onChange={e => update({ playingLevelGoal: e.target.value })}>
+              <option value="">Select...</option>
+              {['High School', 'College', 'D3', 'D2', 'D1', 'Professional'].map(lv => <option key={lv} value={lv}>{lv}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className={rs.summaryField}>
+          <label className={rs.summaryLabel}>Goals</label>
+          <textarea
+            className={rs.summaryInput}
+            value={data.goals}
+            onChange={e => update({ goals: e.target.value })}
+            placeholder="Your personal goals…"
+            rows={4}
+            style={{ resize: 'vertical', minHeight: 80 }}
+          />
         </div>
       </div>
 
@@ -3114,6 +3139,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     height: '', weight: '', gradYear: '', birthDate: '', highSchool: '',
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
     collegeCommit: '', logoFile: null,
+    playingLevelGoal: '', goals: '',
   };
   const [summaryData, setSummaryData] = useState<SummaryData>(emptySummary);
   /* Catching / Infield / Outfield form data — edit-mode prefill from
@@ -3271,6 +3297,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       pbrPosition: player.pbrPosition ? String(player.pbrPosition) : '',
       pgScore: player.pgScore ? String(player.pgScore) : '',
       collegeCommit: player.collegeCommit || '', logoFile: null,
+      playingLevelGoal: (player as any).playingLevelGoal || '', goals: (player as any).goals || '',
     });
   }, [player]);
 
@@ -3347,6 +3374,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           pbrPosition: summaryData.pbrPosition ? parseInt(summaryData.pbrPosition) : null,
           pgScore: summaryData.pgScore ? parseFloat(summaryData.pgScore) : null,
           collegeCommit: summaryData.collegeCommit || null,
+          playingLevelGoal: summaryData.playingLevelGoal || null,
+          goals: summaryData.goals || null,
         } as any);
       } else {
         /* Save a SEPARATE report for every section that has data (new

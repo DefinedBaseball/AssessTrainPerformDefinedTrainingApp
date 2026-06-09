@@ -593,6 +593,8 @@ const TREND_DOMAINS: { label: string; accent: string; metrics: { key: string; la
       { key: 'launch_angle',  label: 'Launch Angle',  unit: '°' },
       { key: 'attack_angle',  label: 'Attack Angle',  unit: '°' },
       { key: 'distance',      label: 'Distance',      unit: 'ft' },
+      { key: 'squared_up_pct',label: 'Squared Up %',  unit: '%' },
+      { key: 'plane_angle',   label: 'Plane Angle',   unit: '°' },
     ],
   },
   {
@@ -609,20 +611,22 @@ const TREND_DOMAINS: { label: string; accent: string; metrics: { key: string; la
      metrics. Builds 8 × 6 = 48 entries; the populated filter only
      surfaces ones with actual recorded history so the dropdown stays
      compact for pitchers who only carry a couple of pitch types. */
-  ...PITCH_TREND_TYPES.map((pt) => ({
-    label: pt.label,
-    accent: '#F59E0B',
-    metrics: PITCH_TREND_METRICS.map((m) => ({
-      key: `${pt.keyPrefix}_${m.suffix}`,
-      label: m.label,
-      unit: m.unit,
-    })),
-  })),
+  {
+    label: 'Pitching', accent: '#F59E0B',
+    metrics: [
+      { key: 'fb_max_velo', label: 'Fastball Max Velo', unit: 'mph' },
+      { key: 'fb_avg_velo', label: 'Fastball Avg Velo', unit: 'mph' },
+      { key: 'spin_rate',   label: 'Spin Rate',         unit: 'rpm' },
+      { key: 'h_break',     label: 'Horizontal Break',  unit: 'in' },
+      { key: 'v_break',     label: 'Vertical Break',    unit: 'in' },
+    ],
+  },
   {
     label: 'Physical', accent: '#EF4444',
     metrics: [
-      { key: 'sprint_60',    label: '60-yd Sprint', unit: 's' },
-      { key: 'jump_height',  label: 'Vert Jump',    unit: 'in' },
+      { key: 'sprint_60',    label: '60-yd Sprint',   unit: 's' },
+      { key: 'sprint_10',    label: '10 Yard Sprint', unit: 's' },
+      { key: 'jump_height',  label: 'Vert Jump',      unit: 'in' },
       { key: 'broad_jump',   label: 'Broad Jump',   unit: 'in' },
       { key: 'squat_max',    label: 'Squat Max',    unit: 'lb' },
       { key: 'bench_max',    label: 'Bench Max',    unit: 'lb' },
@@ -1724,29 +1728,20 @@ function getTrendCategoriesForPlayer(
      subgroup the 4 standard charts: Max Velo, Avg Velo, Avg Spin,
      Avg IVB/HB. */
   if (isPitcher) {
-    /* Only emit a subgroup for pitch types the athlete actually
-       throws — checked by looking for ANY history entry under that
-       pitch type's metric keys in progressData. A pitcher who has
-       only ever thrown fastballs and sliders gets just two rows
-       here instead of all eight. */
-    const pitchSubgroups: TrendSubgroup[] = PITCH_TREND_TYPES
-      .map((pt) => ({
-        label: pt.label,
-        cards: [
-          { key: `${pt.keyPrefix}_max_velo`,    label: 'Max Velocity', unit: 'mph', accent: '#F59E0B' },
-          { key: `${pt.keyPrefix}_avg_velo`,    label: 'Avg Velocity', unit: 'mph', accent: '#F59E0B' },
-          { key: `${pt.keyPrefix}_avg_spin`,    label: 'Avg Spin',     unit: 'rpm', accent: '#F59E0B' },
-          { key: `${pt.keyPrefix}_avg_ivb_hb`,  label: 'Avg IVB/HB',   unit: 'in',  accent: '#F59E0B' },
-        ],
-      }))
-      .filter((sg) => sg.cards.some((c) => (progressData[c.key]?.length ?? 0) > 0));
-    if (pitchSubgroups.length > 0) {
-      categories.push({
-        label: 'Pitching',
-        accent: '#F59E0B',
-        subgroups: pitchSubgroups,
-      });
-    }
+    /* Trackman's parser emits aggregate keys (fb_max_velo, spin_rate,
+       h_break, v_break …) rather than per-pitch-type keys, so the trend
+       cards track those directly — one point per report. */
+    categories.push({
+      label: 'Pitching',
+      accent: '#F59E0B',
+      cards: [
+        { key: 'fb_max_velo', label: 'Fastball Max Velo', unit: 'mph', accent: '#F59E0B' },
+        { key: 'fb_avg_velo', label: 'Fastball Avg Velo', unit: 'mph', accent: '#F59E0B' },
+        { key: 'spin_rate',   label: 'Spin Rate',         unit: 'rpm', accent: '#F59E0B' },
+        { key: 'h_break',     label: 'Horizontal Break',  unit: 'in',  accent: '#F59E0B' },
+        { key: 'v_break',     label: 'Vertical Break',    unit: 'in',  accent: '#F59E0B' },
+      ],
+    });
   }
 
   /* ── Catching (catcher only) ── */
@@ -1770,7 +1765,7 @@ function getTrendCategoriesForPlayer(
       cards: [
         { key: 'infield_velo', label: 'Infield Velocity', unit: 'mph', accent: '#22C55E' },
         { key: 'sprint_60',    label: '60-yard Dash',     unit: 's',   accent: '#22C55E' },
-        { key: 'acceleration', label: 'Acceleration',     unit: 's',   accent: '#22C55E' },
+        { key: 'sprint_10',    label: '10 Yard Sprint',   unit: 's',   accent: '#22C55E' },
       ],
     });
   }
@@ -1783,7 +1778,7 @@ function getTrendCategoriesForPlayer(
       cards: [
         { key: 'outfield_velo', label: 'Outfield Velocity', unit: 'mph', accent: '#22C55E' },
         { key: 'sprint_60',     label: '60-yard Dash',      unit: 's',   accent: '#22C55E' },
-        { key: 'acceleration',  label: 'Acceleration',      unit: 's',   accent: '#22C55E' },
+        { key: 'sprint_10',     label: '10 Yard Sprint',    unit: 's',   accent: '#22C55E' },
       ],
     });
   }
@@ -2279,7 +2274,9 @@ export function PlayerSummaryTab({
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
+        {/* Edit Profile is available to coaches AND players (was non-coach
+            only) so coaches can edit player info from the reports tab. */}
+        <EditProfileButton onClick={onEditProfile} show />
         {/* Top-level Download PDF — assembles the Player Summary PDF
             via DIRECT screenshots of the live in-app sections:
               1. Title Page (cover)
