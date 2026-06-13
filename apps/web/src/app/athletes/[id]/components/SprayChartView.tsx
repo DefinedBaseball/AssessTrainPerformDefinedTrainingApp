@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '@/lib/api';
 import aStyles from '@/components/assessment/assessment.module.css';
@@ -834,7 +835,7 @@ export function SprayChartView({
                      across the app (Tool Grades bar labels, KPI chip
                      labels, Break & Spin column header, etc.). */
                   fontFamily: 'inherit',
-                  fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
+                  fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
                   textTransform: 'uppercase', color: 'var(--text-bright)',
                   lineHeight: 1.2,
                 }}
@@ -844,7 +845,7 @@ export function SprayChartView({
                   className={aStyles.sprayLightText}
                   style={{
                     /* 16 → 20.8 (≈21) — 30% larger */
-                    fontSize: 21, fontWeight: 700, color: 'var(--text)',
+                    fontSize: rem(21), fontWeight: 700, color: 'var(--text)',
                     fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}
@@ -855,7 +856,7 @@ export function SprayChartView({
                   /* 9 → 12 — 30% larger */
                   <span
                     className={aStyles.sprayLightText}
-                    style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}
+                    style={{ fontSize: rem(12), color: 'var(--text-muted)', fontWeight: 600 }}
                   >{p.unit}</span>
                 )}
               </span>
@@ -979,7 +980,7 @@ export function SprayChartView({
               <span
                 className={aStyles.sprayLightText}
                 style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: '0.22em',
+                  fontSize: rem(9), fontWeight: 700, letterSpacing: '0.22em',
                   color: 'rgba(183,190,201,0.78)', whiteSpace: 'nowrap',
                   textAlign: 'center',
                 }}
@@ -994,7 +995,7 @@ export function SprayChartView({
                 className={aStyles.sprayLightText}
                 style={{
                   display: 'flex', justifyContent: 'space-between',
-                  fontSize: 9, fontWeight: 600, letterSpacing: '0.12em',
+                  fontSize: rem(9), fontWeight: 600, letterSpacing: '0.12em',
                   color: 'rgba(183,190,201,0.62)',
                 }}
               >
@@ -1096,7 +1097,7 @@ export function SprayChartView({
             className={aStyles.sprayLightText}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
+              fontSize: rem(10), fontWeight: 700, letterSpacing: '0.22em',
               textTransform: 'uppercase', color: 'var(--text-muted)',
             }}
           >
@@ -1115,7 +1116,7 @@ export function SprayChartView({
               style={{
                 background: 'none', border: 'none',
                 color: filtersActive ? 'var(--accent-light)' : 'var(--text-muted)',
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.18em',
+                fontSize: rem(10), fontWeight: 700, letterSpacing: '0.18em',
                 cursor: filtersActive ? 'pointer' : 'not-allowed',
                 opacity: filtersActive ? 1 : 0.4,
                 textTransform: 'uppercase',
@@ -1185,7 +1186,7 @@ export function SprayChartView({
                       <span
                         className={isActive ? undefined : aStyles.sprayLightText}
                         style={{
-                          fontSize: 9.5, fontWeight: 700, letterSpacing: '0.10em',
+                          fontSize: rem(9.5), fontWeight: 700, letterSpacing: '0.10em',
                           textTransform: 'uppercase',
                           color: isActive ? 'var(--accent-light)' : 'var(--text-muted)',
                           fontFamily: "'DM Mono', ui-monospace, monospace",
@@ -1196,19 +1197,19 @@ export function SprayChartView({
                       <span
                         className={aStyles.sprayLightText}
                         style={{
-                          fontSize: 10, fontVariantNumeric: 'tabular-nums', fontWeight: 700,
+                          fontSize: rem(10), fontVariantNumeric: 'tabular-nums', fontWeight: 700,
                           color: 'var(--text)', whiteSpace: 'nowrap',
                         }}
                       >
                         ≥ {val}<span
                           className={aStyles.sprayLightText}
-                          style={{ fontSize: 8.5, color: 'var(--text-muted)', marginLeft: 2 }}
+                          style={{ fontSize: rem(8.5), color: 'var(--text-muted)', marginLeft: 2 }}
                         >{def.unit}</span>
                       </span>
                     ) : (
                       <span
                         className={aStyles.sprayLightText}
-                        style={{ fontSize: 9.5, color: 'var(--text-muted)', letterSpacing: '0.10em' }}
+                        style={{ fontSize: rem(9.5), color: 'var(--text-muted)', letterSpacing: '0.10em' }}
                       >All</span>
                     )}
                   </div>
@@ -1238,11 +1239,11 @@ function SprayEmpty({ icon, title, hint }: { icon: string; title: string; hint: 
     <div style={{
       position: 'absolute', inset: 0,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      gap: 6, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 24,
+      gap: 6, color: 'var(--text-muted)', fontSize: rem(13), textAlign: 'center', padding: 24,
     }}>
-      <div style={{ fontSize: 36, opacity: 0.7 }}>{icon}</div>
+      <div style={{ fontSize: rem(36), opacity: 0.7 }}>{icon}</div>
       <div>{title}</div>
-      {hint && <div style={{ fontSize: 11, opacity: 0.7 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: rem(11), opacity: 0.7 }}>{hint}</div>}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 /* ── Training Calendar Page ── */
 
 /* ── Layout ── */
-.page { max-width: 1200px; }
+/* Full-bleed so the title bubble spans the full width like the Athletes hub bubble. */
+.page { max-width: none; }
 
 .header {
   display: flex;
@@ -131,8 +132,13 @@
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
-  min-width: 180px;
+  /* Reserve enough width for the LONGEST title — a Day-view date like
+     "Wednesday, September 22, 2026" or a cross-month Week range — so the span
+     never grows on shorter dates. Keeps the ‹ / › nav arrows (and Today, etc.)
+     in a fixed position no matter how long the selected date reads. */
+  min-width: 300px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .todayBtn {

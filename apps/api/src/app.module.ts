@@ -19,6 +19,8 @@ import { PostsModule } from './modules/posts/posts.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ClubTeamsModule } from './modules/club-teams/club-teams.module';
 import { CollegesModule } from './modules/colleges/colleges.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -61,6 +63,8 @@ import { CollegesModule } from './modules/colleges/colleges.module';
     AnalyticsModule,
     ClubTeamsModule,
     CollegesModule,
+    MessagesModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

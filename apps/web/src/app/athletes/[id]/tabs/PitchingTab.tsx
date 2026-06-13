@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useState, useMemo } from 'react';
 import {
   SectionHeader, Section,
@@ -281,20 +282,20 @@ function ArsenalCard({ row }: { row: ArsenalRow }) {
             borderBottom: '1px solid var(--border)',
           }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 6.8, color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Max Velo</div>
-              <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
+              <div style={{ fontSize: rem(6.8), color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Max Velo</div>
+              <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
                 {row.maxVelo.toFixed(1)}
               </div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 6.8, color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Velo</div>
-              <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
+              <div style={{ fontSize: rem(6.8), color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Velo</div>
+              <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
                 {row.avgVelo.toFixed(1)}
               </div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 6.8, color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Low Velo</div>
-              <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
+              <div style={{ fontSize: rem(6.8), color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Low Velo</div>
+              <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
                 {row.minVelo.toFixed(1)}
               </div>
             </div>
@@ -302,8 +303,8 @@ function ArsenalCard({ row }: { row: ArsenalRow }) {
         </>
       ) : (
         <>
-          <div style={{ fontSize: 18.7, fontWeight: 700, fontFamily: 'inherit', color: 'var(--faint)', lineHeight: 1 }}>--</div>
-          <div style={{ fontSize: 7.65, color: 'var(--text-muted)', marginTop: 3 }}>No data yet</div>
+          <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color: 'var(--faint)', lineHeight: 1 }}>--</div>
+          <div style={{ fontSize: rem(7.65), color: 'var(--text-muted)', marginTop: 3 }}>No data yet</div>
         </>
       )}
     </div>
@@ -318,8 +319,8 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         height: '100%', gap: 6, opacity: 0.5, padding: '12px 0',
       }}>
-        <span style={{ fontSize: 18.7 }}>&#127919;</span>
-        <span style={{ fontSize: 9.35, color: 'var(--text-muted)', textAlign: 'center' }}>Click a pitch</span>
+        <span style={{ fontSize: rem(18.7) }}>&#127919;</span>
+        <span style={{ fontSize: rem(9.35), color: 'var(--text-muted)', textAlign: 'center' }}>Click a pitch</span>
       </div>
     );
   }
@@ -346,8 +347,8 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
       </div>
       {items.map(([label, val, color]) => (
         <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 7.65, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)' }}>{label}</span>
-          <span style={{ fontSize: 11.05, fontWeight: 700, fontFamily: 'inherit', color }}>{val}</span>
+          <span style={{ fontSize: rem(7.65), fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)' }}>{label}</span>
+          <span style={{ fontSize: rem(11.05), fontWeight: 700, fontFamily: 'inherit', color }}>{val}</span>
         </div>
       ))}
     </>
@@ -951,7 +952,7 @@ function PitchLocationPlot({
 
 /* ── Arsenal Table ── */
 const thStyle: React.CSSProperties = {
-  textAlign: 'left', padding: '8px 10px', fontSize: 8.5, fontWeight: 600,
+  textAlign: 'left', padding: '8px 10px', fontSize: rem(8.5), fontWeight: 600,
   textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)',
 };
 const tdBase: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)' };
@@ -959,8 +960,8 @@ const tdMono: React.CSSProperties = { ...tdBase, fontFamily: 'inherit', fontWeig
 
 function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
   const cols = '70px 1fr 1fr 1fr';
-  const headerStyle: React.CSSProperties = { fontSize: 7.65, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
-  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: 12.75, color: 'var(--text)' };
+  const headerStyle: React.CSSProperties = { fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
+  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: rem(12.75), color: 'var(--text)' };
 
   return (
     <div>
@@ -982,17 +983,17 @@ function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
         </div>
         {rows.map(r => (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 10.2, color: getPitchColor(r.pitchType) }}>
+            <span style={{ fontWeight: 700, fontSize: rem(10.2), color: getPitchColor(r.pitchType) }}>
               {PITCH_SHORT[r.pitchType]}
             </span>
             <span style={cellStyle}>
-              {r.avgExt > 0 ? r.avgExt : '--'} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
+              {r.avgExt > 0 ? r.avgExt : '--'} <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
             </span>
             <span style={cellStyle}>
-              {r.avgRelHeight > 0 ? r.avgRelHeight : '--'} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
+              {r.avgRelHeight > 0 ? r.avgRelHeight : '--'} <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
             </span>
             <span style={cellStyle}>
-              {r.avgRelSide !== 0 ? r.avgRelSide : '--'} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
+              {r.avgRelSide !== 0 ? r.avgRelSide : '--'} <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
             </span>
           </div>
         ))}
@@ -1022,7 +1023,7 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
         const w = ((r.maxVelo - r.minVelo) / range) * 100;
         return (
           <div key={r.pitchType} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 9.35, fontWeight: 700, color: 'var(--text-muted)', width: 40, fontFamily: 'inherit' }}>
+            <span style={{ fontSize: rem(9.35), fontWeight: 700, color: 'var(--text-muted)', width: 40, fontFamily: 'inherit' }}>
               {PITCH_SHORT[r.pitchType]}
             </span>
             <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--border)', position: 'relative' }}>
@@ -1031,7 +1032,7 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
                 height: '100%', borderRadius: 4, background: getPitchColor(r.pitchType),
               }} />
             </div>
-            <span style={{ fontSize: 9.35, fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: rem(9.35), fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
               {r.minVelo} &ndash; {r.maxVelo} MPH
             </span>
           </div>
@@ -1048,8 +1049,8 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
      average velocity (avgVelo) is already computed per row inside
      `computeArsenal`, so this is purely a UI addition. */
   const cols = '70px 1fr 1fr 1fr 1fr 1fr 1fr';
-  const headerStyle: React.CSSProperties = { fontSize: 7.65, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
-  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: 12.75, color: 'var(--text)' };
+  const headerStyle: React.CSSProperties = { fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
+  const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: rem(12.75), color: 'var(--text)' };
 
   return (
     <div>
@@ -1074,12 +1075,12 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
         </div>
         {rows.map(r => (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 10.2, color: getPitchColor(r.pitchType) }}>
+            <span style={{ fontWeight: 700, fontSize: rem(10.2), color: getPitchColor(r.pitchType) }}>
               {PITCH_SHORT[r.pitchType]}
             </span>
             <span style={cellStyle}>
               {r.avgVelo > 0 ? r.avgVelo.toFixed(1) : '--'}
-              <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
+              <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
             </span>
             <span style={cellStyle}>
               {r.avgHBreak > 0 ? '+' : ''}{r.avgHBreak}&quot;
@@ -1088,7 +1089,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
               {r.avgIVB > 0 ? '+' : ''}{r.avgIVB}&quot;
             </span>
             <span style={cellStyle}>
-              {r.avgSpin} <span style={{ fontSize: 7.65, fontWeight: 500, color: 'var(--text-muted)' }}>rpm</span>
+              {r.avgSpin} <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)' }}>rpm</span>
             </span>
             <span style={cellStyle}>
               {r.tilt}
@@ -1098,7 +1099,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
                 <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)' }}>
                   <div style={{ width: `${r.spinEff}%`, height: '100%', borderRadius: 3, background: getPitchColor(r.pitchType) }} />
                 </div>
-                <span style={{ fontSize: 9.35 }}>{r.spinEff}%</span>
+                <span style={{ fontSize: rem(9.35) }}>{r.spinEff}%</span>
               </div>
             </span>
           </div>
@@ -1338,9 +1339,26 @@ export function PitchingTab({
 
       {/* Loading */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 11.9 }}>
+        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: rem(11.9) }}>
           Loading pitch data...
         </div>
+      )}
+
+      {/* ── Live Results (Phase 6) — surfaces every at-bat this pitcher
+          pitched in a Live Session, with rollup stats (FPS %, Early &
+          Ahead, K %, BB %, GB %, Fly-Ball %, 2K-Strike %). Scoped by
+          pitcherId. Gated behind `pitchingSubTab === 'live'` — the
+          "Live Results" toggle in the Pitch Report HUD header controls
+          it; default state hides it. Rendered HERE (above the Pitch
+          Report HUD) so when the toggle is pressed the Live Results
+          bubble is the FIRST bubble in the report. */}
+      {pitchingSubTab === 'live' && (
+        <Section>
+          <LiveAtBatsList
+            pitcherId={player.id}
+            title="Live Results"
+          />
+        </Section>
       )}
 
       {/* ── Unified Pitch Report — Arsenal + Movement + Location in one HUD bubble ── */}
@@ -1424,7 +1442,7 @@ export function PitchingTab({
                    Live Results button. */
                 fontFamily: 'var(--font-body)',
                 fontStyle: 'normal',
-                fontSize: 8.5,
+                fontSize: rem(8.5),
                 fontWeight: 700,
                 letterSpacing: '0.10em',
                 textTransform: 'uppercase',
@@ -1492,7 +1510,7 @@ export function PitchingTab({
               <span style={{
                 alignSelf: 'flex-end',
                 marginBottom: 8,
-                fontSize: 8.5,
+                fontSize: rem(8.5),
                 color: 'var(--text-muted)',
                 letterSpacing: '0.10em',
                 padding: '3px 9px',
@@ -1590,14 +1608,14 @@ export function PitchingTab({
                   justifyContent: 'flex-start', gap: 6, minWidth: 0,
                 }}>
                   <span style={{
-                    fontSize: 8.5, fontWeight: 600, textTransform: 'uppercase',
+                    fontSize: rem(8.5), fontWeight: 600, textTransform: 'uppercase',
                     letterSpacing: '0.14em', color: 'var(--text-bright)',
                     fontFamily: 'inherit', whiteSpace: 'nowrap',
                   }}>
                     {label}
                   </span>
                   <span style={{
-                    fontSize: 12.75, fontWeight: 700, fontFamily: 'inherit',
+                    fontSize: rem(12.75), fontWeight: 700, fontFamily: 'inherit',
                     color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     {val}
@@ -1682,8 +1700,8 @@ export function PitchingTab({
               </span>
               {isCoach && (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: 9.35 }}>Saved.</span>}
-                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: 9.35 }}>{notesSaveError}</span>}
+                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: rem(9.35) }}>Saved.</span>}
+                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: rem(9.35) }}>{notesSaveError}</span>}
                   <button
                     type="button"
                     onClick={savePitchingNotes}
@@ -1698,7 +1716,7 @@ export function PitchingTab({
                         ? '1px solid rgba(74,222,128,0.55)'
                         : '1px solid var(--border)',
                       color: notesDirty ? '#ecfdf5' : 'var(--text-muted)',
-                      fontSize: 9.35, fontWeight: 700, letterSpacing: '0.04em',
+                      fontSize: rem(9.35), fontWeight: 700, letterSpacing: '0.04em',
                       cursor: savingNotes || !notesDirty ? 'not-allowed' : 'pointer',
                       opacity: savingNotes ? 0.6 : 1,
                     }}
@@ -1723,7 +1741,7 @@ export function PitchingTab({
                   color: 'var(--text)',
                   padding: '10px 12px',
                   borderRadius: 7,
-                  fontSize: 10.2,
+                  fontSize: rem(10.2),
                   lineHeight: 1.55,
                   resize: 'vertical',
                   fontFamily: 'inherit',
@@ -1734,7 +1752,7 @@ export function PitchingTab({
               />
             ) : (
               <div style={{
-                fontSize: 10.2, lineHeight: 1.55,
+                fontSize: rem(10.2), lineHeight: 1.55,
                 color: pitchingNotes ? 'var(--text)' : 'var(--text-muted)',
                 fontStyle: pitchingNotes ? 'normal' : 'italic',
                 padding: '10px 12px',
@@ -1867,28 +1885,6 @@ export function PitchingTab({
         </div>
       )}
 
-
-      {/* ── Live Results (Phase 6) — surfaces every at-bat this
-          pitcher pitched in a Live Session, with Last 25 / 50 / 100 /
-          Year / All-Time filter chips and rollup stats (Barrel %,
-          Line-Drive %, Fly-Ball %, Ground %, K %, BB %). Mirror of
-          the Hitting tab's "Live At-Bats" section, scoped by
-          pitcherId instead of hitterId.
-
-          Gated behind the `pitchingSubTab === 'live'` check — the
-          "Live Results" toggle button in the Pitch Report HUD
-          header controls its visibility. Default state hides this
-          section so the Pitch Report HUD bubble owns the screen;
-          coaches click the Live Results toggle to reveal the
-          at-bat list below. */}
-      {pitchingSubTab === 'live' && (
-        <Section>
-          <LiveAtBatsList
-            pitcherId={player.id}
-            title="Live Results"
-          />
-        </Section>
-      )}
 
       {/* ── Main Video gallery — BOTTOM-most section on this tab.
           Lifted here from its previous spot above the Trackman
@@ -2096,7 +2092,7 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
                   viewport widths. Titles still wrap internally on
                   narrow viewports via the line-height rule. */}
               <div style={{
-                fontSize: 8.5, fontWeight: 600, letterSpacing: '0.04em',
+                fontSize: rem(8.5), fontWeight: 600, letterSpacing: '0.04em',
                 textTransform: 'uppercase', color: 'var(--text-bright)',
                 textAlign: 'center', lineHeight: 1.1,
               }}>
@@ -2104,7 +2100,7 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <span style={{
-                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 13.6,
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(13.6),
                   color: tone, lineHeight: 1, letterSpacing: '-0.02em',
                 }}>
                   {avg ?? '—'}
@@ -2116,7 +2112,7 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
                     <span key={`${tag}-${i}`} style={{
                       padding: '1px 4px',
                       borderRadius: 3,
-                      fontSize: 7.23,
+                      fontSize: rem(7.23),
                       fontWeight: 600,
                       background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
                       border: '1px solid rgba(126,182,255,0.40)',
@@ -2167,9 +2163,9 @@ function DeliverySectionPanel_RETIRED({
           on the right. The aggregate averages every populated item in this
           section so coaches see the rolled-up checkpoint score at a glance. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 13.6 }}>{section.icon}</span>
+        <span style={{ fontSize: rem(13.6) }}>{section.icon}</span>
         <span style={{
-          fontSize: 9.35, fontWeight: 700, letterSpacing: '0.16em',
+          fontSize: rem(9.35), fontWeight: 700, letterSpacing: '0.16em',
           textTransform: 'uppercase', color: 'var(--text-bright)',
           whiteSpace: 'nowrap',
         }}>
@@ -2189,7 +2185,7 @@ function DeliverySectionPanel_RETIRED({
             }} />
           </div>
           <span style={{
-            fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 15.3,
+            fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: rem(15.3),
             color: sectionTone, lineHeight: 1, letterSpacing: '-0.02em',
             minWidth: 26, textAlign: 'right',
           }}>
@@ -2263,7 +2259,7 @@ function DeliveryGradeItem({
               ? '1px solid rgba(126,182,255,0.55)'
               : '1px solid var(--border)',
             color: editing ? 'var(--accent-light)' : 'var(--text-muted)',
-            fontSize: 8.5, lineHeight: 1, padding: 0,
+            fontSize: rem(8.5), lineHeight: 1, padding: 0,
             cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
@@ -2285,13 +2281,13 @@ function DeliveryGradeItem({
         paddingRight: isCoach ? 22 : 0, // leave room for edit button
       }}>
         <span style={{
-          fontSize: 7.65, fontWeight: 700, letterSpacing: '0.12em',
+          fontSize: rem(7.65), fontWeight: 700, letterSpacing: '0.12em',
           textTransform: 'uppercase', color: 'var(--text-bright)',
         }}>
           {item.label}
         </span>
         <span style={{
-          fontWeight: 800, fontSize: 14.45,
+          fontWeight: 800, fontSize: rem(14.45),
           color: tone, lineHeight: 1, letterSpacing: '-0.02em',
         }}>
           {value ?? '—'}
@@ -2326,7 +2322,7 @@ function DeliveryGradeItem({
                 style={{
                   padding: '4px 9px',
                   borderRadius: 6,
-                  fontSize: 9.35,
+                  fontSize: rem(9.35),
                   fontWeight: 600,
                   cursor: 'pointer',
                   border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
@@ -2349,7 +2345,7 @@ function DeliveryGradeItem({
             <span key={tag} style={{
               padding: '1px 6px',
               borderRadius: 4,
-              fontSize: 8.07,
+              fontSize: rem(8.07),
               fontWeight: 600,
               background: 'linear-gradient(135deg, rgba(126,182,255,0.22), rgba(61,139,253,0.10))',
               border: '1px solid rgba(126,182,255,0.40)',
@@ -2385,7 +2381,7 @@ function DeliveryGradeItem({
               onChange({ ...entry, score: Math.max(20, Math.min(80, Math.round(n / 5) * 5)) });
             }}
             style={{
-              width: 56, padding: '4px 6px', fontSize: 10.2, fontWeight: 700,
+              width: 56, padding: '4px 6px', fontSize: rem(10.2), fontWeight: 700,
               background: 'rgba(0,0,0,0.25)', color: 'var(--text)',
               border: '1px solid var(--border)', borderRadius: 6, textAlign: 'center',
             }}
@@ -2395,7 +2391,7 @@ function DeliveryGradeItem({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 6,
-                padding: '4px 8px', fontSize: 9.35, cursor: 'pointer',
+                padding: '4px 8px', fontSize: rem(9.35), cursor: 'pointer',
               }} title="Clear this checkpoint">x</button>
           )}
         </div>

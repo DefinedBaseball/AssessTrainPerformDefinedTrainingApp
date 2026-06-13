@@ -14,6 +14,23 @@ model User {
   email     String   @unique
   password  String   // hashed — will swap to Cognito in production
   role      String   @default("PLAYER") // "COACH" | "PLAYER"
+  // Account lifecycle. Existing rows backfill to ACTIVE via the default, so
+  // no current user is gated. Self-registered players land as PENDING until a
+  // coach accepts them; a declined request deletes the row entirely.
+  status    String   @default("ACTIVE") // "ACTIVE" | "PENDING" | "DECLINED"
+  // Account profile (settings → Account). `position` is the coach's job
+  // title (e.g. "Hitting Coordinator"); `phone` backs the future SMS channel.
+  name      String?
+  phone     String?
+  position  String?
+  // The facility owner. Surfaced as a badge in settings; protected from
+  // deletion. Exactly one user is expected to carry this.
+  isPrimaryAdmin Boolean @default(false)
+  // Per-subject notification channel matrix as JSON:
+  //   { "<SUBJECT>": { "app": bool, "email": bool, "phone": bool }, … }
+  // Missing subject/channel ⇒ default (app on, email on, phone off). Only the
+  // APP channel is delivered today; email/phone are stored for go-live.
+  notificationPrefs String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -21,6 +38,9 @@ model User {
   createdReports Report[] @relation("ReportCreatedBy")
   posts          Post[]   @relation("PostAuthor")
   liveSessionsCreated LiveSession[] @relation("LiveSessionCreatedBy")
+  messagesSent     Message[] @relation("MessagesSent")
+  messagesReceived Message[] @relation("MessagesReceived")
+  notifications    Notification[] @relation("NotificationsReceived")
 }
 
 // ─── Player Profile ──────────────────────────────────────────────
@@ -390,6 +410,9 @@ model MlbPlayer {
   // the avatar/thumb in the Coaching App; nullable so existing
   // players default to the emoji icon until a cover photo is set.
   coverImageUrl String?
+  // Optional physical specs shown on the player card / detail page.
+  heightInches  Int?
+  weightLbs     Int?
   createdAt     DateTime   @default(now())
 
   videos MlbVideo[]
@@ -588,4 +611,52 @@ model Post {
   @@index([type])
   @@index([createdAt])
   @@index([taggedPlayerId])
+}
+
+// ─── Direct Messages ─────────────────────────────────────────────
+// Lightweight 1-to-1 messaging between any two users (coach↔player,
+// coach↔coach, …). A "conversation" is derived at query time by
+// grouping messages between a given pair of users — no separate
+// Conversation table is needed for this volume. `body` and/or
+// `videoUrl` may be set (at least one is required by the service);
+// `videoUrl` reuses the same /api/videos/file storage as clips.
+model Message {
+  id          String    @id @default(uuid())
+  senderId    String
+  recipientId String
+  body        String?   // text content (optional when a video is attached)
+  videoUrl    String?   // attached clip URL (optional)
+  readAt      DateTime? // set when the recipient opens the thread
+  createdAt   DateTime  @default(now())
+
+  sender    User @relation("MessagesSent", fields: [senderId], references: [id])
+  recipient User @relation("MessagesReceived", fields: [recipientId], references: [id])
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([createdAt])
+}
+
+// ─── Notifications ───────────────────────────────────────────────
+// In-app notifications surfaced by the 🔔 bell in the dashboard hero.
+// One row per recipient (fan-out happens at create time). `type` drives
+// the icon + any inline actions (ACCOUNT_REQUEST renders Accept/Decline);
+// `linkUrl` is where clicking navigates; `entityId` carries the related
+// record (e.g. the pending userId for approve/decline, a playerId, postId).
+model Notification {
+  id          String    @id @default(uuid())
+  recipientId String
+  type        String    // ACCOUNT_REQUEST | ANNOUNCEMENT | COMMITMENT | COACH_REVIEW | REPORT | VIDEO | SCHEDULE
+  title       String
+  body        String?
+  linkUrl     String?
+  actorId     String?   // user who triggered it (optional)
+  entityId    String?   // related record id (pending userId / playerId / postId …)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  recipient User @relation("NotificationsReceived", fields: [recipientId], references: [id])
+
+  @@index([recipientId])
+  @@index([createdAt])
 }

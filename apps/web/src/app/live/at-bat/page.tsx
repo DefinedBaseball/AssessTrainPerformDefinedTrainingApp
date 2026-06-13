@@ -184,14 +184,16 @@ interface AtBatClip {
 }
 
 export default function LiveAtBatPage() {
-  const { user, isCoach } = useAuth();
+  const { user, isCoach, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (user === undefined) return;
+    /* Wait for the session restore — `user` is null (not undefined) while
+       auth-context loads, so a hard refresh bounced coaches to /login → /. */
+    if (isLoading) return;
     if (!user) { router.replace('/login'); return; }
     if (!isCoach) router.replace('/');
-  }, [user, isCoach, router]);
+  }, [isLoading, user, isCoach, router]);
 
   // ── Setup state ──
   const [step, setStep] = useState<Step>('setup');
@@ -281,6 +283,16 @@ export default function LiveAtBatPage() {
   // user navigated away mid-recording.
   const isMountedRef = useRef(true);
   useEffect(() => { isMountedRef.current = true; return () => { isMountedRef.current = false; }; }, []);
+
+  /* Warn before tab-close/refresh while any at-bat clip is undecided or
+     mid-upload — same in-memory-recording protection as Live Training. */
+  const hasUnsavedClips = clips.some((c) => c.decision === 'pending' || c.uploading);
+  useEffect(() => {
+    if (!hasUnsavedClips) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsavedClips]);
 
   // ── Load roster once ──
   useEffect(() => {
@@ -792,7 +804,9 @@ export default function LiveAtBatPage() {
     if (session) {
       try { await api.endLiveSession(session.id); } catch { /* ignore */ }
     }
-    router.push('/live');
+    // /videos is the canonical landing now (the standalone /live picker
+    // was retired from the sidebar).
+    router.push('/videos');
   };
 
   // ── Phase 5 — Save step helpers ──
@@ -894,7 +908,7 @@ export default function LiveAtBatPage() {
     if (session) {
       try { await api.endLiveSession(session.id); } catch { /* ignore */ }
     }
-    router.push('/live');
+    router.push('/videos');
   };
 
   /* Finish-Session gate: a clip is "decided" ONLY when its decision
@@ -906,7 +920,7 @@ export default function LiveAtBatPage() {
   const allDecisionsMade = clips.every(c => c.decision !== 'pending' && !c.uploading);
 
   // ── Render gates ──
-  if (user === undefined || !user || !isCoach) return null;
+  if (isLoading || !user || !isCoach) return null;
 
   return (
     <div className={pageStyles.page}>
@@ -969,7 +983,7 @@ export default function LiveAtBatPage() {
           </div>
 
           <div className={trainingStyles.actionsRow}>
-            <Link href="/live" className={trainingStyles.secondaryBtn}>← Back</Link>
+            <Link href="/videos" className={trainingStyles.secondaryBtn}>← Back</Link>
             <button
               type="button"
               className={trainingStyles.primaryBtn}

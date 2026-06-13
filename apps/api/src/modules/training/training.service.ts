@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
 @Injectable()
 export class TrainingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   /** When a Drill carries a videoUrl that points at our local upload
    *  directory, delete the underlying file so it doesn't orphan on
@@ -164,7 +168,27 @@ export class TrainingService {
       });
       results.push(created);
     }
+    // One "new training scheduled" notification per unique player in the
+    // batch (a schedule upload) — not one per drill, which would spam.
+    void this.notifyScheduledPlayers([...new Set(items.map((i) => i.playerId))]);
     return results;
+  }
+
+  /** Notify each given player once that new training hit their calendar. */
+  private async notifyScheduledPlayers(playerIds: string[]) {
+    const players = await this.prisma.player.findMany({
+      where: { id: { in: playerIds } },
+      select: { userId: true },
+    });
+    await this.notifications.notifyMany(
+      players.map((p) => p.userId).filter((id): id is string => !!id),
+      {
+        type: 'SCHEDULE',
+        title: 'New training scheduled',
+        body: 'Your coach added new training to your calendar.',
+        linkUrl: '/training',
+      },
+    );
   }
 
   async updateScheduledDrill(id: string, data: {

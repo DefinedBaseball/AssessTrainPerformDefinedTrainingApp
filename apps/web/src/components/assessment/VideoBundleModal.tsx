@@ -18,9 +18,11 @@
  *     so the coach can A/B the same angle at different timestamps.
  */
 
+import { rem } from '@/lib/rem';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { splitVideoTitle, normalizeVideoTitle } from '@/lib/video-titles';
 import { VideoControlBar } from '../PlaybackSpeedControl';
+import { VideoStopwatch } from '../VideoStopwatch';
 import { VideoDrawingOverlay } from '../VideoDrawingOverlay';
 import { useTheme } from '@/lib/theme-context';
 import * as api from '@/lib/api';
@@ -213,6 +215,9 @@ export function VideoBundleModal({
     durationSec: number;
     mime: string;
   } | null>(null);
+  /* Ref to the pending-clip preview <video> so the Save panel's
+     stopwatch can time the just-recorded take. */
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
   /* Selected report ID to attach the Coach Review to on Save.
      '' = attach to no report (clip lives only in the global
@@ -865,7 +870,7 @@ export function VideoBundleModal({
     color: '#ffffff',
     padding: '3px 8px',
     borderRadius: 6,
-    fontSize: 11,
+    fontSize: rem(11),
     fontWeight: 600,
     letterSpacing: '0.02em',
     cursor: 'pointer',
@@ -894,7 +899,7 @@ export function VideoBundleModal({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 13,
+    fontSize: rem(13),
     cursor: 'pointer',
     fontFamily: 'inherit',
     padding: 0,
@@ -986,7 +991,7 @@ export function VideoBundleModal({
       }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 11,
+            fontSize: rem(11),
             fontWeight: 700,
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
@@ -995,7 +1000,7 @@ export function VideoBundleModal({
             {videos.length} angles
           </div>
           <div style={{
-            fontSize: 18,
+            fontSize: rem(18),
             fontWeight: 700,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -1020,7 +1025,7 @@ export function VideoBundleModal({
             color: synced ? '#1F5FD1' : '#0a0d12',
             padding: '8px 14px',
             borderRadius: 8,
-            fontSize: 11,
+            fontSize: rem(11),
             fontWeight: 700,
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
@@ -1045,7 +1050,7 @@ export function VideoBundleModal({
             border: '1px solid rgba(0, 0, 0, 0.14)',
             background: 'rgba(0, 0, 0, 0.04)',
             color: '#0a0d12',
-            fontSize: 18,
+            fontSize: rem(18),
             cursor: 'pointer',
             flexShrink: 0,
           }}
@@ -1060,7 +1065,7 @@ export function VideoBundleModal({
           padding: '6px 12px',
           marginBottom: 10,
           borderRadius: 6,
-          fontSize: 12,
+          fontSize: rem(12),
           color: '#fecaca',
           background: 'rgba(239,68,68,0.10)',
           border: '1px solid rgba(239,68,68,0.30)',
@@ -1088,7 +1093,7 @@ export function VideoBundleModal({
           borderRadius: 8,
         }}>
           <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+            fontSize: rem(10), fontWeight: 700, letterSpacing: '0.10em',
             textTransform: 'uppercase',
             /* Bumped 0.6 → 0.92 so the "Hidden:" eyebrow reads
                clearly against the dim 0.04-alpha strip background.
@@ -1240,7 +1245,7 @@ export function VideoBundleModal({
                     />
                   </>
                 ) : (
-                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: rem(12) }}>
                     No video URL
                   </div>
                 )}
@@ -1259,7 +1264,7 @@ export function VideoBundleModal({
                   background: 'rgba(0,0,0,0.78)',
                   border: '1px solid var(--border-light)',
                   color: '#ffffff',
-                  fontSize: 10,
+                  fontSize: rem(10),
                   fontWeight: 700,
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
@@ -1368,7 +1373,7 @@ export function VideoBundleModal({
                     background: 'rgba(126,182,255,0.30)',
                     border: '1px solid rgba(126,182,255,0.55)',
                     color: 'var(--text-bright)',
-                    fontSize: 10,
+                    fontSize: rem(10),
                     fontWeight: 700,
                     letterSpacing: '0.06em',
                     textTransform: 'uppercase',
@@ -1392,7 +1397,7 @@ export function VideoBundleModal({
                         ...paneEyeBtnStyle,
                         width: 'auto',
                         padding: '0 8px',
-                        fontSize: 10,
+                        fontSize: rem(10),
                         letterSpacing: '0.06em',
                         textTransform: 'uppercase',
                       }}
@@ -1464,7 +1469,7 @@ export function VideoBundleModal({
             borderRadius: 10,
             color: scrubberRowTextColor,
           }}>
-            <span style={{ fontSize: 12, opacity: 0.8, minWidth: 44, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: rem(12), opacity: 0.8, minWidth: 44, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
               {fmtTime(masterTime)}
             </span>
             <input
@@ -1515,7 +1520,7 @@ export function VideoBundleModal({
                 height: 16,
               }}
             />
-            <span style={{ fontSize: 12, opacity: 0.8, minWidth: 44, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: rem(12), opacity: 0.8, minWidth: 44, fontVariantNumeric: 'tabular-nums' }}>
               {fmtTime(masterDuration)}
             </span>
           </div>
@@ -1545,6 +1550,22 @@ export function VideoBundleModal({
             {synced && videoRefs.current[0] && (
               <VideoControlBar
                 videoRef={{ current: videoRefs.current[0] }}
+                /* In synced mode the single master stopwatch paints its mirror
+                   timer over EVERY visible angle (and the compare pane), not
+                   just the master — so the elapsed-time readout rides along on
+                   each clip, and stays visible even if the master angle is
+                   eye-hidden. */
+                stopwatchOverlayTargets={() => {
+                  const list: (HTMLVideoElement | null)[] = [];
+                  for (let i = 0; i < videoRefs.current.length; i++) {
+                    if (hiddenIdx.has(i)) continue;
+                    list.push(videoRefs.current[i]);
+                  }
+                  if (compareOn && !compareHidden && compareVideoRef.current) {
+                    list.push(compareVideoRef.current);
+                  }
+                  return list;
+                }}
                 /* Override the bar's built-in chrome (bg / border /
                    box-shadow) so it sits flush inside the outer
                    unified bottom toolbar instead of looking like a
@@ -1585,7 +1606,7 @@ export function VideoBundleModal({
             flexWrap: 'wrap',
           }}>
             <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+              fontSize: rem(10), fontWeight: 700, letterSpacing: '0.10em',
               textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)',
               marginRight: 4,
             }}>
@@ -1666,7 +1687,7 @@ export function VideoBundleModal({
                 border: '1px solid rgba(239, 68, 68, 0.40)',
                 color: '#fca5a5',
                 fontFamily: 'inherit',
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.10em',
+                fontSize: rem(10), fontWeight: 700, letterSpacing: '0.10em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
               }}
@@ -1698,7 +1719,7 @@ export function VideoBundleModal({
                   color: recColor,
                   padding: '8px 14px',
                   borderRadius: 8,
-                  fontSize: 11,
+                  fontSize: rem(11),
                   fontWeight: 700,
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
@@ -1742,12 +1763,12 @@ export function VideoBundleModal({
                   background: 'rgba(239,68,68,0.15)',
                   border: '1px solid rgba(239,68,68,0.45)',
                   color: '#fecaca',
-                  fontSize: 11,
+                  fontSize: rem(11),
                   fontWeight: 700,
                   letterSpacing: '0.04em',
                 }}
               >
-                <span style={{ fontSize: 14, lineHeight: 1 }}>🎙</span>
+                <span style={{ fontSize: rem(14), lineHeight: 1 }}>🎙</span>
                 MIC LIVE
               </span>
             )}
@@ -1788,7 +1809,7 @@ export function VideoBundleModal({
                   : (isLight ? '#0a0d12' : '#fff'),
                 padding: '8px 14px',
                 borderRadius: 8,
-                fontSize: 11,
+                fontSize: rem(11),
                 fontWeight: 700,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
@@ -1843,7 +1864,7 @@ export function VideoBundleModal({
             }}>
               <div>
                 <div style={{
-                  fontSize: 11,
+                  fontSize: rem(11),
                   fontWeight: 700,
                   letterSpacing: '0.12em',
                   textTransform: 'uppercase',
@@ -1851,12 +1872,12 @@ export function VideoBundleModal({
                 }}>
                   Coach Review · {pendingClip.durationSec}s
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2 }}>
+                <div style={{ fontSize: rem(16), fontWeight: 700, marginTop: 2 }}>
                   Review your recording
                 </div>
               </div>
               <div style={{
-                fontSize: 11,
+                fontSize: rem(11),
                 opacity: 0.6,
                 letterSpacing: '0.04em',
               }}>
@@ -1865,6 +1886,7 @@ export function VideoBundleModal({
             </div>
 
             <video
+              ref={previewVideoRef}
               src={pendingClip.previewUrl}
               controls
               autoPlay
@@ -1878,6 +1900,9 @@ export function VideoBundleModal({
               }}
             />
 
+            {/* Stopwatch for timing the just-recorded take before saving. */}
+            <VideoStopwatch videoRef={previewVideoRef} style={{ alignSelf: 'flex-start' }} />
+
             {/* Attach to report dropdown — only renders when the
                 modal was given a `reports` list. Leaving the
                 dropdown at the default ("Don't attach") saves the
@@ -1890,7 +1915,7 @@ export function VideoBundleModal({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 6,
-                fontSize: 11,
+                fontSize: rem(11),
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -1907,7 +1932,7 @@ export function VideoBundleModal({
                     color: 'var(--text-bright)',
                     padding: '8px 10px',
                     borderRadius: 6,
-                    fontSize: 13,
+                    fontSize: rem(13),
                     fontFamily: 'inherit',
                     outline: 'none',
                   }}
@@ -1928,7 +1953,7 @@ export function VideoBundleModal({
               <div style={{
                 padding: '6px 12px',
                 borderRadius: 6,
-                fontSize: 12,
+                fontSize: rem(12),
                 color: '#fecaca',
                 background: 'rgba(239,68,68,0.10)',
                 border: '1px solid rgba(239,68,68,0.30)',
@@ -1998,7 +2023,7 @@ function pendingBtnStyle(
     color: primary
       ? (isLight ? '#15803d' : '#bbf7d0')
       : (isLight ? '#0a0d12' : '#fff'),
-    fontSize: 13,
+    fontSize: rem(13),
     fontWeight: 700,
     letterSpacing: '0.03em',
     cursor: disabled ? 'wait' : 'pointer',
@@ -2062,7 +2087,7 @@ function ComparePicker({
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.10em',
+          fontSize: rem(11), fontWeight: 700, letterSpacing: '0.10em',
           textTransform: 'uppercase', color: '#cfe0ff',
         }}>
           Pick a video to compare
@@ -2178,11 +2203,11 @@ function ComparePicker({
                     onClick={() => onPick({ url, label: title })}
                     style={pickerVideoRowStyle}
                   >
-                    <span style={{ fontSize: 11, color: 'var(--text-bright)', fontWeight: 600 }}>
+                    <span style={{ fontSize: rem(11), color: 'var(--text-bright)', fontWeight: 600 }}>
                       {title}
                     </span>
                     <span style={{
-                      fontSize: 9, color: 'rgba(255,255,255,0.55)',
+                      fontSize: rem(9), color: 'rgba(255,255,255,0.55)',
                       letterSpacing: '0.06em', textTransform: 'uppercase',
                     }}>
                       {v.category}
@@ -2242,14 +2267,14 @@ function ComparePicker({
                             }}
                           />
                           <span style={{
-                            fontSize: 10.5, fontWeight: 600, color: 'var(--text-bright)',
+                            fontSize: rem(10.5), fontWeight: 600, color: 'var(--text-bright)',
                             lineHeight: 1.25, marginTop: 4, overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
                           }}>
                             {v.title}
                           </span>
                           <span style={{
-                            fontSize: 8.5, color: 'rgba(255,255,255,0.5)',
+                            fontSize: rem(8.5), color: 'rgba(255,255,255,0.5)',
                             letterSpacing: '0.06em', textTransform: 'uppercase',
                           }}>
                             {v.category}
@@ -2281,7 +2306,7 @@ function PickerField({ label, children }: { label: string; children: React.React
   return (
     <label style={{
       display: 'flex', flexDirection: 'column', gap: 4,
-      fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+      fontSize: rem(10), fontWeight: 700, letterSpacing: '0.08em',
       textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)',
     }}>
       {label}
@@ -2296,7 +2321,7 @@ const pickerSelectStyle: React.CSSProperties = {
   color: 'var(--text-bright)',
   padding: '6px 8px',
   borderRadius: 6,
-  fontSize: 12,
+  fontSize: rem(12),
   fontFamily: 'inherit',
   outline: 'none',
 };
@@ -2320,7 +2345,7 @@ const pickerVideoRowStyle: React.CSSProperties = {
    Mirrors the Education → Major League Video grid inside the compact
    Compare picker. */
 const mlbPlayerHeaderStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: rem(10),
   fontWeight: 800,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
@@ -2347,7 +2372,7 @@ const mlbVideoCardStyle: React.CSSProperties = {
 
 const pickerEmptyStyle: React.CSSProperties = {
   color: 'rgba(255,255,255,0.55)',
-  fontSize: 11,
+  fontSize: rem(11),
   padding: '8px 4px',
   textAlign: 'center',
 };

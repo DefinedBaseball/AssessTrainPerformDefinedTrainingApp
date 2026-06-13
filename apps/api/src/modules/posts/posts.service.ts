@@ -1,9 +1,13 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(limit = 50, offset = 0) {
     return this.prisma.post.findMany({
@@ -49,6 +53,45 @@ export class PostsService {
         where: { id: data.taggedPlayerId },
         data: { collegeCommit: data.collegeName },
       });
+    }
+
+    // Fan out notifications (best-effort — NotificationsService never throws).
+    // Every post is a dashboard announcement for players; coaches get a
+    // type-aware heads-up (college commitments called out specifically).
+    await this.notifications.notifyActivePlayers({
+      type: 'ANNOUNCEMENT',
+      title: `New announcement: ${post.title}`,
+      linkUrl: '/',
+      actorId: authorId,
+      entityId: post.id,
+    });
+
+    if (post.type === 'COLLEGE_COMMITMENT') {
+      const who = post.taggedPlayer
+        ? `${post.taggedPlayer.firstName} ${post.taggedPlayer.lastName}`.trim()
+        : 'A player';
+      await this.notifications.notifyAllCoaches(
+        {
+          type: 'COMMITMENT',
+          title: 'New college commitment',
+          body: data.collegeName ? `${who} → ${data.collegeName}` : `${who} committed`,
+          linkUrl: '/',
+          actorId: authorId,
+          entityId: post.id,
+        },
+        authorId,
+      );
+    } else {
+      await this.notifications.notifyAllCoaches(
+        {
+          type: 'ANNOUNCEMENT',
+          title: `New post: ${post.title}`,
+          linkUrl: '/',
+          actorId: authorId,
+          entityId: post.id,
+        },
+        authorId,
+      );
     }
 
     return post;

@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class VideosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async create(data: {
     playerId: string;
@@ -12,8 +16,42 @@ export class VideosService {
     category: string;
     originalUrl?: string;
   }) {
-    return this.prisma.video.create({
+    const video = await this.prisma.video.create({
       data: { ...data, status: 'UPLOADING' },
+    });
+    void this.notifyPlayerOfVideo(video);
+    return video;
+  }
+
+  /**
+   * Notify the video's player a new clip landed — unless they uploaded it
+   * themselves. Coach Reviews (title/category flagged) get their own type.
+   */
+  private async notifyPlayerOfVideo(video: {
+    id: string;
+    playerId: string;
+    uploadedById: string | null;
+    title: string;
+    category: string;
+  }) {
+    // `uploadedById` references Player (see schema relation), so a self-upload
+    // is one where the uploader's Player id equals the video's own playerId.
+    if (video.uploadedById && video.uploadedById === video.playerId) return;
+    const player = await this.prisma.player.findUnique({
+      where: { id: video.playerId },
+      select: { userId: true },
+    });
+    if (!player?.userId) return;
+    const isReview =
+      /coach review/i.test(video.title || '') || /review/i.test(video.category || '');
+    await this.notifications.create(player.userId, {
+      type: isReview ? 'COACH_REVIEW' : 'VIDEO',
+      title: isReview ? 'New Coach Review' : 'New video uploaded',
+      body: isReview
+        ? 'A coach posted a new video review on your profile.'
+        : 'A new video was added to your profile.',
+      linkUrl: `/athletes/${video.playerId}`,
+      entityId: video.id,
     });
   }
 

@@ -114,7 +114,6 @@ export default function LeaderboardPage() {
         eyebrow="Rankings"
         title="Leader"
         titleAccent="Boards"
-        subtitle="Top 15 athletes per metric, by graduation year."
         readout="Live"
         actions={isCoach ? (
           <button

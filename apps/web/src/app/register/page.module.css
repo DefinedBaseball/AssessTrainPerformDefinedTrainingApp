@@ -1,0 +1,224 @@
+/* ── /register — public athlete sign-up ── */
+
+.container {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px 64px;
+  overflow-y: auto;
+}
+
+.card {
+  width: 100%;
+  max-width: 760px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border-light);
+  border-radius: 22px;
+  box-shadow: var(--shadow-lg, 0 32px 80px rgba(0, 0, 0, 0.4));
+  padding: 32px 32px 28px;
+}
+
+.brandRow {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.title {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display, inherit);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.subtitle {
+  margin: 8px 0 22px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sectionLabel {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+}
+.sectionLabel:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.row2,
+.row3,
+.row4,
+.row5 {
+  display: grid;
+  gap: 14px;
+}
+.row2 { grid-template-columns: repeat(2, 1fr); }
+.row3 { grid-template-columns: repeat(3, 1fr); }
+.row4 { grid-template-columns: repeat(4, 1fr); }
+.row5 { grid-template-columns: repeat(5, 1fr); }
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Inputs/selects scoped to the card so the page looks right in both themes
+   regardless of global form styling. */
+.card input,
+.card select {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: var(--surface-bright);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.card input:focus,
+.card select:focus {
+  border-color: #3d8bfd;
+}
+.card input::placeholder {
+  color: var(--text-muted);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip,
+.chipSm {
+  border: 1px solid var(--border-light);
+  background: var(--card-elev);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full, 999px);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chip {
+  padding: 7px 16px;
+  font-size: 13px;
+}
+.chipSm {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.chip:hover,
+.chipSm:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+.chipActive {
+  background: #3d8bfd;
+  border-color: #3d8bfd;
+  color: #fff;
+}
+
+.heightRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.heightRow input {
+  width: 100%;
+}
+.heightSep {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.error {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(220, 53, 69, 0.12);
+  border: 1px solid rgba(220, 53, 69, 0.35);
+  color: #e5484d;
+  font-size: 13px;
+}
+
+.submit {
+  margin-top: 6px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: #3d8bfd;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.submit:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.footerLink {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+.footerLink a {
+  color: #3d8bfd;
+  font-weight: 600;
+  text-decoration: none;
+}
+.footerLink a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .row3,
+  .row4,
+  .row5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 440px) {
+  .row2,
+  .row3,
+  .row4,
+  .row5 {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 24px 18px;
+  }
+}

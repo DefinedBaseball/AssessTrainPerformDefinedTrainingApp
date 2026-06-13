@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section, ScoreBar, NotesBox,
@@ -217,20 +218,20 @@ function CompositeHero({
       borderRadius: 14, alignItems: 'center',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.30em', textTransform: 'uppercase', color: 'var(--text-bright)' }}>
+        <span style={{ fontSize: rem(10), fontWeight: 700, letterSpacing: '0.30em', textTransform: 'uppercase', color: 'var(--text-bright)' }}>
           {label}
         </span>
-        <div style={{ fontSize: 64, fontWeight: 800, lineHeight: 1, color: tone, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em' }}>
+        <div style={{ fontSize: rem(64), fontWeight: 800, lineHeight: 1, color: tone, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.04em' }}>
           {grade ?? '—'}
         </div>
-        <span style={{ fontSize: 10.5, color: 'var(--text-muted)', letterSpacing: '0.16em' }}>/80 · 20-80 SCALE</span>
+        <span style={{ fontSize: rem(10.5), color: 'var(--text-muted)', letterSpacing: '0.16em' }}>/80 · 20-80 SCALE</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ position: 'relative', height: 14, borderRadius: 9, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', inset: 0, width: `${pct}%`, background: `linear-gradient(90deg, ${tone}55, ${tone})`, transition: 'width 0.35s ease' }} />
         </div>
         {parts.map(p => (
-          <div key={p.label} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11.5, color: 'var(--text-muted)' }}>
+          <div key={p.label} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: rem(11.5), color: 'var(--text-muted)' }}>
             <span style={{ minWidth: 200 }}>{p.label}</span>
             <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', overflow: 'hidden' }}>
               <div style={{ width: `${p.grade !== null ? ((p.grade - 20) / 60) * 100 : 0}%`, height: '100%', background: p.grade !== null ? scoreColor(p.grade) : 'transparent' }} />
@@ -249,10 +250,10 @@ function EmptyState({ text, hint }: { text: string; hint: string }) {
   return (
     <div style={{
       padding: '28px 22px', border: '1px dashed var(--border)', borderRadius: 12,
-      color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', lineHeight: 1.6,
+      color: 'var(--text-muted)', fontSize: rem(13), textAlign: 'center', lineHeight: 1.6,
     }}>
       {text}
-      <div style={{ marginTop: 6, fontSize: 11.5, opacity: 0.85 }}>{hint}</div>
+      <div style={{ marginTop: 6, fontSize: rem(11.5), opacity: 0.85 }}>{hint}</div>
     </div>
   );
 }

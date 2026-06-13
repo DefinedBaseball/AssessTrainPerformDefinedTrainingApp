@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import * as api from '@/lib/api';
@@ -157,7 +158,7 @@ const quickBtnPrimary: React.CSSProperties = {
   border: 'none',
   borderRadius: 6,
   padding: '7px 12px',
-  fontSize: 12,
+  fontSize: rem(12),
   fontWeight: 700,
   cursor: 'pointer',
 };
@@ -167,7 +168,7 @@ const quickBtnSecondary: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 6,
   padding: '7px 12px',
-  fontSize: 12,
+  fontSize: rem(12),
   fontWeight: 600,
   cursor: 'pointer',
 };
@@ -263,7 +264,7 @@ function CsvUploadCard({
               title={manualMode ? 'Switch back to CSV upload' : 'Type values in manually instead of uploading a CSV'}
               style={{
                 padding: '4px 10px',
-                fontSize: 11,
+                fontSize: rem(11),
                 fontWeight: 700,
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
@@ -368,7 +369,7 @@ function ManualMetricBubbles<T extends Record<string, number | null>>({
           gap: 4,
         }}>
           <span style={{
-            fontSize: 10, fontWeight: 700,
+            fontSize: rem(10), fontWeight: 700,
             letterSpacing: '0.10em', textTransform: 'uppercase',
             color: 'var(--text-muted)',
           }}>{f.label}</span>
@@ -384,7 +385,7 @@ function ManualMetricBubbles<T extends Record<string, number | null>>({
                 background: 'transparent',
                 border: 'none',
                 color: 'var(--text-bright)',
-                fontSize: 18,
+                fontSize: rem(18),
                 fontWeight: 800,
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing: '-0.02em',
@@ -396,7 +397,7 @@ function ManualMetricBubbles<T extends Record<string, number | null>>({
             {f.unit && (
               <span style={{
                 fontFamily: "'DM Mono', ui-monospace, monospace",
-                fontSize: 10, fontWeight: 600,
+                fontSize: rem(10), fontWeight: 600,
                 color: 'var(--text-muted)',
                 letterSpacing: '0.06em',
               }}>{f.unit}</span>
@@ -431,9 +432,13 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: {
+function VideoSection({ videos, setVideos, existingVideos, setExistingVideos, relatedVideos }: {
   videos: VideoEntry[]; setVideos: (v: VideoEntry[]) => void;
   existingVideos?: ExistingVideo[]; setExistingVideos?: (v: ExistingVideo[]) => void;
+  /* Read-only clips tied to this report by category (Coach Reviews, in-app
+     recordings, uploads) — shown for parity with the profile report sections.
+     Display-only: never edited or folded into the saved videoIds. */
+  relatedVideos?: ExistingVideo[];
 }) {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -473,7 +478,8 @@ function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: 
   };
 
   const existing = existingVideos ?? [];
-  const totalCount = existing.length + videos.length;
+  const related = relatedVideos ?? [];
+  const totalCount = existing.length + videos.length + related.length;
 
   /* Group pending bundle videos by bundleId so each bundle renders
      as one chip with its file list nested inside, matching the
@@ -518,7 +524,7 @@ function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: 
       </div>
 
       {/* Pending file list — single videos + bundle groups */}
-      {(existing.length > 0 || singleVideos.length > 0 || bundleGroups.length > 0) && (
+      {(existing.length > 0 || related.length > 0 || singleVideos.length > 0 || bundleGroups.length > 0) && (
         <div className={rs.videoList}>
           {existing.map((v, i) => (
             <div key={v.id || `existing-${i}`} className={rs.videoItem}>
@@ -529,6 +535,18 @@ function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: 
               </div>
               <button type="button" className={rs.videoRemove}
                 onClick={() => setExistingVideos?.(existing.filter((_, idx) => idx !== i))}>x</button>
+            </div>
+          ))}
+          {/* Read-only "related" clips — videos tied to this report by category
+              (Coach Reviews, in-app recordings, uploads), matching what the
+              profile report sections show. No remove control; not saved here. */}
+          {related.map((v, i) => (
+            <div key={v.id || `related-${i}`} className={rs.videoItem} style={{ opacity: 0.9 }}>
+              <span className={rs.videoFileIcon}>🎬</span>
+              <div className={rs.videoFileInfo}>
+                <div className={rs.videoFileName}>{v.name}</div>
+                <div className={rs.videoFileMeta}>In this report · view only</div>
+              </div>
             </div>
           ))}
           {singleVideos.map(v => (
@@ -559,7 +577,7 @@ function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: 
             >
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+                fontSize: rem(10), fontWeight: 700, letterSpacing: '0.08em',
                 textTransform: 'uppercase', color: '#60A5FA',
               }}>
                 <span>📚 Bundle {gi + 1} — {entries.length} angle{entries.length === 1 ? '' : 's'}</span>
@@ -571,7 +589,7 @@ function VideoSection({ videos, setVideos, existingVideos, setExistingVideos }: 
                     border: 'none',
                     color: '#60A5FA',
                     cursor: 'pointer',
-                    fontSize: 12,
+                    fontSize: rem(12),
                   }}
                   aria-label="Remove bundle"
                 >
@@ -823,7 +841,7 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
               <option value={SELECT_ADD_NEW}>+ Add new club team…</option>
             </select>
             {data.clubTeam && !clubTeams.some(c => c.name === data.clubTeam) && (
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+              <div style={{ fontSize: rem(11), color: 'var(--muted)', marginTop: 4 }}>
                 Legacy value "{data.clubTeam}" — pick from the list to normalize.
               </div>
             )}
@@ -925,7 +943,7 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
               <option value={SELECT_ADD_NEW}>+ Add new college…</option>
             </select>
             {data.collegeCommit && !colleges.some(c => c.name === data.collegeCommit) && (
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+              <div style={{ fontSize: rem(11), color: 'var(--muted)', marginTop: 4 }}>
                 Legacy value "{data.collegeCommit}" — pick from the list to normalize.
               </div>
             )}
@@ -1224,12 +1242,12 @@ function buildCatchingContent(data: CatchingFormData) {
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 8px', fontSize: 13, fontFamily: "'DM Mono', monospace",
+  width: '100%', padding: '6px 8px', fontSize: rem(13), fontFamily: "'DM Mono', monospace",
   background: 'var(--surface2, rgba(255,255,255,0.06))', border: '1px solid var(--border)',
   borderRadius: 6, color: 'var(--text)', textAlign: 'center', outline: 'none',
 };
 const gradeInputStyle: React.CSSProperties = {
-  ...inputStyle, width: 70, fontSize: 15, fontWeight: 700, textAlign: 'center',
+  ...inputStyle, width: 70, fontSize: rem(15), fontWeight: 700, textAlign: 'center',
 };
 const notesInputStyle: React.CSSProperties = {
   ...inputStyle, textAlign: 'left', flex: 1, minWidth: 100,
@@ -1280,7 +1298,7 @@ function RichNotesEditor({
         border: '1px solid var(--border)',
         background: 'rgba(255,255,255,0.04)',
         color: 'var(--text)',
-        fontSize: 13, lineHeight: 1, cursor: 'pointer',
+        fontSize: rem(13), lineHeight: 1, cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         ...style,
       }}
@@ -1315,7 +1333,7 @@ function RichNotesEditor({
             borderRadius: 7,
             padding: '12px 14px',
             color: 'var(--text)',
-            fontSize: 14, lineHeight: 1.55,
+            fontSize: rem(14), lineHeight: 1.55,
             minHeight,
             outline: 'none',
             whiteSpace: 'pre-wrap',
@@ -1327,7 +1345,7 @@ function RichNotesEditor({
           <div style={{
             position: 'absolute', top: 12, left: 14,
             color: 'var(--text-muted)', fontStyle: 'italic',
-            pointerEvents: 'none', fontSize: 14, lineHeight: 1.55,
+            pointerEvents: 'none', fontSize: rem(14), lineHeight: 1.55,
           }}>
             {placeholder}
           </div>
@@ -1343,18 +1361,18 @@ const sectionTitleStyle: React.CSSProperties = {
      report form's section titles (Catching Throwing / Receiving /
      Blocking, etc.) read identically to the Pitching delivery-section
      headers in both themes. */
-  fontSize: 15, fontWeight: 700, color: 'var(--text)',
+  fontSize: rem(15), fontWeight: 700, color: 'var(--text)',
   marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8,
 };
 const headerCellStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+  fontSize: rem(10), fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
   color: 'var(--text-muted)', textAlign: 'center', padding: '6px 4px',
 };
 const metricLabelStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', padding: '8px 0',
+  fontSize: rem(12), fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', padding: '8px 0',
 };
 const mlbRefStyle: React.CSSProperties = {
-  fontSize: 10, color: 'var(--faint)', textAlign: 'center', padding: '6px 4px',
+  fontSize: rem(10), color: 'var(--faint)', textAlign: 'center', padding: '6px 4px',
 };
 const overallRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, marginTop: 12,
@@ -1563,7 +1581,7 @@ function CatchingZoneEditor({
       </svg>
 
       {/* Legend + click hint */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, fontSize: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, fontSize: rem(11) }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--text-muted)' }}>
           <span style={{ width: 10, height: 10, borderRadius: 2, background: ZONE_FILLS_LOCAL[2], opacity: 0.9 }} />
           Good
@@ -1576,7 +1594,7 @@ function CatchingZoneEditor({
           <span style={{ width: 10, height: 10, borderRadius: 2, background: ZONE_FILLS_LOCAL[0], opacity: 0.9 }} />
           Bad
         </span>
-        <span style={{ color: 'var(--faint)', fontSize: 10, marginLeft: 8 }}>Click cells to cycle</span>
+        <span style={{ color: 'var(--faint)', fontSize: rem(10), marginLeft: 8 }}>Click cells to cycle</span>
       </div>
     </div>
   );
@@ -1636,14 +1654,14 @@ function DefenseGradeSlider({
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{
-          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
           textTransform: 'uppercase', color: 'var(--text-muted)',
         }}>
           {label}
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
-            fontWeight: 800, fontSize: 20,
+            fontWeight: 800, fontSize: rem(20),
             color: tone, lineHeight: 1, letterSpacing: '-0.02em',
             fontVariantNumeric: 'tabular-nums',
           }}>
@@ -1657,7 +1675,7 @@ function DefenseGradeSlider({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 5,
-                padding: '1px 6px', fontSize: 10, cursor: 'pointer',
+                padding: '1px 6px', fontSize: rem(10), cursor: 'pointer',
                 lineHeight: 1.2,
               }}
             >x</button>
@@ -1741,14 +1759,14 @@ function DefenseOverallSlider({
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{
-          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
           textTransform: 'uppercase', color: 'var(--text-muted)',
         }}>
           {label}
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
-            fontWeight: 800, fontSize: 20,
+            fontWeight: 800, fontSize: rem(20),
             color: tone, lineHeight: 1, letterSpacing: '-0.02em',
             fontVariantNumeric: 'tabular-nums',
           }}>
@@ -1762,7 +1780,7 @@ function DefenseOverallSlider({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 5,
-                padding: '1px 6px', fontSize: 10, cursor: 'pointer',
+                padding: '1px 6px', fontSize: rem(10), cursor: 'pointer',
                 lineHeight: 1.2,
               }}
             >x</button>
@@ -1778,7 +1796,7 @@ function DefenseOverallSlider({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 5,
-                padding: '1px 6px', fontSize: 9, fontWeight: 700,
+                padding: '1px 6px', fontSize: rem(9), fontWeight: 700,
                 letterSpacing: '0.10em', textTransform: 'uppercase',
                 lineHeight: 1.2,
               }}
@@ -1963,7 +1981,7 @@ function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: 
           Throwing &amp; Pop Time
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rem(12) }}>
             <thead>
               <tr>
                 <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 140 }}>Metric</th>
@@ -2417,13 +2435,13 @@ function DefenseSnapshotFormSection({
     }}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: accent }} />
       <span style={{
-        flex: 1, fontSize: 11, fontWeight: 800,
+        flex: 1, fontSize: rem(11), fontWeight: 800,
         letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-bright)',
       }}>{group.title}</span>
       <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
         {autoGrade !== undefined ? (
           <span style={{
-            width: 56, textAlign: 'center', fontWeight: 700, fontSize: 14,
+            width: 56, textAlign: 'center', fontWeight: 700, fontSize: rem(14),
             color: 'var(--text-bright)', fontVariantNumeric: 'tabular-nums',
           }}>{autoGrade || '—'}</span>
         ) : (
@@ -2435,7 +2453,7 @@ function DefenseSnapshotFormSection({
             style={{ ...inputStyle, width: 56, textAlign: 'center', fontWeight: 700 }}
           />
         )}
-        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>/80</span>
+        <span style={{ fontSize: rem(10), color: 'var(--text-muted)' }}>/80</span>
       </span>
     </div>
   );
@@ -2472,7 +2490,7 @@ function DefenseSnapshotFormSection({
         <div style={cardStyle}>
           {renderHeader(armSpec)}
           <div style={{
-            fontSize: 11, color: 'var(--text-muted)', fontWeight: 600,
+            fontSize: rem(11), color: 'var(--text-muted)', fontWeight: 600,
             letterSpacing: '0.04em', textTransform: 'uppercase',
           }}>
             Throwing Velocities (mph) — up to 8
@@ -2480,7 +2498,7 @@ function DefenseSnapshotFormSection({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: 8 }}>
             {armThrows.map((t, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 600, color: 'var(--text-muted)' }}>{i + 1}</span>
+                <span style={{ fontSize: rem(9), fontWeight: 600, color: 'var(--text-muted)' }}>{i + 1}</span>
                 <input
                   type="text" inputMode="decimal"
                   value={t}
@@ -2498,10 +2516,10 @@ function DefenseSnapshotFormSection({
               { label: 'Avg velocity', val: armAvg === null ? null : armAvg.toFixed(1) },
             ]).map((m) => (
               <span key={m.label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.label}</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-bright)' }}>
+                <span style={{ fontSize: rem(12), color: 'var(--text-muted)' }}>{m.label}</span>
+                <span style={{ fontSize: rem(15), fontWeight: 700, color: 'var(--text-bright)' }}>
                   {m.val ?? '—'}
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 3 }}>mph</span>
+                  <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontWeight: 400, marginLeft: 3 }}>mph</span>
                 </span>
               </span>
             ))}
@@ -2511,7 +2529,7 @@ function DefenseSnapshotFormSection({
             value={armData.notes}
             onChange={(e) => updateGroup('armStrength', { notes: e.target.value })}
             placeholder="Notes…"
-            style={{ ...inputStyle, textAlign: 'left', fontSize: 12 }}
+            style={{ ...inputStyle, textAlign: 'left', fontSize: rem(12) }}
           />
         </div>
       )}
@@ -2536,7 +2554,7 @@ function DefenseSnapshotFormSection({
                   <div key={rowSpec.label} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                   }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{rowSpec.label}</span>
+                    <span style={{ fontSize: rem(12), color: 'var(--text-muted)' }}>{rowSpec.label}</span>
                     <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
                       <input
                         type="text"
@@ -2551,7 +2569,7 @@ function DefenseSnapshotFormSection({
                         placeholder="—"
                         style={{ ...inputStyle, width: 80, textAlign: 'right' }}
                       />
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{rowSpec.unit}</span>
+                      <span style={{ fontSize: rem(11), color: 'var(--text-muted)' }}>{rowSpec.unit}</span>
                     </span>
                   </div>
                 );
@@ -2561,7 +2579,7 @@ function DefenseSnapshotFormSection({
                 value={data.notes}
                 onChange={(e) => updateGroup(group.key, { notes: e.target.value })}
                 placeholder="Notes…"
-                style={{ ...inputStyle, textAlign: 'left', fontSize: 12 }}
+                style={{ ...inputStyle, textAlign: 'left', fontSize: rem(12) }}
               />
             </div>
           );
@@ -2659,7 +2677,7 @@ function InfieldFormLegacy({ data, setData }: { data: InfieldFormData; setData: 
           <span>💪</span> Arm Strength & Accuracy
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rem(12) }}>
             <thead>
               <tr>
                 <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 140 }}>Metric</th>
@@ -2963,7 +2981,7 @@ function OutfieldFormLegacy({ data, setData }: { data: OutfieldFormData; setData
           <span>💪</span> Arm Strength & Accuracy
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rem(12) }}>
             <thead>
               <tr>
                 <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 180 }}>Metric</th>
@@ -3133,6 +3151,44 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     return typeof c.swingDecisionNotes === 'string' ? c.swingDecisionNotes : '';
   });
   const [swingDecisionVideos, setSwingDecisionVideos] = useState<VideoEntry[]>([]);
+
+  /* ── Editor ↔ profile parity for the Videos box ──────────────────
+     The Hitting/Pitching/Catching/Infield/Outfield profile sections list
+     every clip whose `category` matches the report type — Coach Reviews,
+     in-app recordings, AND uploads — not only the clips saved into
+     content.videos. Re-opening the editor previously surfaced ONLY
+     content.videos, so those category-linked clips appeared "missing".
+     Fetch the player's library and show the SAME set here, READ-ONLY:
+     these are for context and are NOT folded back into the saved videoIds,
+     so editing/saving never mass-links or drops them. */
+  const [playerVideos, setPlayerVideos] = useState<api.Video[]>([]);
+  useEffect(() => {
+    if (!isEdit) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const vids = await api.getPlayerVideos(player.id);
+        if (!cancelled) setPlayerVideos(vids);
+      } catch { /* non-critical — editor still works without the related list */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isEdit, player.id]);
+  // IDs already attached to THIS report (videoIds + content.videos) — kept out
+  // of the read-only list so attached clips don't double-render.
+  const reportLinkedVideoIds = (() => {
+    const ids = new Set<string>();
+    (existingReport?.videoIds || '').split(',').map(s => s.trim()).filter(Boolean).forEach(id => ids.add(id));
+    const c = parseExistingContent();
+    if (Array.isArray(c.videos)) c.videos.forEach((v: any) => { if (v?.id) ids.add(v.id); });
+    return ids;
+  })();
+  // Category-matched clips for the active report type that aren't already
+  // attached — mirrors the profile's `category === <type>` rule.
+  const relatedVideos: ExistingVideo[] = isEdit
+    ? playerVideos
+        .filter(v => v.category === reportType && !reportLinkedVideoIds.has(v.id))
+        .map(v => ({ id: v.id, name: v.title, size: 0, url: v.originalUrl || undefined, section: 'swing' as const }))
+    : [];
 
   const emptySummary: SummaryData = {
     firstName: '', lastName: '', positions: [], bats: '', throws: '',
@@ -3720,7 +3776,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: '6px 12px',
-                  fontSize: 12,
+                  fontSize: rem(12),
                   fontWeight: 600,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
@@ -3829,7 +3885,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={120}
                 />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : reportType === 'INFIELD' ? (
             <>
@@ -3847,7 +3903,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={120}
                 />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : reportType === 'OUTFIELD' ? (
             <>
@@ -3865,7 +3921,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={120}
                 />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : reportType === 'STRENGTH' ? (
             <>
@@ -3886,7 +3942,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={140}
                 />
               </div>
-              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : (
             <>
@@ -3979,7 +4035,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                 );
               })()}
 
-              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} />
+              <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
 
               {/* ── Swing Decision sub-section (HITTING only) ──
                   Has its OWN notes textarea, At-Bat XLSX slot, and video list.
@@ -4147,13 +4203,13 @@ function CoachDiagnosisRow({
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
       }}>
         <span style={{
-          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
           textTransform: 'uppercase', color: 'var(--text-muted)',
         }}>
           {label}
         </span>
         <span style={{
-          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 20,
+          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: rem(20),
           color: tone, lineHeight: 1, letterSpacing: '-0.02em',
         }}>
           {value ?? '—'}
@@ -4173,7 +4229,7 @@ function CoachDiagnosisRow({
               style={{
                 padding: '4px 9px',
                 borderRadius: 6,
-                fontSize: 11,
+                fontSize: rem(11),
                 fontWeight: 600,
                 cursor: 'pointer',
                 border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
@@ -4236,7 +4292,7 @@ function CoachDiagnosisRow({
             color: 'var(--text)',
             padding: '4px 7px',
             borderRadius: 6,
-            fontSize: 12, fontWeight: 700,
+            fontSize: rem(12), fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
             textAlign: 'center',
           }}
@@ -4248,13 +4304,13 @@ function CoachDiagnosisRow({
             title="Clear"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', fontSize: 13, padding: '0 4px',
+              color: 'var(--text-muted)', fontSize: rem(13), padding: '0 4px',
             }}
           >×</button>
         )}
       </div>
 
-      <span style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+      <span style={{ fontSize: rem(10.5), color: 'var(--text-muted)', lineHeight: 1.45 }}>
         {hint}
       </span>
     </div>
@@ -4395,9 +4451,9 @@ function DefenseCoachGradeItem({
       {/* Section icon + title + score readout + clear */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{ fontSize: 13, lineHeight: 1 }}>{section.icon}</span>
+          <span style={{ fontSize: rem(13), lineHeight: 1 }}>{section.icon}</span>
           <span style={{
-            fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+            fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
             textTransform: 'uppercase', color: 'var(--text-muted)',
           }}>
             {section.title}
@@ -4405,7 +4461,7 @@ function DefenseCoachGradeItem({
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
-            fontWeight: 800, fontSize: 20,
+            fontWeight: 800, fontSize: rem(20),
             color: tone, lineHeight: 1, letterSpacing: '-0.02em',
             fontVariantNumeric: 'tabular-nums',
           }}>
@@ -4419,7 +4475,7 @@ function DefenseCoachGradeItem({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 5,
-                padding: '1px 6px', fontSize: 10, cursor: 'pointer',
+                padding: '1px 6px', fontSize: rem(10), cursor: 'pointer',
                 lineHeight: 1.2,
               }}
             >x</button>
@@ -4581,14 +4637,14 @@ function PitchingGradeItem({
       {/* Label + score readout + clear */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{
-          fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em',
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
           textTransform: 'uppercase', color: 'var(--text-muted)',
         }}>
           {item.label}
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{
-            fontWeight: 800, fontSize: 20,
+            fontWeight: 800, fontSize: rem(20),
             color: tone, lineHeight: 1, letterSpacing: '-0.02em',
             fontVariantNumeric: 'tabular-nums',
           }}>
@@ -4605,7 +4661,7 @@ function PitchingGradeItem({
               style={{
                 background: 'transparent', color: 'var(--text-muted)',
                 border: '1px solid var(--border)', borderRadius: 5,
-                padding: '1px 6px', fontSize: 10, cursor: 'pointer',
+                padding: '1px 6px', fontSize: rem(10), cursor: 'pointer',
                 lineHeight: 1.2,
               }}
             >x</button>
@@ -4625,7 +4681,7 @@ function PitchingGradeItem({
               style={{
                 padding: '4px 9px',
                 borderRadius: 6,
-                fontSize: 11,
+                fontSize: rem(11),
                 fontWeight: 600,
                 cursor: 'pointer',
                 border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',

@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, type SharedHittingState } from './SwingTab';
 import { TabBar, TabBarActions, EditProfileButton, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideosIconButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
@@ -125,6 +126,89 @@ const SWING_METRIC_KEYS = [
   'early_connection',
   'connection_at_impact',
 ] as const;
+
+/* ── Swing-decision metrics from LIVE at-bats ──
+   Computes the Fastballs / Offspeed / Overall / Decision grade-group
+   inputs straight from the live AtBat/Pitch tracker records (the same
+   data the "Live Results" bubble lists), so these rows populate from
+   captured at-bats even when no At-Bat XLSX has been uploaded. Each
+   pitch carries `pitchType` (family), `callBallStrike` (zone proxy:
+   STRIKE = in zone), and `result` (the action). Returns only metrics
+   whose denominator is non-zero so empty splits read "—" rather than
+   a misleading 0%. */
+const FB_PITCH_TYPES = new Set(['FASTBALL', 'SINKER', 'CUTTER']);
+const SWING_RESULTS_AB = new Set([
+  'STRIKE_SWINGING', 'STRIKE_OUT_SWINGING', 'FOUL',
+  'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL',
+]);
+const INPLAY_RESULTS_AB = new Set(['FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL']);
+
+function computeLiveAtBatSwingMetrics(
+  rows: api.AtBatDetail[],
+): Record<string, { value: number; unit: string; recordedAt: string }> {
+  type Split = { swings: number; whiffs: number; bip: number; barrels: number; inZone: number; inZoneSw: number; outZone: number; outZoneSw: number };
+  const blank = (): Split => ({ swings: 0, whiffs: 0, bip: 0, barrels: 0, inZone: 0, inZoneSw: 0, outZone: 0, outZoneSw: 0 });
+  const fb = blank(), os = blank(), all = blank();
+  let completed = 0, k = 0, bb = 0, gb = 0, fly = 0, ld = 0, barrelOuts = 0;
+  let recordedAt = '';
+
+  for (const r of rows) {
+    if (r.startedAt && r.startedAt > recordedAt) recordedAt = r.startedAt;
+    if (r.outcome) {
+      completed++;
+      switch (r.outcome) {
+        case 'STRIKE_OUT_LOOKING': case 'STRIKE_OUT_SWINGING': k++; break;
+        case 'WALK':        bb++;        break;
+        case 'GROUND_BALL': gb++;        break;
+        case 'FLY_BALL':    fly++;       break;
+        case 'LINE_DRIVE':  ld++;        break;
+        case 'BARREL':      barrelOuts++; break;
+      }
+    }
+    for (const p of (r.pitches ?? [])) {
+      const fam = FB_PITCH_TYPES.has(p.pitchType) ? fb : os;
+      const swung = !!p.result && SWING_RESULTS_AB.has(p.result);
+      const whiff = p.result === 'STRIKE_SWINGING' || p.result === 'STRIKE_OUT_SWINGING';
+      const inPlay = !!p.result && INPLAY_RESULTS_AB.has(p.result);
+      const barrel = p.result === 'BARREL';
+      const inZone = p.callBallStrike === 'STRIKE';
+      const outZone = p.callBallStrike === 'BALL';
+      for (const s of [fam, all]) {
+        if (swung) s.swings++;
+        if (whiff) s.whiffs++;
+        if (inPlay) s.bip++;
+        if (barrel) s.barrels++;
+        if (inZone) { s.inZone++; if (swung) s.inZoneSw++; }
+        if (outZone) { s.outZone++; if (swung) s.outZoneSw++; }
+      }
+    }
+  }
+
+  const out: Record<string, { value: number; unit: string; recordedAt: string }> = {};
+  const at = recordedAt || new Date().toISOString();
+  const put = (key: string, num: number, den: number) => {
+    if (den > 0) out[key] = { value: (num / den) * 100, unit: '%', recordedAt: at };
+  };
+  put('fb_barrel_pct',      fb.barrels,  fb.bip);
+  put('fb_whiff_pct',       fb.whiffs,   fb.swings);
+  put('fb_chase_pct',       fb.outZoneSw, fb.outZone);
+  put('fb_in_zone_swing_pct', fb.inZoneSw, fb.inZone);
+  put('os_barrel_pct',      os.barrels,  os.bip);
+  put('os_whiff_pct',       os.whiffs,   os.swings);
+  put('os_chase_pct',       os.outZoneSw, os.outZone);
+  put('os_in_zone_swing_pct', os.inZoneSw, os.inZone);
+  put('overall_barrel_pct', all.barrels, all.bip);
+  put('overall_whiff_pct',  all.whiffs,  all.swings);
+  put('overall_chase_pct',  all.outZoneSw, all.outZone);
+  put('overall_in_zone_swing_pct', all.inZoneSw, all.inZone);
+  put('overall_k_pct',  k,  completed);
+  put('overall_bb_pct', bb, completed);
+  const bipOutcomes = gb + fly + ld + barrelOuts;
+  put('ground_ball_pct', gb,  bipOutcomes);
+  put('fly_ball_pct',    fly, bipOutcomes);
+  put('line_drive_pct',  ld,  bipOutcomes);
+  return out;
+}
 
 export function HittingTab(props: TabProps) {
   const { player, topMetrics, reports, isCoach, onRefresh, refreshKey, videos: playerVideos } = props;
@@ -361,6 +445,21 @@ export function HittingTab(props: TabProps) {
     return () => { cancelled = true; };
   }, [player?.id, refreshKey, hittingReports]);
 
+  // ── Live at-bat swing-decision metrics ──
+  // Pull the hitter's live AtBat/Pitch tracker records (all-time) and derive
+  // the Fastballs / Offspeed / Overall / Decision grade inputs from them, so
+  // those rows populate from captured at-bats even with no At-Bat XLSX.
+  const [liveAtBats, setLiveAtBats] = useState<api.AtBatDetail[]>([]);
+  useEffect(() => {
+    if (!player?.id) { setLiveAtBats([]); return; }
+    let cancelled = false;
+    api.listAtBats({ hitterId: player.id, limit: 1000 })
+      .then((list) => { if (!cancelled) setLiveAtBats(Array.isArray(list) ? list : []); })
+      .catch(() => { if (!cancelled) setLiveAtBats([]); });
+    return () => { cancelled = true; };
+  }, [player?.id, refreshKey]);
+  const liveAtBatMetrics = useMemo(() => computeLiveAtBatSwingMetrics(liveAtBats), [liveAtBats]);
+
   // ── At-Bat Results data extraction ──
   // The At-Bat XLSX is parsed on the frontend and stored as JSON inside a
   // report's content.atBatAssessment (NOT as individual metric records). The
@@ -510,7 +609,11 @@ export function HittingTab(props: TabProps) {
    *    4. synthesized full_swing_miss_pct (only when this report has a
    *       Full Swing CSV — see effect above) */
   const topMetricsWithMiss = useMemo(() => {
-    const base: Record<string, { value: number; unit: string; recordedAt: string }> = { ...atBatMetrics };
+    /* Live-tracker swing-decision metrics form the lowest layer so they
+       populate the Fastballs / Offspeed / Overall / Decision rows from
+       captured at-bats, while an uploaded At-Bat XLSX, manual entries, and
+       CSV metrics still override them when present. */
+    const base: Record<string, { value: number; unit: string; recordedAt: string }> = { ...liveAtBatMetrics, ...atBatMetrics };
 
     if (activeHittingReport) {
       // Manual entries first, so CSV values from the same report override.
@@ -585,7 +688,7 @@ export function HittingTab(props: TabProps) {
     }
     return base;
   }, [
-    activeHittingReport, perReportMetrics, fullSwingMissPct, atBatMetrics,
+    activeHittingReport, perReportMetrics, fullSwingMissPct, atBatMetrics, liveAtBatMetrics,
     activeManualBatted, activeManualSwing, activeManualModes,
   ]);
 
@@ -945,7 +1048,7 @@ export function HittingTab(props: TabProps) {
               background: subTab === 'decision' ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.04)',
               color: subTab === 'decision' ? '#cfe0ff' : 'var(--text-muted)',
               fontFamily: 'inherit',
-              fontSize: 10,
+              fontSize: rem(10),
               fontWeight: 700,
               letterSpacing: '0.10em',
               textTransform: 'uppercase',
@@ -985,7 +1088,7 @@ export function HittingTab(props: TabProps) {
             <span style={{
               alignSelf: 'flex-end',
               marginBottom: 8,
-              fontSize: 10,
+              fontSize: rem(10),
               color: 'var(--text-muted)',
               letterSpacing: '0.10em',
               padding: '3px 9px',
@@ -1217,7 +1320,7 @@ export function HittingTab(props: TabProps) {
                       /* Same font as the GradeRow label (Coach
                          Diagnosis / Swing / Quality of Contact). */
                       fontFamily: 'inherit',
-                      fontSize: 17.6, fontWeight: 600, fontStyle: 'normal',
+                      fontSize: rem(17.6), fontWeight: 600, fontStyle: 'normal',
                       letterSpacing: '-0.025em', textTransform: 'uppercase',
                       color: 'var(--text-bright)', lineHeight: 1.05,
                     }}>

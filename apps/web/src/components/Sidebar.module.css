@@ -5,7 +5,12 @@
    ═══════════════════════════════════════════ */
 
 .sidebar {
-  width: 200px;
+  /* Eases 200px → 140px as the window narrows (200 above ~1670px wide),
+     matching the fluid text/bubble scale so the rail doesn't hog a
+     minimized window (140 floor engages below ~1170px — labels still fit
+     because the nav text shrinks with the root). width is exempt from the
+     px→rem build pass. */
+  width: clamp(140px, 12vw, 200px);
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -300,8 +305,14 @@
   color: #ffd0d3;
 }
 
-/* ── Phone ── */
-@media (max-width: 480px) {
+/* ── Collapsed icon rail (narrow windows + phones) ──
+   Below 900px the labeled rail eats too much of a minimized window, so it
+   collapses to an icon-only rail. Phase 3 of the auto-resize work; was a
+   480px phone-only breakpoint. The base `.sidebar`/`.navItem`/`.labelWrap`
+   rules all live earlier in the file, so these overrides win when the
+   query matches. (The `.userChip` collapse is a separate block at the END
+   of the file — it must come AFTER the base chip rules to override them.) */
+@media (max-width: 900px) {
   .sidebar {
     width: 72px;
     padding: 12px 8px;
@@ -331,5 +342,71 @@
 
   .account {
     flex-direction: column;
+  }
+}
+
+
+/* ── Identity chip — display name + role above the bottom buttons.
+   The sidebar is always dark, so the chip uses fixed dark-surface
+   colors like the rest of this module. ── */
+.userChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 0 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  min-width: 0;
+}
+.userChipAvatar {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(61, 139, 253, 0.18);
+  border: 1px solid rgba(61, 139, 253, 0.45);
+  color: #7eb6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.userChipText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.userChipName {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #e8ecef;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.userChipRole {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Collapsed icon rail: drop the chip's name/role text, leave just the
+   centered avatar so the bottom of the rail still shows who's signed in.
+   Placed AFTER the base .userChip rules so it overrides them when the
+   query matches (same specificity → source order wins). */
+@media (max-width: 900px) {
+  .userChip {
+    justify-content: center;
+    padding: 6px;
+    margin: 0 0 8px;
+  }
+  .userChipText {
+    display: none;
   }
 }

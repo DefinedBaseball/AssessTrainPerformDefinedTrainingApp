@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KpiCard, SectionHeader, Section,
@@ -425,13 +426,13 @@ function HittingMetricTable({ items, singleRow = false, compact = false, hideLab
      Blast Motion / HitTrax). The GradeRow chip tables pass
      `compact={true}` so their per-metric strip reads at the same
      tiny size as the Pitching tab's Break & Spin table. */
-  const headerFont = compact ? 9 : 11.88;
+  const headerFont = rem(compact ? 9 : 11.88);
   /* Compact value bumped 15 → 16.5 (+10 %) so the numbers in the
      GradeRow chip tables read a touch larger than the canonical
      Break & Spin 15 px baseline. Headers + units stay at 9 px so the
      label-vs-value type contrast widens slightly. */
-  const valueFont = compact ? 16.5 : 19.8;
-  const unitFont = compact ? 9 : 11.88;
+  const valueFont = rem(compact ? 16.5 : 19.8);
+  const unitFont = rem(compact ? 9 : 11.88);
   const headerStyle: React.CSSProperties = {
     fontFamily: 'inherit',
     fontSize: headerFont,
@@ -1538,7 +1539,7 @@ export function NoteBlock({
             color: 'var(--text-bright)', lineHeight: 1.05,
           }
         : {
-            fontSize: 9.5, fontWeight: 700, letterSpacing: '0.22em',
+            fontSize: rem(9.5), fontWeight: 700, letterSpacing: '0.22em',
             textTransform: 'uppercase', color: 'var(--text-bright)',
           }
       }>
@@ -1559,7 +1560,7 @@ export function NoteBlock({
              notes (no tags) read through unchanged. */
           dangerouslySetInnerHTML={{ __html: value || '<em style="color:var(--text-muted)">No notes yet.</em>' }}
           style={{
-            fontSize: 14, lineHeight: 1.55,
+            fontSize: rem(14), lineHeight: 1.55,
             color: 'var(--text)',
             padding: fill ? '10px 12px' : '6px 2px',
             /* Theme-aware Notes surface — `--notes-bg` resolves to
@@ -1637,7 +1638,7 @@ function RichEditableNote({
         width: 28, height: 24, borderRadius: 4,
         border: '1px solid var(--border)',
         background: 'rgba(255,255,255,0.04)',
-        color: 'var(--text)', fontSize: 12, lineHeight: 1, cursor: 'pointer',
+        color: 'var(--text)', fontSize: rem(12), lineHeight: 1, cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         ...style,
       }}
@@ -1667,7 +1668,7 @@ function RichEditableNote({
           style={{
             height: 24, borderRadius: 4, padding: '0 4px', marginLeft: 2,
             border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)',
-            color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+            color: 'var(--text)', fontSize: rem(12), cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
           <option value="" disabled>Size</option>
@@ -1696,7 +1697,7 @@ function RichEditableNote({
             borderRadius: 7,
             padding: '10px 12px',
             color: 'var(--text)',
-            fontSize: 14, lineHeight: 1.55,
+            fontSize: rem(14), lineHeight: 1.55,
             minHeight,
             outline: 'none',
             whiteSpace: 'pre-wrap',
@@ -1708,7 +1709,7 @@ function RichEditableNote({
           <div style={{
             position: 'absolute', top: 10, left: 12,
             color: 'var(--text-muted)', fontStyle: 'italic',
-            pointerEvents: 'none', fontSize: 14, lineHeight: 1.55,
+            pointerEvents: 'none', fontSize: rem(14), lineHeight: 1.55,
           }}>
             {placeholder}
           </div>
@@ -1754,7 +1755,7 @@ function AutoGrowTextarea({
         color: 'var(--text)',
         padding: '10px 12px',
         borderRadius: 7,
-        fontSize: 14,
+        fontSize: rem(14),
         lineHeight: 1.55,
         // No internal scrollbar — height auto-fits the content.
         resize: 'vertical',
@@ -1982,14 +1983,14 @@ function GradeRow({
           {!metricsOnly ? (
             <span style={{
               fontVariantNumeric: 'tabular-nums', fontWeight: 800,
-              fontSize: 26, color: tone, letterSpacing: '-0.02em', lineHeight: 1,
+              fontSize: rem(26), color: tone, letterSpacing: '-0.02em', lineHeight: 1,
             }}>
               {grade ?? '—'}
             </span>
           ) : (
             <span aria-hidden="true" style={{
               fontVariantNumeric: 'tabular-nums', fontWeight: 800,
-              fontSize: 26, letterSpacing: '-0.02em', lineHeight: 1,
+              fontSize: rem(26), letterSpacing: '-0.02em', lineHeight: 1,
               visibility: 'hidden',
             }}>—</span>
           )}
@@ -2117,20 +2118,20 @@ function CompositeHero({
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: '0.30em',
+          fontSize: rem(10), fontWeight: 700, letterSpacing: '0.30em',
           textTransform: 'uppercase', color: 'var(--text-bright)',
         }}>
           {label}
         </span>
         <div style={{
-          fontSize: 64, fontWeight: 800, lineHeight: 1,
+          fontSize: rem(64), fontWeight: 800, lineHeight: 1,
           color: tone,
           fontVariantNumeric: 'tabular-nums',
           letterSpacing: '-0.04em',
         }}>
           {grade ?? '—'}
         </div>
-        <span style={{ fontSize: 10.5, color: 'var(--text-muted)', letterSpacing: '0.16em' }}>
+        <span style={{ fontSize: rem(10.5), color: 'var(--text-muted)', letterSpacing: '0.16em' }}>
           /80 · 20-80 SCALE
         </span>
       </div>
@@ -2154,7 +2155,7 @@ function CompositeHero({
         {parts.map(p => (
           <div key={p.label} style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: 11.5, color: 'var(--text-muted)',
+            fontSize: rem(11.5), color: 'var(--text-muted)',
           }}>
             <span style={{ minWidth: 180 }}>{p.label}</span>
             <div style={{
@@ -2235,7 +2236,7 @@ function ManualScoreCard({
               ? '1px solid rgba(126,182,255,0.55)'
               : '1px solid var(--border)',
             color: editing ? 'var(--accent-light)' : 'var(--text-muted)',
-            fontSize: 11, lineHeight: 1, padding: 0,
+            fontSize: rem(11), lineHeight: 1, padding: 0,
             cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
@@ -2263,7 +2264,7 @@ function ManualScoreCard({
           /* Font D — small all-caps Satoshi eyebrow, matching the
              KpiCard `.kpiLabel` spec exactly. */
           fontFamily: 'inherit',
-          fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
+          fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
           textTransform: 'uppercase', color: 'var(--text-bright)',
           lineHeight: 1.2,
           textAlign: 'center',
@@ -2271,7 +2272,7 @@ function ManualScoreCard({
           {label}
         </span>
         <span style={{
-          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 26,
+          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: rem(26),
           color: tone, lineHeight: 1, letterSpacing: '-0.02em',
         }}>
           {value ?? '—'}
@@ -2323,7 +2324,7 @@ function ManualScoreCard({
               color: 'var(--text)',
               padding: '5px 8px',
               borderRadius: 7,
-              fontSize: 12, fontWeight: 700,
+              fontSize: rem(12), fontWeight: 700,
               fontVariantNumeric: 'tabular-nums',
               textAlign: 'center',
             }}
@@ -2335,7 +2336,7 @@ function ManualScoreCard({
               title="Clear"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: 13,
+                color: 'var(--text-muted)', fontSize: rem(13),
               }}
             >×</button>
           )}
@@ -2355,12 +2356,12 @@ function EmptyState({ text, hint }: { text: string; hint: string }) {
       border: '1px dashed var(--border)',
       borderRadius: 12,
       color: 'var(--text-muted)',
-      fontSize: 13,
+      fontSize: rem(13),
       textAlign: 'center',
       lineHeight: 1.6,
     }}>
       {text}
-      <div style={{ marginTop: 6, fontSize: 11.5, opacity: 0.85 }}>{hint}</div>
+      <div style={{ marginTop: 6, fontSize: rem(11.5), opacity: 0.85 }}>{hint}</div>
     </div>
   );
 }

@@ -177,15 +177,18 @@ interface LocalClip {
 type Step = 'setup' | 'recording' | 'save';
 
 export default function LiveTrainingPage() {
-  const { user, isCoach } = useAuth();
+  const { user, isCoach, isLoading } = useAuth();
   const router = useRouter();
 
   // ── Auth gate (coach-only) ──
   useEffect(() => {
-    if (user === undefined) return;
+    /* Wait for the session restore — `user` is null (not undefined) while
+       auth-context loads, so checking `user === undefined` never paused and
+       a hard refresh of this page bounced every coach to /login → /. */
+    if (isLoading) return;
     if (!user) { router.replace('/login'); return; }
     if (!isCoach) router.replace('/');
-  }, [user, isCoach, router]);
+  }, [isLoading, user, isCoach, router]);
 
   // ── Flow state ──
   const [step, setStep] = useState<Step>('setup');
@@ -289,6 +292,18 @@ export default function LiveTrainingPage() {
   // effect below.
   const isMountedRef = useRef(true);
   useEffect(() => { isMountedRef.current = true; return () => { isMountedRef.current = false; }; }, []);
+
+  /* Warn before tab-close/refresh while any clip is still undecided or
+     mid-upload — recordings live only in memory (object URLs) and are
+     lost with the page. In-app navigation can't be guarded by the App
+     Router; this covers the destructive browser-level exits. */
+  const hasUnsavedClips = clips.some((c) => c.decision === 'pending' || c.uploading);
+  useEffect(() => {
+    if (!hasUnsavedClips) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsavedClips]);
 
   // ── Load roster once ──
   useEffect(() => {
@@ -841,7 +856,9 @@ export default function LiveTrainingPage() {
     // Skip the save screen if nothing was recorded — just close.
     if (clips.length === 0 && session) {
       api.endLiveSession(session.id).catch(() => { /* ignore */ });
-      router.push('/live');
+      // /videos is the canonical landing now (the standalone /live
+      // picker was retired from the sidebar).
+      router.push('/videos');
       return;
     }
     setStep('save');
@@ -983,11 +1000,11 @@ export default function LiveTrainingPage() {
     if (session) {
       try { await api.endLiveSession(session.id); } catch { /* ignore */ }
     }
-    router.push('/live');
+    router.push('/videos');
   };
 
   // ── Render gates ──
-  if (user === undefined || !user || !isCoach) return null;
+  if (isLoading || !user || !isCoach) return null;
 
   return (
     <div className={pageStyles.page}>
@@ -1081,7 +1098,7 @@ export default function LiveTrainingPage() {
           )}
 
           <div className={styles.actionsRow}>
-            <Link href="/live" className={styles.secondaryBtn}>← Back</Link>
+            <Link href="/videos" className={styles.secondaryBtn}>← Back</Link>
             <button
               type="button"
               className={styles.primaryBtn}

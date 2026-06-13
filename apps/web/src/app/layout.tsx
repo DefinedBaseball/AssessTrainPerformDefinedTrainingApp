@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
-import { Sidebar } from '@/components/Sidebar';
+import { AppShell } from '@/components/AppShell';
 import { ThemeProvider, themeBootstrapScript } from '@/lib/theme-context';
 
 export const metadata: Metadata = {
@@ -11,7 +11,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    /* suppressHydrationWarning: the theme bootstrap script intentionally sets
+       data-theme on <html> before React hydrates (prevents a wrong-palette
+       flash), which otherwise logs a dev-only "extra attributes" warning. */
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Bootstrap script — runs before React hydrates so the user's
             saved theme is applied to <html> before any markup paints,
@@ -21,12 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <AuthProvider>
-            <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-              <Sidebar />
-              <main className="app-main" style={{ flex: 1, overflowY: 'auto' }}>
-                {children}
-              </main>
-            </div>
+            <AppShell>{children}</AppShell>
           </AuthProvider>
         </ThemeProvider>
       </body>

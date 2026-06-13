@@ -112,13 +112,12 @@ export default function VideosPage() {
        pixel-identical to the Training / Live cards on /live. Same
        dark-navy main-bubble chrome (`.modeCard`), same icon plate
        (`.modeIcon`), same hero label (`.modeLabel`), same blurb. */
-    <div className={liveStyles.page}>
+    /* padding:0 overrides Live's .page 24px so the header bubble sits at the
+       same app-main 24px gutter as the Athletes hub bubble. */
+    <div className={liveStyles.page} style={{ padding: 0 }}>
       <PageHeader
         eyebrow="Film Room"
         title="Videos"
-        subtitle={isCoach
-          ? 'Browse video library, run a Training capture, or record Live at-bats.'
-          : 'Browse your video library.'}
       />
 
       <div className={liveStyles.modeGrid}>

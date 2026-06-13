@@ -1,8 +1,10 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useRef, useCallback, useState } from 'react';
 import styles from './video-player.module.css';
 import { PlaybackSpeedControl } from '../PlaybackSpeedControl';
+import { VideoStopwatch } from '../VideoStopwatch';
 import { VideoDrawingOverlay } from '../VideoDrawingOverlay';
 import * as api from '@/lib/api';
 
@@ -66,6 +68,9 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
      of auto-uploading. `previewUrl` is an object URL the user can
      scrub to review the clip before deciding what to do with it. */
   const [pendingClip, setPendingClip] = useState<{ blob: Blob; previewUrl: string; durationSec: number; mime: string } | null>(null);
+  /* Ref to the pending-clip preview <video> so the stopwatch in the
+     Save panel can time the just-recorded take. */
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
@@ -306,7 +311,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
               padding: '4px 10px',
               marginTop: 6,
               borderRadius: 4,
-              fontSize: 11,
+              fontSize: rem(11),
               color: '#fecaca',
               background: 'rgba(239,68,68,0.10)',
               border: '1px solid rgba(239,68,68,0.30)',
@@ -394,7 +399,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
                           : recordState === 'saved' ? '#bbf7d0'
                           : 'var(--text-muted)',
                         fontFamily: 'var(--font-mono)',
-                        fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+                        fontSize: rem(9), fontWeight: 700, letterSpacing: '0.10em',
                         textTransform: 'uppercase',
                         cursor: (recordState === 'starting' || recordState === 'uploading') ? 'wait' : 'pointer',
                       }}
@@ -428,7 +433,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
                       border: '1px solid ' + (compareOn ? 'rgba(126,182,255,0.55)' : 'rgba(255,255,255,0.14)'),
                       color: compareOn ? 'var(--text-bright)' : 'var(--text-muted)',
                       fontFamily: 'var(--font-mono)',
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.10em',
+                      fontSize: rem(9), fontWeight: 700, letterSpacing: '0.10em',
                       textTransform: 'uppercase',
                       cursor: 'pointer',
                     }}
@@ -501,27 +506,31 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
                 display: 'flex', alignItems: 'flex-start', gap: 12,
               }}
             >
-              <video
-                src={pendingClip.previewUrl}
-                controls
-                preload="metadata"
-                style={{
-                  width: 240,
-                  aspectRatio: '16 / 9',
-                  background: '#000',
-                  borderRadius: 6,
-                  flex: '0 0 auto',
-                }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '0 0 auto' }}>
+                <video
+                  ref={previewVideoRef}
+                  src={pendingClip.previewUrl}
+                  controls
+                  preload="metadata"
+                  style={{
+                    width: 240,
+                    aspectRatio: '16 / 9',
+                    background: '#000',
+                    borderRadius: 6,
+                  }}
+                />
+                {/* Stopwatch for timing the recorded take in the Save panel. */}
+                <VideoStopwatch videoRef={previewVideoRef} />
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.18em',
+                  fontSize: rem(10), fontWeight: 700, letterSpacing: '0.18em',
                   textTransform: 'uppercase', color: 'var(--text-muted)',
                 }}>
                   Review Recording
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--text)' }}>
+                <div style={{ fontSize: rem(13), color: 'var(--text)' }}>
                   {pendingClip.durationSec}s · {(pendingClip.blob.size / 1024 / 1024).toFixed(1)} MB
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
@@ -535,7 +544,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
                       border: '1px solid rgba(74, 222, 128, 0.55)',
                       color: '#bbf7d0',
                       fontFamily: 'var(--font-mono)',
-                      fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
+                      fontSize: rem(11), fontWeight: 700, letterSpacing: '0.12em',
                       textTransform: 'uppercase',
                       cursor: recordState === 'uploading' ? 'wait' : 'pointer',
                     }}
@@ -552,7 +561,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
                       border: '1px solid rgba(239, 68, 68, 0.45)',
                       color: '#fecaca',
                       fontFamily: 'var(--font-mono)',
-                      fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
+                      fontSize: rem(11), fontWeight: 700, letterSpacing: '0.12em',
                       textTransform: 'uppercase',
                       cursor: recordState === 'uploading' ? 'wait' : 'pointer',
                     }}
@@ -572,7 +581,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(0,0,0,0.55)',
               color: 'rgba(255,255,255,0.85)',
-              fontSize: 13, fontWeight: 600, letterSpacing: '0.08em',
+              fontSize: rem(13), fontWeight: 600, letterSpacing: '0.08em',
               textTransform: 'uppercase',
               pointerEvents: 'none',
             }}>
@@ -599,11 +608,11 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
               background: 'rgba(0,0,0,0.65)',
               color: 'rgba(255,255,255,0.9)',
             }}>
-              <div style={{ fontSize: 32, marginBottom: 10 }}>⚠</div>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
+              <div style={{ fontSize: rem(32), marginBottom: 10 }}>⚠</div>
+              <div style={{ fontSize: rem(14), fontWeight: 700, marginBottom: 6 }}>
                 Couldn't load this video
               </div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', maxWidth: 360 }}>
+              <div style={{ fontSize: rem(12), color: 'rgba(255,255,255,0.6)', maxWidth: 360 }}>
                 The video file may have been removed or the connection failed.
                 Try refreshing, or contact a coach if the issue persists.
               </div>
@@ -621,7 +630,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
                   background: 'var(--border)',
                   border: '1px solid var(--border-strong)',
                   borderRadius: 6, color: 'var(--text-bright)',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  fontSize: rem(12), fontWeight: 600, cursor: 'pointer',
                 }}
               >Retry</button>
             </div>

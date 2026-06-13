@@ -13,6 +13,8 @@
  * → Live / Post-Throw / Cool Down).
  */
 
+import { DRILL_TAXONOMY } from './drill-taxonomy.generated';
+
 export const TAB_LABELS: Record<string, string> = {
   hitting: 'Hitting',
   pitching: 'Pitching',
@@ -32,60 +34,19 @@ export const TAB_COLORS: Record<string, { bg: string; text: string }> = {
   strength: { bg: 'rgba(239,68,68,0.15)',   text: '#EF4444' },
 };
 
-export const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> = {
-  /* Hitting — Blues, lightest → darkest. Per coach-spec the
-     colored "bar" at the TOP of each drill card carries the
-     blue category color while the body of the card (the actual
-     drill names) sits on a white background — so the column
-     reads as a stack of white cards with a tinted header strip
-     each. The shade darkens with intensity (Movement Prep →
-     Live). */
-  hitting: {
-    'Movement Prep':    { dot: '#8DBED9', bg: 'rgba(141,190,217,0.13)', text: '#8DBED9' },
-    'Tee':              { dot: '#9AC8F0', bg: 'rgba(154,200,240,0.13)', text: '#9AC8F0' },
-    'Front Toss':       { dot: '#82B8E8', bg: 'rgba(130,184,232,0.13)', text: '#82B8E8' },
-    /* Legacy: pre-per-section records saved this shared category. */
-    'Drills':           { dot: '#5E9ED2', bg: 'rgba(94,158,210,0.13)',  text: '#5E9ED2' },
-    'Batting Practice': { dot: '#387EC0', bg: 'rgba(56,126,192,0.13)',  text: '#387EC0' },
-    'Machine':          { dot: '#1E5DA0', bg: 'rgba(30,93,160,0.13)',   text: '#1E5DA0' },
-    'Live':             { dot: '#0C3F75', bg: 'rgba(12,63,117,0.15)',   text: '#0C3F75' },
-  },
-  /* Pitching — Oranges: peach → tangerine → orange → burnt → ember */
-  pitching: {
-    'Movement Prep': { dot: '#FDD9A8', bg: 'rgba(253,217,168,0.13)', text: '#FDD9A8' },
-    'Drills':        { dot: '#F8B85E', bg: 'rgba(248,184,94,0.13)',  text: '#F8B85E' },
-    'Bullpen':       { dot: '#F59E0B', bg: 'rgba(245,158,11,0.13)',  text: '#F59E0B' },
-    'Live':          { dot: '#C77A09', bg: 'rgba(199,122,9,0.15)',   text: '#C77A09' },
-    'Post-Throw':    { dot: '#8B4F08', bg: 'rgba(139,79,8,0.18)',    text: '#8B4F08' },
-  },
-  /* Catching — Turquoise / teal-greens, lightest → darkest */
-  catching: {
-    'Movement Prep': { dot: '#A0E8D8', bg: 'rgba(160,232,216,0.13)', text: '#A0E8D8' },
-    'Drills':        { dot: '#5FD4B5', bg: 'rgba(95,212,181,0.13)',  text: '#5FD4B5' },
-    'Machine':       { dot: '#14B8A6', bg: 'rgba(20,184,166,0.13)',  text: '#14B8A6' },
-    'Live':          { dot: '#0E8E70', bg: 'rgba(14,142,112,0.15)',  text: '#0E8E70' },
-  },
-  /* Infield — True greens: mint → light green → green → forest */
-  infield: {
-    'Movement Prep': { dot: '#B0F0B0', bg: 'rgba(176,240,176,0.13)', text: '#B0F0B0' },
-    'Drills':        { dot: '#6ED06E', bg: 'rgba(110,208,110,0.13)', text: '#6ED06E' },
-    'Machine':       { dot: '#38A850', bg: 'rgba(56,168,80,0.13)',   text: '#38A850' },
-    'Live':          { dot: '#1E7A32', bg: 'rgba(30,122,50,0.15)',   text: '#1E7A32' },
-  },
-  /* Outfield — Lime / yellow-greens (warm side of the green family) */
-  outfield: {
-    'Movement Prep': { dot: '#DAF0A0', bg: 'rgba(218,240,160,0.13)', text: '#DAF0A0' },
-    'Drills':        { dot: '#B8D870', bg: 'rgba(184,216,112,0.13)', text: '#B8D870' },
-    'Machine':       { dot: '#88B838', bg: 'rgba(136,184,56,0.13)',  text: '#88B838' },
-    'Live':          { dot: '#5A8418', bg: 'rgba(90,132,24,0.15)',   text: '#5A8418' },
-  },
-  /* S&C — Reds: pink → salmon → red → maroon */
-  strength: {
-    'Movement Prep': { dot: '#F8B8B8', bg: 'rgba(248,184,184,0.13)', text: '#F8B8B8' },
-    'Exercises':     { dot: '#EF4444', bg: 'rgba(239,68,68,0.13)',   text: '#EF4444' },
-    'Cool Down':     { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
-  },
-};
+/* Per-tab, per-category colors — DERIVED from the generated taxonomy
+   (drill-taxonomy.generated.ts) so a workbook re-import updates every
+   drill-category surface at once. Unknown categories fall back to
+   DEFAULT_CAT_COLOR via getTabCatStyle below. */
+export const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> =
+  Object.fromEntries(
+    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, Record<string, { dot: string; bg: string; text: string }>] => [
+      tab,
+      Object.fromEntries(
+        cats.map((c): [string, { dot: string; bg: string; text: string }] => [c.id, { dot: c.dot, bg: c.bg, text: c.text }]),
+      ),
+    ]),
+  );
 
 export const DEFAULT_CAT_COLOR = { dot: '#5A9BD5', bg: 'rgba(90,155,213,0.13)', text: '#5A9BD5' };
 
@@ -141,14 +102,10 @@ export const TAB_ANCHOR_COLORS_DARK: Record<string, string> = {
  *  always render Movement Prep first, Live / Post-Throw / Cool Down
  *  last, with the working categories in the middle in coach-spec
  *  order. */
-export const LEGEND_CATEGORIES: Record<string, string[]> = {
-  hitting:  ['Movement Prep', 'Tee', 'Front Toss', 'Drills', 'Batting Practice', 'Machine', 'Live'],
-  pitching: ['Movement Prep', 'Drills', 'Bullpen', 'Live', 'Post-Throw'],
-  catching: ['Movement Prep', 'Drills', 'Machine', 'Live'],
-  infield:  ['Movement Prep', 'Drills', 'Machine', 'Live'],
-  outfield: ['Movement Prep', 'Drills', 'Machine', 'Live'],
-  strength: ['Movement Prep', 'Exercises', 'Cool Down'],
-};
+export const LEGEND_CATEGORIES: Record<string, string[]> =
+  Object.fromEntries(
+    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, string[]] => [tab, cats.map((c) => c.id)]),
+  );
 
 /** Top-to-bottom tab order used by anywhere the Player Summary mixes
  *  multiple tabs into a single scrollable feed (Upcoming Drills). */

@@ -1,17 +1,55 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash, randomBytes } from 'crypto';
 import { signJwt } from './jwt.util';
+import { NotificationsService } from '../notifications/notifications.service';
+
+/** Full payload from the public /register form: profile + credentials. */
+export interface SignupPlayerPayload {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  positions: string; // comma-separated, e.g. "INF,OF"
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  gradYear?: number | null;
+  bats?: string | null;
+  throws?: string | null;
+  birthDate?: string | null;
+  highSchool?: string | null;
+  clubTeam?: string | null;
+  collegeCommit?: string | null;
+  pbrNational?: number | null;
+  pbrState?: number | null;
+  pbrPosition?: number | null;
+  pgScore?: number | null;
+}
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   private hashPassword(password: string, salt: string): string {
     return createHash('sha256').update(password + salt).digest('hex');
   }
 
-  async register(email: string, password: string, role: 'COACH' | 'PLAYER') {
+  async register(rawEmail: string, password: string, role: 'COACH' | 'PLAYER') {
+    /* Normalize to lowercase like signupPlayer does — emails are stored
+       case-sensitively in the DB, and a mixed-case duplicate (e.g.
+       Connor@ vs connor@) creates two near-identical logins. */
+    const email = rawEmail?.trim().toLowerCase();
+    if (!email) throw new BadRequestException('Email is required');
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -39,6 +77,101 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      status: user.status,
+      name: user.name ?? null,
+      playerId: user.player?.id ?? null,
+    };
+  }
+
+  /**
+   * Public self-registration. Creates a PENDING player account + profile in
+   * one shot and notifies every coach so they can accept/decline. Returns a
+   * normal session so the register page can drop the user straight onto the
+   * "waiting for approval" holding screen.
+   */
+  async signupPlayer(payload: SignupPlayerPayload) {
+    const email = payload.email?.trim().toLowerCase();
+    if (!email) throw new BadRequestException('Email is required');
+    if (!payload.password || payload.password.length < 6)
+      throw new BadRequestException('Password must be at least 6 characters');
+    if (!payload.firstName?.trim() || !payload.lastName?.trim())
+      throw new BadRequestException('First and last name are required');
+    if (!payload.positions?.trim())
+      throw new BadRequestException('At least one position is required');
+
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) throw new ConflictException('Email already registered');
+
+    const salt = randomBytes(16).toString('hex');
+    const hashed = this.hashPassword(payload.password, salt);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: `${salt}:${hashed}`,
+        role: 'PLAYER',
+        status: 'PENDING',
+        player: {
+          create: {
+            firstName: payload.firstName.trim(),
+            lastName: payload.lastName.trim(),
+            positions: payload.positions,
+            heightInches: payload.heightInches ?? null,
+            weightLbs: payload.weightLbs ?? null,
+            gradYear: payload.gradYear ?? null,
+            bats: payload.bats ?? null,
+            throws: payload.throws ?? null,
+            birthDate: payload.birthDate ?? null,
+            highSchool: payload.highSchool ?? null,
+            clubTeam: payload.clubTeam ?? null,
+            collegeCommit: payload.collegeCommit ?? null,
+            pbrNational: payload.pbrNational ?? null,
+            pbrState: payload.pbrState ?? null,
+            pbrPosition: payload.pbrPosition ?? null,
+            pgScore: payload.pgScore ?? null,
+          },
+        },
+      },
+      include: { player: true },
+    });
+
+    const fullName = `${user.player!.firstName} ${user.player!.lastName}`.trim();
+    await this.notifications.notifyAllCoaches({
+      type: 'ACCOUNT_REQUEST',
+      title: 'New player account request',
+      body: `${fullName} requested an account and is awaiting approval.`,
+      entityId: user.id,
+      linkUrl: '/',
+    });
+
+    const token = signJwt({
+      sub: user.id,
+      email: user.email,
+      role: 'PLAYER',
+      playerId: user.player?.id ?? null,
+    });
+
+    return {
+      token,
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      playerId: user.player?.id ?? null,
+    };
+  }
+
+  /** Shared session/profile shape returned by getMe + updateAccount. */
+  private meShape(user: any) {
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      name: user.name ?? null,
+      phone: user.phone ?? null,
+      position: user.position ?? null,
+      isPrimaryAdmin: user.isPrimaryAdmin ?? false,
       playerId: user.player?.id ?? null,
     };
   }
@@ -49,12 +182,64 @@ export class AuthService {
       include: { player: true },
     });
     if (!user) throw new UnauthorizedException('User not found');
-    return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      playerId: user.player?.id ?? null,
-    };
+    return this.meShape(user);
+  }
+
+  /** Update editable account fields (Settings → Account). */
+  async updateAccount(
+    userId: string,
+    dto: { name?: string | null; phone?: string | null; position?: string | null },
+  ) {
+    const data: { name?: string | null; phone?: string | null; position?: string | null } = {};
+    if (dto.name !== undefined) data.name = dto.name?.trim() || null;
+    if (dto.phone !== undefined) data.phone = dto.phone?.trim() || null;
+    if (dto.position !== undefined) data.position = dto.position?.trim() || null;
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      include: { player: true },
+    });
+    return this.meShape(user);
+  }
+
+  /** Change the current user's password (requires the current one). */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 6)
+      throw new BadRequestException('New password must be at least 6 characters');
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const [salt, hash] = user.password.split(':');
+    if (this.hashPassword(currentPassword || '', salt) !== hash)
+      throw new UnauthorizedException('Current password is incorrect');
+    const newSalt = randomBytes(16).toString('hex');
+    const newHash = this.hashPassword(newPassword, newSalt);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: `${newSalt}:${newHash}` },
+    });
+    return { ok: true };
+  }
+
+  /** Raw per-subject notification channel matrix (defaults applied client-side). */
+  async getNotificationPrefs(userId: string): Promise<Record<string, unknown>> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationPrefs: true },
+    });
+    if (!u?.notificationPrefs) return {};
+    try {
+      return JSON.parse(u.notificationPrefs);
+    } catch {
+      return {};
+    }
+  }
+
+  async setNotificationPrefs(userId: string, prefs: unknown) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { notificationPrefs: JSON.stringify(prefs ?? {}) },
+    });
+    return { ok: true };
   }
 
   async login(email: string, password: string) {
@@ -80,7 +265,99 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      status: user.status,
+      name: user.name ?? null,
       playerId: user.player?.id ?? null,
     };
+  }
+
+  async listCoaches() {
+    return this.prisma.user.findMany({
+      where: { role: 'COACH' },
+      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Coach sets a new password for another account (player reset from the
+   * athlete profile, or coach reset from Settings → Staff). The primary
+   * admin's password can only be changed by the primary admin themselves
+   * (via this route or the self change-password flow).
+   */
+  async setUserPassword(actorId: string, targetUserId: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 6)
+      throw new BadRequestException('Password must be at least 6 characters');
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.isPrimaryAdmin && actorId !== target.id)
+      throw new ForbiddenException('Only the primary admin can change their own password');
+    const salt = randomBytes(16).toString('hex');
+    const hash = this.hashPassword(newPassword, salt);
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { password: `${salt}:${hash}` },
+    });
+    return { ok: true };
+  }
+
+  /** Pending player accounts awaiting coach acceptance. */
+  async listPending() {
+    const users = await this.prisma.user.findMany({
+      where: { role: 'PLAYER', status: 'PENDING' },
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+        player: {
+          select: { id: true, firstName: true, lastName: true, positions: true, gradYear: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      createdAt: u.createdAt,
+      playerId: u.player?.id ?? null,
+      firstName: u.player?.firstName ?? null,
+      lastName: u.player?.lastName ?? null,
+      positions: u.player?.positions ?? null,
+      gradYear: u.player?.gradYear ?? null,
+    }));
+  }
+
+  /** Accept a pending player → ACTIVE (idempotent). */
+  async approvePlayer(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status !== 'PENDING') return { ok: true, status: user.status };
+    await this.prisma.user.update({ where: { id: userId }, data: { status: 'ACTIVE' } });
+    // Resolve the request → drop it from every coach's bell.
+    await this.notifications.clearAccountRequest(userId);
+    return { ok: true, status: 'ACTIVE' };
+  }
+
+  /**
+   * Decline a pending player: delete the account entirely (frees the email
+   * for retry). Safe because a pending player was gated out and has no
+   * dependent records; notifications addressed to them are removed first.
+   */
+  async declinePlayer(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { player: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status !== 'PENDING') throw new ConflictException('Only pending accounts can be declined');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.notification.deleteMany({ where: { recipientId: userId } });
+      if (user.player) await tx.player.delete({ where: { id: user.player.id } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+    // Resolve the request → drop it from every coach's bell.
+    await this.notifications.clearAccountRequest(userId);
+    return { ok: true };
   }
 }

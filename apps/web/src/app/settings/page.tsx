@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -10,16 +11,7 @@ import styles from './page.module.css';
 
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
 
-type TabKey = 'account' | 'appearance' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myProfile';
-
-const ACCENT_CHOICES = [
-  { name: 'Gold', value: '#D4AF37' },
-  { name: 'Blue', value: '#4682FF' },
-  { name: 'Green', value: '#34D399' },
-  { name: 'Crimson', value: '#E11D48' },
-  { name: 'Violet', value: '#8B5CF6' },
-  { name: 'White', value: '#F3F4F6' },
-];
+type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myProfile' | 'staff';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -37,10 +29,12 @@ export default function SettingsPage() {
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: 'account', label: 'Account' },
     ...(!isCoach && playerId ? ([{ key: 'myProfile' as TabKey, label: 'My Profile' }]) : []),
-    { key: 'appearance', label: 'Appearance' },
     { key: 'notifications', label: 'Notifications' },
-    { key: 'data', label: 'Data & Integrations' },
+    /* Data & Integrations is coach-only — players don't import vendor CSVs. */
+    ...(isCoach ? ([{ key: 'data' as TabKey, label: 'Data & Integrations' }]) : []),
     ...(isCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
+    /* Coach-only "Staff" tab — create additional COACH login accounts. */
+    ...(isCoach ? ([{ key: 'staff' as TabKey, label: 'Staff' }]) : []),
     /* Coach-only "Cameras" tab — OBS-style friendly names for each
        attached video input. Used by Live Training's multi-angle
        recording flow so the coach sees "Side Angle" / "Behind Net"
@@ -70,12 +64,12 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {tab === 'account' && <AccountTab user={user} onLogout={logout} />}
+      {tab === 'account' && <AccountTab user={user} onLogout={logout} isCoach={isCoach} />}
       {tab === 'myProfile' && !isCoach && playerId && <MyProfileTab playerId={playerId} />}
-      {tab === 'appearance' && <AppearanceTab />}
-      {tab === 'notifications' && <NotificationsTab />}
-      {tab === 'data' && <DataTab isCoach={isCoach} />}
+      {tab === 'notifications' && <NotificationsTab isCoach={isCoach} />}
+      {tab === 'data' && isCoach && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isCoach && <TeamsAndCollegesTab />}
+      {tab === 'staff' && isCoach && <StaffTab />}
       {tab === 'cameras' && isCoach && <CamerasTab />}
     </div>
   );
@@ -181,7 +175,7 @@ function CamerasTab() {
               Grant camera access
             </button>
             {permissionState === 'denied' && (
-              <p style={{ marginTop: 8, color: 'var(--danger, #fda4af)', fontSize: 12 }}>
+              <p style={{ marginTop: 8, color: 'var(--danger, #fda4af)', fontSize: rem(12) }}>
                 Camera permission was denied. Enable it in your browser settings, then refresh.
               </p>
             )}
@@ -210,10 +204,10 @@ function CamerasTab() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                  <div style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>
                     {fallback}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'DM Mono', ui-monospace, monospace", marginTop: 2 }}>
+                  <div style={{ fontSize: rem(10), color: 'var(--text-muted)', fontFamily: "'DM Mono', ui-monospace, monospace", marginTop: 2 }}>
                     {/* Short id chip so the coach can match the
                         camera back if browsers display the same name
                         for two devices. */}
@@ -231,7 +225,7 @@ function CamerasTab() {
                     borderRadius: 6,
                     padding: '8px 10px',
                     color: 'var(--text)',
-                    fontSize: 13,
+                    fontSize: rem(13),
                     fontFamily: 'inherit',
                     width: '100%',
                     boxSizing: 'border-box',
@@ -249,52 +243,163 @@ function CamerasTab() {
 
 /* ─── Account ──────────────────────────────────────────────── */
 
-function AccountTab({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const [displayName, setDisplayName] = useState<string>(() =>
-    typeof window !== 'undefined' ? localStorage.getItem('pref_display_name') || '' : '',
-  );
-  const [feedback, setFeedback] = useState('');
+function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => void; isCoach: boolean }) {
+  const [profile, setProfile] = useState<api.AccountProfile | null>(null);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [position, setPosition] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState('');
+  const [profileErr, setProfileErr] = useState('');
 
-  const save = () => {
-    localStorage.setItem('pref_display_name', displayName);
-    setFeedback('Saved.');
-    setTimeout(() => setFeedback(''), 2000);
+  // Change-password form
+  const [curPw, setCurPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [savingPw, setSavingPw] = useState(false);
+  const [pwMsg, setPwMsg] = useState('');
+  const [pwErr, setPwErr] = useState('');
+
+  useEffect(() => {
+    api.getMe()
+      .then((p) => {
+        setProfile(p);
+        setName(p.name || '');
+        setPhone(p.phone || '');
+        setPosition(p.position || '');
+      })
+      .catch(() => { /* fall back to session values below */ });
+  }, []);
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileMsg('');
+    setProfileErr('');
+    try {
+      const updated = await api.updateAccount({
+        name,
+        phone,
+        ...(isCoach ? { position } : {}),
+      });
+      setProfile(updated);
+      setProfileMsg('Saved.');
+      setTimeout(() => setProfileMsg(''), 2000);
+    } catch (e: any) {
+      setProfileErr(e?.message || 'Save failed');
+    } finally {
+      setSavingProfile(false);
+    }
   };
+
+  const savePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwErr('');
+    setPwMsg('');
+    if (newPw.length < 6) { setPwErr('New password must be at least 6 characters'); return; }
+    if (newPw !== confirmPw) { setPwErr('Passwords do not match'); return; }
+    setSavingPw(true);
+    try {
+      await api.changePassword(curPw, newPw);
+      setPwMsg('Password changed.');
+      setCurPw(''); setNewPw(''); setConfirmPw('');
+      setTimeout(() => setPwMsg(''), 2500);
+    } catch (e: any) {
+      setPwErr(e?.message || 'Could not change password');
+    } finally {
+      setSavingPw(false);
+    }
+  };
+
+  const isPrimaryAdmin = profile?.isPrimaryAdmin ?? false;
 
   return (
     <div className={styles.section}>
       <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Profile</h3>
-        <p className={styles.cardDesc}>Basic account information</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+          <h3 className={styles.cardTitle} style={{ margin: 0 }}>Account Information</h3>
+          {isPrimaryAdmin && (
+            <span
+              style={{
+                fontSize: rem(10), fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: '#3d8bfd', border: '1px solid rgba(61,139,253,0.4)', borderRadius: 999,
+                padding: '3px 9px',
+              }}
+            >
+              Primary Admin
+            </span>
+          )}
+        </div>
+        <p className={styles.cardDesc}>Your account details and contact info.</p>
+
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Email</span>
-            <span className={styles.rowSub}>{user.email}</span>
+            <span className={styles.rowSub}>Your login email (cannot be changed here)</span>
           </div>
+          <span className={styles.rowSub}>{user.email}</span>
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Role</span>
-            <span className={styles.rowSub}>{user.role}</span>
           </div>
+          <span className={styles.rowSub}>{user.role}{isPrimaryAdmin ? ' · Primary Admin' : ''}</span>
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Display name</span>
+            <span className={styles.rowTitle}>Full name</span>
             <span className={styles.rowSub}>Shown in place of your email where supported</span>
           </div>
-          <input
-            className={styles.input}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="e.g. Coach Johnson"
-          />
+          <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Connor Olson" />
         </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Phone</span>
+            <span className={styles.rowSub}>For text notifications once SMS is enabled</span>
+          </div>
+          <input className={styles.input} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+        </div>
+        {isCoach && (
+          <div className={styles.row}>
+            <div className={styles.rowLabel}>
+              <span className={styles.rowTitle}>Position</span>
+              <span className={styles.rowSub}>Your role at the facility</span>
+            </div>
+            <input className={styles.input} value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. Hitting Coordinator" />
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
-          <button className={styles.btn} onClick={save}>Save</button>
+          <button className={styles.btn} onClick={saveProfile} disabled={savingProfile}>
+            {savingProfile ? 'Saving…' : 'Save'}
+          </button>
         </div>
-        <div className={`${styles.feedback} ${styles.feedbackOk}`}>{feedback}</div>
+        {profileErr && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{profileErr}</div>}
+        {profileMsg && <div className={`${styles.feedback} ${styles.feedbackOk}`}>{profileMsg}</div>}
       </div>
+
+      <form className={styles.card} onSubmit={savePassword} autoComplete="off">
+        <h3 className={styles.cardTitle}>Change password</h3>
+        <p className={styles.cardDesc}>Update the password you sign in with.</p>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>Current password</span></div>
+          <input className={styles.input} type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} autoComplete="current-password" />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>New password</span><span className={styles.rowSub}>At least 6 characters</span></div>
+          <input className={styles.input} type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>Confirm new password</span></div>
+          <input className={styles.input} type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
+        </div>
+        {pwErr && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{pwErr}</div>}
+        {pwMsg && <div className={`${styles.feedback} ${styles.feedbackOk}`}>{pwMsg}</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+          <button className={styles.btn} type="submit" disabled={savingPw}>
+            {savingPw ? 'Saving…' : 'Change Password'}
+          </button>
+        </div>
+      </form>
 
       <div className={styles.card}>
         <h3 className={styles.cardTitle}>Session</h3>
@@ -307,58 +412,215 @@ function AccountTab({ user, onLogout }: { user: any; onLogout: () => void }) {
   );
 }
 
-/* ─── Appearance ──────────────────────────────────────────── */
+/* ─── Staff (coach account creation) ──────────────────────────
+   Coach-only. Creates another COACH login via the `register`
+   endpoint (role = COACH). The new coach signs in at /login with
+   the email + password set here. */
+function StaffTab() {
+  const { user: me } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [coaches, setCoaches] = useState<api.CoachAccount[]>([]);
+  const [loadingCoaches, setLoadingCoaches] = useState(true);
 
-function AppearanceTab() {
-  const [accent, setAccent] = useState<string>(() =>
-    typeof window !== 'undefined' ? localStorage.getItem('pref_accent') || '#D4AF37' : '#D4AF37',
-  );
-  const [density, setDensity] = useState<string>(() =>
-    typeof window !== 'undefined' ? localStorage.getItem('pref_density') || 'comfortable' : 'comfortable',
-  );
+  // Per-coach "Set password" inline form state
+  const [pwForId, setPwForId] = useState<string | null>(null);
+  const [pwValue, setPwValue] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState('');
 
-  useEffect(() => {
-    document.documentElement.style.setProperty('--accent', accent);
-    localStorage.setItem('pref_accent', accent);
-  }, [accent]);
+  const savePassword = async (coachId: string) => {
+    if (pwValue.length < 6) { setPwMsg('At least 6 characters'); return; }
+    setPwSaving(true);
+    setPwMsg('');
+    try {
+      await api.setUserPassword(coachId, pwValue);
+      setPwMsg('Password updated.');
+      setPwValue('');
+      setTimeout(() => { setPwForId(null); setPwMsg(''); }, 1500);
+    } catch (e: any) {
+      setPwMsg(e?.message || 'Could not update password');
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
-  useEffect(() => {
-    document.documentElement.dataset.density = density;
-    localStorage.setItem('pref_density', density);
-  }, [density]);
+  const loadCoaches = async () => {
+    try {
+      setCoaches(await api.getCoaches());
+    } catch {
+      /* non-critical — the create form still works without the list */
+    } finally {
+      setLoadingCoaches(false);
+    }
+  };
+  useEffect(() => { loadCoaches(); }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    const em = email.trim();
+    if (!em) { setError('Email is required'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (password !== confirm) { setError('Passwords do not match'); return; }
+    setSubmitting(true);
+    try {
+      await api.register(em, password, 'COACH');
+      setSuccess(`Coach account created for ${em}. They can sign in now with this email + password.`);
+      setEmail('');
+      setPassword('');
+      setConfirm('');
+      loadCoaches();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create coach account');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className={styles.section}>
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Accent color</h3>
-        <p className={styles.cardDesc}>Applied to buttons, highlights, and active states</p>
-        <div className={styles.swatchRow}>
-          {ACCENT_CHOICES.map((c) => (
-            <button
-              key={c.value}
-              className={`${styles.swatch} ${accent === c.value ? styles.swatchActive : ''}`}
-              style={{ background: c.value }}
-              onClick={() => setAccent(c.value)}
-              title={c.name}
-              aria-label={c.name}
-            />
-          ))}
-        </div>
-      </div>
+      <form className={styles.card} onSubmit={handleCreate} autoComplete="off">
+        <h3 className={styles.cardTitle}>Create coach account</h3>
+        <p className={styles.cardDesc}>Add another coach to the facility. They sign in at the login page with the email + password you set here.</p>
 
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Layout density</h3>
-        <p className={styles.cardDesc}>Controls spacing across lists and cards</p>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Density</span>
+            <span className={styles.rowTitle}>Email</span>
+            <span className={styles.rowSub}>Login email for the new coach</span>
           </div>
-          <select className={styles.select} value={density} onChange={(e) => setDensity(e.target.value)}>
-            <option value="compact">Compact</option>
-            <option value="comfortable">Comfortable</option>
-            <option value="spacious">Spacious</option>
-          </select>
+          <input
+            className={styles.input}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="coach@example.com"
+            autoComplete="off"
+          />
         </div>
+
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Password</span>
+            <span className={styles.rowSub}>At least 6 characters</span>
+          </div>
+          <input
+            className={styles.input}
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            autoComplete="new-password"
+          />
+        </div>
+
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Confirm password</span>
+            <span className={styles.rowSub}>Re-enter the password</span>
+          </div>
+          <input
+            className={styles.input}
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Confirm password"
+            autoComplete="new-password"
+          />
+        </div>
+
+        {error && <div className={styles.feedback} style={{ color: '#E11D48' }}>{error}</div>}
+        {success && <div className={`${styles.feedback} ${styles.feedbackOk}`}>{success}</div>}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+          <button className={styles.btn} type="submit" disabled={submitting}>
+            {submitting ? 'Creating…' : 'Create Coach Account'}
+          </button>
+        </div>
+      </form>
+
+      <div className={styles.card}>
+        <h3 className={styles.cardTitle}>Coaches</h3>
+        <p className={styles.cardDesc}>Everyone with a coach login.</p>
+        {loadingCoaches ? (
+          <div className={styles.rowSub}>Loading…</div>
+        ) : coaches.length === 0 ? (
+          <div className={styles.rowSub}>No coach accounts yet.</div>
+        ) : (
+          coaches.map((c) => {
+            /* The primary admin's password is self-only (enforced
+               server-side too) — hide the control for everyone else. */
+            const canSetPw = !c.isPrimaryAdmin || c.id === me?.id;
+            return (
+              <div key={c.id}>
+                <div className={styles.row}>
+                  <div className={styles.rowLabel}>
+                    <span className={styles.rowTitle}>
+                      {c.name || c.email.split('@')[0]}
+                      {c.isPrimaryAdmin && (
+                        <span style={{
+                          marginLeft: 8, fontSize: rem(9), fontWeight: 700,
+                          letterSpacing: '0.08em', textTransform: 'uppercase',
+                          color: '#3d8bfd', border: '1px solid rgba(61,139,253,0.4)',
+                          borderRadius: 999, padding: '2px 8px', verticalAlign: 'middle',
+                        }}>
+                          Primary Admin
+                        </span>
+                      )}
+                    </span>
+                    <span className={styles.rowSub}>
+                      {c.email}{c.position ? ` · ${c.position}` : ''} · Added {new Date(c.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {canSetPw && (
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => {
+                        setPwForId(pwForId === c.id ? null : c.id);
+                        setPwValue('');
+                        setPwMsg('');
+                      }}
+                    >
+                      {pwForId === c.id ? 'Cancel' : 'Set password'}
+                    </button>
+                  )}
+                </div>
+                {pwForId === c.id && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0 12px', flexWrap: 'wrap' }}>
+                    <input
+                      className={styles.input}
+                      type="password"
+                      value={pwValue}
+                      onChange={(e) => setPwValue(e.target.value)}
+                      placeholder="New password (min 6 chars)"
+                      autoComplete="new-password"
+                      style={{ maxWidth: 260 }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.btn}
+                      disabled={pwSaving}
+                      onClick={() => void savePassword(c.id)}
+                    >
+                      {pwSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    {pwMsg && (
+                      <span className={styles.rowSub} style={pwMsg === 'Password updated.' ? { color: '#34D399' } : { color: '#E11D48' }}>
+                        {pwMsg}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -366,61 +628,114 @@ function AppearanceTab() {
 
 /* ─── Notifications ──────────────────────────────────────── */
 
-function NotificationsTab() {
-  const [prefs, setPrefs] = useState(() => {
-    if (typeof window === 'undefined') {
-      return { newReport: true, newPost: true, weeklyDigest: false, email: true, push: false };
-    }
-    const raw = localStorage.getItem('pref_notifications');
-    return raw ? JSON.parse(raw) : { newReport: true, newPost: true, weeklyDigest: false, email: true, push: false };
-  });
+/* Delivery channels (the three "bubbles") + the role-specific subjects.
+   Subject keys MUST match the backend notification `type` so the App-channel
+   toggle actually gates in-app notifications. Email/Phone are saved but not
+   delivered yet (no provider until go-live). */
+const NOTIF_CHANNELS: { key: keyof api.NotifChannelPrefs; label: string; sub: string }[] = [
+  { key: 'app', label: 'App', sub: 'In-app bell notifications' },
+  { key: 'email', label: 'Email', sub: 'Your login email \u00b7 delivery coming soon' },
+  { key: 'phone', label: 'Phone', sub: 'Text messages \u00b7 delivery coming soon' },
+];
+const NOTIF_CHANNEL_DEFAULTS: api.NotifChannelPrefs = { app: true, email: true, phone: false };
+const NOTIF_SUBJECTS_PLAYER = [
+  { key: 'ANNOUNCEMENT', label: 'Dashboard Announcements' },
+  { key: 'SCHEDULE', label: 'Training Schedule Updates' },
+  { key: 'REPORT', label: 'New Reports' },
+  { key: 'VIDEO', label: 'New Videos' },
+  { key: 'COACH_REVIEW', label: 'Coach Reviews' },
+];
+const NOTIF_SUBJECTS_COACH = [
+  { key: 'ANNOUNCEMENT', label: 'Dashboard Posts' },
+  { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests' },
+  { key: 'COMMITMENT', label: 'College Commitments' },
+];
 
-  const toggle = (key: string) => {
-    const next = { ...prefs, [key]: !prefs[key] };
+function NotificationsTab({ isCoach }: { isCoach: boolean }) {
+  const subjects = isCoach ? NOTIF_SUBJECTS_COACH : NOTIF_SUBJECTS_PLAYER;
+  const [prefs, setPrefs] = useState<api.NotificationPrefs>({});
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getNotificationPrefs()
+      .then((p) => setPrefs(p || {}))
+      .catch(() => setPrefs({}))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const isOn = (subject: string, channel: keyof api.NotifChannelPrefs) =>
+    prefs[subject]?.[channel] ?? NOTIF_CHANNEL_DEFAULTS[channel];
+
+  const toggle = async (subject: string, channel: keyof api.NotifChannelPrefs) => {
+    const current = { ...NOTIF_CHANNEL_DEFAULTS, ...(prefs[subject] || {}) };
+    const next: api.NotificationPrefs = {
+      ...prefs,
+      [subject]: { ...current, [channel]: !current[channel] },
+    };
     setPrefs(next);
-    localStorage.setItem('pref_notifications', JSON.stringify(next));
+    setSaved(false);
+    try {
+      await api.setNotificationPrefs(next);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1500);
+    } catch {
+      /* keep optimistic state; a reload reconciles with the server */
+    }
   };
 
-  const rows = [
-    { key: 'newReport', title: 'New report posted', sub: 'When a coach publishes a new report for you or your athletes' },
-    { key: 'newPost', title: 'New announcement', sub: 'Facility posts, highlights, commitments' },
-    { key: 'weeklyDigest', title: 'Weekly digest', sub: 'Summary of the week\u2019s activity every Monday' },
-  ];
+  if (loading) {
+    return (
+      <div className={styles.section}>
+        <div className={styles.card}><div className={styles.empty}>Loading preferences\u2026</div></div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.section}>
       <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Channels</h3>
-        <p className={styles.cardDesc}>How you\u2019d like to receive notifications</p>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Email</span>
-            <span className={styles.rowSub}>Sent to your login email</span>
-          </div>
-          <button className={`${styles.toggle} ${prefs.email ? styles.toggleOn : ''}`} onClick={() => toggle('email')} />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Push (mobile)</span>
-            <span className={styles.rowSub}>Requires the mobile app</span>
-          </div>
-          <button className={`${styles.toggle} ${prefs.push ? styles.toggleOn : ''}`} onClick={() => toggle('push')} />
-        </div>
+        <h3 className={styles.cardTitle}>Notification delivery</h3>
+        <p className={styles.cardDesc}>
+          Turn each delivery type on or off per subject.
+          {saved && <span style={{ marginLeft: 8, color: '#34D399', fontWeight: 600 }}>Saved</span>}
+        </p>
       </div>
 
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Events</h3>
-        <p className={styles.cardDesc}>Choose what you want to be notified about</p>
-        {rows.map((r) => (
-          <div key={r.key} className={styles.row}>
-            <div className={styles.rowLabel}>
-              <span className={styles.rowTitle}>{r.title}</span>
-              <span className={styles.rowSub}>{r.sub}</span>
-            </div>
-            <button
-              className={`${styles.toggle} ${prefs[r.key] ? styles.toggleOn : ''}`}
-              onClick={() => toggle(r.key)}
-            />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+          gap: 16,
+        }}
+      >
+        {NOTIF_CHANNELS.map((ch) => (
+          <div key={ch.key} className={styles.card}>
+            <h3 className={styles.cardTitle}>{ch.label}</h3>
+            <p className={styles.cardDesc}>{ch.sub}</p>
+            {subjects.map((s) => {
+              /* Account requests are mandatory in-app so a coach can never
+                 miss a pending player \u2014 lock that one toggle on. */
+              const locked = ch.key === 'app' && s.key === 'ACCOUNT_REQUEST';
+              const on = locked || isOn(s.key, ch.key);
+              return (
+                <div key={s.key} className={styles.row}>
+                  <div className={styles.rowLabel}>
+                    <span className={styles.rowTitle}>{s.label}</span>
+                    {locked && <span className={styles.rowSub}>Always on \u00b7 required</span>}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={locked}
+                    aria-label={`${ch.label} \u2014 ${s.label}${locked ? ' (required)' : ''}`}
+                    title={locked ? 'Account requests are always on so you never miss one' : undefined}
+                    className={`${styles.toggle} ${on ? styles.toggleOn : ''}`}
+                    style={locked ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}
+                    onClick={() => { if (!locked) toggle(s.key, ch.key); }}
+                  />
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
@@ -717,7 +1032,7 @@ function EntityCrudCard({
               {formLogoFile && (
                 <span style={{
                   marginLeft: 8,
-                  fontSize: 10,
+                  fontSize: rem(10),
                   fontWeight: 700,
                   color: 'var(--accent-light, #7eb6ff)',
                   letterSpacing: '0.08em',
@@ -740,7 +1055,7 @@ function EntityCrudCard({
                   <span style={{
                     flex: 1,
                     minWidth: 0,
-                    fontSize: 12,
+                    fontSize: rem(12),
                     color: 'var(--text-bright, #ffffff)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -752,13 +1067,13 @@ function EntityCrudCard({
                     type="button"
                     className={styles.btnDanger}
                     onClick={clearLogoFile}
-                    style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11 }}
+                    style={{ flexShrink: 0, padding: '4px 10px', fontSize: rem(11) }}
                   >
                     Remove
                   </button>
                 </>
               ) : (
-                <span style={{ fontSize: 12, color: 'var(--muted)', opacity: 0.7 }}>
+                <span style={{ fontSize: rem(12), color: 'var(--muted)', opacity: 0.7 }}>
                   No file chosen
                 </span>
               )}
@@ -822,7 +1137,7 @@ function EntityCrudCard({
                       background: 'rgba(255,255,255,0.04)',
                       border: '1px dashed var(--border)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'var(--muted)', fontSize: 13, fontWeight: 700,
+                      color: 'var(--muted)', fontSize: rem(13), fontWeight: 700,
                       flexShrink: 0,
                     }}
                   >
@@ -991,7 +1306,7 @@ function MyProfileTab({ playerId }: { playerId: string }) {
                     border: '1px solid var(--border)',
                     background: active ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
                     color: active ? '#000' : 'var(--text)',
-                    fontSize: 12,
+                    fontSize: rem(12),
                     fontWeight: 700,
                     cursor: 'pointer',
                   }}

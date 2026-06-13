@@ -53,7 +53,11 @@
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-end;
+  /* Top-align the title with the right-side readout/actions so every page's
+     title sits at the SAME vertical position regardless of whether it has a
+     subtitle or a tall actions stack (e.g. Leaderboard). Was flex-end, which
+     pushed the title down on headers with tall right-side controls. */
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   min-width: 0;

@@ -60,7 +60,7 @@ export class EducationController {
 
   @Post('mlb/players')
   @Roles('COACH')
-  createMlbPlayer(@Body() dto: { name: string; positions: string; bats?: string; throws?: string; team?: string; emoji?: string }) {
+  createMlbPlayer(@Body() dto: { name: string; positions: string; bats?: string | null; throws?: string | null; team?: string; emoji?: string; heightInches?: number | null; weightLbs?: number | null }) {
     return this.svc.createMlbPlayer(dto);
   }
 

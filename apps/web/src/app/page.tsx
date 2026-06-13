@@ -8,6 +8,7 @@ import * as api from '@/lib/api';
 import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
 import { PageHeader } from '@/components/PageHeader';
+import { MessagesLauncher } from '@/components/MessagesLauncher';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import styles from './page.module.css';
 
@@ -124,13 +125,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
-    // Players land directly on their own profile rather than the
-    // coach dashboard (which is built around the KPI grid + roster
-    // tools they can't act on). Their /profile route already wraps
-    // PlayerProfilePage and falls back to `user.playerId` when no
-    // URL id is provided, so this is just a one-hop redirect.
-    if (!isLoading && user && !isCoach) router.replace('/profile');
-  }, [isLoading, user, isCoach, router]);
+    // NOTE: players are NOT redirected to /profile anymore — the player
+    // dashboard below (weekly schedule + announcements + the Messages /
+    // Notifications hero bubbles) is their landing page; the sidebar has
+    // a separate Profile entry for their own profile.
+  }, [isLoading, user, router]);
 
   /* ── Load dashboard data ── */
   useEffect(() => {
@@ -253,10 +252,29 @@ export default function DashboardPage() {
           titleAccent="Improve."
           subtitle="Your weekly schedule and the latest from your coaches."
           readout="Live"
+          actions={<MessagesLauncher />}
         />
 
         {/* ── Content ── */}
         <div className={styles.content}>
+          {/* Welcome hint for new players — shows until their coach
+              schedules the first training session, so a fresh account
+              isn't just a wall of empty bubbles. */}
+          {weekDrills.length === 0 && (
+            <div className={styles.welcomeCard}>
+              <span className={styles.welcomeIcon} aria-hidden="true">👋</span>
+              <div>
+                <div className={styles.welcomeTitle}>Welcome to your dashboard</div>
+                <p className={styles.welcomeBody}>
+                  Nothing is scheduled yet — when your coach adds training, posts a report,
+                  or uploads video to your profile, it shows up here and in the 🔔 bell above.
+                  In the meantime, explore your Profile, the Training calendar, and the
+                  Education drill library from the sidebar.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Weekly Schedule replaces stats grid */}
           <WeeklyScheduleStrip weekDays={weekDays} drillsByDate={drillsByDate} />
 
@@ -296,6 +314,7 @@ export default function DashboardPage() {
         title="Assess, Train,"
         titleAccent="Perform"
         readout="Live"
+        actions={<MessagesLauncher />}
       />
 
       {/* ── Content ── */}
@@ -504,6 +523,20 @@ function AnnouncementFeed({
 
               <div className={styles.postTitle}>{post.title}</div>
               {post.body && <div className={styles.postBody}>{post.body}</div>}
+
+              {/* Uploaded media — image and/or video — shown under the text as
+                  small squares in a 3-up grid. */}
+              {(post.imageUrl || post.videoUrl) && (
+                <div className={styles.postMediaGrid}>
+                  {post.imageUrl && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img className={styles.postMedia} src={post.imageUrl} alt={post.title} />
+                  )}
+                  {post.videoUrl && (
+                    <video className={styles.postMedia} src={post.videoUrl} controls preload="metadata" />
+                  )}
+                </div>
+              )}
 
               <div className={styles.postFooter}>
                 <span className={styles.postAuthor}>

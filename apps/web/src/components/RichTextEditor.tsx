@@ -20,6 +20,7 @@
  */
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 const FONT_SIZES = [
@@ -171,7 +172,7 @@ export function RichTextEditor({
             border: '1px solid var(--border, var(--border))',
             background: 'var(--surface, rgba(255,255,255,0.04))',
             color: 'var(--text, #ffffff)',
-            fontSize: 14,
+            fontSize: rem(14),
             fontFamily: 'inherit',
             outline: 'none',
             lineHeight: 1.5,
@@ -191,7 +192,7 @@ export function RichTextEditor({
               position: 'absolute',
               top: 10, left: 14,
               color: 'var(--text-muted, rgba(255,255,255,0.4))',
-              fontSize: 14,
+              fontSize: rem(14),
               pointerEvents: 'none',
               fontFamily: 'inherit',
             }}
@@ -248,7 +249,7 @@ const toolbarBtnStyle: CSSProperties = {
   border: '1px solid var(--border-light)',
   background: 'rgba(255,255,255,0.03)',
   color: 'var(--text, #ffffff)',
-  fontSize: 12,
+  fontSize: rem(12),
   cursor: 'pointer',
   fontFamily: 'inherit',
   minWidth: 28,

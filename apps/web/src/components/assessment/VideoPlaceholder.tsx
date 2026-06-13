@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useState } from 'react';
 import styles from './assessment.module.css';
 import { VideoPlayerModal } from './VideoPlayerModal';
@@ -143,7 +144,7 @@ export function VideoPlaceholder({ tag, title, subtitle, size = 'md', videoUrl, 
           ? liveAtBatLines.map((line, i) => <div key={i}>{line}</div>)
           : <div>{displayTitle}</div>
         )}
-        {!hasVideo && subtitle && <div style={{ fontSize: 11, color: 'var(--faint)' }}>{subtitle}</div>}
+        {!hasVideo && subtitle && <div style={{ fontSize: rem(11), color: 'var(--faint)' }}>{subtitle}</div>}
         {/* When a preview IS showing, surface the title + subtitle in
             a translucent footer pinned to the bottom of the card so
             the metadata stays legible against the thumbnail. */}

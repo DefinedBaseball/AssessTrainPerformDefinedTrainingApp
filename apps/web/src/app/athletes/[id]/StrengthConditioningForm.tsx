@@ -17,6 +17,7 @@
  * two surfaces share schema directly.
  */
 
+import { rem } from '@/lib/rem';
 import { useState } from 'react';
 import aStyles from '@/components/assessment/assessment.module.css';
 import { movementPlotBubbleStyle } from './tabs/SwingTab';
@@ -114,7 +115,7 @@ function SubTabBar({
               borderRadius: 10,
               color: active ? 'var(--text)' : 'var(--text-muted)',
               fontFamily: 'var(--font-display)',
-              fontSize: 13.8,
+              fontSize: rem(13.8),
               fontWeight: 600,
               fontStyle: 'italic',
               letterSpacing: '-0.025em',
@@ -534,7 +535,7 @@ function MobilityCardForm({
       {/* Title row + inline accent hairline */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{
-          fontSize: 11, fontWeight: 800,
+          fontSize: rem(11), fontWeight: 800,
           color: 'rgba(126,182,255,0.85)',
           letterSpacing: '0.04em',
           minWidth: 22,
@@ -664,7 +665,7 @@ function MobilityCardForm({
               ? 'rgba(255,206,84,0.16)'
               : 'rgba(255,255,255,0.04)',
             color: starred ? '#ffce54' : 'rgba(255,255,255,0.55)',
-            fontSize: 13,
+            fontSize: rem(13),
             lineHeight: 1,
             display: 'flex',
             alignItems: 'center',
@@ -688,7 +689,7 @@ function MobilityCardForm({
               border: '1px solid rgba(126,182,255,0.55)',
               background: 'rgba(126,182,255,0.12)',
               color: '#cfe0ff',
-              fontSize: 12,
+              fontSize: rem(12),
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
@@ -711,7 +712,7 @@ function MobilityCardForm({
               border: '1px solid rgba(231,98,98,0.55)',
               background: 'rgba(231,98,98,0.14)',
               color: '#f0a8a8',
-              fontSize: 12,
+              fontSize: rem(12),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -768,7 +769,7 @@ function EditField({
           color: 'var(--text-bright)',
           padding: '4px 8px',
           borderRadius: 6,
-          fontSize: 13,
+          fontSize: rem(13),
           fontWeight: 700,
           fontVariantNumeric: 'tabular-nums',
           fontFamily: 'inherit',
@@ -793,7 +794,7 @@ function EditField({
         color: 'var(--text-bright)',
         padding: '4px 10px',
         borderRadius: 6,
-        fontSize: 12,
+        fontSize: rem(12),
         fontFamily: 'inherit',
         outline: 'none',
       }}
@@ -884,7 +885,7 @@ function ToggleButton({
         border: `1px solid ${active ? activeBorder : 'rgba(255,255,255,0.14)'}`,
         background: active ? activeColor : 'rgba(255,255,255,0.04)',
         color: active ? activeText : 'var(--text-muted)',
-        fontSize: 11, fontWeight: 700,
+        fontSize: rem(11), fontWeight: 700,
         letterSpacing: '0.06em', textTransform: 'uppercase',
         cursor: 'pointer',
         fontFamily: 'inherit',
@@ -952,7 +953,7 @@ function InputCell({
              previews the saved profile rendering 1:1. */}
           <div style={{
             fontFamily: 'inherit',
-            fontSize: 10,
+            fontSize: rem(10),
             fontWeight: 400,
             letterSpacing: '0.02em',
             color: 'rgba(255,255,255,0.78)',
@@ -986,7 +987,7 @@ function InputCell({
               color: 'var(--text-bright)',
               padding: '4px 8px',
               borderRadius: 6,
-              fontSize: 14,
+              fontSize: rem(14),
               fontWeight: 700,
               fontVariantNumeric: 'tabular-nums',
               fontFamily: 'inherit',
@@ -996,7 +997,7 @@ function InputCell({
             }}
           />
           <span style={{
-            fontSize: 11,
+            fontSize: rem(11),
             fontWeight: 500,
             color: 'rgba(255,255,255,0.78)',
             letterSpacing: '0.02em',
@@ -1020,7 +1021,7 @@ function InputCell({
             color: 'var(--text-bright)',
             padding: '4px 8px',
             borderRadius: 6,
-            fontSize: 14,
+            fontSize: rem(14),
             fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
             fontFamily: 'inherit',
@@ -1206,7 +1207,7 @@ function GreyMetricBubble({
         }}>{title}</span>
         {subtitle && (
           <span style={{
-            fontSize: 10,
+            fontSize: rem(10),
             /* Subtitle reads white per coach-spec — used to be
                `var(--text-muted)` but every label / subtitle in
                the form should now be white. */
@@ -1241,14 +1242,14 @@ function SubBlock({
       }}>
         <span style={{
           fontFamily: 'inherit',
-          fontSize: 13, fontWeight: 700,
+          fontSize: rem(13), fontWeight: 700,
           color: 'var(--text-bright)', lineHeight: 1.05,
           letterSpacing: '-0.01em',
           textTransform: 'uppercase',
         }}>{title}</span>
         {subtitle && (
           <span style={{
-            fontSize: 10,
+            fontSize: rem(10),
             /* Subtitle reads white per coach-spec — every label /
                subtitle across the form is now consistently white. */
             color: 'var(--text-bright)',
@@ -1267,13 +1268,13 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
       <span style={{
         fontFamily: 'var(--font-display)',
-        fontSize: 22, fontWeight: 600,
+        fontSize: rem(22), fontWeight: 600,
         fontStyle: 'italic', color: 'var(--text)',
         letterSpacing: '-0.025em',
       }}>{title}</span>
       {subtitle && (
         <span style={{
-          fontSize: 11,
+          fontSize: rem(11),
           /* Subtitle reads white per coach-spec. */
           color: 'var(--text-bright)',
           letterSpacing: '0.04em',
@@ -1301,7 +1302,7 @@ const fieldLabelStyle: React.CSSProperties = {
      typographically identical (the profile's `fieldLabelStyle`
      was updated to the same values in the same commit). */
   fontFamily: 'inherit',
-  fontSize: 11.88,
+  fontSize: rem(11.88),
   fontWeight: 600,
   letterSpacing: '0.05em',
   textTransform: 'uppercase',
@@ -1320,7 +1321,7 @@ const visionInputStyle: React.CSSProperties = {
   color: 'var(--text-bright)',
   padding: '4px 8px',
   borderRadius: 6,
-  fontSize: 14,
+  fontSize: rem(14),
   fontWeight: 700,
   fontVariantNumeric: 'tabular-nums',
   fontFamily: 'inherit',
@@ -1335,7 +1336,7 @@ const baseInputStyle: React.CSSProperties = {
   color: 'var(--text-bright)',
   padding: '6px 10px',
   borderRadius: 6,
-  fontSize: 12,
+  fontSize: rem(12),
   fontFamily: 'inherit',
   outline: 'none',
   marginTop: 4,

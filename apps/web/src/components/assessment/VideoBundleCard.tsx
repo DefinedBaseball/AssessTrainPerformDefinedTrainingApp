@@ -1,41 +1,23 @@
 'use client';
 
 /**
- * VideoBundleCard — gallery card for a single video OR a multi-angle
- * bundle. Always one square wide. Renders an "outside bubble" with:
+ * VideoBundleCard — gallery card for a single video OR a multi-angle bundle.
+ * Always one square. Matches the Dashboard announcement video treatment:
  *
- *   • Top border eyebrow: bundle label (e.g. "Training - Hitting - Tee")
- *   • Middle: ONE video preview tile (the first angle for bundles).
- *       — for bundles, a count badge sits in the bottom-right corner
- *         of the tile.
- *   • Bottom: date below the tile, still inside the bubble.
+ *   • The video preview FILLS the entire bubble (object-fit: cover).
+ *   • The bubble frame is the sport-category color (Hitting blue, Pitching
+ *     orange, Catching teal, Infield/Outfield green, S&C red).
+ *   • A thin BLACK bar across the TOP holds the video label (white text).
+ *   • A BLACK bar across the BOTTOM holds the date + number of videos.
  *
- * Click → for singletons, opens the standard single-video player modal.
- * Click → for bundles, opens VideoBundleModal (synced grid playback).
+ * Click opens VideoBundleModal (synced grid playback) for both singletons and
+ * bundles.
  */
 
-import { useState } from 'react';
+import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { VideoBundleModal, type AttachableReport } from './VideoBundleModal';
-/* VideoPlayerModal import retired — singletons + bundles now both
-   route through VideoBundleModal so the single-clip view inherits
-   the bundle modal's full-page chrome (scrubber, frame-step, speed,
-   record, compare, drawing tools). */
 import { getVideoCategoryColors } from '@/lib/training-colors';
-import { splitVideoTitle, formatBubbleLabel, normalizeVideoTitle } from '@/lib/video-titles';
-import { useTheme } from '@/lib/theme-context';
-import styles from './assessment.module.css';
-
-/* Shared "Curveball-style" warm-grey bubble background — mirrors the
-   `PITCH_REPORT_BUBBLE_BG` used by the Pitching tab's ArsenalCards
-   (Fastball / Curveball / Slider / ChangeUp). Two radial highlights
-   tinted with warm grey + a soft top-to-bottom translucent white
-   wash. Category color is reserved for the BORDER alone now, so
-   every video bubble reads with the same neutral surface and the
-   category accent reads as a frame around it. */
-const VIDEO_BUBBLE_BG =
-  'radial-gradient(ellipse at 0% 0%, rgba(126,134,144,0.07) 0%, transparent 55%),' +
-  'radial-gradient(ellipse at 100% 100%, rgba(126,134,144,0.05) 0%, transparent 55%),' +
-  'linear-gradient(180deg, rgba(255,255,255,0.032) 0%, rgba(255,255,255,0.008) 100%)';
+import { formatBubbleLabel, normalizeVideoTitle } from '@/lib/video-titles';
 
 export interface BundleVideo {
   id: string;
@@ -48,34 +30,21 @@ export interface BundleVideo {
 interface VideoBundleCardProps {
   /** Every video in this card. Length === 1 → singleton; 2+ → bundle. */
   videos: BundleVideo[];
-  /** Optional label override for the top eyebrow. Defaults to the
-   *  first video's bundle prefix (e.g. `Training - Hitting - Tee`)
-   *  for bundles, or its full title for singletons. */
+  /** Optional label override for the top bar. Defaults to the first video's
+   *  formatted bubble label (e.g. `Hitting - Training - Tee`). */
   label?: string;
-  /** Tile size — flows to the inner preview's class. */
+  /** Tile size — controls the max width of the square. */
   size?: 'sm' | 'md' | 'lg';
-  /** Reserved for forwarding into the modal (narration recorder etc.). */
   playerId?: string;
   recordingCategory?: string;
-  /** Fires after the bundle modal uploads a Coach Review clip so
-   *  the parent tab can refetch + surface the new clip immediately. */
+  /** Fires after the bundle modal uploads a Coach Review clip. */
   onUploaded?: () => void;
-  /** Reports the coach can optionally attach a recorded Coach Review
-   *  to. Forwarded directly to the underlying VideoBundleModal so
-   *  every per-tab caller can pass whatever report list applies. */
+  /** Reports the coach can attach a recorded Coach Review to. */
   reports?: AttachableReport[];
-  /** Optional secondary text rendered next to the date at the bottom
-   *  of the bubble. Used by the global Video library to surface the
-   *  athlete's name on each tile (since that view mixes clips from
-   *  many players). Per-athlete galleries skip this so the bottom
-   *  row stays minimal. */
+  /** Optional secondary text shown before the date in the bottom bar
+   *  (the global Video library uses it for the athlete's name). */
   subtitle?: string;
-  /** When true, the top "eyebrow" label (e.g. "Coach Review - Hitting -
-   *  Live") is suppressed. Used by the Hitting Snapshot's in-panel
-   *  Coach Reviews bubble, which already prints a white "Coach Reviews"
-   *  header above the grid — the per-tile category-tinted caption
-   *  underneath duplicates that information. Defaults to false so
-   *  every other caller keeps the label as before. */
+  /** When true, the top label bar is suppressed. */
   hideLabel?: boolean;
 }
 
@@ -91,362 +60,212 @@ export function VideoBundleCard({
   hideLabel = false,
 }: VideoBundleCardProps) {
   const [open, setOpen] = useState(false);
-  /* Theme used by Coach Review label-color logic below — on the
-     inverted Coach Review treatment (sport-color fill + white border
-     in light theme), the label sits on a saturated colored surface,
-     so the sport-color accent text used in dark mode would be
-     unreadable. Flips to white in light theme on Coach Reviews only. */
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
 
   if (videos.length === 0) return null;
 
   const first = videos[0];
-  const isBundle = videos.length > 1;
-  /* Bubble label format (per coach-spec):
-       Regular:      `<Category> - <Source> - <Detail>`
-                       e.g. "Hitting - Training - Tee"
-                            "Hitting - Live - VS Cole Anderson"
-       Coach Review: `Coach Review - <Category> - <Source>`
-                       e.g. "Coach Review - Hitting - Training"
-     `formatBubbleLabel` derives all three pieces from the video's
-     category + title (the title's per-angle camera suffix, if any,
-     is intentionally dropped since the bubble already conveys the
-     angle count via the badge). Explicit `label` prop wins so
-     existing callers (e.g. legacy gallery entries) can still
-     override. */
-  const displayLabel = label || formatBubbleLabel({
-    title: first.title || '',
-    category: first.category,
-  });
+  const displayLabel = label || formatBubbleLabel({ title: first.title || '', category: first.category });
   const dateStr = new Date(first.createdAt).toLocaleDateString();
   const colors = getVideoCategoryColors(first.category);
+  const count = videos.length;
+  const maxWidth = size === 'sm' ? 180 : size === 'lg' ? 280 : 240;
 
-  /* Coach Review detection — if ANY clip in this bundle (or the
-     singleton itself) was uploaded by the in-modal narration
-     recorder, the title carries the `Coach Review` prefix (or the
-     legacy `Coach Reviewed`). Coach Reviews get a CATEGORY-COLORED
-     border (Hitting blue, Pitching orange, Catching teal, etc.) so
-     they stand out from the surrounding neutral-bordered clips at
-     a glance. Regular clips keep the neutral `var(--border)`. */
-  const hasCoachReview = videos.some((v) => {
-    const t = normalizeVideoTitle(v.title || '');
-    return t.startsWith('Coach Review');
-  });
-  const outerBorder = hasCoachReview ? colors.border : 'var(--border)';
-  /* Coach Review bubbles also tint their label + date text with the
-     category accent (Hitting blue, Pitching orange, etc.) so the
-     bubble reads as a coherent colored unit — border + text both
-     carry the category color, fill stays the soft tinted wash from
-     `colors.bg`. Regular clips keep pure white text against the
-     same tinted fill. */
-  /* Outer video label color rules:
-       • Regular clips → `var(--text-bright)` (near-white in dark,
-         near-black in light) so the text reads against the bubble
-         fill of either theme.
-       • Coach Review clips IN DARK theme → sport-color accent
-         (Hitting blue / Pitching orange / etc.) so the bubble
-         reads as a unified colored unit alongside the colored
-         border + soft tinted fill.
-       • Coach Review clips IN LIGHT theme → near-black. The
-         inverted treatment flips the fill to the sport color,
-         which in light theme is always a PALE pastel (the
-         "Movement Prep" tier — see getVideoCategoryColors), so
-         dark text reads far better than white (white scored only
-         ~2:1 on the pale fill; near-black scores ~6:1). */
-  const outerTextColor = hasCoachReview
-    ? (isLight ? 'var(--text-bright)' : colors.text)
-    : 'var(--text-bright)';
+  /* Bar treatment: regular clips get WHITE bars + BLACK text; Coach Review
+     clips get BLACK bars + WHITE text — so a coach's narrated review stands
+     out from the gallery. Every bubble renders its bars + text 20% larger
+     (s = 1.2). */
+  const isCoachReview = videos.some((v) => normalizeVideoTitle(v.title || '').startsWith('Coach Review'));
+  const s = 1.2;
 
-  const sizeClass =
-    size === 'sm' ? styles.videoSm
-    : size === 'lg' ? styles.videoLg
-    : styles.videoMd;
+  /* Inline styles bypass the build-time px→rem pass (postcss-pxtorem only
+     sees CSS files), so font sizes here are converted by hand: rem against
+     the 15px design base keeps this card's text tracking the fluid root
+     font-size like the rest of the app. */
+  const rem = (px: number) => `${(px / 15).toFixed(4)}rem`;
+
+  /* Shared overlay-bar base for the top label + bottom date/count. */
+  const barBase: CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    background: isCoachReview ? 'rgba(0,0,0,0.82)' : 'rgba(255,255,255,0.95)',
+    color: isCoachReview ? '#ffffff' : '#000000',
+    zIndex: 2,
+    pointerEvents: 'none',
+  };
+
+  /* Download the previewed clip. Fetches the file as a blob so the browser
+     forces a "Save" (works cross-origin when the host sends CORS); falls back
+     to a direct anchor / new-tab open otherwise. stopPropagation keeps the
+     click from opening the playback modal. */
+  const handleDownload = async (e: ReactMouseEvent) => {
+    e.stopPropagation();
+    const url = first.originalUrl;
+    if (!url) return;
+    const ext = (url.split('?')[0].split('.').pop() || 'mp4').slice(0, 5);
+    const safe = (first.title || 'video').replace(/[^\w.-]+/g, '_') || 'video';
+    const filename = `${safe}.${ext}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      const obj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = obj;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(obj), 1000);
+    } catch {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  };
 
   return (
     <>
       <div
-        /* Bubble background is tinted with the category color
-           (Hitting → blue, Pitching → orange, Catching → teal,
-           Infield/Outfield → green, Strength → red). Border is
-           normally the neutral `var(--border)` — except for Coach
-           Review bubbles, which adopt the category color on the
-           border so coaches can spot their narrated reviews from
-           the surrounding gallery at a glance. */
-        /* `.videoBubbleCoachReview` modifier flips the light-theme
-           treatment to its inverse: sport-color fill + white border
-           (vs the regular white fill + sport-color border). Dark
-           theme is unaffected — the existing tinted bg + sport-color
-           border from the inline styles still apply. */
-        className={`${styles.videoBubble}${hasCoachReview ? ` ${styles.videoBubbleCoachReview}` : ''}`}
         style={{
+          position: 'relative',
           width: '100%',
-          maxWidth: size === 'sm' ? 180 : size === 'lg' ? 280 : 240,
-          /* Border bumped 1px → 2px so the sport-category color
-             (Hitting blue / Pitching orange / Catching teal /
-             Infield-Outfield green / S&C red) reads as a more
-             prominent accent in light theme where the white fill
-             + colored outline is the primary visual cue. Dark
-             theme uses the same 2px so the chrome stays consistent
-             — the soft `colors.bg` tint behind it gives plenty
-             of contrast either way. */
-          border: `2px solid ${outerBorder}`,
+          maxWidth,
+          aspectRatio: '1 / 1',
+          /* Sport-category frame color (Hitting blue, Pitching orange, …). */
+          border: `2px solid ${colors.border}`,
           borderRadius: 12,
-          /* `--video-bubble-bg` carries the dark-theme subtle tint
-             (the `rgba(...,0.13)` colors.bg). `--video-bubble-color`
-             carries the saturated dot color used as the color-mix
-             source for the light-theme override. The `.videoBubble`
-             CSS class in assessment.module.css picks the right
-             background per theme — inline styles can no longer
-             paint over the light-theme rule because the background
-             property is moved into the class. */
-          ['--video-bubble-bg' as any]: colors.bg,
-          ['--video-bubble-color' as any]: colors.border,
-          /* Padding + gap tighten now that the date row no longer
-             lives outside the video tile — see the `dateStr` overlay
-             below the play indicator. The bubble used to host three
-             rows (label / tile / date); it now hosts just two
-             (label / tile) so the chrome around the tile gets a
-             tighter `gap: 4` and a leaner `padding: 6`. */
-          padding: 6,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
+          overflow: 'hidden',
+          background: '#000',
           cursor: 'pointer',
         }}
         onClick={() => setOpen(true)}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setOpen(true);
-          }
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); }
         }}
         title={displayLabel}
       >
-        {/* Label eyebrow — top of bubble. Truncates with ellipsis
-            when the prefix is too long for one line. Regular clips
-            render white; Coach Reviews pick up the category accent
-            color (Hitting blue / Pitching orange / etc.) so they
-            read as a fully-colored unit alongside the matching
-            border.
+        {/* Video preview — fills the entire bubble. */}
+        {first.originalUrl ? (
+          <video
+            src={first.originalUrl}
+            preload="metadata"
+            muted
+            playsInline
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+          />
+        ) : null}
 
-            Suppressed entirely when `hideLabel` is true (the
-            Hitting Snapshot's Coach Reviews bubble uses this so
-            its outer white "Coach Reviews" header isn't doubled up
-            with the per-tile blue caption). */}
+        {/* Download button — top-right corner, downloads this clip. */}
+        {first.originalUrl && (
+          <button
+            type="button"
+            onClick={handleDownload}
+            onKeyDown={(e) => e.stopPropagation()}
+            title="Download video"
+            aria-label="Download video"
+            style={{
+              position: 'absolute',
+              top: 28,
+              right: 5,
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              background: 'rgba(0,0,0,0.6)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 3,
+              padding: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2.5v7" />
+              <path d="M4.5 6.5 8 10l3.5-3.5" />
+              <path d="M3 13.5h10" />
+            </svg>
+          </button>
+        )}
+
+        {/* Top black bar — video label (white). */}
         {!hideLabel && (
           <div
             style={{
-              fontSize: 9,
+              ...barBase,
+              top: 0,
+              padding: `${rem(3 * s)} ${rem(8 * s)}`,
+              fontSize: rem(9 * s),
               fontWeight: 700,
-              letterSpacing: '0.08em',
+              letterSpacing: '0.07em',
               textTransform: 'uppercase',
-              color: outerTextColor,
+              lineHeight: 1.3,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              padding: '0 2px',
             }}
           >
             {displayLabel}
           </div>
         )}
 
-        {/* Video tile — one square. Inner preview shows the first
-            angle as a poster frame. Count badge for bundles sits in
-            the bottom-right corner OF the tile, not the outside bubble.
-            Overrides the size-class width so the tile fills the
-            outer bubble (aspect-ratio: 1 in the CSS module keeps it
-            square so the height follows). */}
+        {/* Central play indicator — clickable cue. */}
         <div
-          className={`${styles.videoPlaceholder} ${sizeClass} ${styles.videoReady}`}
+          aria-hidden="true"
           style={{
-            position: 'relative',
-            width: '100%',
-            maxWidth: '100%',
-            margin: 0,
-            cursor: 'pointer',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.55)',
+            border: '2px solid rgba(255,255,255,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: rem(16),
+            color: '#ffffff',
+            pointerEvents: 'none',
+            zIndex: 1,
           }}
         >
-          {first.originalUrl ? (
-            <video
-              src={first.originalUrl}
-              preload="metadata"
-              muted
-              playsInline
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                pointerEvents: 'none',
-              }}
-            />
-          ) : null}
-
-          {/* Central play indicator — visible cue the tile is
-              clickable (for bundles AND singletons). */}
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              background: 'rgba(0,0,0,0.55)',
-              border: '2px solid rgba(255,255,255,0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
-              /* Hardcoded white — these chips sit on dark
-                 translucent backgrounds (rgba(0,0,0,0.72-0.82))
-                 layered over the video poster frame, so they need
-                 white text in BOTH themes. `var(--text-bright)`
-                 would flip to near-black in light, making the
-                 chip text invisible on the dark chip background. */
-              color: '#ffffff',
-              pointerEvents: 'none',
-            }}
-          >
-            ▶
-          </div>
-
-          {/* Count badge — bottom-right corner of the video tile.
-              Only renders for bundles (count > 1). The number alone
-              communicates "X angles". */}
-          {isBundle && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 6,
-                right: 6,
-                minWidth: 24,
-                height: 20,
-                padding: '0 6px',
-                borderRadius: 10,
-                background: 'rgba(0,0,0,0.82)',
-                border: `1px solid ${colors.border}`,
-                /* Hardcoded white — these chips sit on dark
-                 translucent backgrounds (rgba(0,0,0,0.72-0.82))
-                 layered over the video poster frame, so they need
-                 white text in BOTH themes. `var(--text-bright)`
-                 would flip to near-black in light, making the
-                 chip text invisible on the dark chip background. */
-              color: '#ffffff',
-                fontSize: 11,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'none',
-              }}
-              title={`${videos.length} angles`}
-            >
-              {videos.length}
-            </div>
-          )}
-
-          {/* Date chip — moved INSIDE the video tile per coach-spec.
-              Used to live in a separate row in the outer category-
-              tinted bubble below the tile, which made every card
-              three rows tall. Bringing the date INTO the tile (as
-              an absolutely-positioned bottom-left chip on a
-              translucent black plate) lets the outer bubble shrink
-              to two rows (label + tile) without losing the
-              recorded-on context. Sits in the bottom-LEFT corner so
-              it never collides with the bundle count badge in the
-              bottom-RIGHT corner. */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 6,
-              left: 6,
-              padding: '2px 7px',
-              borderRadius: 6,
-              background: 'rgba(0,0,0,0.72)',
-              border: '1px solid var(--border)',
-              /* Hardcoded white — these chips sit on dark
-                 translucent backgrounds (rgba(0,0,0,0.72-0.82))
-                 layered over the video poster frame, so they need
-                 white text in BOTH themes. `var(--text-bright)`
-                 would flip to near-black in light, making the
-                 chip text invisible on the dark chip background. */
-              color: '#ffffff',
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: '0.02em',
-              lineHeight: 1.1,
-              pointerEvents: 'none',
-              maxWidth: 'calc(100% - 12px)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-            title={dateStr}
-          >
-            {dateStr}
-          </div>
-
-          {/* Subtitle chip (optional) — only the global Video
-              library passes a `subtitle` (player name). Moved from
-              the retired outer date-row into the TOP-LEFT corner of
-              the tile so it lives on the same translucent-black
-              chip family as the date below it, doesn't collide with
-              the bundle-count badge in the bottom-right, and stays
-              legible against the video poster frame. */}
-          {subtitle && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 6,
-                left: 6,
-                padding: '2px 7px',
-                borderRadius: 6,
-                background: 'rgba(0,0,0,0.72)',
-                border: '1px solid var(--border)',
-                /* Hardcoded white — these chips sit on dark
-                 translucent backgrounds (rgba(0,0,0,0.72-0.82))
-                 layered over the video poster frame, so they need
-                 white text in BOTH themes. `var(--text-bright)`
-                 would flip to near-black in light, making the
-                 chip text invisible on the dark chip background. */
-              color: '#ffffff',
-                fontSize: 10,
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-                lineHeight: 1.1,
-                pointerEvents: 'none',
-                maxWidth: 'calc(100% - 12px)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-              title={subtitle}
-            >
-              {subtitle}
-            </div>
-          )}
+          ▶
         </div>
-        {/* External date row retired — see the bottom-left date
-            chip overlay inside the tile above. */}
+
+        {/* Bottom black bar — date + number of videos. */}
+        <div
+          style={{
+            ...barBase,
+            bottom: 0,
+            padding: `${rem(3 * s)} ${rem(8 * s)}`,
+            fontSize: rem(10 * s),
+            fontWeight: 600,
+            letterSpacing: '0.02em',
+            lineHeight: 1.3,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 6,
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {subtitle ? `${subtitle} · ` : ''}{dateStr}
+          </span>
+          <span style={{ flexShrink: 0 }}>{count} {count === 1 ? 'video' : 'videos'}</span>
+        </div>
       </div>
 
-      {/* Click handler — both singletons AND bundles open the
-          VideoBundleModal so a single-clip view inherits the
-          bundle modal's full-page chrome: master scrubber + frame
-          step + speed slider + record + compare + drawing tools,
-          all in the exact same layout and at the exact same window
-          size as a multi-angle view. The modal renders its grid
-          with whatever number of videos it's given — 1, 2, or more
-          — so a singleton just shows one pane (which expands to
-          fill the available width). */}
       {open && (
         <VideoBundleModal
           videos={videos}

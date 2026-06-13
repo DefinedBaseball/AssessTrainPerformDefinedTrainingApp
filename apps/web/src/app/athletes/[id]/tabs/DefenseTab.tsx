@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useState, useMemo, useEffect } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
@@ -130,13 +131,13 @@ function DefenseCoachGradesPanel({
                 }}
               >
                 <span style={{
-                  fontSize: 10.5, fontWeight: 600, letterSpacing: '0.03em',
+                  fontSize: rem(10.5), fontWeight: 600, letterSpacing: '0.03em',
                   textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.15,
                 }}>
                   {row.title}
                 </span>
                 <span style={{
-                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 16,
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16),
                   color: tone, lineHeight: 1, letterSpacing: '-0.02em',
                 }}>
                   {row.score ?? '—'}
@@ -165,7 +166,7 @@ function DefenseCoachGradesPanel({
                 }}
               >
                 <div style={{
-                  fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                  fontSize: rem(10), fontWeight: 600, letterSpacing: '0.04em',
                   textTransform: 'uppercase', color: 'var(--text-bright)',
                   textAlign: 'center', lineHeight: 1.1,
                 }}>
@@ -173,7 +174,7 @@ function DefenseCoachGradesPanel({
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <span style={{
-                    fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 16,
+                    fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16),
                     color: tone, lineHeight: 1, letterSpacing: '-0.02em',
                   }}>
                     {row.score ?? '—'}
@@ -192,15 +193,15 @@ function DefenseCoachGradesPanel({
           border: '1px solid var(--border-light)',
         }}>
           <span style={{
-            fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+            fontSize: rem(10), fontWeight: 600, letterSpacing: '0.04em',
             textTransform: 'uppercase', color: 'var(--text-muted)',
           }}>Shuffle Velocity</span>
           <span style={{
-            fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 16,
+            fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16),
             color: 'var(--text-bright)', lineHeight: 1,
           }}>
             {shuffleVelocityMph}
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
+            <span style={{ fontSize: rem(11), fontWeight: 600, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
           </span>
         </div>
       )}
@@ -545,7 +546,7 @@ function ArmMetricCard({ metric, label, unit }: {
         /* Font D — small all-caps Satoshi eyebrow shared across
            every grey-bubble secondary label in the app. */
         fontFamily: 'inherit',
-        fontSize: 11.88, fontWeight: 600, textTransform: 'uppercase',
+        fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
         letterSpacing: '0.05em', color: 'var(--text-bright)',
         lineHeight: 1.2,
       }}>
@@ -554,20 +555,20 @@ function ArmMetricCard({ metric, label, unit }: {
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{
-          fontSize: 28, fontWeight: 800, fontFamily: 'inherit',
+          fontSize: rem(28), fontWeight: 800, fontFamily: 'inherit',
           color: hasBest ? '#4ADE80' : 'var(--faint)',
           lineHeight: 1,
         }}>
           {hasBest ? metric.best! : '\u2014'}
         </span>
         {hasBest && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <span style={{ fontSize: rem(11), fontWeight: 600, color: 'var(--text-muted)' }}>
             {unit} best
           </span>
         )}
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'inherit' }}>
+      <div style={{ fontSize: rem(12), color: 'var(--text-muted)', fontFamily: 'inherit' }}>
         {hasAvg ? (
           <>Avg: <span style={{ fontWeight: 700, color: 'var(--accent-light)' }}>{metric.avg}</span> {unit}</>
         ) : (
@@ -584,7 +585,7 @@ function ArmMetricCard({ metric, label, unit }: {
               style={{
                 minWidth: 36, height: 26, borderRadius: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 700, fontFamily: 'inherit',
+                fontSize: rem(10), fontWeight: 700, fontFamily: 'inherit',
                 background: val !== null ? 'rgba(74,222,128,0.12)' : 'var(--surface2)',
                 color: val !== null ? '#4ADE80' : 'var(--faint)',
                 border: val !== null ? '1px solid rgba(74,222,128,0.25)' : '1px solid var(--border)',
@@ -599,7 +600,7 @@ function ArmMetricCard({ metric, label, unit }: {
 
       {metric.notes && (
         <div style={{
-          fontSize: 11, color: 'var(--text-muted)',
+          fontSize: rem(11), color: 'var(--text-muted)',
           borderTop: '1px solid var(--border)',
           paddingTop: 6, marginTop: 2,
           lineHeight: 1.4,
@@ -632,7 +633,7 @@ function ThrowingMetricCard({ metric, label, unit, mlbRef }: {
         /* Font D — small all-caps Satoshi eyebrow shared across
            every grey-bubble secondary label in the app. */
         fontFamily: 'inherit',
-        fontSize: 11.88, fontWeight: 600, textTransform: 'uppercase',
+        fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
         letterSpacing: '0.05em', color: 'var(--text-bright)',
         lineHeight: 1.2,
       }}>
@@ -641,20 +642,20 @@ function ThrowingMetricCard({ metric, label, unit, mlbRef }: {
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{
-          fontSize: 28, fontWeight: 800, fontFamily: 'inherit',
+          fontSize: rem(28), fontWeight: 800, fontFamily: 'inherit',
           color: hasBest ? '#4ADE80' : 'var(--faint)',
           lineHeight: 1,
         }}>
           {hasBest ? metric.best!.toFixed(2) : '\u2014'}
         </span>
         {hasBest && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
+          <span style={{ fontSize: rem(11), fontWeight: 600, color: 'var(--text-muted)' }}>
             {unit} best
           </span>
         )}
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'inherit' }}>
+      <div style={{ fontSize: rem(12), color: 'var(--text-muted)', fontFamily: 'inherit' }}>
         {hasAvg ? (
           <>Avg: <span style={{ fontWeight: 700, color: 'var(--accent-light)' }}>{metric.avg!.toFixed(2)}</span> {unit}</>
         ) : (
@@ -671,7 +672,7 @@ function ThrowingMetricCard({ metric, label, unit, mlbRef }: {
               style={{
                 width: 22, height: 22, borderRadius: 6,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 8, fontWeight: 700, fontFamily: 'inherit',
+                fontSize: rem(8), fontWeight: 700, fontFamily: 'inherit',
                 background: val !== null ? 'rgba(74,222,128,0.12)' : 'var(--faint)',
                 color: val !== null ? '#4ADE80' : 'var(--border)',
                 border: val !== null ? '1px solid rgba(74,222,128,0.25)' : '1px solid var(--border)',
@@ -684,14 +685,14 @@ function ThrowingMetricCard({ metric, label, unit, mlbRef }: {
       )}
 
       <div style={{
-        fontSize: 10, color: 'var(--faint)', fontStyle: 'italic', marginTop: 2,
+        fontSize: rem(10), color: 'var(--faint)', fontStyle: 'italic', marginTop: 2,
       }}>
         {mlbRef}
       </div>
 
       {metric.notes && (
         <div style={{
-          fontSize: 11, color: 'var(--text-muted)',
+          fontSize: rem(11), color: 'var(--text-muted)',
           borderTop: '1px solid var(--border)',
           paddingTop: 6, marginTop: 2,
           lineHeight: 1.4,
@@ -715,7 +716,7 @@ function ScoutingGradeBadge({ grade, size = 'large' }: { grade: number | null; s
       border: `2px solid ${gradeColor(grade)}`,
     }}>
       <span style={{
-        fontSize: isLarge ? 28 : 18,
+        fontSize: isLarge ? rem(28) : rem(18),
         fontWeight: 800,
         fontFamily: 'inherit',
         color: gradeColor(grade),
@@ -738,11 +739,11 @@ function GradeRow({ label, item }: { label: string; item: GradeItem }) {
       padding: '10px 16px',
       borderBottom: '1px solid var(--border)',
     }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+      <span style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>
         {label}
       </span>
       <span style={{
-        fontSize: 16, fontWeight: 800, fontFamily: 'inherit',
+        fontSize: rem(16), fontWeight: 800, fontFamily: 'inherit',
         color: gradeColor(item.grade),
         textAlign: 'center',
       }}>
@@ -766,7 +767,7 @@ function GradeRow({ label, item }: { label: string; item: GradeItem }) {
           )}
         </div>
         {item.notes && (
-          <span style={{ fontSize: 10, color: 'var(--faint)', lineHeight: 1.3 }}>
+          <span style={{ fontSize: rem(10), color: 'var(--faint)', lineHeight: 1.3 }}>
             {item.notes}
           </span>
         )}
@@ -790,14 +791,14 @@ function OverallGradeCard({ label, grade }: { label: string; grade: number | nul
         <span style={{
           /* Font D */
           fontFamily: 'inherit',
-          fontSize: 11.88, fontWeight: 600, textTransform: 'uppercase',
+          fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
           letterSpacing: '0.05em', color: 'var(--text-bright)',
           lineHeight: 1.2,
         }}>
           Overall {label}
         </span>
         <span style={{
-          fontSize: 14, fontWeight: 700,
+          fontSize: rem(14), fontWeight: 700,
           color: gradeColor(grade),
         }}>
           {grade !== null ? `${grade} \u2014 ${gradeLabel(grade)}` : 'Not Graded'}
@@ -862,8 +863,8 @@ function ReceivingScoreRow({ label, item }: { label: string; item?: GradeItem })
       display: 'grid', gridTemplateColumns: '140px 44px 1fr', alignItems: 'center', gap: 10,
       padding: '10px 14px', borderBottom: '1px solid var(--border)',
     }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
-      <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'inherit', color: gradeColor(grade), textAlign: 'center' }}>
+      <span style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+      <span style={{ fontSize: rem(16), fontWeight: 800, fontFamily: 'inherit', color: gradeColor(grade), textAlign: 'center' }}>
         {grade !== null ? grade : '\u2014'}
       </span>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -873,7 +874,7 @@ function ReceivingScoreRow({ label, item }: { label: string; item?: GradeItem })
               background: `linear-gradient(90deg, ${gradeColor(grade)}88, ${gradeColor(grade)})`, transition: 'width 0.5s ease' }} />
           )}
         </div>
-        {item?.notes && <span style={{ fontSize: 10, color: 'var(--faint)', lineHeight: 1.3 }}>{item.notes}</span>}
+        {item?.notes && <span style={{ fontSize: rem(10), color: 'var(--faint)', lineHeight: 1.3 }}>{item.notes}</span>}
       </div>
     </div>
   );
@@ -888,8 +889,8 @@ function BlockingScoreRow({ label, item }: { label: string; item?: GradeItem }) 
       display: 'grid', gridTemplateColumns: '160px 44px 1fr', alignItems: 'center', gap: 10,
       padding: '10px 14px', borderBottom: '1px solid var(--border)',
     }}>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
-      <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'inherit', color: gradeColor(grade), textAlign: 'center' }}>
+      <span style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+      <span style={{ fontSize: rem(16), fontWeight: 800, fontFamily: 'inherit', color: gradeColor(grade), textAlign: 'center' }}>
         {grade !== null ? grade : '\u2014'}
       </span>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -899,7 +900,7 @@ function BlockingScoreRow({ label, item }: { label: string; item?: GradeItem }) 
               background: `linear-gradient(90deg, ${gradeColor(grade)}88, ${gradeColor(grade)})`, transition: 'width 0.5s ease' }} />
           )}
         </div>
-        {item?.notes && <span style={{ fontSize: 10, color: 'var(--faint)', lineHeight: 1.3 }}>{item.notes}</span>}
+        {item?.notes && <span style={{ fontSize: rem(10), color: 'var(--faint)', lineHeight: 1.3 }}>{item.notes}</span>}
       </div>
     </div>
   );
@@ -988,14 +989,14 @@ function BarRow({ label, grade }: { label: string; grade: number | null }) {
   const pct = grade !== null ? Math.max(0, Math.min(((grade - 20) / 60) * 100, 100)) : 0;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 36px', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+      <span style={{ fontSize: rem(12), fontWeight: 600, color: 'var(--text)' }}>{label}</span>
       <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', position: 'relative' }}>
         {grade !== null && (
           <div style={{ position: 'absolute', inset: '0 auto 0 0', width: `${pct}%`, height: '100%', borderRadius: 4,
             background: `linear-gradient(90deg, ${t.text}66, ${t.text})`, transition: 'width 0.5s ease' }} />
         )}
       </div>
-      <span style={{ fontSize: 14, fontWeight: 800, fontFamily: 'inherit', textAlign: 'right', color: t.text, fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ fontSize: rem(14), fontWeight: 800, fontFamily: 'inherit', textAlign: 'right', color: t.text, fontVariantNumeric: 'tabular-nums' }}>
         {grade !== null ? grade : '—'}
       </span>
     </div>
@@ -1012,14 +1013,14 @@ function GloveFootworkBars({ gloveTitle, gloveItems, footworkTitle, footworkItem
   return (
     <div style={{ width: '100%', maxWidth: 380, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <div style={{ fontFamily: 'inherit', fontSize: 11.88, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+        <div style={{ fontFamily: 'inherit', fontSize: rem(11.88), fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
           color: 'var(--text-bright)', lineHeight: 1.2, marginBottom: 6, paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
           {gloveTitle}
         </div>
         {gloveItems.map(item => <BarRow key={item.label} {...item} />)}
       </div>
       <div>
-        <div style={{ fontFamily: 'inherit', fontSize: 11.88, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+        <div style={{ fontFamily: 'inherit', fontSize: rem(11.88), fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
           color: 'var(--text-bright)', lineHeight: 1.2, marginBottom: 6, paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
           {footworkTitle}
         </div>
@@ -1097,7 +1098,7 @@ function ReceivingCoachGrades({
       }}>
         <span style={{
           fontFamily: 'inherit',
-          fontSize: 11.88, fontWeight: 600,
+          fontSize: rem(11.88), fontWeight: 600,
           letterSpacing: '0.05em', textTransform: 'uppercase',
           color: 'var(--text-bright)',
           lineHeight: 1.2,
@@ -1105,7 +1106,7 @@ function ReceivingCoachGrades({
           Coaches Grade
         </span>
         <span style={{
-          fontSize: 9.5, fontStyle: 'italic',
+          fontSize: rem(9.5), fontStyle: 'italic',
           /* Theme-aware token (was hardcoded `rgba(255,255,255,0.55)`)
              so the "20–80" legend stays readable on the new flat
              cool-slate surface in light theme. */
@@ -1145,7 +1146,7 @@ function ReceivingCoachGrades({
               }}
             >
               <div style={{
-                fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                fontSize: rem(10), fontWeight: 600, letterSpacing: '0.04em',
                 textTransform: 'uppercase', color: 'var(--text-bright)',
                 textAlign: 'center', lineHeight: 1.1,
               }}>
@@ -1153,7 +1154,7 @@ function ReceivingCoachGrades({
               </div>
               <div style={{ textAlign: 'center' }}>
                 <span style={{
-                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 16,
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16),
                   color: tone, lineHeight: 1, letterSpacing: '-0.02em',
                 }}>
                   {has ? r.grade : '—'}
@@ -1927,7 +1928,7 @@ function SnapshotDateChip({ label }: { label: string | null | undefined }) {
          same amount — keeping the Catching/Infield/Outfield Report title at
          the SAME distance from the bubble top as Hitting/Pitching. */
       marginBottom: 8,
-      fontSize: 8.5,
+      fontSize: rem(8.5),
       color: 'var(--text-muted)',
       letterSpacing: '0.10em',
       padding: '3px 9px',
@@ -2075,7 +2076,7 @@ function DefensiveSnapshot({
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)',
             }}>
               <span style={{ fontFamily: 'inherit', fontSize: '1rem', fontWeight: 600, fontStyle: 'normal', letterSpacing: '-0.025em', textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.05 }}>Defensive Skills</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Foundational tools</span>
+              <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic' }}>Foundational tools</span>
             </div>
 
             <div style={{
@@ -2252,12 +2253,12 @@ function DefensiveSnapshot({
                     <span style={{
                       /* Font D */
                       fontFamily: 'inherit',
-                      fontSize: 11.88, letterSpacing: '0.05em', textTransform: 'uppercase',
+                      fontSize: rem(11.88), letterSpacing: '0.05em', textTransform: 'uppercase',
                       color: 'var(--text-bright)', fontWeight: 600,
                       lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap',
                     }}>{g.title}</span>
-                    <span style={{ justifySelf: 'end', fontSize: 16, fontWeight: 600, color: 'var(--text-bright)' }}>
-                      {g.grade ?? '—'}<span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 2 }}>/80</span>
+                    <span style={{ justifySelf: 'end', fontSize: rem(16), fontWeight: 600, color: 'var(--text-bright)' }}>
+                      {g.grade ?? '—'}<span style={{ fontSize: rem(10), color: 'var(--text-muted)', fontWeight: 400, marginLeft: 2 }}>/80</span>
                     </span>
                   </div>
                   <div style={{
@@ -2277,16 +2278,16 @@ function DefensiveSnapshot({
                         flex: 1,
                         display: 'flex', flexDirection: 'column', gap: 3,
                         alignItems: 'center', textAlign: 'center',
-                        fontSize: 12,
+                        fontSize: rem(12),
                       }}>
                         {/* Match the Hitting tab's metric text colors: label
                             in `--text-bright`, value in `--text`, unit in
                             `--text-muted`. */}
                         <span style={{ color: 'var(--text-bright)' }}>{r.label}</span>
-                        <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: 16 }}>
+                        <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: rem(16) }}>
                           {r.value == null ? '—' : r.value}
                           {r.value != null && r.unit && (
-                            <span style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 400, marginLeft: 2 }}>{r.unit}</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: rem(11), fontWeight: 400, marginLeft: 2 }}>{r.unit}</span>
                           )}
                         </span>
                       </div>
@@ -2325,8 +2326,8 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 18, borderRight: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 22, lineHeight: 1 }}>{icon}</span>
-        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</span>
+        <span style={{ fontSize: rem(22), lineHeight: 1 }}>{icon}</span>
+        <span style={{ fontSize: rem(17), fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {cells.map((c, i) => {
@@ -2347,16 +2348,16 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
           const slateLabel: React.CSSProperties = {
             /* Font D treatment for slate-chip label */
             fontFamily: 'inherit',
-            fontSize: 11.88, fontWeight: 600, textTransform: 'uppercase',
+            fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
             letterSpacing: '0.05em', color: 'var(--text-bright)',
             lineHeight: 1.2,
           };
           const slateUnit: React.CSSProperties = {
-            fontFamily: 'inherit', fontSize: 10, fontWeight: 600,
+            fontFamily: 'inherit', fontSize: rem(10), fontWeight: 600,
             color: 'rgba(255, 255, 255, 0.55)', letterSpacing: '0.10em',
           };
           const slateRating: React.CSSProperties = {
-            fontSize: 11, color: 'rgba(255, 255, 255, 0.55)', fontStyle: 'italic',
+            fontSize: rem(11), color: 'rgba(255, 255, 255, 0.55)', fontStyle: 'italic',
           };
           if (c.kind === 'metric') {
             const has = c.value !== null && c.value !== undefined;
@@ -2365,7 +2366,7 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
               <div key={i} style={slateChip}>
                 <span style={slateLabel}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                  <span style={{ fontSize: 24, fontWeight: 800, color: has ? '#F1F5F9' : 'rgba(255,255,255,0.40)',
+                  <span style={{ fontSize: rem(24), fontWeight: 800, color: has ? '#F1F5F9' : 'rgba(255,255,255,0.40)',
                     letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                     {has ? c.value!.toFixed(decimals) : '—'}
                   </span>
@@ -2381,7 +2382,7 @@ function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: 
               <div key={i} style={slateChip}>
                 <span style={slateLabel}>{c.label}</span>
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontSize: 24, fontWeight: 800, color: valueColor,
+                  <span style={{ fontSize: rem(24), fontWeight: 800, color: valueColor,
                     letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                     {grade !== null ? grade : '—'}
                   </span>
@@ -2462,7 +2463,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontFamily: 'inherit', fontSize: '1rem', fontWeight: 600, fontStyle: 'normal', letterSpacing: '-0.025em', textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.05 }}>{leftPane.title}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{leftPane.hint}</span>
+              <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic' }}>{leftPane.hint}</span>
             </div>
             {/* Pane body anchors to the TOP of the available space so
                 the Border Zones + Coaches Grade bubbles sit
@@ -2485,7 +2486,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontFamily: 'inherit', fontSize: '1rem', fontWeight: 600, fontStyle: 'normal', letterSpacing: '-0.025em', textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.05 }}>{rightPane.title}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{rightPane.hint}</span>
+              <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic' }}>{rightPane.hint}</span>
             </div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
               {rightPane.node}
@@ -2669,7 +2670,7 @@ export function CatchingSubTab({
       {!catchingAssessment ? (
         <Section>
           <div className={styles.emptyMsg}>
-            <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.5 }}>
+            <div style={{ fontSize: rem(32), marginBottom: 8, opacity: 0.5 }}>
               <span role="img" aria-label="catcher">&#x1F9E4;</span>
             </div>
             No catching assessment data available.
@@ -2794,7 +2795,7 @@ export function CatchingSubTab({
                           ? '1px solid rgba(74,222,128,0.55)'
                           : '1px solid var(--border)',
                         color: notesDirty ? '#bbf7d0' : 'var(--text-muted)',
-                        fontSize: 12.5,
+                        fontSize: rem(12.5),
                         fontWeight: 700,
                         letterSpacing: '0.06em',
                         textTransform: 'uppercase',
@@ -2807,7 +2808,7 @@ export function CatchingSubTab({
                     </button>
                     {notesSavedAt && !notesDirty && !notesError && (
                       <span style={{
-                        fontSize: 11.5, fontWeight: 600, color: '#86efac',
+                        fontSize: rem(11.5), fontWeight: 600, color: '#86efac',
                         letterSpacing: '0.06em', textTransform: 'uppercase',
                       }}>
                         ✓ Saved
@@ -2819,7 +2820,7 @@ export function CatchingSubTab({
                        the notes were persisted. */}
                     {notesError && (
                       <span style={{
-                        fontSize: 11.5, fontWeight: 600, color: '#fca5a5',
+                        fontSize: rem(11.5), fontWeight: 600, color: '#fca5a5',
                         letterSpacing: '0.06em', textTransform: 'uppercase',
                       }}>
                         ⚠ {notesError}
@@ -3569,7 +3570,7 @@ export function OutfieldSubTab({
         <Section>
           <SectionHeader icon="📊" iconColor="green" title="Outfield Grades" subtitle="20-80 Scale" />
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)' }}>
+            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: rem(11), textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)' }}>
               <span>Tool</span>
               <span style={{ textAlign: 'center' }}>Value</span>
               <span style={{ textAlign: 'center' }}>Grade</span>
@@ -3820,7 +3821,7 @@ export function DefenseTab(props: TabProps) {
             onClick={() => setActiveSubTab(key)}
             style={{
               padding: '10px 24px',
-              fontSize: 14,
+              fontSize: rem(14),
               fontWeight: 700,
               fontFamily: 'inherit',
               color: activeSubTab === key ? '#FFFFFF' : 'var(--text-muted)',

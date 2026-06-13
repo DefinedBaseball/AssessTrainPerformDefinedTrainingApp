@@ -16,6 +16,7 @@
  * arrives via TabProps (same shape every tab consumes).
  */
 
+import { rem } from '@/lib/rem';
 import { useMemo } from 'react';
 import { Section, SectionHeader, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos, normalizeVideoTitle } from '@/lib/video-titles';
@@ -47,7 +48,7 @@ export function CoachReviewLibrary({
 
       {coachReviews.length === 0 ? (
         <div style={{
-          color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic',
+          color: 'var(--text-muted)', fontSize: rem(13), fontStyle: 'italic',
           padding: '20px 0',
         }}>
           No Coach Reviews yet. Open any video bubble and press

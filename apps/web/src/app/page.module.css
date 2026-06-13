@@ -80,7 +80,9 @@
    ══════════════════════════════════════════════ */
 
 .content {
-  max-width: 1200px;
+  /* Full-bleed like the hero above + the rest of the app — the stats grid
+     and announcement feed stretch the full content width (was capped 1200). */
+  max-width: none;
   padding: 24px 0 48px;
 }
 
@@ -89,6 +91,35 @@
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-bottom: 24px;
+}
+
+/* ── Player welcome hint — shown until the first training is scheduled ── */
+.welcomeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+}
+.welcomeIcon {
+  font-size: 22px;
+  line-height: 1.2;
+}
+.welcomeTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.welcomeBody {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  max-width: 78ch;
 }
 
 .statCard {
@@ -389,6 +420,23 @@
   color: var(--text-secondary);
   line-height: 1.55;
   margin-bottom: 8px;
+}
+
+/* Uploaded announcement media (image / video) shown under the body text as
+   small squares — 3 per row. */
+.postMediaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.postMedia {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .postFooter {

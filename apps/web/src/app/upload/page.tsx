@@ -19,7 +19,7 @@ const SOURCES = [
 
 export default function UploadPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isCoach } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [source, setSource] = useState('auto');
@@ -31,8 +31,12 @@ export default function UploadPage() {
   const [history, setHistory] = useState<UploadHistoryEntry[]>([]);
 
   useEffect(() => {
-    if (!isLoading && !user) router.replace('/login');
-  }, [isLoading, user, router]);
+    if (isLoading) return;
+    if (!user) { router.replace('/login'); return; }
+    /* CSV import is coach tooling (the API is @Roles('COACH') anyway) —
+       bounce players to the dashboard instead of showing a UI that 401s. */
+    if (!isCoach) router.replace('/');
+  }, [isLoading, user, isCoach, router]);
 
   const refreshHistory = () => {
     if (!user) return;

@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as api from '@/lib/api';
 import {
@@ -510,7 +511,7 @@ function SubgradeCompareChart({
             background: tk.tooltipBg,
             border: `1px solid ${tk.tooltipBorder}`,
             borderRadius: 10,
-            fontSize: 12,
+            fontSize: rem(12),
             color: tk.tooltipText,
           }}
           formatter={(_v: any, _n: any, item: any) => {
@@ -529,7 +530,7 @@ function SubgradeCompareChart({
           <LabelList
             dataKey="value"
             position="right"
-            style={{ fill: tk.label, fontSize: 11, fontWeight: 700 }}
+            style={{ fill: tk.label, fontSize: rem(11), fontWeight: 700 }}
             formatter={(v: any) => (v == null ? '—' : v)}
           />
         </Bar>
@@ -750,7 +751,7 @@ function TrendChart({
 
   if (data.length === 0) {
     return (
-      <div style={{ color: 'var(--text-muted)', padding: '32px 12px', textAlign: 'center', fontSize: 13 }}>
+      <div style={{ color: 'var(--text-muted)', padding: '32px 12px', textAlign: 'center', fontSize: rem(13) }}>
         No trend data captured yet.
       </div>
     );
@@ -801,7 +802,7 @@ function TrendChart({
             background: tk.tooltipBg,
             border: `1px solid ${tk.tooltipBorder}`,
             borderRadius: 10,
-            fontSize: 12,
+            fontSize: rem(12),
             color: tk.tooltipText,
           }}
           formatter={(v: any) => [`${v} ${unit}`, '']}
@@ -1047,7 +1048,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
               }}
             >
               <span style={{
-                fontSize: 10, fontWeight: 700,
+                fontSize: rem(10), fontWeight: 700,
                 textTransform: 'uppercase', letterSpacing: '0.10em',
                 /* TODAY badge sits IN PLACE of the weekday text on
                    today's tab so a coach instantly orients to "where
@@ -1056,7 +1057,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                 {isToday ? 'TODAY' : weekday}
               </span>
               <span style={{
-                fontSize: 13, fontWeight: 700,
+                fontSize: rem(13), fontWeight: 700,
                 fontFamily: "'DM Mono', ui-monospace, monospace",
                 letterSpacing: '0.02em',
               }}>
@@ -1079,7 +1080,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                      so it flips to near-black in light mode (white on
                      the white selected bubble was invisible). */
                   color: isSelected ? 'var(--text-bright)' : '#5FF5DF',
-                  fontSize: 9, fontWeight: 700,
+                  fontSize: rem(9), fontWeight: 700,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1101,12 +1102,12 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
           on top of each column, then the category cards for that
           tab+day stacked vertically inside the column. */}
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: rem(13) }}>Loading…</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Selected-day header — long-form date + drill count. */}
           <div style={{
-            fontSize: 12, fontWeight: 700,
+            fontSize: rem(12), fontWeight: 700,
             color: 'var(--text-bright)',
             letterSpacing: '0.06em',
             paddingBottom: 4,
@@ -1114,7 +1115,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
           }}>
             {formatDateLong(selectedDate)}
             <span style={{
-              fontSize: 10, color: 'var(--text-muted)', fontWeight: 600,
+              fontSize: rem(10), color: 'var(--text-muted)', fontWeight: 600,
               marginLeft: 8, letterSpacing: '0.04em',
             }}>
               {selectedDrills.length} drill{selectedDrills.length === 1 ? '' : 's'}
@@ -1199,7 +1200,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                     <span
                       className={styles.upcomingTabHeaderTitle}
                       style={{
-                        fontSize: 11, fontWeight: 700,
+                        fontSize: rem(11), fontWeight: 700,
                         color: tabColor.text,
                         textTransform: 'uppercase',
                         letterSpacing: '0.10em',
@@ -1215,7 +1216,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                         right: 0,
                         top: '50%',
                         transform: 'translateY(-50%)',
-                        fontSize: 9, fontWeight: 700,
+                        fontSize: rem(9), fontWeight: 700,
                         background: tabColor.bg,
                         color: tabColor.text,
                         padding: '1px 6px',
@@ -1325,7 +1326,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                                flips it to the per-category shade via
                                `--drill-cat-color`. */
                             fontFamily: 'inherit',
-                            fontSize: 9,
+                            fontSize: rem(9),
                             fontWeight: 600,
                             letterSpacing: '0.05em',
                             textTransform: 'uppercase',
@@ -1344,7 +1345,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                             right: 0,
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            fontSize: 9, fontWeight: 700,
+                            fontSize: rem(9), fontWeight: 700,
                             color: 'var(--text-muted)',
                             letterSpacing: '0.06em',
                           }}
@@ -1393,7 +1394,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                                    uppercase. Color inherits from the
                                    parent flex container above. */
                                 fontFamily: 'inherit',
-                                fontSize: 9,
+                                fontSize: rem(9),
                                 fontWeight: 600,
                                 letterSpacing: '0.05em',
                                 textTransform: 'uppercase',
@@ -1419,7 +1420,7 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
               aren't left guessing whether the data loaded. */}
           {selectedDrills.length === 0 && (
             <div style={{
-              color: 'var(--text-muted)', fontSize: 13,
+              color: 'var(--text-muted)', fontSize: rem(13),
               fontStyle: 'italic',
               paddingTop: 4,
             }}>
@@ -1484,7 +1485,7 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
         {videos.length > 0 && (
           <span style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 10.5, fontWeight: 700,
+            fontSize: rem(10.5), fontWeight: 700,
             letterSpacing: '0.14em', textTransform: 'uppercase',
             color: 'var(--text-muted)',
           }}>{videos.length} on file</span>
@@ -1492,10 +1493,10 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
       </div>
 
       {loading ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: rem(13) }}>Loading…</div>
       ) : videos.length === 0 ? (
         <div style={{
-          color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic',
+          color: 'var(--text-muted)', fontSize: rem(13), fontStyle: 'italic',
         }}>
           No videos uploaded yet. Coaches can attach swing / pitching /
           defense videos via the Add Report button.
@@ -1542,7 +1543,7 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
           if (rows.length === 0) {
             return (
               <div style={{
-                color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic',
+                color: 'var(--text-muted)', fontSize: rem(13), fontStyle: 'italic',
               }}>
                 No videos uploaded yet.
               </div>
@@ -1565,7 +1566,7 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
                     gap: 8,
                   }}>
                     <div style={{
-                      fontSize: 11.5, fontWeight: 700,
+                      fontSize: rem(11.5), fontWeight: 700,
                       letterSpacing: '0.16em', textTransform: 'uppercase',
                       color: 'var(--text-bright)',
                     }}>
@@ -1573,7 +1574,7 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
                     </div>
                     <span style={{
                       fontFamily: 'var(--font-mono)',
-                      fontSize: 10, fontWeight: 700,
+                      fontSize: rem(10), fontWeight: 700,
                       letterSpacing: '0.14em', textTransform: 'uppercase',
                       color: 'var(--text-muted)',
                     }}>
@@ -1819,7 +1820,7 @@ function TrendsSection({
         borderRadius: 14,
         textAlign: 'center',
         color: 'var(--text-muted)',
-        fontSize: 13,
+        fontSize: rem(13),
       }}>
         No growth history available yet. Trends fill in as CSV uploads + assessment
         reports accumulate over time.
@@ -1866,7 +1867,7 @@ function TrendsSection({
               return (
                 <span style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: 10.5, fontWeight: 700,
+                  fontSize: rem(10.5), fontWeight: 700,
                   letterSpacing: '0.14em', textTransform: 'uppercase',
                   color: 'var(--text-muted)',
                 }}>
@@ -1890,7 +1891,7 @@ function TrendsSection({
                     display: 'flex', alignItems: 'center', gap: 10,
                   }}>
                     <span style={{
-                      fontSize: 11.5, fontWeight: 800,
+                      fontSize: rem(11.5), fontWeight: 800,
                       letterSpacing: '0.16em', textTransform: 'uppercase',
                       color: 'var(--text-bright)',
                     }}>
@@ -1977,7 +1978,7 @@ function TrendMetricCard({
         paddingBottom: 5,
       }}>
         <span style={{
-          fontSize: 11, fontWeight: 700,
+          fontSize: rem(11), fontWeight: 700,
           letterSpacing: '0.08em', textTransform: 'uppercase',
           color: 'var(--text-bright)',
           overflow: 'hidden', textOverflow: 'ellipsis',
@@ -1986,7 +1987,7 @@ function TrendMetricCard({
           {spec.label}
         </span>
         <span style={{
-          fontSize: 13.5, fontWeight: 800, color: spec.accent,
+          fontSize: rem(13.5), fontWeight: 800, color: spec.accent,
           fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
           whiteSpace: 'nowrap',
           flexShrink: 0,
@@ -1994,7 +1995,7 @@ function TrendMetricCard({
           {latest ? latest.value.toFixed(1) : '—'}
           {' '}
           <span style={{
-            fontSize: 10, fontWeight: 500, color: 'var(--text-muted)',
+            fontSize: rem(10), fontWeight: 500, color: 'var(--text-muted)',
           }}>{spec.unit}</span>
         </span>
       </div>
@@ -2381,7 +2382,7 @@ export function PlayerSummaryTab({
                    rather than competing with the section titles
                    (`.panelTitle`) below at 23px. Same italic display
                    voice, just smaller. */
-                fontSize: 13.8,
+                fontSize: rem(13.8),
                 fontWeight: 600,
                 fontStyle: 'italic',
                 letterSpacing: '-0.025em',
@@ -2656,7 +2657,7 @@ export function PlayerSummaryTab({
                     <div key={s.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div
                         style={{
-                          fontSize: 11,
+                          fontSize: rem(11),
                           fontWeight: 700,
                           textTransform: 'uppercase',
                           letterSpacing: '0.08em',
@@ -2693,7 +2694,7 @@ export function PlayerSummaryTab({
                             borderRadius: 8,
                             padding: '10px 12px',
                             fontFamily: 'inherit',
-                            fontSize: 13.5,
+                            fontSize: rem(13.5),
                             lineHeight: 1.5,
                             boxSizing: 'border-box',
                           }}
@@ -2703,7 +2704,7 @@ export function PlayerSummaryTab({
                           style={{
                             whiteSpace: 'pre-wrap',
                             color: 'var(--text)',
-                            fontSize: 13.5,
+                            fontSize: rem(13.5),
                             lineHeight: 1.55,
                             background: 'var(--notes-bg)',
                             border: '1px solid var(--border)',

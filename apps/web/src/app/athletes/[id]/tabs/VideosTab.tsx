@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useState, useEffect } from 'react';
 import type { ReportSummary } from '../helpers';
 import { TabBarActions, EditProfileButton, ReportSelector, DownloadPdfButton, VideosIconButton } from '@/components/assessment';
@@ -106,7 +107,7 @@ export function VideosTab(props: TabProps) {
                 border: 'none',
                 borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
                 color: isActive ? 'var(--accent-light)' : 'var(--text-muted)',
-                fontSize: 13,
+                fontSize: rem(13),
                 fontWeight: 600,
                 padding: '10px 22px',
                 cursor: 'pointer',

@@ -83,6 +83,20 @@
   flex: 1;
 }
 
+.signupPrompt {
+  margin: 20px 0 0;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+.signupPrompt a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.signupPrompt a:hover {
+  text-decoration: underline;
+}
+
 /* ════════════════════════════════════════════════════════════════════
    LIGHT THEME OVERRIDES — Sign-in page palette matches the rest of
    the app per coach-spec:

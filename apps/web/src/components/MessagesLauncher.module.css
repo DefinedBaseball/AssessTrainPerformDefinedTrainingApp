@@ -1,0 +1,692 @@
+/* ── MessagesLauncher ──
+   Two round header "bubbles" (notifications + messages) plus the portalled
+   notifications popover and messages slide-over. Themed via the shared
+   tokens; the signature blue (`--msg-accent`, same hue as the hero title
+   accent) carries the messaging affordances against the monochrome UI. */
+
+.launcher {
+  --msg-accent: #3d8bfd;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Round header bubbles ── */
+.iconBtn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.iconBtn:hover {
+  background: var(--card-elev-hover);
+  border-color: var(--border);
+}
+.iconBtn:active {
+  transform: scale(0.94);
+}
+
+.icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.iconSm {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.iconXs {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Unread badge ── */
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: #3d8bfd;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* ── Shared overlay chrome ── */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Notifications popover ── */
+.notifCard {
+  position: fixed;
+  /* rem (hand-converted: top/right are exempt from the px→rem build pass)
+     so the popover tracks the header bubble as it shrinks with the fluid
+     root — 84px/24px at full scale, proportionally less when minimized. */
+  top: 5.6rem;
+  right: 1.6rem;
+  width: min(380px, calc(100vw - 32px));
+  z-index: 1001;
+  background: var(--surface-solid);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: popIn 0.16s ease;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.notifHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-light);
+}
+.notifEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 30px 20px 34px;
+}
+.notifEmptyIcon {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-bottom: 4px;
+}
+.notifEmptyTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.notifEmptyHint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ── Notifications list ── */
+.notifHeadActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.markAllBtn {
+  border: none;
+  background: transparent;
+  color: #3d8bfd;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+.markAllBtn:hover {
+  background: var(--card-hover);
+}
+.notifLoadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px;
+}
+.notifList {
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
+}
+.notifRow {
+  position: relative;
+  display: flex;
+  gap: 11px;
+  padding: 12px 18px 12px 14px;
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+}
+.notifRowClickable {
+  cursor: pointer;
+}
+.notifRowClickable:hover {
+  background: var(--card-hover);
+}
+.notifRowUnread {
+  background: rgba(61, 139, 253, 0.06);
+}
+.notifGlyph {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  font-size: 16px;
+  line-height: 1;
+}
+.notifContent {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.notifRowTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.notifTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.notifTime {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.notifText {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.notifActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.approveBtn,
+.declineBtn {
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, background 0.15s, color 0.15s;
+}
+.approveBtn {
+  background: #3d8bfd;
+  border: none;
+  color: #fff;
+}
+.approveBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.declineBtn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+.declineBtn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border);
+}
+.approveBtn:disabled,
+.declineBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.notifDot {
+  position: absolute;
+  top: 14px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3d8bfd;
+}
+
+/* ── Messages slide-over ── */
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  height: 100dvh;
+  width: min(420px, 100vw);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-solid);
+  border-left: 1px solid var(--border-light);
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.2s ease;
+}
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  flex: 0 0 auto;
+}
+.panelHeadIcon {
+  display: inline-flex;
+  color: var(--msg-accent, #3d8bfd);
+}
+.panelTitle {
+  flex: 1 1 auto;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backBtn,
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 0.15s, color 0.15s;
+}
+.backBtn:hover,
+.closeBtn:hover {
+  background: var(--card-hover);
+  color: var(--text);
+}
+.newBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: #3d8bfd;
+  color: #fff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: filter 0.15s;
+}
+.newBtn:hover {
+  filter: brightness(1.08);
+}
+
+/* ── States ── */
+.centerState {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+.emptyTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.emptyHint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+/* ── Conversation / contact rows ── */
+.convRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.convRow:hover {
+  background: var(--card-hover);
+}
+.avatar {
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.convMid {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.convTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.convName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.convTime {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.convPreview {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.convUnread {
+  flex: 0 0 auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: #3d8bfd;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.roleChip {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+.roleChip[data-role='COACH'] {
+  color: #3d8bfd;
+  border-color: rgba(61, 139, 253, 0.4);
+}
+
+/* ── Thread ── */
+.threadBody {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.threadEmpty {
+  margin: auto;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 80%;
+}
+.msgRow {
+  display: flex;
+  width: 100%;
+}
+.msgMine {
+  justify-content: flex-end;
+}
+.msgTheirs {
+  justify-content: flex-start;
+}
+.bubble {
+  max-width: 78%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 12px 7px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.msgTheirs .bubble {
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  border-bottom-left-radius: 5px;
+}
+.msgMine .bubble {
+  background: #3d8bfd;
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.msgText {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msgVideo {
+  width: 100%;
+  max-width: 260px;
+  border-radius: 10px;
+  background: #000;
+}
+.msgTime {
+  align-self: flex-end;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ── Composer ── */
+.composer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border-light);
+  padding: 10px 12px;
+  background: var(--surface-solid);
+}
+.attachChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 5px 8px 5px 12px;
+  border-radius: var(--radius-full);
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.attachChip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.attachChip button:hover {
+  color: var(--text);
+  background: var(--card-hover);
+}
+.composerRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.attachBtn,
+.sendBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: filter 0.15s, background 0.15s, color 0.15s;
+}
+.attachBtn {
+  background: var(--card-elev);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+.attachBtn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--card-elev-hover);
+}
+.sendBtn {
+  background: #3d8bfd;
+  border: none;
+  color: #fff;
+}
+.sendBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.sendBtn:disabled,
+.attachBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: none;
+  max-height: 120px;
+  padding: 9px 12px;
+  border-radius: 18px;
+  border: 1px solid var(--border-light);
+  background: var(--surface-bright);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.textarea:focus {
+  border-color: var(--msg-accent, #3d8bfd);
+}
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Spinners ── */
+.spinner,
+.spinnerSm {
+  display: inline-block;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: #3d8bfd;
+  animation: spin 0.7s linear infinite;
+}
+.spinner {
+  width: 26px;
+  height: 26px;
+}
+.spinnerSm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    width: 100vw;
+    border-left: none;
+  }
+  .notifCard {
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}

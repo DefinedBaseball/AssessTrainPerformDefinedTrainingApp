@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';
 import { VideosController } from './videos.controller';
 import { S3Service } from './s3.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { S3Service } from './s3.service';
         fileSize: 500 * 1024 * 1024, // 500 MB max video
       },
     }),
+    NotificationsModule,
   ],
   controllers: [VideosController],
   providers: [VideosService, S3Service],

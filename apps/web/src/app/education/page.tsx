@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -7,6 +8,7 @@ import type { EduClass, Drill, MlbPlayer, MlbVideo } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
+import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 
 /* Unified app-wide section identity palette:
      Hitting  → Blue, Pitching → Orange,
@@ -19,7 +21,6 @@ const SPORTS = [
   { id: 'infield',  label: 'Infield',   color: '#22C55E' },
   { id: 'outfield', label: 'Outfield',  color: '#22C55E' },
   { id: 'strength', label: 'S&C',       color: '#EF4444' },
-  { id: 'vision',   label: 'Cognition', color: '#EAB308' },
 ];
 
 const LEVELS = [
@@ -29,17 +30,48 @@ const LEVELS = [
   { id: 'expert', label: 'Expert', cls: styles.levelExpert },
 ];
 
-const DRILL_CATS: Record<string, { id: string; label: string }[]> = {
-  hitting: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Batting Practice', label: 'Batting Practice' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
-  pitching: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Bullpen', label: 'Bullpen' }, { id: 'Live', label: 'Live' }, { id: 'Post-Throw', label: 'Post-Throw' }],
-  catching: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
-  infield:  [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
-  outfield: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Drills', label: 'Drills' }, { id: 'Machine', label: 'Machine' }, { id: 'Live', label: 'Live' }],
-  strength: [{ id: 'Movement Prep', label: 'Movement Prep' }, { id: 'Exercises', label: 'Exercises' }, { id: 'Cool Down', label: 'Cool Down' }],
-  vision: [{ id: 'Vizual Edge', label: 'Vizual Edge' }, { id: 'Drills', label: 'Drills' }, { id: 'Live', label: 'Live' }],
-};
+/* Secondary tabs per primary tab — DERIVED from the generated taxonomy
+   (single source of truth shared with Training + Program). */
+const DRILL_CATS: Record<string, { id: string; label: string }[]> =
+  Object.fromEntries(
+    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, { id: string; label: string }[]] => [
+      tab,
+      cats.map((c) => ({ id: c.id, label: c.id })),
+    ]),
+  );
 
 const POSITIONS = ['Hitter', 'Pitcher', 'Catcher', 'Infield', 'Outfield'];
+/* Fielding positions whose handedness is a simple L/R throw (vs. a pitcher's
+   LHP/RHP). Drives the conditional Bats/Throws fields in the MLB player form. */
+const FIELDER_POSITIONS = ['Catcher', 'Infield', 'Outfield'];
+
+/* MLB video categories are DERIVED from the player's listed positions rather
+   than picked from a fixed list. Every position-player also hits, so Catcher,
+   Infield, and Outfield each contribute a Hitting category alongside their
+   fielding one; only Pitcher is hitting-exempt. A single-category player
+   (e.g. Sonny Gray = Pitcher only → Pitching) gets that one auto-assigned with
+   no dropdown; a multi-category player (e.g. Shohei = Hitter+Pitcher, or any
+   fielder who also hits) gets a category picker. */
+const POSITION_VIDEO_CATEGORIES: Record<string, string[]> = {
+  Hitter: ['Hitting'],
+  Pitcher: ['Pitching'],
+  Catcher: ['Catching', 'Hitting'],
+  Infield: ['Fielding', 'Hitting'],
+  Outfield: ['Fielding', 'Hitting'],
+};
+const VIDEO_CATEGORY_ORDER = ['Hitting', 'Pitching', 'Catching', 'Fielding'];
+
+function parsePositions(positions?: string | null): string[] {
+  return (positions || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function videoCategoriesForPositions(positions?: string | null): string[] {
+  const cats = parsePositions(positions).flatMap(p => POSITION_VIDEO_CATEGORIES[p] || []);
+  const unique = [...new Set(cats)].sort(
+    (a, b) => VIDEO_CATEGORY_ORDER.indexOf(a) - VIDEO_CATEGORY_ORDER.indexOf(b),
+  );
+  return unique.length ? unique : ['Highlight'];
+}
 
 type Page = 'landing' | 'classes' | 'classDetail' | 'drills' | 'mlb' | 'player';
 
@@ -228,7 +260,6 @@ function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount
         eyebrow="Player Development"
         title="Education"
         titleAccent="Hub"
-        subtitle="Your complete learning library — classes, drills, and Major League video study."
         readout={`${classCount + drillCount + playerCount} resources`}
       />
       <div className={styles.hubGrid}>
@@ -928,7 +959,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
         <div className={styles.mlbFilterGroup}>
           <div className={styles.mlbFilterLabel}>Batter Hand</div>
           <div className={styles.mlbFilterPills}>
-            {['all', 'RHH', 'LHH', 'Switch'].map(b => (
+            {['all', 'R', 'L', 'S'].map(b => (
               <button key={b} className={`${styles.pill} ${bats === b ? styles.pillActive : ''}`} onClick={() => setBats(b)}>{b === 'all' ? 'All' : b}</button>
             ))}
           </div>
@@ -972,7 +1003,13 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                 </div>
                 <div className={styles.playerInfo}>
                   <div className={styles.playerName}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.team}</div>
+                  {(p.heightInches != null || p.weightLbs != null) && (
+                    <div style={{ fontSize: rem(11), color: 'var(--text-muted)' }}>
+                      {p.heightInches != null ? `${Math.floor(p.heightInches / 12)}'${p.heightInches % 12}"` : ''}
+                      {p.heightInches != null && p.weightLbs != null ? ' · ' : ''}
+                      {p.weightLbs != null ? `${p.weightLbs} lb` : ''}
+                    </div>
+                  )}
                   <div className={styles.playerTags}>
                     {p.bats && <span className={styles.playerTag} style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>{p.bats}</span>}
                     {p.throws && <span className={styles.playerTag} style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>{p.throws}</span>}
@@ -1029,17 +1066,37 @@ function PlayerModal({ onClose, onSaved }: { onClose: () => void; onSaved: (p: M
   const [positions, setPositions] = useState<string[]>([]);
   const [bats, setBats] = useState('');
   const [throws_, setThrows] = useState('');
-  const [team, setTeam] = useState('');
-  const [emoji, setEmoji] = useState('⚾');
+  const [heightFt, setHeightFt] = useState('');
+  const [heightIn, setHeightIn] = useState('');
+  const [weight, setWeight] = useState('');
   const [saving, setSaving] = useState(false);
 
   const togglePos = (p: string) => setPositions(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+
+  /* Handedness fields are position-driven: Bats (R/L/S) for Hitters; Throws
+     as LHP/RHP for Pitchers, or a plain L/R for fielders (C/IF/OF). Pitcher
+     takes precedence for the Throws options when both are selected. */
+  const showBats = positions.includes('Hitter');
+  const isPitcher = positions.includes('Pitcher');
+  const showFielderThrows = positions.some(p => FIELDER_POSITIONS.includes(p));
+  const showThrows = isPitcher || showFielderThrows;
+  const throwsOpts = isPitcher ? ['RHP', 'LHP'] : ['R', 'L'];
 
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const result = await api.createMlbPlayer({ name, positions: positions.join(','), bats: bats || undefined, throws: throws_ || undefined, team: team || undefined, emoji });
+      const heightInches = (heightFt || heightIn)
+        ? (parseInt(heightFt || '0', 10) * 12 + parseInt(heightIn || '0', 10))
+        : null;
+      const result = await api.createMlbPlayer({
+        name: name.trim(),
+        positions: positions.join(','),
+        bats: showBats ? (bats || null) : null,
+        throws: showThrows ? (throws_ || null) : null,
+        heightInches,
+        weightLbs: weight ? parseInt(weight, 10) : null,
+      });
       onSaved(result);
     } catch (err) {
       console.error('Failed to create MLB player:', err);
@@ -1057,16 +1114,32 @@ function PlayerModal({ onClose, onSaved }: { onClose: () => void; onSaved: (p: M
             <label className={styles.fieldLabel}>Positions</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {POSITIONS.map(p => (
-                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''}`} onClick={() => togglePos(p)} style={{ fontSize: 12 }}>{p}</button>
+                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''}`} onClick={() => togglePos(p)} style={{ fontSize: rem(12) }}>{p}</button>
               ))}
             </div>
           </div>
+          {(showBats || showThrows) && (
+            <div className={styles.fieldRow}>
+              {showBats && (
+                <div className={styles.field}><label className={styles.fieldLabel}>Bats</label><select className={styles.fieldInput} value={bats} onChange={e => setBats(e.target.value)}><option value="">N/A</option><option value="R">R</option><option value="L">L</option><option value="S">S</option></select></div>
+              )}
+              {showThrows && (
+                <div className={styles.field}><label className={styles.fieldLabel}>Throws</label><select className={styles.fieldInput} value={throws_} onChange={e => setThrows(e.target.value)}><option value="">N/A</option>{throwsOpts.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+              )}
+            </div>
+          )}
           <div className={styles.fieldRow}>
-            <div className={styles.field}><label className={styles.fieldLabel}>Bats</label><select className={styles.fieldInput} value={bats} onChange={e => setBats(e.target.value)}><option value="">N/A</option><option value="RHH">RHH</option><option value="LHH">LHH</option><option value="Switch">Switch</option></select></div>
-            <div className={styles.field}><label className={styles.fieldLabel}>Throws</label><select className={styles.fieldInput} value={throws_} onChange={e => setThrows(e.target.value)}><option value="">N/A</option><option value="RHP">RHP</option><option value="LHP">LHP</option></select></div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Height</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input className={styles.fieldInput} type="number" min={4} max={8} value={heightFt} onChange={e => setHeightFt(e.target.value)} placeholder="ft" style={{ width: 64 }} />
+                <span style={{ color: 'var(--text-muted)' }}>&apos;</span>
+                <input className={styles.fieldInput} type="number" min={0} max={11} value={heightIn} onChange={e => setHeightIn(e.target.value)} placeholder="in" style={{ width: 64 }} />
+                <span style={{ color: 'var(--text-muted)' }}>&quot;</span>
+              </div>
+            </div>
+            <div className={styles.field}><label className={styles.fieldLabel}>Weight (lbs)</label><input className={styles.fieldInput} type="number" min={100} max={350} value={weight} onChange={e => setWeight(e.target.value)} placeholder="lbs" /></div>
           </div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Team</label><input className={styles.fieldInput} value={team} onChange={e => setTeam(e.target.value)} placeholder="e.g. LA Angels" /></div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Emoji</label><input className={styles.fieldInput} value={emoji} onChange={e => setEmoji(e.target.value)} maxLength={2} style={{ width: 60 }} /></div>
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
@@ -1084,23 +1157,36 @@ function EditPlayerModal({ player, onClose, onSaved }: { player: MlbPlayer; onCl
   const [positions, setPositions] = useState<string[]>(player.positions ? player.positions.split(',').map((p) => p.trim()).filter(Boolean) : []);
   const [bats, setBats] = useState(player.bats || '');
   const [throws_, setThrows] = useState(player.throws || '');
-  const [team, setTeam] = useState(player.team || '');
-  const [emoji, setEmoji] = useState(player.emoji);
+  const [heightFt, setHeightFt] = useState(player.heightInches != null ? String(Math.floor(player.heightInches / 12)) : '');
+  const [heightIn, setHeightIn] = useState(player.heightInches != null ? String(player.heightInches % 12) : '');
+  const [weight, setWeight] = useState(player.weightLbs != null ? String(player.weightLbs) : '');
   const [saving, setSaving] = useState(false);
 
   const togglePos = (p: string) => setPositions((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
+
+  const showBats = positions.includes('Hitter');
+  const isPitcher = positions.includes('Pitcher');
+  const showFielderThrows = positions.some(p => FIELDER_POSITIONS.includes(p));
+  const showThrows = isPitcher || showFielderThrows;
+  const throwsOpts = isPitcher ? ['RHP', 'LHP'] : ['R', 'L'];
 
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try {
+      const heightInches = (heightFt || heightIn)
+        ? (parseInt(heightFt || '0', 10) * 12 + parseInt(heightIn || '0', 10))
+        : null;
       const result = await api.updateMlbPlayer(player.id, {
-        name,
+        name: name.trim(),
         positions: positions.join(','),
-        bats: bats || undefined,
-        throws: throws_ || undefined,
-        team: team || undefined,
-        emoji,
+        // Send null (not undefined) so removing a position actually clears
+        // a now-irrelevant hand — undefined would be dropped by JSON and
+        // leave the stale value in the DB.
+        bats: showBats ? (bats || null) : null,
+        throws: showThrows ? (throws_ || null) : null,
+        heightInches,
+        weightLbs: weight ? parseInt(weight, 10) : null,
       });
       onSaved(result);
     } catch (err) {
@@ -1119,16 +1205,32 @@ function EditPlayerModal({ player, onClose, onSaved }: { player: MlbPlayer; onCl
             <label className={styles.fieldLabel}>Positions</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {POSITIONS.map(p => (
-                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''}`} onClick={() => togglePos(p)} style={{ fontSize: 12 }}>{p}</button>
+                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''}`} onClick={() => togglePos(p)} style={{ fontSize: rem(12) }}>{p}</button>
               ))}
             </div>
           </div>
+          {(showBats || showThrows) && (
+            <div className={styles.fieldRow}>
+              {showBats && (
+                <div className={styles.field}><label className={styles.fieldLabel}>Bats</label><select className={styles.fieldInput} value={bats} onChange={e => setBats(e.target.value)}><option value="">N/A</option><option value="R">R</option><option value="L">L</option><option value="S">S</option></select></div>
+              )}
+              {showThrows && (
+                <div className={styles.field}><label className={styles.fieldLabel}>Throws</label><select className={styles.fieldInput} value={throws_} onChange={e => setThrows(e.target.value)}><option value="">N/A</option>{throwsOpts.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+              )}
+            </div>
+          )}
           <div className={styles.fieldRow}>
-            <div className={styles.field}><label className={styles.fieldLabel}>Bats</label><select className={styles.fieldInput} value={bats} onChange={e => setBats(e.target.value)}><option value="">N/A</option><option value="RHH">RHH</option><option value="LHH">LHH</option><option value="Switch">Switch</option></select></div>
-            <div className={styles.field}><label className={styles.fieldLabel}>Throws</label><select className={styles.fieldInput} value={throws_} onChange={e => setThrows(e.target.value)}><option value="">N/A</option><option value="RHP">RHP</option><option value="LHP">LHP</option></select></div>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Height</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input className={styles.fieldInput} type="number" min={4} max={8} value={heightFt} onChange={e => setHeightFt(e.target.value)} placeholder="ft" style={{ width: 64 }} />
+                <span style={{ color: 'var(--text-muted)' }}>&apos;</span>
+                <input className={styles.fieldInput} type="number" min={0} max={11} value={heightIn} onChange={e => setHeightIn(e.target.value)} placeholder="in" style={{ width: 64 }} />
+                <span style={{ color: 'var(--text-muted)' }}>&quot;</span>
+              </div>
+            </div>
+            <div className={styles.field}><label className={styles.fieldLabel}>Weight (lbs)</label><input className={styles.fieldInput} type="number" min={100} max={350} value={weight} onChange={e => setWeight(e.target.value)} placeholder="lbs" /></div>
           </div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Team</label><input className={styles.fieldInput} value={team} onChange={e => setTeam(e.target.value)} /></div>
-          <div className={styles.field}><label className={styles.fieldLabel}>Emoji</label><input className={styles.fieldInput} value={emoji} onChange={e => setEmoji(e.target.value)} maxLength={2} style={{ width: 60 }} /></div>
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
@@ -1229,7 +1331,7 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
             ))}
             {player.bats && <span className={styles.playerTag} style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>{player.bats}</span>}
             {player.throws && <span className={styles.playerTag} style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>{player.throws}</span>}
-            {player.team && <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 4 }}>{player.team}</span>}
+            {player.team && <span style={{ fontSize: rem(13), color: 'var(--text-muted)', marginLeft: 4 }}>{player.team}</span>}
           </div>
         </div>
         {isCoach && <button className={styles.addBtn} style={{ marginLeft: 'auto' }} onClick={() => setShowModal(true)}>+ Add Video</button>}
@@ -1254,6 +1356,15 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
               title={v.url ? 'Click to play' : 'No video URL — coach can edit to add one'}
             >
               <div className={styles.videoThumb}>
+                {v.url && (
+                  <video
+                    src={`${v.url}#t=0.1`}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
                 <div className={styles.playBtn}>▶</div>
               </div>
               <div className={styles.videoInfo}>
@@ -1282,8 +1393,8 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
         </div>
       )}
 
-      {showModal && <VideoModal playerId={player.id} onClose={() => setShowModal(false)} onSaved={(v: MlbVideo) => { setPlayer((prev: MlbPlayer) => ({ ...prev, videos: [...(prev.videos || []), v] })); setShowModal(false); }} />}
-      {editingVideo && <EditVideoModal video={editingVideo} onClose={() => setEditingVideo(null)} onSaved={handleVideoUpdated} />}
+      {showModal && <VideoModal playerId={player.id} positions={player.positions} onClose={() => setShowModal(false)} onSaved={(vs: MlbVideo[]) => { setPlayer((prev: MlbPlayer) => ({ ...prev, videos: [...vs, ...(prev.videos || [])] })); setShowModal(false); }} />}
+      {editingVideo && <EditVideoModal video={editingVideo} positions={player.positions} onClose={() => setEditingVideo(null)} onSaved={handleVideoUpdated} />}
       {playingVideo && <MlbVideoPlayerModal video={playingVideo} onClose={() => setPlayingVideo(null)} />}
     </>
   );
@@ -1373,7 +1484,7 @@ function VideoFileDrop({ url, onUrl }: { url: string; onUrl: (u: string) => void
           borderRadius: 8,
           padding: '16px 12px',
           textAlign: 'center',
-          fontSize: 13,
+          fontSize: rem(13),
           lineHeight: 1.4,
           cursor: uploading ? 'progress' : 'pointer',
           color: url ? 'var(--green, #16a34a)' : 'var(--text-muted, #888)',
@@ -1393,12 +1504,16 @@ function VideoFileDrop({ url, onUrl }: { url: string; onUrl: (u: string) => void
             ? `✓ Video attached${name ? ` — ${name}` : ''} · click to replace`
             : 'Drop a video file here, or click to choose'}
       </div>
-      {err && <div style={{ color: 'var(--red, #dc2626)', fontSize: 12, marginTop: 4 }}>{err}</div>}
+      {err && <div style={{ color: 'var(--red, #dc2626)', fontSize: rem(12), marginTop: 4 }}>{err}</div>}
     </div>
   );
 }
 
-function EditVideoModal({ video, onClose, onSaved }: { video: MlbVideo; onClose: () => void; onSaved: (v: MlbVideo) => void }) {
+function EditVideoModal({ video, positions, onClose, onSaved }: { video: MlbVideo; positions?: string | null; onClose: () => void; onSaved: (v: MlbVideo) => void }) {
+  // Same position-derived categories as Add Video, but always include the
+  // video's current category so a legacy/auto value is never silently dropped.
+  const derived = videoCategoriesForPositions(positions);
+  const cats = derived.includes(video.category) ? derived : [video.category, ...derived];
   const [title, setTitle] = useState(video.title);
   const [category, setCategory] = useState(video.category);
   const [url, setUrl] = useState(video.url || '');
@@ -1429,9 +1544,13 @@ function EditVideoModal({ video, onClose, onSaved }: { video: MlbVideo; onClose:
         <div className={styles.modalBody}>
           <div className={styles.field}><label className={styles.fieldLabel}>Video Title</label><input className={styles.fieldInput} value={title} onChange={e => setTitle(e.target.value)} /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Category</label>
-            <select className={styles.fieldInput} value={category} onChange={e => setCategory(e.target.value)}>
-              {['Swing', 'At-Bat', 'Mechanics', 'Pitching', 'Defense', 'Highlight', 'Interview'].map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {cats.length > 1 ? (
+              <select className={styles.fieldInput} value={category} onChange={e => setCategory(e.target.value)}>
+                {cats.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            ) : (
+              <div className={styles.fieldInput} style={{ opacity: 0.75, cursor: 'default' }}>{cats[0]}</div>
+            )}
           </div>
           <VideoFileDrop url={url} onUrl={setUrl} />
           <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={url} onChange={e => setUrl(e.target.value)} placeholder="Direct video file link" /></div>
@@ -1446,43 +1565,153 @@ function EditVideoModal({ video, onClose, onSaved }: { video: MlbVideo; onClose:
   );
 }
 
-function VideoModal({ playerId, onClose, onSaved }: { playerId: string; onClose: () => void; onSaved: (v: MlbVideo) => void }) {
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Swing');
-  const [url, setUrl] = useState('');
+/* One queued upload in the Add-Video modal. Files upload immediately on
+   selection/drop so their URLs are ready by Save; `url` is set once the
+   upload resolves, `err` if it fails. */
+type UploadEntry = { id: string; file: File; url?: string; uploading: boolean; err?: string };
+
+const VIDEO_FILE_RX = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
+
+function MultiVideoFileDrop({ entries, setEntries }: { entries: UploadEntry[]; setEntries: React.Dispatch<React.SetStateAction<UploadEntry[]>> }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (files: FileList | File[] | null) => {
+    const list = Array.from(files || []).filter(f => f.type.startsWith('video/') || VIDEO_FILE_RX.test(f.name));
+    if (!list.length) return;
+    const fresh: UploadEntry[] = list.map(f => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file: f, uploading: true }));
+    setEntries(prev => [...prev, ...fresh]);
+    fresh.forEach(async (entry) => {
+      try {
+        const res = await api.uploadVideoFile(entry.file);
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, url: res.url, uploading: false } : e));
+      } catch (err: any) {
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, uploading: false, err: err?.message || 'Upload failed' } : e));
+      }
+    });
+  };
+
+  const removeEntry = (id: string) => setEntries(prev => prev.filter(e => e.id !== id));
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.fieldLabel}>Video Files</label>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
+        style={{
+          border: '1px dashed var(--border-strong, rgba(128,128,128,0.55))',
+          borderRadius: 8,
+          padding: '16px 12px',
+          textAlign: 'center',
+          fontSize: rem(13),
+          lineHeight: 1.4,
+          cursor: 'pointer',
+          color: 'var(--text-muted, #888)',
+          background: 'var(--input-bg, rgba(128,128,128,0.06))',
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="video/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ''; }}
+        />
+        Drop video files here, or click to choose — you can pick several at once
+      </div>
+      {entries.length > 0 && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {entries.map((e, i) => (
+            <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: rem(12), padding: '4px 8px', borderRadius: 6, background: 'var(--input-bg, rgba(128,128,128,0.06))' }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {e.file.name}</span>
+              <span style={{ color: e.err ? 'var(--red, #dc2626)' : e.uploading ? 'var(--text-muted, #888)' : 'var(--green, #16a34a)', whiteSpace: 'nowrap' }}>
+                {e.err ? `✗ ${e.err}` : e.uploading ? 'Uploading…' : '✓'}
+              </span>
+              <button
+                type="button"
+                onClick={(ev) => { ev.stopPropagation(); removeEntry(e.id); }}
+                style={{ border: 'none', background: 'transparent', color: 'var(--text-muted, #888)', cursor: 'pointer', fontSize: rem(14), lineHeight: 1, padding: 0 }}
+                title="Remove"
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoModal({ playerId, positions, onClose, onSaved }: { playerId: string; positions?: string | null; onClose: () => void; onSaved: (vs: MlbVideo[]) => void }) {
+  // Category is derived from the player's positions — auto-assigned when only
+  // one discipline applies, picker shown when several do (see videoCategoriesForPositions).
+  const cats = videoCategoriesForPositions(positions);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState(cats[0]);
   const [notes, setNotes] = useState('');
+  const [entries, setEntries] = useState<UploadEntry[]>([]);
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const ready = entries.filter(e => e.url);
+  const anyUploading = entries.some(e => e.uploading);
+  const trimmed = name.trim();
+  const canSave = !!trimmed && ready.length > 0 && !anyUploading && !saving;
 
   const save = async () => {
-    if (!title.trim()) return;
+    if (!canSave) return;
     setSaving(true);
+    setErr('');
     try {
-      const result = await api.createMlbVideo({ playerId, title, category, url: url || undefined, notes: notes || undefined });
-      onSaved(result);
-    } catch (err) {
-      console.error('Failed to create MLB video:', err);
+      // One video per uploaded file. With multiple files the shared name gets
+      // a 1,2,3… suffix; a single file keeps the name as-is.
+      const multiple = ready.length > 1;
+      const created: MlbVideo[] = [];
+      for (let i = 0; i < ready.length; i++) {
+        const title = multiple ? `${trimmed} ${i + 1}` : trimmed;
+        const v = await api.createMlbVideo({ playerId, title, category, url: ready[i].url, notes: notes || undefined });
+        created.push(v);
+      }
+      onSaved(created);
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to save videos');
       setSaving(false);
     }
   };
+
+  const saveLabel = saving ? 'Saving…' : anyUploading ? 'Uploading…' : ready.length > 1 ? `Save ${ready.length} Videos` : 'Save Video';
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
         <div className={styles.modalHeader}><span className={styles.modalTitle}>Add Video</span><button className={styles.modalClose} onClick={onClose}>×</button></div>
         <div className={styles.modalBody}>
-          <div className={styles.field}><label className={styles.fieldLabel}>Video Title</label><input className={styles.fieldInput} value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. 2023 Home Run Swing" /></div>
+          <div className={styles.field}><label className={styles.fieldLabel}>Video Name</label><input className={styles.fieldInput} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. 2023 Home Run Swing" /></div>
           <div className={styles.field}><label className={styles.fieldLabel}>Category</label>
-            <select className={styles.fieldInput} value={category} onChange={e => setCategory(e.target.value)}>
-              {['Swing', 'At-Bat', 'Mechanics', 'Pitching', 'Defense', 'Highlight', 'Interview'].map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {cats.length > 1 ? (
+              <select className={styles.fieldInput} value={category} onChange={e => setCategory(e.target.value)}>
+                {cats.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            ) : (
+              <div className={styles.fieldInput} style={{ opacity: 0.75, cursor: 'default' }}>{cats[0]}</div>
+            )}
           </div>
-          <VideoFileDrop url={url} onUrl={setUrl} />
-          <div className={styles.field}><label className={styles.fieldLabel}>Video URL</label><input className={styles.fieldInput} value={url} onChange={e => setUrl(e.target.value)} placeholder="Direct video file link" /></div>
+          <MultiVideoFileDrop entries={entries} setEntries={setEntries} />
           <div className={styles.field}><label className={styles.fieldLabel}>Notes</label><textarea className={styles.fieldInput} value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="What to watch for..." style={{ resize: 'vertical' }} /></div>
+          {ready.length > 1 && trimmed && (
+            <div style={{ fontSize: rem(12), color: 'var(--text-muted, #888)' }}>
+              Creates {ready.length} videos: “{trimmed} 1” … “{trimmed} {ready.length}”.
+            </div>
+          )}
+          {err && <div style={{ color: 'var(--red, #dc2626)', fontSize: rem(12) }}>{err}</div>}
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
-          <button className={styles.btnSave} onClick={save} disabled={saving || !title.trim()}>{saving ? 'Saving...' : 'Save Video'}</button>
+          <button className={styles.btnSave} onClick={save} disabled={!canSave}>{saveLabel}</button>
         </div>
       </div>
     </div>

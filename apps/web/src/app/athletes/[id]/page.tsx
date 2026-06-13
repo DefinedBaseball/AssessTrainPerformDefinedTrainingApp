@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +10,7 @@ import type { Player, Metric, Video } from '@/lib/api';
 
 import { TabBar, TabPanel } from '@/components/assessment';
 import type { Tab } from '@/components/assessment';
+import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
@@ -475,9 +477,14 @@ export default function PlayerProfilePage() {
 
   return (
     <div className={styles.pageRoot}>
-      {/* ── Back Link (coaches navigating from Athletes list) ── */}
+      {/* ── Back Link (coaches navigating from Athletes list) + account
+          tools. Reset Password sets a new login password for this
+          player's account (backend keeps the primary admin self-only). ── */}
       {isCoach && params?.id && (
-        <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
+          {player.userId && <ResetPasswordButton userId={player.userId} />}
+        </div>
       )}
 
       {/* TabBar moved BELOW the Player Name (Command Deck) bubble —
@@ -592,21 +599,21 @@ export default function PlayerProfilePage() {
                     Tool Grades section's right edge that begins below.
                     Both circles sized ~76px to sit in line with the
                     name + telemetry strip without dwarfing them. */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 24,
-                  flexWrap: 'wrap',
-                  /* Negative top margin pulls the entire name row
-                     closer to the telemetry strip above. Iterated
-                     -4 → -6 → -7 → -10 → -12 → -15 → -19 (final
-                     step closes another 30% of the remaining gap
-                     between the POS line and the player name).
-                     The identity block's flex `gap` is already 0,
-                     so this is the only remaining lever. */
-                  marginTop: -19,
-                }}>
+                <div
+                  /* .nameRow carries the -19px pull toward the telemetry
+                     strip (iterated -4 → … → -19) — moved to CSS so a
+                     media query can drop it to 0 on narrow windows where
+                     the strip wraps to two lines (the fixed pull was
+                     stacking the name on top of the wrapped HS/Club
+                     entries). */
+                  className={styles.nameRow}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 24,
+                    flexWrap: 'wrap',
+                  }}>
                   <h1 className={styles.megaName} style={{ margin: 0 }}>
                     {player.firstName}{' '}
                     <span className={styles.lastName}>{player.lastName}</span>
@@ -738,7 +745,7 @@ export default function PlayerProfilePage() {
                            grey so the badge stays visually subdued
                            (a player with no commit shouldn't shout). */
                         <span style={{
-                          fontSize: 7,
+                          fontSize: rem(7),
                           fontWeight: 600,
                           letterSpacing: '0.06em',
                           textTransform: 'uppercase',
@@ -755,7 +762,7 @@ export default function PlayerProfilePage() {
                         /* Caption bumped 10.5 → 12.6 (20% larger) so
                            the school name reads as a primary identity
                            element below the (now smaller) badge. */
-                        fontSize: 12.6,
+                        fontSize: rem(12.6),
                         fontWeight: 700,
                         /* Italic per spec — the school-name caption
                            and the Player Grade caption below the
@@ -840,13 +847,13 @@ export default function PlayerProfilePage() {
                                    to match the Commitment circle's size.
                                    Keeps the grade number roughly the same
                                    fraction of the circle's diameter. */
-                                fontSize: 20,
+                                fontSize: rem(20),
                                 ...(overall != null ? { color: gaugeHi, WebkitTextFillColor: gaugeHi, background: 'none' } : {}),
                               }}
                             >
                               {overall ?? '—'}
                             </span>
-                            <span className={styles.suffix} style={{ fontSize: 7 }}>/80</span>
+                            <span className={styles.suffix} style={{ fontSize: rem(7) }}>/80</span>
                           </div>
                         </div>
                         {/* "Player Grade" caption — same typography as the
@@ -861,7 +868,7 @@ export default function PlayerProfilePage() {
                              two HUD-circle labels read as a true
                              matched pair (same italic, same size,
                              same weight, same letter-spacing). */
-                          fontSize: 12.6,
+                          fontSize: rem(12.6),
                           fontWeight: 700,
                           fontStyle: 'italic',
                           color: 'var(--text-bright)',
@@ -974,7 +981,7 @@ export default function PlayerProfilePage() {
             padding: '24px 32px',
             color: 'var(--text-bright)',
             fontFamily: 'var(--font-mono)',
-            fontSize: 13,
+            fontSize: rem(13),
             letterSpacing: '0.16em',
             textTransform: 'uppercase',
             fontWeight: 700,

@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Section, SectionHeader } from '@/components/assessment';
 import { useAuth } from '@/lib/auth-context';
@@ -498,7 +499,7 @@ export function CoachingStudio({
         borderRadius: 10,
       }}>
         <span style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: '0.18em',
+          fontSize: rem(10), fontWeight: 700, letterSpacing: '0.18em',
           textTransform: 'uppercase', color: 'var(--text-muted)',
         }}>
           {slot === 'primary' ? 'Primary' : 'Compare'}
@@ -518,7 +519,7 @@ export function CoachingStudio({
             background: 'rgba(232,175,52,0.12)',
             border: '1px solid rgba(232,175,52,0.35)',
             borderRadius: 7,
-            fontSize: 11.5,
+            fontSize: rem(11.5),
             color: 'var(--gold)',
             cursor: 'pointer',
             fontWeight: 600,
@@ -527,7 +528,7 @@ export function CoachingStudio({
         >
           📁 {player.firstName}&apos;s Videos
           <span style={{
-            fontSize: 10, fontWeight: 700,
+            fontSize: rem(10), fontWeight: 700,
             padding: '1px 6px',
             borderRadius: 999,
             background: 'rgba(232,175,52,0.20)',
@@ -583,7 +584,7 @@ export function CoachingStudio({
 
         {cur && (
           <span style={{
-            fontSize: 11, color: 'var(--text-muted)',
+            fontSize: rem(11), color: 'var(--text-muted)',
             display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '4px 10px', borderRadius: 6,
             background: 'rgba(74,222,128,0.10)',
@@ -637,7 +638,7 @@ export function CoachingStudio({
             />
             <div style={{
               position: 'absolute', top: 8, left: 10,
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.16em',
+              fontSize: rem(10), fontWeight: 700, letterSpacing: '0.16em',
               textTransform: 'uppercase',
               padding: '4px 9px',
               background: 'rgba(0,0,0,0.55)',
@@ -652,7 +653,7 @@ export function CoachingStudio({
           <div style={{
             position: 'absolute', inset: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20,
+            color: 'var(--text-muted)', fontSize: rem(13), textAlign: 'center', padding: 20,
           }}>
             {pane === 'primary'
               ? 'Pick a primary video above to begin.'
@@ -671,7 +672,7 @@ export function CoachingStudio({
           subtitle="Coach-only · sign in as a coach to record analysis sessions" />
         <div style={{
           padding: '24px', border: '1px dashed var(--border)', borderRadius: 12,
-          color: 'var(--text-muted)', fontSize: 13, textAlign: 'center',
+          color: 'var(--text-muted)', fontSize: rem(13), textAlign: 'center',
         }}>
           The Coaching Studio is available to coaches only.
         </div>
@@ -705,7 +706,7 @@ export function CoachingStudio({
                 border: '1px dashed rgba(126,182,255,0.40)',
                 color: 'var(--accent-light)',
                 borderRadius: 7,
-                fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                fontSize: rem(11.5), fontWeight: 600, cursor: 'pointer',
               }}
             >
               + Add comparison video
@@ -736,7 +737,7 @@ export function CoachingStudio({
             style={transportBtnStyle}>⏮ −1f</button>
           <button type="button" onClick={() => seekRel(-0.5)} title="Back 0.5s" style={transportBtnStyle}>−0.5s</button>
           <button type="button" onClick={playPause} title="Play / pause"
-            style={{ ...transportBtnStyle, padding: '8px 18px', fontSize: 14, fontWeight: 800 }}>
+            style={{ ...transportBtnStyle, padding: '8px 18px', fontSize: rem(14), fontWeight: 800 }}>
             {isPlaying ? '⏸ Pause' : '▶ Play'}
           </button>
           <button type="button" onClick={() => seekRel(0.5)}  title="Forward 0.5s" style={transportBtnStyle}>+0.5s</button>
@@ -744,12 +745,12 @@ export function CoachingStudio({
 
           <span style={{
             fontFamily: "'DM Mono', ui-monospace, monospace",
-            fontSize: 12, color: 'var(--text-muted)', minWidth: 110, textAlign: 'center',
+            fontSize: rem(12), color: 'var(--text-muted)', minWidth: 110, textAlign: 'center',
           }}>
             {fmtTime(currentTime)} / {fmtTime(duration)}
           </span>
 
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Speed</span>
+          <span style={{ fontSize: rem(11), color: 'var(--text-muted)' }}>Speed</span>
           {[0.25, 0.5, 1, 1.5, 2].map(r => (
             <button
               key={r}
@@ -759,14 +760,14 @@ export function CoachingStudio({
                 ...transportBtnStyle,
                 background: playbackRate === r ? 'rgba(126,182,255,0.20)' : 'rgba(20,24,32,0.85)',
                 borderColor: playbackRate === r ? 'rgba(126,182,255,0.55)' : 'var(--border)',
-                fontSize: 11.5, padding: '6px 10px',
+                fontSize: rem(11.5), padding: '6px 10px',
               }}
             >
               {r}×
             </button>
           ))}
 
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>FPS</span>
+          <span style={{ fontSize: rem(11), color: 'var(--text-muted)' }}>FPS</span>
           <select
             value={fps}
             onChange={(e) => setFps(Number(e.target.value))}
@@ -776,7 +777,7 @@ export function CoachingStudio({
               color: 'var(--text)',
               padding: '5px 8px',
               borderRadius: 6,
-              fontSize: 11.5,
+              fontSize: rem(11.5),
             }}
           >
             {[24, 30, 60, 120, 240].map(f => <option key={f} value={f}>{f}</option>)}
@@ -785,7 +786,7 @@ export function CoachingStudio({
           {showCompare && (
             <label style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto',
-              fontSize: 11.5, color: 'var(--text-muted)',
+              fontSize: rem(11.5), color: 'var(--text-muted)',
             }}>
               <input type="checkbox" checked={syncCompare}
                      onChange={(e) => setSyncCompare(e.target.checked)} />
@@ -849,7 +850,7 @@ export function CoachingStudio({
           ))}
           <button type="button" onClick={undoLast} disabled={!annotations.length} style={transportBtnStyle}>↶ Undo</button>
           <button type="button" onClick={clearAnnotations} disabled={!annotations.length} style={transportBtnStyle}>🗑 Clear</button>
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+          <span style={{ marginLeft: 'auto', fontSize: rem(11), color: 'var(--text-muted)' }}>
             {annotations.length} stroke{annotations.length === 1 ? '' : 's'}
           </span>
         </div>
@@ -895,7 +896,7 @@ export function CoachingStudio({
               ⏹ Stop ({voiceOvers.length + 1})
             </button>
           )}
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
+          <span style={{ fontSize: rem(11), color: 'var(--text-muted)', flex: 1 }}>
             {isRecording
               ? 'Recording — narrate while the video plays.'
               : voiceOvers.length === 0
@@ -920,7 +921,7 @@ export function CoachingStudio({
               }}>
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  fontSize: 10.5, fontWeight: 700, letterSpacing: '0.18em',
+                  fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.18em',
                   textTransform: 'uppercase', color: 'var(--text-muted)',
                 }}>
                   <span>VO #{i + 1}</span>
@@ -932,7 +933,7 @@ export function CoachingStudio({
                   >×</button>
                 </div>
                 <audio controls src={seg.url} style={{ width: '100%' }} />
-                <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: rem(10.5), color: 'var(--text-muted)' }}>
                   Began at {fmtTime(seg.startVideoTime)} · {(seg.durationMs / 1000).toFixed(1)}s
                 </div>
               </div>
@@ -962,7 +963,7 @@ export function CoachingStudio({
                 color: 'var(--text)',
                 padding: '8px 12px',
                 borderRadius: 8,
-                fontSize: 13,
+                fontSize: rem(13),
               }}
             />
             <button
@@ -974,7 +975,7 @@ export function CoachingStudio({
                 background: 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))',
                 border: '1px solid rgba(74,222,128,0.55)',
                 color: '#ecfdf5',
-                fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
+                fontSize: rem(13), fontWeight: 700, letterSpacing: '0.04em',
                 cursor: saving || !primarySrc ? 'not-allowed' : 'pointer',
                 opacity: saving || !primarySrc ? 0.5 : 1,
               }}
@@ -993,13 +994,13 @@ export function CoachingStudio({
               color: 'var(--text)',
               padding: '10px 12px',
               borderRadius: 8,
-              fontSize: 12.5,
+              fontSize: rem(12.5),
               resize: 'vertical',
               fontFamily: 'inherit',
             }}
           />
           {saveError && (
-            <div style={{ color: '#fda4af', fontSize: 12 }}>{saveError}</div>
+            <div style={{ color: '#fda4af', fontSize: rem(12) }}>{saveError}</div>
           )}
         </div>
       </Section>
@@ -1143,10 +1144,10 @@ function BrowseVideosModal({
           background: 'rgba(255,255,255,0.025)',
         }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+            <div style={{ fontSize: rem(14), fontWeight: 700, color: 'var(--text)' }}>
               Pick a video for the {slot === 'primary' ? 'Primary' : 'Compare'} pane
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            <div style={{ fontSize: rem(11), color: 'var(--text-muted)', marginTop: 2 }}>
               {playerName}&apos;s uploaded videos · {filtered.length} of {videos.length} shown
             </div>
           </div>
@@ -1160,7 +1161,7 @@ function BrowseVideosModal({
               padding: '4px 10px',
               borderRadius: 6,
               cursor: 'pointer',
-              fontSize: 18, lineHeight: 1,
+              fontSize: rem(18), lineHeight: 1,
             }}
             aria-label="Close"
           >
@@ -1187,7 +1188,7 @@ function BrowseVideosModal({
               color: 'var(--text)',
               padding: '7px 10px',
               borderRadius: 7,
-              fontSize: 12,
+              fontSize: rem(12),
             }}
           />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1199,7 +1200,7 @@ function BrowseVideosModal({
                 style={{
                   padding: '5px 11px',
                   borderRadius: 999,
-                  fontSize: 11, fontWeight: 600,
+                  fontSize: rem(11), fontWeight: 600,
                   cursor: 'pointer',
                   background: category === c ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
                   color: category === c ? '#000' : 'var(--text-muted)',
@@ -1221,7 +1222,7 @@ function BrowseVideosModal({
           {filtered.length === 0 ? (
             <div style={{
               textAlign: 'center', padding: '48px 16px',
-              color: 'var(--text-muted)', fontSize: 13,
+              color: 'var(--text-muted)', fontSize: rem(13),
             }}>
               {videos.length === 0
                 ? `No uploaded videos for ${playerName} yet.`
@@ -1276,7 +1277,7 @@ function BrowseVideosModal({
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       ) : (
-                        <span style={{ fontSize: 28, color: 'rgba(255,255,255,0.35)' }}>🎬</span>
+                        <span style={{ fontSize: rem(28), color: 'rgba(255,255,255,0.35)' }}>🎬</span>
                       )}
                       {v.durationSec && (
                         <span style={{
@@ -1285,7 +1286,7 @@ function BrowseVideosModal({
                           color: 'var(--text-bright)',
                           padding: '2px 6px',
                           borderRadius: 4,
-                          fontSize: 10, fontWeight: 600,
+                          fontSize: rem(10), fontWeight: 600,
                         }}>
                           {fmtDuration(v.durationSec)}
                         </span>
@@ -1297,7 +1298,7 @@ function BrowseVideosModal({
                           color: 'var(--text-bright)',
                           padding: '2px 6px',
                           borderRadius: 4,
-                          fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+                          fontSize: rem(9), fontWeight: 700, letterSpacing: '0.06em',
                           textTransform: 'uppercase',
                         }}>
                           {v.status || 'No URL'}
@@ -1307,13 +1308,13 @@ function BrowseVideosModal({
                     {/* Body */}
                     <div style={{ padding: '10px 12px' }}>
                       <div style={{
-                        fontSize: 12.5, fontWeight: 700, color: 'var(--text)',
+                        fontSize: rem(12.5), fontWeight: 700, color: 'var(--text)',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
                         {v.title}
                       </div>
                       <div style={{
-                        fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4,
+                        fontSize: rem(10.5), color: 'var(--text-muted)', marginTop: 4,
                         display: 'flex', alignItems: 'center', gap: 6,
                       }}>
                         <span style={{
@@ -1321,7 +1322,7 @@ function BrowseVideosModal({
                           color: 'var(--accent-light)',
                           padding: '1px 6px',
                           borderRadius: 4,
-                          fontSize: 10, fontWeight: 600,
+                          fontSize: rem(10), fontWeight: 600,
                         }}>{v.category || 'Uncategorized'}</span>
                         <span>{fmtDate(v.createdAt)}</span>
                       </div>
@@ -1343,7 +1344,7 @@ const transportBtnStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   color: 'var(--text)',
   borderRadius: 7,
-  fontSize: 12,
+  fontSize: rem(12),
   cursor: 'pointer',
   fontWeight: 600,
   fontFamily: "'DM Mono', ui-monospace, monospace",
@@ -1358,14 +1359,14 @@ const pickerBtnStyle: React.CSSProperties = {
   background: 'rgba(126,182,255,0.10)',
   border: '1px solid rgba(126,182,255,0.32)',
   borderRadius: 7,
-  fontSize: 11.5,
+  fontSize: rem(11.5),
   color: 'var(--accent-light)',
   cursor: 'pointer',
   fontWeight: 600,
 };
 
 const toolLabelStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, letterSpacing: '0.18em',
+  fontSize: rem(10), fontWeight: 700, letterSpacing: '0.18em',
   textTransform: 'uppercase', color: 'var(--text-muted)',
   marginRight: 4,
 };
@@ -1413,9 +1414,9 @@ function StudioModal({
           background: 'rgba(255,255,255,0.025)',
         }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+            <div style={{ fontSize: rem(14), fontWeight: 700, color: 'var(--text)' }}>{title}</div>
             {subtitle && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{subtitle}</div>
+              <div style={{ fontSize: rem(11), color: 'var(--text-muted)', marginTop: 2 }}>{subtitle}</div>
             )}
           </div>
           <button
@@ -1428,7 +1429,7 @@ function StudioModal({
               padding: '4px 10px',
               borderRadius: 6,
               cursor: 'pointer',
-              fontSize: 18, lineHeight: 1,
+              fontSize: rem(18), lineHeight: 1,
             }}
             aria-label="Close"
           >×</button>
@@ -1500,7 +1501,7 @@ function StudioVideoCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumbnail} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
-          <span style={{ fontSize: 28, color: 'rgba(255,255,255,0.35)' }}>🎬</span>
+          <span style={{ fontSize: rem(28), color: 'rgba(255,255,255,0.35)' }}>🎬</span>
         )}
         {durationSec ? (
           <span style={{
@@ -1509,7 +1510,7 @@ function StudioVideoCard({
             color: 'var(--text-bright)',
             padding: '2px 6px',
             borderRadius: 4,
-            fontSize: 10, fontWeight: 600,
+            fontSize: rem(10), fontWeight: 600,
           }}>{fmtDuration(durationSec)}</span>
         ) : null}
         {disabled && (
@@ -1519,18 +1520,18 @@ function StudioVideoCard({
             color: 'var(--text-bright)',
             padding: '2px 6px',
             borderRadius: 4,
-            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+            fontSize: rem(9), fontWeight: 700, letterSpacing: '0.06em',
             textTransform: 'uppercase',
           }}>Unsupported</span>
         )}
       </div>
       <div style={{ padding: '10px 12px' }}>
         <div style={{
-          fontSize: 12.5, fontWeight: 700, color: 'var(--text)',
+          fontSize: rem(12.5), fontWeight: 700, color: 'var(--text)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>{title}</div>
         <div style={{
-          fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4,
+          fontSize: rem(10.5), color: 'var(--text-muted)', marginTop: 4,
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           {badge && (
@@ -1539,7 +1540,7 @@ function StudioVideoCard({
               color: 'var(--accent-light)',
               padding: '1px 6px',
               borderRadius: 4,
-              fontSize: 10, fontWeight: 600,
+              fontSize: rem(10), fontWeight: 600,
             }}>{badge}</span>
           )}
           {subtitle && <span>{subtitle}</span>}
@@ -1608,7 +1609,7 @@ function MlbClipBrowserModal({
                 background: 'rgba(20,24,32,0.85)',
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                padding: '7px 10px', borderRadius: 7, fontSize: 12,
+                padding: '7px 10px', borderRadius: 7, fontSize: rem(12),
               }}
             />
           </div>
@@ -1616,7 +1617,7 @@ function MlbClipBrowserModal({
             {loading ? (
               <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading…</div>
             ) : filteredPlayers.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: rem(13) }}>
                 No MLB players in the library yet. Add some from the Education page.
               </div>
             ) : (
@@ -1641,13 +1642,13 @@ function MlbClipBrowserModal({
                       textAlign: 'left',
                     }}
                   >
-                    <span style={{ fontSize: 22 }}>{p.emoji}</span>
+                    <span style={{ fontSize: rem(22) }}>{p.emoji}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{
-                        fontSize: 12, fontWeight: 700,
+                        fontSize: rem(12), fontWeight: 700,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>{p.name}</div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: rem(10.5), color: 'var(--text-muted)' }}>
                         {(p.videos || []).length} clip{(p.videos || []).length === 1 ? '' : 's'}
                         {p.team ? ` · ${p.team}` : ''}
                       </div>
@@ -1672,13 +1673,13 @@ function MlbClipBrowserModal({
                 border: '1px solid var(--border)',
                 color: 'var(--text-muted)',
                 padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
-                fontSize: 11, fontWeight: 600,
+                fontSize: rem(11), fontWeight: 600,
               }}
             >← Back to players</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
             {(selectedPlayer.videos || []).length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: rem(13) }}>
                 No clips on this player yet.
               </div>
             ) : (
@@ -1775,7 +1776,7 @@ function DrillBrowserModal({
             background: 'rgba(20,24,32,0.85)',
             border: '1px solid var(--border)',
             color: 'var(--text)',
-            padding: '7px 10px', borderRadius: 7, fontSize: 12,
+            padding: '7px 10px', borderRadius: 7, fontSize: rem(12),
           }}
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1786,7 +1787,7 @@ function DrillBrowserModal({
               onClick={() => setTab(t)}
               style={{
                 padding: '5px 11px', borderRadius: 999,
-                fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                fontSize: rem(11), fontWeight: 600, cursor: 'pointer',
                 background: tab === t ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
                 color: tab === t ? '#000' : 'var(--text-muted)',
                 border: `1px solid ${tab === t ? 'transparent' : 'var(--border)'}`,
@@ -1803,7 +1804,7 @@ function DrillBrowserModal({
         {loading ? (
           <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+          <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: rem(13) }}>
             {playable.length === 0
               ? 'No drills with videos in the library yet. Upload demo videos from the Education → Drills page.'
               : 'No drills match the current filters.'}
@@ -1916,7 +1917,7 @@ function OtherAthleteBrowserModal({
                 background: 'rgba(20,24,32,0.85)',
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                padding: '7px 10px', borderRadius: 7, fontSize: 12,
+                padding: '7px 10px', borderRadius: 7, fontSize: rem(12),
               }}
             />
           </div>
@@ -1924,7 +1925,7 @@ function OtherAthleteBrowserModal({
             {loadingPlayers ? (
               <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading athletes…</div>
             ) : filteredPlayers.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: rem(13) }}>
                 No other athletes match.
               </div>
             ) : (
@@ -1959,19 +1960,19 @@ function OtherAthleteBrowserModal({
                         width: 36, height: 36, borderRadius: '50%',
                         background: 'rgba(126,182,255,0.18)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 13, fontWeight: 700, color: 'var(--accent-light)',
+                        fontSize: rem(13), fontWeight: 700, color: 'var(--accent-light)',
                       }}>
                         {p.firstName?.[0] || '?'}{p.lastName?.[0] || ''}
                       </div>
                     )}
                     <div style={{ minWidth: 0 }}>
                       <div style={{
-                        fontSize: 12, fontWeight: 700,
+                        fontSize: rem(12), fontWeight: 700,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
                         {p.firstName} {p.lastName}
                       </div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: rem(10.5), color: 'var(--text-muted)' }}>
                         {p.gradYear ? `'${String(p.gradYear).slice(-2)} ` : ''}{p.positions || ''}
                       </div>
                     </div>
@@ -1995,7 +1996,7 @@ function OtherAthleteBrowserModal({
                 border: '1px solid var(--border)',
                 color: 'var(--text-muted)',
                 padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
-                fontSize: 11, fontWeight: 600,
+                fontSize: rem(11), fontWeight: 600,
               }}
             >← Back to athletes</button>
             <input
@@ -2008,7 +2009,7 @@ function OtherAthleteBrowserModal({
                 background: 'rgba(20,24,32,0.85)',
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                padding: '7px 10px', borderRadius: 7, fontSize: 12,
+                padding: '7px 10px', borderRadius: 7, fontSize: rem(12),
               }}
             />
           </div>
@@ -2016,7 +2017,7 @@ function OtherAthleteBrowserModal({
             {loadingVideos ? (
               <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading videos…</div>
             ) : filteredVideos.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: rem(13) }}>
                 {playableVideos.length === 0
                   ? `${selectedPlayer.firstName} doesn't have any uploaded videos yet.`
                   : 'No videos match the search.'}

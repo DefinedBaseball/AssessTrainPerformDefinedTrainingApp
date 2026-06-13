@@ -30,6 +30,7 @@
 
 import { useEffect, useState, type RefObject } from 'react';
 import { useTheme } from '@/lib/theme-context';
+import { VideoStopwatch } from './VideoStopwatch';
 
 interface Props {
   /** Ref to the HTMLVideoElement whose `playbackRate` / `currentTime`
@@ -39,6 +40,13 @@ interface Props {
   /** Optional inline-style overrides — the host can reposition or
    *  re-skin the bar (e.g., flush to the bottom of an overlay). */
   style?: React.CSSProperties;
+  /** Show the elapsed-video-time stopwatch at the end of the bar.
+   *  Defaults to true — every playback surface gets it. */
+  showStopwatch?: boolean;
+  /** Forwarded to the stopwatch: videos its on-screen mirror timer should be
+   *  painted over (the synced bundle master passes every visible angle).
+   *  Defaults to just `videoRef`. */
+  stopwatchOverlayTargets?: () => (HTMLVideoElement | null)[];
 }
 
 /** Assumed frame rate for the frame-by-frame stepper. 30 fps is the
@@ -52,7 +60,7 @@ const SLIDER_MIN = 0.1;
 const SLIDER_MAX = 2.0;
 const SLIDER_STEP = 0.05;
 
-export function VideoControlBar({ videoRef, style }: Props) {
+export function VideoControlBar({ videoRef, style, showStopwatch = true, stopwatchOverlayTargets }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   /* Theme-aware bar chrome — flips the playback bar from its dark-
@@ -277,6 +285,16 @@ export function VideoControlBar({ videoRef, style }: Props) {
           {rate.toFixed(2)}×
         </span>
       </div>
+
+      {/* Elapsed-video-time stopwatch — counts in video time so it
+          stays accurate at any playback speed and while frame-stepping.
+          Separator + the control group sit at the end of the bar. */}
+      {showStopwatch && (
+        <>
+          <span style={{ width: 1, height: 22, background: 'var(--border-light)', alignSelf: 'center' }} />
+          <VideoStopwatch videoRef={videoRef} overlayTargets={stopwatchOverlayTargets} />
+        </>
+      )}
     </div>
   );
 }

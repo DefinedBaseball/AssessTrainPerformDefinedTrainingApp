@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { syncReportMetricsFor } from './report-metrics.util';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -14,6 +15,7 @@ export class ReportsService {
   constructor(
     private prisma: PrismaService,
     private leaderboards: LeaderboardsService,
+    private notifications: NotificationsService,
   ) {}
 
   async create(data: {
@@ -28,7 +30,27 @@ export class ReportsService {
     const report = await this.prisma.report.create({ data });
     await this.syncReportMetrics(report);
     void this.recomputeLeaderboardFor(report.playerId);
+    void this.notifyPlayerOfReport(report.playerId, data.reportType);
     return report;
+  }
+
+  /** Tell the report's player a new report landed on their profile. */
+  private async notifyPlayerOfReport(playerId: string, reportType: string) {
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { userId: true },
+    });
+    if (!player?.userId) return;
+    const label = reportType
+      ? `${reportType.charAt(0)}${reportType.slice(1).toLowerCase()} `
+      : '';
+    await this.notifications.create(player.userId, {
+      type: 'REPORT',
+      title: 'New report uploaded',
+      body: `A new ${label}report was added to your profile.`,
+      linkUrl: `/athletes/${playerId}`,
+      entityId: playerId,
+    });
   }
 
   async findByPlayer(playerId: string, reportType?: string) {

@@ -7,3 +7,14 @@ dist/
 *.tsbuildinfo
 .next/
 apps/mobile/
+
+# Uploaded / runtime media — served from S3/Bunny in production, must never
+# be committed (kept the repo at ~2 GB and would choke deploy clones).
+apps/api/uploads/
+
+# Packaged export + scratch artifacts that don't belong in the deploy repo.
+base44-bundle/
+base44-bundle.zip
+response.html
+.claude/scheduled_tasks.lock
+*.log

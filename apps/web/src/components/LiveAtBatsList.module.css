@@ -237,3 +237,24 @@
   color: #ffdde0;
   font-size: 12.5px;
 }
+
+/* ── Light theme ──────────────────────────────────────────────────
+   This bubble was authored dark-only (translucent dark surface + a #fff
+   title + the white `--accent-bright`). On the light page that surface
+   goes muddy and the light text/accents wash out, so flip it to the
+   standard light bubble surface and darken the text the way every other
+   profile bubble does. (`--text`/`--text-muted` already resolve dark in
+   light theme — only the hardcoded whites need overriding.) */
+[data-theme="light"] .bubble {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 8px 22px rgba(15, 20, 30, 0.08);
+}
+[data-theme="light"] .title { color: var(--text); }
+[data-theme="light"] .chipActive { color: var(--text); }
+/* `--accent-bright` is white app-wide → invisible on the light panel. */
+[data-theme="light"] .openTag,
+[data-theme="light"] .rowHand { color: #2f6ad9; }
+[data-theme="light"] .error { color: #b42318; }

@@ -68,14 +68,15 @@ const MODES: ModeCard[] = [
 ];
 
 export default function LivePage() {
-  const { user, isCoach } = useAuth();
+  const { user, isCoach, isLoading } = useAuth();
   const router = useRouter();
 
   // Guard: coach-only. Players bounce to the dashboard since the
-  // Live tools manage rosters / capture clips. Mirrors the pattern
-  // used by /program and other coach-only pages.
+  // Live tools manage rosters / capture clips. Waits on `isLoading` —
+  // `user` is null (not undefined) during the session restore, so the
+  // old `user === undefined` check bounced hard refreshes to /login.
   useEffect(() => {
-    if (user === undefined) return; // still loading
+    if (isLoading) return;
     if (!user) {
       router.replace('/login');
       return;
@@ -83,9 +84,9 @@ export default function LivePage() {
     if (!isCoach) {
       router.replace('/');
     }
-  }, [user, isCoach, router]);
+  }, [isLoading, user, isCoach, router]);
 
-  if (user === undefined || !user || !isCoach) {
+  if (isLoading || !user || !isCoach) {
     // Render nothing while the redirect fires — avoids a flash of
     // mode picker before the auth/role check resolves.
     return null;

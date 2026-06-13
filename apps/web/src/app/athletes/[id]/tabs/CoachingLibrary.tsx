@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useMemo, useState } from 'react';
 import { Section, SectionHeader, VideoPlaceholder } from '@/components/assessment';
 import type { TabProps, ReportSummary } from '../helpers';
@@ -84,7 +85,7 @@ export function CoachingLibrary({
             border: '1px dashed var(--border)',
             borderRadius: 12,
             color: 'var(--text-muted)',
-            fontSize: 14,
+            fontSize: rem(14),
             textAlign: 'center',
           }}>
             No coaching sessions yet.
@@ -115,15 +116,15 @@ export function CoachingLibrary({
                   position: 'relative',
                 }}>
                   <div style={{
-                    fontSize: 9.5, fontWeight: 700, letterSpacing: '0.20em',
+                    fontSize: rem(9.5), fontWeight: 700, letterSpacing: '0.20em',
                     textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
                   }}>
                     Coaching Session
                   </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>
+                  <div style={{ fontSize: rem(15), fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>
                     {meta.title || `Session — ${created}`}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: rem(11), color: 'var(--text-muted)', lineHeight: 1.5 }}>
                     {meta.primaryVideoTitle && <div>📹 {meta.primaryVideoTitle}</div>}
                     {meta.compareVideoTitle && <div>↔︎ Compare: {meta.compareVideoTitle}</div>}
                     {(meta.annotationCount ?? 0) > 0 && <div>✏️ {meta.annotationCount} annotation{meta.annotationCount === 1 ? '' : 's'}</div>}
@@ -131,7 +132,7 @@ export function CoachingLibrary({
                   </div>
                   {(r.notes || meta.notes) && (
                     <div style={{
-                      fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic',
+                      fontSize: rem(12), color: 'var(--text-muted)', fontStyle: 'italic',
                       paddingTop: 6, borderTop: '1px solid var(--border)',
                       lineHeight: 1.45, maxHeight: 60, overflow: 'hidden',
                     }}>
@@ -142,7 +143,7 @@ export function CoachingLibrary({
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     marginTop: 'auto', paddingTop: 6,
                   }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: rem(10), color: 'var(--text-muted)' }}>
                       {created}{r.createdBy?.email ? ` · ${r.createdBy.email.split('@')[0]}` : ''}
                     </span>
                     {isCoach && (
@@ -152,7 +153,7 @@ export function CoachingLibrary({
                         disabled={deleting === r.id}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer',
-                          color: 'var(--text-muted)', fontSize: 11,
+                          color: 'var(--text-muted)', fontSize: rem(11),
                           opacity: deleting === r.id ? 0.4 : 0.7,
                         }}
                         title="Delete session"
@@ -182,7 +183,7 @@ export function CoachingLibrary({
             border: '1px dashed var(--border)',
             borderRadius: 12,
             color: 'var(--text-muted)',
-            fontSize: 14,
+            fontSize: rem(14),
             textAlign: 'center',
           }}>
             No videos uploaded yet.

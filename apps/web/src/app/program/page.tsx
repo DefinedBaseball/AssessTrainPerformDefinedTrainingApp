@@ -10,6 +10,7 @@
    walk up and follow their plan.
    ───────────────────────────────────────────────────────────────────────── */
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -17,6 +18,7 @@ import * as api from '@/lib/api';
 import type { Player, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
+import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 
 /* ── Position groups (mirrors the Training calendar's helper) ── */
 const HITTER_POSITIONS  = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'INF', 'UTIL'];
@@ -57,50 +59,19 @@ function playerMatchesSchedule(player: Player, schedule: ScheduleKey): boolean {
 
 /* ── Small helpers ── */
 
-/* ── Per-tab, per-category color matrix ────────────────────────────
- * Mirrors the same matrix in training/page.tsx so program and
- * training render identical color treatments for each category.
- * Each tab has a base hue, with categories graduating lightest →
- * darkest from top to bottom. */
-const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> = {
-  hitting: {
-    'Movement Prep':    { dot: '#B8D8F8', bg: 'rgba(184,216,248,0.13)', text: '#B8D8F8' },
-    'Drills':           { dot: '#82B8E8', bg: 'rgba(130,184,232,0.13)', text: '#82B8E8' },
-    'Batting Practice': { dot: '#4A90D9', bg: 'rgba(74,144,217,0.13)',  text: '#4A90D9' },
-    'Machine':          { dot: '#2E6DB5', bg: 'rgba(46,109,181,0.13)',  text: '#2E6DB5' },
-    'Live':             { dot: '#1B4F8A', bg: 'rgba(27,79,138,0.15)',   text: '#1B4F8A' },
-  },
-  pitching: {
-    'Movement Prep': { dot: '#FDD9A8', bg: 'rgba(253,217,168,0.13)', text: '#FDD9A8' },
-    'Drills':        { dot: '#F8B85E', bg: 'rgba(248,184,94,0.13)',  text: '#F8B85E' },
-    'Bullpen':       { dot: '#F59E0B', bg: 'rgba(245,158,11,0.13)',  text: '#F59E0B' },
-    'Live':          { dot: '#C77A09', bg: 'rgba(199,122,9,0.15)',   text: '#C77A09' },
-    'Post-Throw':    { dot: '#8B4F08', bg: 'rgba(139,79,8,0.18)',    text: '#8B4F08' },
-  },
-  catching: {
-    'Movement Prep': { dot: '#A0E8D8', bg: 'rgba(160,232,216,0.13)', text: '#A0E8D8' },
-    'Drills':        { dot: '#5FD4B5', bg: 'rgba(95,212,181,0.13)',  text: '#5FD4B5' },
-    'Machine':       { dot: '#14B8A6', bg: 'rgba(20,184,166,0.13)',  text: '#14B8A6' },
-    'Live':          { dot: '#0E8E70', bg: 'rgba(14,142,112,0.15)',  text: '#0E8E70' },
-  },
-  infield: {
-    'Movement Prep': { dot: '#B0F0B0', bg: 'rgba(176,240,176,0.13)', text: '#B0F0B0' },
-    'Drills':        { dot: '#6ED06E', bg: 'rgba(110,208,110,0.13)', text: '#6ED06E' },
-    'Machine':       { dot: '#38A850', bg: 'rgba(56,168,80,0.13)',   text: '#38A850' },
-    'Live':          { dot: '#1E7A32', bg: 'rgba(30,122,50,0.15)',   text: '#1E7A32' },
-  },
-  outfield: {
-    'Movement Prep': { dot: '#DAF0A0', bg: 'rgba(218,240,160,0.13)', text: '#DAF0A0' },
-    'Drills':        { dot: '#B8D870', bg: 'rgba(184,216,112,0.13)', text: '#B8D870' },
-    'Machine':       { dot: '#88B838', bg: 'rgba(136,184,56,0.13)',  text: '#88B838' },
-    'Live':          { dot: '#5A8418', bg: 'rgba(90,132,24,0.15)',   text: '#5A8418' },
-  },
-  strength: {
-    'Movement Prep': { dot: '#F8B8B8', bg: 'rgba(248,184,184,0.13)', text: '#F8B8B8' },
-    'Exercises':     { dot: '#EF4444', bg: 'rgba(239,68,68,0.13)',   text: '#EF4444' },
-    'Cool Down':     { dot: '#8B1C2C', bg: 'rgba(139,28,44,0.18)',   text: '#8B1C2C' },
-  },
-};
+/* Per-tab, per-category color matrix — DERIVED from the generated drill
+   taxonomy (single source of truth shared with the Drill Library, Training
+   modal, and training-colors). Unknown categories fall back to
+   DEFAULT_CAT_COLOR via getTabCatStyle below. */
+const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> =
+  Object.fromEntries(
+    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, Record<string, { dot: string; bg: string; text: string }>] => [
+      tab,
+      Object.fromEntries(
+        cats.map((c): [string, { dot: string; bg: string; text: string }] => [c.id, { dot: c.dot, bg: c.bg, text: c.text }]),
+      ),
+    ]),
+  );
 
 const DEFAULT_CAT_COLOR = { dot: '#5A9BD5', bg: 'rgba(90,155,213,0.13)', text: '#5A9BD5' };
 
@@ -526,7 +497,7 @@ function DrillEditor({
           marginBottom: 14,
         }}>
           <div style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
+            fontSize: rem(11), fontWeight: 700, letterSpacing: '0.18em',
             textTransform: 'uppercase', color: 'rgba(126,182,255,0.85)',
           }}>
             Edit Drill
@@ -536,7 +507,7 @@ function DrillEditor({
             onClick={onClose}
             style={{
               background: 'none', border: 'none', color: 'var(--text-muted)',
-              fontSize: 20, lineHeight: 1, cursor: 'pointer', padding: 0,
+              fontSize: rem(20), lineHeight: 1, cursor: 'pointer', padding: 0,
             }}
             aria-label="Close"
           >×</button>
@@ -583,7 +554,7 @@ function DrillEditor({
         }}>
           {confirmDelete ? (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--text)' }}>Delete?</span>
+              <span style={{ fontSize: rem(12), color: 'var(--text)' }}>Delete?</span>
               <button type="button" onClick={onDelete}
                 style={{ ...btnStyle, background: '#dc2626', borderColor: '#dc2626', color: 'var(--text-bright)' }}>
                 Yes
@@ -617,7 +588,7 @@ function DrillEditor({
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <div style={{
-    fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em',
+    fontSize: rem(9.5), fontWeight: 700, letterSpacing: '0.16em',
     textTransform: 'uppercase', color: 'var(--text-muted)',
     marginBottom: 4,
   }}>
@@ -632,7 +603,7 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 6,
   color: 'var(--text)',
-  fontSize: 13,
+  fontSize: rem(13),
   outline: 'none',
 };
 
@@ -642,7 +613,7 @@ const btnStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 6,
   color: 'var(--text)',
-  fontSize: 12,
+  fontSize: rem(12),
   cursor: 'pointer',
 };
 

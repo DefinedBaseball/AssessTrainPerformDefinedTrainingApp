@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
+import { DRILLS } from './drills.seed';
 
 const prisma = new PrismaClient();
 
@@ -572,7 +573,10 @@ async function main() {
   await prisma.scheduledDrill.deleteMany();
   await prisma.drill.deleteMany();
 
-  const drillsData = [
+  // Drill library is generated from the coaches' Drills Workbook (drills.seed.ts).
+  const drillsData = DRILLS;
+  // Legacy hand-written demo drills below — superseded; kept for reference, not inserted.
+  const _legacyDemoDrills = [
     // Hitting drills
     { name: 'Dynamic Warmup', tab: 'hitting', category: 'Movement Prep', description: 'Full body dynamic stretching routine' },
     { name: 'Band Work — Shoulders', tab: 'hitting', category: 'Movement Prep', description: 'Resistance band shoulder activation' },
@@ -673,6 +677,7 @@ async function main() {
     { name: 'Live Pitch Tracking', tab: 'vision', category: 'Live', description: 'Track live pitches for spin and movement identification' },
     { name: 'Game Film Analysis', tab: 'vision', category: 'Live', description: 'Review game footage for pitch recognition patterns' },
   ];
+  void _legacyDemoDrills;
 
   const drills = [];
   for (const d of drillsData) {
@@ -776,10 +781,10 @@ async function main() {
     { sport: 'vision', level: 'beginner', name: 'Visual Tracking Basics', desc: 'Smooth pursuit, saccades, and focus tracking fundamentals.', lessons: 4, duration: 20, emoji: '👁️' },
     { sport: 'vision', level: 'advanced', name: 'Cognitive Performance Training', desc: 'Decision speed, working memory, and mental rep strategies.', lessons: 9, duration: 45, emoji: '🧠' },
   ];
-  for (const c of classesData) {
-    await prisma.eduClass.create({ data: c });
-  }
-  console.log(`Seeded ${classesData.length} education classes`);
+  // Demo classes are no longer seeded — the Education library starts empty so
+  // coaches only ever see real classes they create.
+  void classesData;
+  console.log('Education classes: demo seed disabled (library starts empty).');
 
   // ─── Seed Education: MLB Players & Videos ──────────────────────
   console.log('Seeding MLB players...');
@@ -833,14 +838,10 @@ async function main() {
       ]},
   ];
 
-  for (const p of mlbData) {
-    const { videos, ...playerData } = p;
-    const player = await prisma.mlbPlayer.create({ data: playerData });
-    for (const v of videos) {
-      await prisma.mlbVideo.create({ data: { playerId: player.id, ...v } });
-    }
-  }
-  console.log(`Seeded ${mlbData.length} MLB players with videos`);
+  // Demo MLB players/videos are no longer seeded — the Major League Video
+  // library starts empty so coaches only see real clips they upload.
+  void mlbData;
+  console.log('MLB library: demo seed disabled (library starts empty).');
 
   // ─── Compute Leaderboards ─────────────────────────────────────
   console.log('Computing leaderboards...');

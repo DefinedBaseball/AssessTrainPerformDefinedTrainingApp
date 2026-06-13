@@ -126,6 +126,8 @@ export interface AuthResponse {
   id: string;
   email: string;
   role: string;
+  status: string; // "ACTIVE" | "PENDING" | "DECLINED"
+  name?: string | null;
   playerId: string | null;
 }
 
@@ -136,10 +138,20 @@ export async function login(email: string, password: string) {
   );
 }
 
+export interface AccountProfile {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  name: string | null;
+  phone: string | null;
+  position: string | null;
+  isPrimaryAdmin: boolean;
+  playerId: string | null;
+}
+
 export async function getMe() {
-  return request<{ sub: string; email: string; role: string; playerId: string | null; exp: number }>(
-    '/auth/me',
-  );
+  return request<AccountProfile>('/auth/me');
 }
 
 export async function register(email: string, password: string, role: string) {
@@ -147,6 +159,167 @@ export async function register(email: string, password: string, role: string) {
     '/auth/register',
     { method: 'POST', body: JSON.stringify({ email, password, role }) },
   );
+}
+
+/** Update editable account fields (Settings → Account). */
+export async function updateAccount(dto: {
+  name?: string | null;
+  phone?: string | null;
+  position?: string | null;
+}) {
+  return request<AccountProfile>('/auth/account', {
+    method: 'PATCH',
+    body: JSON.stringify(dto),
+  });
+}
+
+/** Change the current user's password (requires the current one). */
+export async function changePassword(currentPassword: string, newPassword: string) {
+  return request<{ ok: boolean }>('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+/** Coach sets another account's password (player reset from the athlete
+ *  profile, coach reset from Settings → Staff). Primary admin is self-only. */
+export async function setUserPassword(userId: string, newPassword: string) {
+  return request<{ ok: boolean }>(`/auth/users/${userId}/set-password`, {
+    method: 'POST',
+    body: JSON.stringify({ newPassword }),
+  });
+}
+
+// ---- Notification channel preferences ----
+
+export interface NotifChannelPrefs {
+  app: boolean;
+  email: boolean;
+  phone: boolean;
+}
+/** Map of subject (= notification type) → per-channel on/off. */
+export type NotificationPrefs = Record<string, NotifChannelPrefs>;
+
+export async function getNotificationPrefs() {
+  return request<NotificationPrefs>('/auth/notification-prefs');
+}
+
+export async function setNotificationPrefs(prefs: NotificationPrefs) {
+  return request<{ ok: boolean }>('/auth/notification-prefs', {
+    method: 'PUT',
+    body: JSON.stringify(prefs),
+  });
+}
+
+export interface CoachAccount {
+  id: string;
+  email: string;
+  name: string | null;
+  position: string | null;
+  isPrimaryAdmin: boolean;
+  createdAt: string;
+}
+
+/** List all coach accounts (coach-only endpoint). */
+export async function getCoaches() {
+  return request<CoachAccount[]>('/auth/coaches');
+}
+
+// ---- Player self-registration + approval ----
+
+export interface SignupPlayerInput {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  positions: string; // comma-separated, e.g. "INF,OF"
+  heightInches?: number | null;
+  weightLbs?: number | null;
+  gradYear?: number | null;
+  bats?: string | null;
+  throws?: string | null;
+  birthDate?: string | null;
+  highSchool?: string | null;
+  clubTeam?: string | null;
+  collegeCommit?: string | null;
+  pbrNational?: number | null;
+  pbrState?: number | null;
+  pbrPosition?: number | null;
+  pgScore?: number | null;
+}
+
+/** Public player self-registration → pending account + a session token. */
+export async function signupPlayer(input: SignupPlayerInput) {
+  return request<AuthResponse>('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export interface PendingPlayer {
+  id: string; // the pending userId
+  email: string;
+  createdAt: string;
+  playerId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  positions: string | null;
+  gradYear: number | null;
+}
+
+/** Pending player accounts awaiting approval (coach-only). */
+export function getPendingPlayers() {
+  return request<PendingPlayer[]>('/auth/pending');
+}
+
+export function approvePlayer(userId: string) {
+  return request<{ ok: boolean; status: string }>(`/auth/pending/${userId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export function declinePlayer(userId: string) {
+  return request<{ ok: boolean }>(`/auth/pending/${userId}/decline`, { method: 'POST' });
+}
+
+// ---- Notifications ----
+
+export type NotificationType =
+  | 'ACCOUNT_REQUEST'
+  | 'ANNOUNCEMENT'
+  | 'COMMITMENT'
+  | 'COACH_REVIEW'
+  | 'REPORT'
+  | 'VIDEO'
+  | 'SCHEDULE';
+
+export interface AppNotification {
+  id: string;
+  recipientId: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  linkUrl: string | null;
+  actorId: string | null;
+  entityId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export function getNotifications(limit = 50) {
+  return request<AppNotification[]>(`/notifications?limit=${limit}`);
+}
+
+export function getUnreadNotificationCount() {
+  return request<{ count: number }>('/notifications/unread-count');
+}
+
+export function markNotificationRead(id: string) {
+  return request<{ ok: boolean }>(`/notifications/${id}/read`, { method: 'POST' });
+}
+
+export function markAllNotificationsRead() {
+  return request<{ ok: boolean }>('/notifications/read-all', { method: 'POST' });
 }
 
 // ---- Players ----
@@ -699,6 +872,8 @@ export interface MlbPlayer {
    *  image instead of the `emoji` icon. Uploaded by coaches
    *  via clicking the avatar/thumb in the Coaching App. */
   coverImageUrl?: string | null;
+  heightInches?: number | null;
+  weightLbs?: number | null;
   videos?: MlbVideo[];
 }
 
@@ -1234,4 +1409,63 @@ export async function updatePitch(pitchId: string, input: {
 
 export async function deletePitch(pitchId: string): Promise<void> {
   return request(`/live-sessions/pitches/${pitchId}`, { method: 'DELETE' });
+}
+
+// ---- Direct Messages ----
+
+export interface MessageContact {
+  id: string;
+  name: string;
+  role: 'COACH' | 'PLAYER';
+  photo: string | null;
+}
+
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  body: string | null;
+  videoUrl: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface Conversation {
+  user: MessageContact;
+  lastMessage: DirectMessage;
+  unreadCount: number;
+}
+
+export interface MessageThread {
+  user: MessageContact;
+  messages: DirectMessage[];
+}
+
+/** Directory of users the current user may start a conversation with. */
+export function getMessageContacts(): Promise<MessageContact[]> {
+  return request('/messages/contacts');
+}
+
+/** The current user's conversations (latest message + unread count each). */
+export function getConversations(): Promise<Conversation[]> {
+  return request('/messages/conversations');
+}
+
+/** Total unread messages for the current user (drives the bell badge). */
+export function getUnreadMessageCount(): Promise<{ count: number }> {
+  return request('/messages/unread-count');
+}
+
+/** Full history with another user; opening it marks their messages read. */
+export function getMessageThread(userId: string): Promise<MessageThread> {
+  return request(`/messages/thread/${userId}`);
+}
+
+/** Send a message (text and/or an attached video URL) to another user. */
+export function sendMessage(input: {
+  recipientId: string;
+  body?: string;
+  videoUrl?: string;
+}): Promise<DirectMessage> {
+  return request('/messages', { method: 'POST', body: JSON.stringify(input) });
 }

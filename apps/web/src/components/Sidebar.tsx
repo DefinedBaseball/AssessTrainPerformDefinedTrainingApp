@@ -248,6 +248,30 @@ export function Sidebar() {
         {visibleItems.map(item => renderNavItem(item, false))}
       </nav>
 
+      {/* ── Identity chip — display name (Settings → Account) or the
+          email prefix, with the role underneath. Sits above the
+          bottom button stack so it's visible on every page. ── */}
+      {user && (
+        <div className={styles.userChip} title={user.email}>
+          <span className={styles.userChipAvatar} aria-hidden="true">
+            {(user.name || user.email)
+              .split(/[\s@._-]+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map(w => w[0]?.toUpperCase() ?? '')
+              .join('')}
+          </span>
+          <span className={styles.userChipText}>
+            <strong className={styles.userChipName}>
+              {user.name || user.email.split('@')[0]}
+            </strong>
+            <span className={styles.userChipRole}>
+              {isCoach ? 'Coach' : 'Player'}
+            </span>
+          </span>
+        </div>
+      )}
+
       {/* ── Bottom stack: theme toggle / settings / sign-out ── */}
       {user && (
         <div className={styles.account}>

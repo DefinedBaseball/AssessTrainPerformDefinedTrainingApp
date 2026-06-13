@@ -1,10 +1,19 @@
 /** @type {import('next').NextConfig} */
+
+/* Where the Next server proxies `/api/*` to. In dev the API shares
+ * localhost:3001; in production (web + API on separate hosts, e.g. two
+ * Render services) set API_PROXY_TARGET to the API's base URL — e.g.
+ * its Render internal URL or public https://…onrender.com. Keeping the
+ * proxy means the browser only ever talks to the web origin, so there's
+ * no cross-origin/CORS step for normal API calls. */
+const API_PROXY_TARGET = process.env.API_PROXY_TARGET || 'http://localhost:3001';
+
 const nextConfig = {
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*',
+        destination: `${API_PROXY_TARGET}/api/:path*`,
       },
     ];
   },

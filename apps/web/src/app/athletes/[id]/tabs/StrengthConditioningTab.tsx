@@ -32,6 +32,7 @@
  * shows the `—` placeholder.
  */
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import {
   SectionHeader,
@@ -360,7 +361,7 @@ function Badge({
       border: `1px solid ${border}`,
       background: color,
       color: text,
-      fontSize: 11,
+      fontSize: rem(11),
       fontWeight: 700,
       letterSpacing: '0.06em',
       textTransform: 'uppercase',
@@ -395,7 +396,7 @@ function DisplayField({
         border: '1px solid var(--border)',
         background: 'rgba(255,255,255,0.04)',
         color: empty ? 'var(--text-muted)' : 'var(--text-bright)',
-        fontSize: 13,
+        fontSize: rem(13),
         fontWeight: 700,
         fontVariantNumeric: 'tabular-nums',
         letterSpacing: '-0.01em',
@@ -416,7 +417,7 @@ function DisplayField({
       border: '1px solid var(--border)',
       background: 'rgba(255,255,255,0.03)',
       color: empty ? 'var(--text-muted)' : 'var(--text-bright)',
-      fontSize: 12,
+      fontSize: rem(12),
       fontStyle: empty ? 'italic' : 'normal',
       fontFamily: 'inherit',
       opacity: empty ? 0.6 : 1,
@@ -436,7 +437,7 @@ function DimDash() {
       border: '1px solid var(--border)',
       background: 'rgba(255,255,255,0.02)',
       color: 'var(--text-muted)',
-      fontSize: 11,
+      fontSize: rem(11),
       fontWeight: 700,
       letterSpacing: '0.06em',
       fontFamily: 'inherit',
@@ -490,14 +491,14 @@ export function HoverPopover({
             borderRadius: 10,
             padding: 12,
             color: 'var(--text-bright)',
-            fontSize: 12,
+            fontSize: rem(12),
             lineHeight: 1.45,
             boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)',
             pointerEvents: 'none',
           }}
         >
           <div style={{
-            fontSize: 10,
+            fontSize: rem(10),
             fontWeight: 800,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -552,7 +553,7 @@ function MobilityCard({
       {/* ── Line 1: title row + inline accent hairline + ❓ icon */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <span style={{
-          fontSize: 11,
+          fontSize: rem(11),
           fontWeight: 800,
           color: 'rgba(126,182,255,0.85)',
           letterSpacing: '0.04em',
@@ -676,7 +677,7 @@ function MobilityCard({
               border: '1px solid rgba(255,206,84,0.65)',
               background: 'rgba(255,206,84,0.16)',
               color: '#ffce54',
-              fontSize: 13,
+              fontSize: rem(13),
               lineHeight: 1,
               display: 'flex',
               alignItems: 'center',
@@ -698,7 +699,7 @@ function MobilityCard({
               border: '1px solid rgba(126,182,255,0.55)',
               background: 'rgba(126,182,255,0.12)',
               color: '#cfe0ff',
-              fontSize: 12,
+              fontSize: rem(12),
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
@@ -721,7 +722,7 @@ function MobilityCard({
               border: '1px solid rgba(231,98,98,0.55)',
               background: 'rgba(231,98,98,0.14)',
               color: '#f0a8a8',
-              fontSize: 12,
+              fontSize: rem(12),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -847,7 +848,7 @@ function ReadOnlyText({
       background: 'rgba(255,255,255,0.04)',
       border: '1px solid var(--border-light)',
       color: empty ? 'var(--text-muted)' : 'var(--text-bright)',
-      fontSize: 12,
+      fontSize: rem(12),
       fontStyle: empty ? 'italic' : 'normal',
       lineHeight: 1.45,
       whiteSpace: multiline ? 'pre-wrap' : 'normal',
@@ -917,7 +918,7 @@ function DisplayValue({ label, unit, value }: { label?: string; unit?: string; v
              same metric grid stay vertically aligned. */}
           <div style={{
             fontFamily: 'inherit',
-            fontSize: 10,
+            fontSize: rem(10),
             fontWeight: 400,
             letterSpacing: '0.02em',
             color: 'rgba(255,255,255,0.78)',
@@ -933,7 +934,7 @@ function DisplayValue({ label, unit, value }: { label?: string; unit?: string; v
          rendered INLINE after the value ("4.50 sec"). */}
       <div style={{
         color: empty ? 'var(--text-muted)' : 'var(--text-bright)',
-        fontSize: 16,
+        fontSize: rem(16),
         fontWeight: 700,
         fontVariantNumeric: 'tabular-nums',
         letterSpacing: '-0.01em',
@@ -948,7 +949,7 @@ function DisplayValue({ label, unit, value }: { label?: string; unit?: string; v
         <span>{empty ? '—' : value}</span>
         {!labelMode && unit && (
           <span style={{
-            fontSize: 11,
+            fontSize: rem(11),
             fontWeight: 500,
             color: 'rgba(255,255,255,0.78)',
             letterSpacing: '0.02em',
@@ -978,7 +979,7 @@ const fieldLabelStyle: React.CSSProperties = {
      which is the most prominent rendering of that label across
      the Hitting tab. */
   fontFamily: 'inherit',
-  fontSize: 11.88,
+  fontSize: rem(11.88),
   fontWeight: 600,
   letterSpacing: '0.05em',
   textTransform: 'uppercase',
@@ -1219,7 +1220,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
         <SnapshotTitle first="Mobility" accent="Highlights" />
 
         {failures.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', paddingTop: 4 }}>
+          <div style={{ fontSize: rem(12), color: 'var(--text-muted)', fontStyle: 'italic', paddingTop: 4 }}>
             No mobility flags or failures recorded.
           </div>
         ) : (
@@ -1239,7 +1240,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
               >
                 <span
                   style={{
-                    fontSize: 10,
+                    fontSize: rem(10),
                     fontWeight: 800,
                     color: '#ef4444',
                     letterSpacing: '0.06em',
@@ -1252,7 +1253,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
                   #{f.testNumber}
                 </span>
                 <span style={{
-                  flex: 1, fontSize: 12, color: 'var(--text)',
+                  flex: 1, fontSize: rem(12), color: 'var(--text)',
                   lineHeight: 1.35,
                 }}>
                   <strong style={{ fontWeight: 700 }}>{f.testTitle}</strong>
@@ -1261,7 +1262,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
                 </span>
                 <span
                   style={{
-                    fontSize: 10,
+                    fontSize: rem(10),
                     fontWeight: 800,
                     color: '#ef4444',
                     letterSpacing: '0.10em',
@@ -1302,7 +1303,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
                   border: `1px solid ${on ? 'rgba(126,182,255,0.55)' : 'rgba(255,255,255,0.12)'}`,
                   background: on ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.02)',
                   color: on ? '#cfe0ff' : 'var(--text-muted)',
-                  fontSize: 11,
+                  fontSize: rem(11),
                   fontWeight: 700,
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
@@ -1316,7 +1317,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
           })}
         </div>
         {!anyFlag && (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>
+          <div style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>
             No warm-up flags recorded.
           </div>
         )}
@@ -1436,7 +1437,7 @@ function SubBlock({
       }}>
         <span style={{
           fontFamily: 'inherit',
-          fontSize: 13, fontWeight: 700,
+          fontSize: rem(13), fontWeight: 700,
           color: 'var(--text-bright)', lineHeight: 1.05,
           letterSpacing: '-0.01em',
           textTransform: 'uppercase',
@@ -1445,7 +1446,7 @@ function SubBlock({
         </span>
         {subtitle && (
           <span style={{
-            fontSize: 10,
+            fontSize: rem(10),
             /* Subtitle reads white per coach-spec — every label /
                subtitle across the profile is now consistently white. */
             color: 'var(--text-bright)',
@@ -1510,7 +1511,7 @@ function GreyMetricBubble({
         </span>
         {subtitle && (
           <span style={{
-            fontSize: 10,
+            fontSize: rem(10),
             /* Subtitle reads white per coach-spec. */
             color: 'var(--text-bright)',
             letterSpacing: '0.04em',
@@ -1668,7 +1669,7 @@ export function StrengthConditioningTab({
                 borderRadius: 10,
                 color: active ? 'var(--text)' : 'var(--text-muted)',
                 fontFamily: 'var(--font-display)',
-                fontSize: 13.8,
+                fontSize: rem(13.8),
                 fontWeight: 600,
                 fontStyle: 'italic',
                 letterSpacing: '-0.025em',

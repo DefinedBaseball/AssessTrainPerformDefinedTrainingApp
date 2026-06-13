@@ -1,5 +1,6 @@
 'use client';
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -1873,7 +1874,7 @@ function MetricBuilderPane() {
                 <label>Formula</label>
                 <textarea
                   className={styles.input}
-                  style={{ minHeight: 80, fontFamily: 'DM Mono, monospace', fontSize: 13 }}
+                  style={{ minHeight: 80, fontFamily: 'DM Mono, monospace', fontSize: rem(13) }}
                   placeholder="e.g. (0.69*BB + 0.89*B1 + 1.27*B2 + 1.62*B3 + 2.10*HR) / (AB + BB - IBB + SF + HBP)"
                   value={formula}
                   onChange={(e) => setFormula(e.target.value)}
@@ -2212,7 +2213,7 @@ function MetricBuilderPane() {
           </div>
 
           <div style={{ marginTop: 20 }}>
-            <h4 className={styles.cardTitle} style={{ fontSize: 14, margin: '0 0 8px' }}>
+            <h4 className={styles.cardTitle} style={{ fontSize: rem(14), margin: '0 0 8px' }}>
               Saved metrics (session)
             </h4>
             {saved.length === 0 ? (
@@ -2867,7 +2868,7 @@ function StrikeZoneHeatView({
           }),
         )}
       </svg>
-      <div className={styles.previewEmpty} style={{ padding: '8px 0', fontSize: 11 }}>
+      <div className={styles.previewEmpty} style={{ padding: '8px 0', fontSize: rem(11) }}>
         Showing <strong>{metric}</strong> on a {grid} grid from {first?.label || '—'}.{' '}
         Once per-pitch zone coordinates are ingested, this chart will reflect real spatial data.
       </div>

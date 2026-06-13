@@ -113,12 +113,48 @@ function outcomeTone(outcome: string | null): 'strike' | 'ball' | null {
   return null;
 }
 
-/* ── Rollup stats computed from the visible at-bat list. Drives
-       the chip strip across the top: AB count + per-outcome %s.
-       The denominator for percentages is the AB count INCLUDING
-       in-progress (outcome == null) so the percentages reflect
-       what's currently shown; in-progress ABs are surfaced as the
-       "Open" stat. */
+/* ── Pitch classification — derive each pitch's strike/ball/swing
+       character from its `result` (the rich PITCH_RESULTS enum),
+       falling back to the `callBallStrike` call when no detailed
+       result was tagged. These drive the pitcher rate stats (FPS%,
+       Early & Ahead, 2K-strike%) which need pitch-level granularity
+       the AB `outcome` alone can't provide. */
+const STRIKE_RESULTS = new Set([
+  'STRIKE_LOOKING', 'STRIKE_SWINGING', 'STRIKE_OUT_LOOKING', 'STRIKE_OUT_SWINGING',
+  'FOUL', 'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL',
+]);
+const BALL_RESULTS = new Set(['BALL', 'WALK']);
+const SWING_RESULTS = new Set([
+  'STRIKE_SWINGING', 'STRIKE_OUT_SWINGING', 'FOUL',
+  'FLY_BALL', 'GROUND_BALL', 'LINE_DRIVE', 'BARREL',
+]);
+
+/** A pitch counts as a "strike" (for FPS / Early-&-Ahead) when it's a
+ *  called/swinging strike, a foul, or a ball put in play — anything that
+ *  isn't a ball. Falls back to the umpire call when no result was tagged. */
+function pitchIsStrike(p: api.Pitch): boolean {
+  if (p.result) {
+    if (STRIKE_RESULTS.has(p.result)) return true;
+    if (BALL_RESULTS.has(p.result)) return false;
+  }
+  return p.callBallStrike === 'STRIKE';
+}
+/** The batter offered at the pitch (swing-and-miss, foul, or contact). */
+function pitchSwung(p: api.Pitch): boolean {
+  return !!p.result && SWING_RESULTS.has(p.result);
+}
+/** Pitch was in the strike zone — inferred from a called strike (taken
+ *  strikes are, by definition, in the zone). Swinging-strike location
+ *  isn't captured, so those are caught by `pitchSwung` instead. */
+function pitchInZone(p: api.Pitch): boolean {
+  return p.callBallStrike === 'STRIKE'
+    || p.result === 'STRIKE_LOOKING'
+    || p.result === 'STRIKE_OUT_LOOKING';
+}
+
+/* ── Rollup stats computed from the visible at-bat list. Drives the
+       stat strip across the top. Outcome counts use the AB `outcome`;
+       the pitcher pitch-level stats walk each AB's ordered `pitches`. */
 interface Rollup {
   totalAB: number;
   open: number;
@@ -128,23 +164,67 @@ interface Rollup {
   lineDrives: number;
   strikeouts: number;
   walks: number;
+  /** Balls in play = FB + GB + LD + BARREL — the denominator for the
+   *  batted-ball-type rates (GB% / FB% / LD% / Barrel%). */
+  ballsInPlay: number;
+  /** ABs that have at least one recorded pitch (denominator for the
+   *  per-AB pitcher rates FPS% / Early & Ahead). */
+  abWithPitches: number;
+  firstPitchStrikes: number;
+  earlyAhead: number;
+  /** Pitches thrown in a two-strike count, and how many of those were
+   *  in the zone or swung at (numerator / denominator for 2K-strike%). */
+  twoStrikePitches: number;
+  twoStrikeStrikes: number;
 }
 
 function computeRollup(rows: AtBatDetail[]): Rollup {
   let open = 0, barrels = 0, fb = 0, gb = 0, ld = 0, k = 0, bb = 0;
+  let abWithPitches = 0, firstPitchStrikes = 0, earlyAhead = 0;
+  let twoStrikePitches = 0, twoStrikeStrikes = 0;
+
   for (const r of rows) {
-    if (!r.outcome) { open++; continue; }
-    switch (r.outcome) {
-      case 'BARREL':      barrels++;     break;
-      case 'FLY_BALL':    fb++;          break;
-      case 'GROUND_BALL': gb++;          break;
-      case 'LINE_DRIVE':  ld++;          break;
+    if (!r.outcome) open++;
+    else switch (r.outcome) {
+      case 'BARREL':      barrels++; break;
+      case 'FLY_BALL':    fb++;      break;
+      case 'GROUND_BALL': gb++;      break;
+      case 'LINE_DRIVE':  ld++;      break;
       case 'STRIKE_OUT_LOOKING':
       case 'STRIKE_OUT_SWINGING': k++; break;
-      case 'WALK':        bb++;          break;
+      case 'WALK':        bb++;      break;
+    }
+
+    // ── Pitch-level pitcher stats ──
+    const pitches = [...(r.pitches ?? [])].sort((a, b) => a.pitchNumber - b.pitchNumber);
+    if (pitches.length === 0) continue;
+    abWithPitches++;
+    if (pitchIsStrike(pitches[0])) firstPitchStrikes++;
+    // Early & Ahead — at least 2 of the first 3 pitches are strikes / in play.
+    const first3Strikes = pitches.slice(0, 3).filter(pitchIsStrike).length;
+    if (first3Strikes >= 2) earlyAhead++;
+    // Walk the count to flag every pitch thrown with two strikes.
+    let strikes = 0;
+    for (const p of pitches) {
+      if (strikes === 2) {
+        twoStrikePitches++;
+        if (pitchInZone(p) || pitchSwung(p)) twoStrikeStrikes++;
+      }
+      if (p.result === 'FOUL') {
+        if (strikes < 2) strikes++;       // a foul never makes the third strike
+      } else if (pitchIsStrike(p)) {
+        strikes++;
+      }                                    // balls leave the strike count unchanged
     }
   }
-  return { totalAB: rows.length, open, barrels, flyBalls: fb, groundBalls: gb, lineDrives: ld, strikeouts: k, walks: bb };
+
+  return {
+    totalAB: rows.length, open,
+    barrels, flyBalls: fb, groundBalls: gb, lineDrives: ld, strikeouts: k, walks: bb,
+    ballsInPlay: barrels + fb + gb + ld,
+    abWithPitches, firstPitchStrikes, earlyAhead,
+    twoStrikePitches, twoStrikeStrikes,
+  };
 }
 
 function pct(n: number, total: number): string {
@@ -278,14 +358,35 @@ export function LiveAtBatsList({
         )}
       </div>
 
-      {/* Rollup stat strip */}
+      {/* Rollup stat strip — pitcher and hitter views surface different
+          metric sets, both derived from the same live at-bat data.
+          • Pitcher: FPS% / Early & Ahead / K% / BB% / GB% / FB% / 2K%.
+          • Hitter:  Barrel% / LD% / FB% / GB% (all as a share of balls in
+            play) + K% / BB% (as a share of plate appearances).
+          K% / BB% denominator = completed ABs (PA); batted-ball-type rates
+          denominator = balls in play; FPS% / Early & Ahead = ABs with ≥1
+          pitch; 2K-strike% = pitches thrown in a two-strike count. */}
       <div className={styles.statStrip}>
-        <Stat label="Barrel %"     value={pct(rollup.barrels,     completed)} />
-        <Stat label="Line Drive %" value={pct(rollup.lineDrives,  completed)} />
-        <Stat label="Fly Ball %"   value={pct(rollup.flyBalls,    completed)} />
-        <Stat label="Ground %"     value={pct(rollup.groundBalls, completed)} />
-        <Stat label="K %"          value={pct(rollup.strikeouts,  completed)} />
-        <Stat label="BB %"         value={pct(rollup.walks,       completed)} />
+        {pitcherId ? (
+          <>
+            <Stat label="FPS %"         value={pct(rollup.firstPitchStrikes, rollup.abWithPitches)} />
+            <Stat label="Early & Ahead" value={pct(rollup.earlyAhead,        rollup.abWithPitches)} />
+            <Stat label="K %"           value={pct(rollup.strikeouts,        completed)} />
+            <Stat label="BB %"          value={pct(rollup.walks,             completed)} />
+            <Stat label="GB %"          value={pct(rollup.groundBalls,       rollup.ballsInPlay)} />
+            <Stat label="Fly Ball %"    value={pct(rollup.flyBalls,          rollup.ballsInPlay)} />
+            <Stat label="2K Strike %"   value={pct(rollup.twoStrikeStrikes,  rollup.twoStrikePitches)} />
+          </>
+        ) : (
+          <>
+            <Stat label="Barrel %"     value={pct(rollup.barrels,     rollup.ballsInPlay)} />
+            <Stat label="Line Drive %" value={pct(rollup.lineDrives,  rollup.ballsInPlay)} />
+            <Stat label="Fly Ball %"   value={pct(rollup.flyBalls,    rollup.ballsInPlay)} />
+            <Stat label="Ground %"     value={pct(rollup.groundBalls, rollup.ballsInPlay)} />
+            <Stat label="K %"          value={pct(rollup.strikeouts,  completed)} />
+            <Stat label="BB %"         value={pct(rollup.walks,       completed)} />
+          </>
+        )}
       </div>
 
       {/* AB list */}

@@ -15,6 +15,7 @@ import {
   TAB_LABELS, TAB_COLORS, TAB_CAT_COLORS, DEFAULT_CAT_COLOR,
   LEGEND_CATEGORIES, getTabCatStyle,
 } from '@/lib/training-colors';
+import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 
 /* ── Constants ──
    The full tab catalog. Visibility on the calendar is filtered per-athlete
@@ -86,55 +87,15 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 /* TAB_COLORS + TAB_LABELS moved to `@/lib/training-colors`. */
 
 /* Modal dropdown config per tab — `dbCategory` is the Drill Library category it pulls from.
-   Multiple dropdowns can share the same dbCategory (e.g. Tee & Front Toss both pull from "Drills").
-   `color` is the hex accent color for that dropdown (border, chips). */
+   Each secondary tab is now its OWN drill category (1:1 label ↔ dbCategory), matching the
+   coaches' Drills Workbook import. `color` is the hex accent color (border, chips). */
 type ModalDropdown = { key: string; label: string; dbCategory: string; color: string };
-const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = {
-  /* Hitting dropdowns — lightest → darkest (Tee & Front Toss sit between MP and BP) */
-  hitting: [
-    { key: 'h-mp',  label: 'Movement Prep',     dbCategory: 'Movement Prep',     color: '#B8D8F8' },
-    { key: 'h-tee', label: 'Tee',               dbCategory: 'Drills',            color: '#9AC8F0' },
-    { key: 'h-ft',  label: 'Front Toss',        dbCategory: 'Drills',            color: '#82B8E8' },
-    { key: 'h-bp',  label: 'Batting Practice',  dbCategory: 'Batting Practice',  color: '#4A90D9' },
-    { key: 'h-mac', label: 'Machine',           dbCategory: 'Machine',           color: '#2E6DB5' },
-    { key: 'h-lv',  label: 'Live',              dbCategory: 'Live',              color: '#1B4F8A' },
-  ],
-  /* Pitching dropdowns — oranges, lightest → darkest */
-  pitching: [
-    { key: 'p-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#FDD9A8' },
-    { key: 'p-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#F8B85E' },
-    { key: 'p-bp',  label: 'Bullpen',       dbCategory: 'Bullpen',       color: '#F59E0B' },
-    { key: 'p-lv',  label: 'Live',          dbCategory: 'Live',          color: '#C77A09' },
-    { key: 'p-pt',  label: 'Post-Throw',    dbCategory: 'Post-Throw',    color: '#8B4F08' },
-  ],
-  /* Catching dropdowns — turquoise / teal-greens, lightest → darkest */
-  catching: [
-    { key: 'c-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#A0E8D8' },
-    { key: 'c-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#5FD4B5' },
-    { key: 'c-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#14B8A6' },
-    { key: 'c-lv',  label: 'Live',          dbCategory: 'Live',          color: '#0E8E70' },
-  ],
-  /* Infield dropdowns — true greens, lightest → darkest */
-  infield: [
-    { key: 'i-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#B0F0B0' },
-    { key: 'i-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#6ED06E' },
-    { key: 'i-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#38A850' },
-    { key: 'i-lv',  label: 'Live',          dbCategory: 'Live',          color: '#1E7A32' },
-  ],
-  /* Outfield dropdowns — lime / yellow-greens, lightest → darkest */
-  outfield: [
-    { key: 'o-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#DAF0A0' },
-    { key: 'o-dr',  label: 'Drills',        dbCategory: 'Drills',        color: '#B8D870' },
-    { key: 'o-mac', label: 'Machine',       dbCategory: 'Machine',       color: '#88B838' },
-    { key: 'o-lv',  label: 'Live',          dbCategory: 'Live',          color: '#5A8418' },
-  ],
-  /* S&C dropdowns — reds, lightest → darkest */
-  strength: [
-    { key: 's-mp',  label: 'Movement Prep', dbCategory: 'Movement Prep', color: '#F8B8B8' },
-    { key: 's-ex',  label: 'Exercises',     dbCategory: 'Exercises',     color: '#EF4444' },
-    { key: 's-cd',  label: 'Cool Down',     dbCategory: 'Cool Down',     color: '#8B1C2C' },
-  ],
-};
+const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = Object.fromEntries(
+  Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, ModalDropdown[]] => [
+    tab,
+    cats.map((c, i) => ({ key: `${tab}-${i}`, label: c.id, dbCategory: c.id, color: c.dot })),
+  ]),
+);
 
 /* Stable empty set passed to dropdowns with no current selection (avoids
    allocating a fresh Set on every render). */

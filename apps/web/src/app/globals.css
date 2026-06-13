@@ -500,16 +500,31 @@
 
 html { scroll-behavior: smooth; }
 
+/* ── Fluid root font-size — the one dial the whole app scales from ──
+   Every font-size in the CSS modules is compiled px → rem (postcss-pxtorem,
+   see postcss.config.js), so text tracks this root as the window resizes:
+     ≥1700px wide → 15px (pixel-identical to the old fixed base)
+      1366px      → ~13.7px (91%)
+      1024px      → ~12.3px (82%)
+       672px      → ~10.9px (73% — a 35%-of-1920 snap keeps scaling)
+       480px      → ~10.1px (67%)
+   The 9px floor only engages near 200px wide — effectively the curve keeps
+   going for any real window size (was a 12px floor that froze scaling below
+   ~950px). Kept on `html` only and in literal px (pxtorem blacklists `html`):
+   rem here would resolve against the browser's 16px initial size. */
+html { font-size: clamp(9px, 0.4vw + 8.2px, 15px); }
+
 html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: 'Satoshi', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+body { font-size: 1rem; }
 
 a { color: var(--text-secondary); text-decoration: none; }
 a:hover { color: var(--text); opacity: 0.85; }

@@ -25,6 +25,7 @@
  * `onOpenVideos` → routes to the Videos tab → All Videos sub-tab).
  */
 
+import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import { Section, SectionHeader, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos } from '@/lib/video-titles';
@@ -193,7 +194,7 @@ export function AllVideosLibrary({
                   color: 'var(--text-muted)',
                   padding: '4px 10px',
                   borderRadius: 6,
-                  fontSize: 10,
+                  fontSize: rem(10),
                   fontWeight: 700,
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
@@ -210,7 +211,7 @@ export function AllVideosLibrary({
 
       {filteredVideos.length === 0 ? (
         <div style={{
-          color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic',
+          color: 'var(--text-muted)', fontSize: rem(13), fontStyle: 'italic',
           padding: '20px 0',
         }}>
           {readyVideos.length === 0
@@ -270,7 +271,7 @@ function FilterRow({ label, children }: { label: string; children: React.ReactNo
       flexWrap: 'wrap',
     }}>
       <span style={{
-        fontSize: 10,
+        fontSize: rem(10),
         fontWeight: 700,
         letterSpacing: '0.12em',
         textTransform: 'uppercase',
@@ -305,7 +306,7 @@ function DateField({
       display: 'inline-flex',
       alignItems: 'center',
       gap: 6,
-      fontSize: 10,
+      fontSize: rem(10),
       fontWeight: 700,
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
@@ -324,7 +325,7 @@ function DateField({
           color: 'var(--text)',
           padding: '5px 8px',
           borderRadius: 6,
-          fontSize: 12,
+          fontSize: rem(12),
           fontFamily: 'inherit',
           outline: 'none',
           colorScheme: 'dark',
@@ -356,7 +357,7 @@ function Chip({
           ? 'rgba(126,182,255,0.20)'
           : 'rgba(255,255,255,0.04)',
         color: active ? '#cfe0ff' : 'var(--text)',
-        fontSize: 11,
+        fontSize: rem(11),
         fontWeight: 700,
         letterSpacing: '0.04em',
         cursor: 'pointer',
