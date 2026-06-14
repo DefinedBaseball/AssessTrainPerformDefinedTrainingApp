@@ -23,6 +23,7 @@ import {
 } from '../helpers';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 
 const SUB_TABS = [
   { key: 'swing',    label: 'Swing' },
@@ -213,6 +214,7 @@ function computeLiveAtBatSwingMetrics(
 export function HittingTab(props: TabProps) {
   const { player, topMetrics, reports, isCoach, onRefresh, refreshKey, videos: playerVideos } = props;
   const { user } = useAuth();
+  const isLight = useTheme().theme === 'light';
   const [subTab, setSubTab] = useState<SubTabKey>('swing');
 
   // Spray-chart data-date-range label — lifted out of SprayChartView
@@ -1046,7 +1048,11 @@ export function HittingTab(props: TabProps) {
               borderRadius: 6,
               border: `1px solid ${subTab === 'decision' ? 'rgba(126,182,255,0.65)' : 'var(--border)'}`,
               background: subTab === 'decision' ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.04)',
-              color: subTab === 'decision' ? '#cfe0ff' : 'var(--text-muted)',
+              /* Active text: pale blue reads on dark theme but vanishes on the
+                 light-theme pale-blue chip — dark grey there to offset. */
+              color: subTab === 'decision'
+                ? (isLight ? '#374151' : '#cfe0ff')
+                : 'var(--text-muted)',
               fontFamily: 'inherit',
               fontSize: rem(10),
               fontWeight: 700,

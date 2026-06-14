@@ -1,16 +1,24 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import styles from './assessment.module.css';
 
 interface DownloadPdfButtonProps {
   onDownload: () => Promise<void>;
   label?: string;
   disabled?: boolean;
+  /** When false, the button doesn't render. Defaults to true. */
+  show?: boolean;
 }
 
-export function DownloadPdfButton({ onDownload, label = 'Download PDF', disabled }: DownloadPdfButtonProps) {
+export function DownloadPdfButton({ onDownload, label = 'Download PDF', disabled, show = true }: DownloadPdfButtonProps) {
   const [downloading, setDownloading] = useState(false);
+  /* Report-PDF export is a coach-only tool — hide it from the player app.
+     Gated here at the component so every tab's button is covered in one
+     place (call sites don't all have role in scope). */
+  const { isCoach } = useAuth();
+  if (!show || !isCoach) return null;
 
   const handleClick = async () => {
     if (downloading || disabled) return;

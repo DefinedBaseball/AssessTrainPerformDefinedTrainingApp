@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
+import { DobPicker } from '@/components/DobPicker';
 import styles from './page.module.css';
 
 const POSITION_OPTIONS = ['C', 'INF', 'OF', 'P', 'UTIL'];
@@ -216,7 +217,7 @@ export default function NewPlayerPage() {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.label}>Birthday</label>
-            <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
+            <DobPicker value={birthDate} onChange={setBirthDate} />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.label}>High School</label>

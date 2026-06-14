@@ -1432,7 +1432,11 @@ export function PitchingTab({
                 borderRadius: 6,
                 border: `1px solid ${pitchingSubTab === 'live' ? 'rgba(126,182,255,0.65)' : 'var(--border)'}`,
                 background: pitchingSubTab === 'live' ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.04)',
-                color: pitchingSubTab === 'live' ? '#cfe0ff' : 'var(--text-muted)',
+                /* Active text: pale blue reads on the dark theme, but vanishes on
+                   the light-theme pale-blue chip — use dark grey there to offset. */
+                color: pitchingSubTab === 'live'
+                  ? (isLight ? '#374151' : '#cfe0ff')
+                  : 'var(--text-muted)',
                 /* `fontFamily: var(--font-body)` (Satoshi) — pinned
                    explicitly so this button doesn't inherit the
                    `var(--font-display)` (Syne, italic) face the

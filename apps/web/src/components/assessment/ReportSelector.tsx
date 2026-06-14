@@ -469,7 +469,7 @@ export function ReportSelector({
                       </div>
                     ) : (
                       <>
-                        {onDownload && (
+                        {onDownload && isCoach && (
                           <button
                             type="button"
                             className={styles.reportDownloadBtn}

@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import { ScheduleDownloadModal } from './ScheduleDownloadModal';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -146,6 +147,8 @@ export default function TrainingPage() {
   /* Initial state is 'week' — the coach default. The useEffect below
    * overrides to 'day' for player-role users once auth resolves. */
   const [view, setView] = useState<'month' | 'week' | 'day'>('week');
+  // Schedule-download modal (PDF export of upcoming drills by type).
+  const [showScheduleDl, setShowScheduleDl] = useState(false);
   /* Default date is today for everyone. The previous hardcoded
    * `new Date(2026, 3, 11)` was stale dev seed data — it pointed at a
    * specific demo session and silently skipped past today's schedule. */
@@ -569,6 +572,24 @@ export default function TrainingPage() {
               {v}
             </button>
           ))}
+          {/* Download the upcoming schedule as a PDF (next-7-days drill-type
+              strip + a calendar per selected type). Sits with Month/Week/Day. */}
+          {selectedPlayerId && (
+            <button
+              type="button"
+              className={styles.viewBtn}
+              onClick={() => setShowScheduleDl(true)}
+              title="Download schedule PDF"
+              aria-label="Download schedule PDF"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 2v8M8 10l-3-3M8 10l3-3" />
+                <path d="M2 12h12v2H2z" />
+              </svg>
+              PDF
+            </button>
+          )}
         </div>
       </div>
 
@@ -653,6 +674,20 @@ export default function TrainingPage() {
       {/* ── Drill Video Player Modal ── */}
       {viewingDrill && (
         <DrillVideoModal drill={viewingDrill} onClose={() => setViewingDrill(null)} />
+      )}
+
+      {/* ── Schedule Download (PDF) Modal ── */}
+      {showScheduleDl && selectedPlayerId && (
+        <ScheduleDownloadModal
+          playerId={selectedPlayerId}
+          playerName={(() => {
+            const p = players.find((x) => x.id === selectedPlayerId);
+            if (p) return `${p.firstName} ${p.lastName}`.trim();
+            const u = user as any;
+            return u?.name || (u?.email ? String(u.email).split('@')[0] : 'Player');
+          })()}
+          onClose={() => setShowScheduleDl(false)}
+        />
       )}
     </div>
   );
