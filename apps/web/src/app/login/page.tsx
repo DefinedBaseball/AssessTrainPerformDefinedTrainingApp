@@ -47,8 +47,10 @@ export default function LoginPage() {
   const handleQuickLogin = async (role: 'COACH' | 'PLAYER') => {
     setLoading(true);
     try {
-      const quickEmail = role === 'COACH' ? 'coach@playerdev.com' : 'john@playerdev.com';
-      const quickPassword = role === 'COACH' ? 'coach123' : 'player123';
+      // Dev-only convenience (tree-shaken out of production builds). Coach
+      // points at the primary admin so the quick-login matches the real roster.
+      const quickEmail = role === 'COACH' ? 'connor@definedbaseball.com' : 'john@playerdev.com';
+      const quickPassword = role === 'COACH' ? 'PasswordCoach' : 'player123';
       await login(quickEmail, quickPassword);
       router.push('/');
     } catch {
