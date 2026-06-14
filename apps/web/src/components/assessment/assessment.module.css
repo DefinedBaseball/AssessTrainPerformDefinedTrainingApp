@@ -588,11 +588,13 @@
 /* ── Compact ReportSelector inside TabBar actions slot ── */
 .tabBarActions .reportSelector {
   margin-bottom: 0;
-  /* Fixed width so the bubble is the SAME size whether or not a report exists
-     (the empty "No reports yet" state used to collapse toward the 220px min). */
-  width: 300px;
-  min-width: 300px;
-  max-width: 300px;
+  /* Fixed width so the bubble is the SAME size whether or not a report exists.
+     Pinned to the old max (320px = the widest the populated "thick" bubble
+     ever reached) so populated bars never shrink and the empty "No reports
+     yet" state grows to match instead of collapsing toward the old 220 min. */
+  width: 320px;
+  min-width: 320px;
+  max-width: 320px;
   flex-shrink: 0;
 }
 .tabBarActions .reportSelectorBar {
