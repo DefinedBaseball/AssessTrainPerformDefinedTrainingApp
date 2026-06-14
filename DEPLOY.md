@@ -7,9 +7,12 @@ local-disk video. The Postgres switch happens only inside the Render build
 
 ## 1. Create accounts (you)
 - **Render** — render.com
-- **Bunny.net** → create a **Stream** library → **enable "MP4 Fallback"** in the
-  library settings (required: our custom synced/drawing/frame-by-frame player
-  needs a progressive MP4, not Bunny's iframe player). Copy three values:
+- **Bunny.net** → create a **Stream** library → open the library's **Encoding**
+  tab → **enable "MP4 Fallback"** (required: our custom synced/drawing/
+  frame-by-frame player needs a progressive MP4, not Bunny's iframe player).
+  Note: MP4 fallback renditions cap at 720p — fine for our high-res recordings;
+  if you ever upload a sub-720p clip, set `BUNNY_STREAM_MP4_QUALITY` lower (e.g.
+  `480p`). Copy three values:
   - **Library ID**
   - **API key** (library API key)
   - **CDN hostname** (pull-zone host, e.g. `vz-xxxx-yyy.b-cdn.net`)
