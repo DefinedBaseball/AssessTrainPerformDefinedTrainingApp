@@ -257,24 +257,6 @@ export default function DashboardPage() {
 
         {/* ── Content ── */}
         <div className={styles.content}>
-          {/* Welcome hint for new players — shows until their coach
-              schedules the first training session, so a fresh account
-              isn't just a wall of empty bubbles. */}
-          {weekDrills.length === 0 && (
-            <div className={styles.welcomeCard}>
-              <span className={styles.welcomeIcon} aria-hidden="true">👋</span>
-              <div>
-                <div className={styles.welcomeTitle}>Welcome to your dashboard</div>
-                <p className={styles.welcomeBody}>
-                  Nothing is scheduled yet — when your coach adds training, posts a report,
-                  or uploads video to your profile, it shows up here and in the 🔔 bell above.
-                  In the meantime, explore your Profile, the Training calendar, and the
-                  Education drill library from the sidebar.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Weekly Schedule replaces stats grid */}
           <WeeklyScheduleStrip weekDays={weekDays} drillsByDate={drillsByDate} />
 
