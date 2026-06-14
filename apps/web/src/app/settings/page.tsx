@@ -15,8 +15,10 @@ type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myPr
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, isLoading, isCoach, logout } = useAuth();
+  const { user, isLoading, isCoach, isAdmin, isViewer, logout } = useAuth();
   const [tab, setTab] = useState<TabKey>('account');
+  // Coach config tools (import/manage) are for editing coaches; viewers are read-only.
+  const isEditorCoach = isCoach && !isViewer;
 
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
@@ -30,17 +32,15 @@ export default function SettingsPage() {
     { key: 'account', label: 'Account' },
     ...(!isCoach && playerId ? ([{ key: 'myProfile' as TabKey, label: 'My Profile' }]) : []),
     { key: 'notifications', label: 'Notifications' },
-    /* Data & Integrations is coach-only — players don't import vendor CSVs. */
-    ...(isCoach ? ([{ key: 'data' as TabKey, label: 'Data & Integrations' }]) : []),
-    ...(isCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
-    /* Coach-only "Staff" tab — create additional COACH login accounts. */
-    ...(isCoach ? ([{ key: 'staff' as TabKey, label: 'Staff' }]) : []),
-    /* Coach-only "Cameras" tab — OBS-style friendly names for each
-       attached video input. Used by Live Training's multi-angle
-       recording flow so the coach sees "Side Angle" / "Behind Net"
-       on each preview tile instead of the browser's raw device
-       name. */
-    ...(isCoach ? ([{ key: 'cameras' as TabKey, label: 'Cameras' }]) : []),
+    /* Data & Integrations is coach-only — players don't import vendor CSVs.
+       Hidden from viewers (read-only). */
+    ...(isEditorCoach ? ([{ key: 'data' as TabKey, label: 'Data & Integrations' }]) : []),
+    ...(isEditorCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
+    /* Admin-only "Staff" tab — create + manage coach accounts and access levels. */
+    ...(isAdmin ? ([{ key: 'staff' as TabKey, label: 'Staff' }]) : []),
+    /* Coach "Cameras" tab — OBS-style friendly names for each attached video
+       input, used by Live Training's multi-angle recording. Hidden from viewers. */
+    ...(isEditorCoach ? ([{ key: 'cameras' as TabKey, label: 'Cameras' }]) : []),
   ];
 
   return (
@@ -67,10 +67,10 @@ export default function SettingsPage() {
       {tab === 'account' && <AccountTab user={user} onLogout={logout} isCoach={isCoach} />}
       {tab === 'myProfile' && !isCoach && playerId && <MyProfileTab playerId={playerId} />}
       {tab === 'notifications' && <NotificationsTab isCoach={isCoach} />}
-      {tab === 'data' && isCoach && <DataTab isCoach={isCoach} />}
-      {tab === 'teams' && isCoach && <TeamsAndCollegesTab />}
-      {tab === 'staff' && isCoach && <StaffTab />}
-      {tab === 'cameras' && isCoach && <CamerasTab />}
+      {tab === 'data' && isEditorCoach && <DataTab isCoach={isCoach} />}
+      {tab === 'teams' && isEditorCoach && <TeamsAndCollegesTab />}
+      {tab === 'staff' && isAdmin && <StaffTab />}
+      {tab === 'cameras' && isEditorCoach && <CamerasTab />}
     </div>
   );
 }
@@ -421,11 +421,24 @@ function StaffTab() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [level, setLevel] = useState<'ADMIN' | 'COACH' | 'VIEWER'>('COACH');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [coaches, setCoaches] = useState<api.CoachAccount[]>([]);
   const [loadingCoaches, setLoadingCoaches] = useState(true);
+
+  const LEVEL_LABEL: Record<string, string> = { ADMIN: 'Admin', COACH: 'Coach', VIEWER: 'Viewer' };
+
+  /** Admin changes another coach's access level inline. */
+  const changeLevel = async (coachId: string, newLevel: 'ADMIN' | 'COACH' | 'VIEWER') => {
+    try {
+      await api.setCoachLevel(coachId, newLevel);
+      loadCoaches();
+    } catch (e: any) {
+      setError(e?.message || 'Could not change access level');
+    }
+  };
 
   // Per-coach "Set password" inline form state
   const [pwForId, setPwForId] = useState<string | null>(null);
@@ -470,11 +483,12 @@ function StaffTab() {
     if (password !== confirm) { setError('Passwords do not match'); return; }
     setSubmitting(true);
     try {
-      await api.register(em, password, 'COACH');
-      setSuccess(`Coach account created for ${em}. They can sign in now with this email + password.`);
+      await api.register(em, password, 'COACH', level);
+      setSuccess(`${LEVEL_LABEL[level]} account created for ${em}. They can sign in now with this email + password.`);
       setEmail('');
       setPassword('');
       setConfirm('');
+      setLevel('COACH');
       loadCoaches();
     } catch (err: any) {
       setError(err?.message || 'Failed to create coach account');
@@ -534,6 +548,22 @@ function StaffTab() {
           />
         </div>
 
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Access level</span>
+            <span className={styles.rowSub}>Admin manages coach accounts &amp; approvals · Coach edits players, data &amp; schedules · Viewer is read-only</span>
+          </div>
+          <select
+            className={styles.input}
+            value={level}
+            onChange={(e) => setLevel(e.target.value as 'ADMIN' | 'COACH' | 'VIEWER')}
+          >
+            <option value="ADMIN">Admin</option>
+            <option value="COACH">Coach</option>
+            <option value="VIEWER">Viewer</option>
+          </select>
+        </div>
+
         {error && <div className={styles.feedback} style={{ color: '#E11D48' }}>{error}</div>}
         {success && <div className={`${styles.feedback} ${styles.feedbackOk}`}>{success}</div>}
 
@@ -577,19 +607,35 @@ function StaffTab() {
                       {c.email}{c.position ? ` · ${c.position}` : ''} · Added {new Date(c.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  {canSetPw && (
-                    <button
-                      type="button"
-                      className={styles.btnSecondary}
-                      onClick={() => {
-                        setPwForId(pwForId === c.id ? null : c.id);
-                        setPwValue('');
-                        setPwMsg('');
-                      }}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {/* Access level — admin can change any coach except the
+                        primary admin (who can only be changed by themselves). */}
+                    <select
+                      className={styles.input}
+                      style={{ maxWidth: 120, padding: '6px 8px' }}
+                      value={c.coachLevel || 'ADMIN'}
+                      disabled={c.isPrimaryAdmin && c.id !== me?.id}
+                      onChange={(e) => changeLevel(c.id, e.target.value as 'ADMIN' | 'COACH' | 'VIEWER')}
+                      title="Access level"
                     >
-                      {pwForId === c.id ? 'Cancel' : 'Set password'}
-                    </button>
-                  )}
+                      <option value="ADMIN">Admin</option>
+                      <option value="COACH">Coach</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                    {canSetPw && (
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        onClick={() => {
+                          setPwForId(pwForId === c.id ? null : c.id);
+                          setPwValue('');
+                          setPwMsg('');
+                        }}
+                      >
+                        {pwForId === c.id ? 'Cancel' : 'Set password'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {pwForId === c.id && (
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0 12px', flexWrap: 'wrap' }}>

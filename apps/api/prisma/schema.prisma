@@ -26,6 +26,13 @@ model User {
   // The facility owner. Surfaced as a badge in settings; protected from
   // deletion. Exactly one user is expected to carry this.
   isPrimaryAdmin Boolean @default(false)
+  // Coach access level (only meaningful when role == "COACH"; null for players):
+  //   "ADMIN"  — full control incl. creating/managing coach accounts + approvals
+  //   "COACH"  — manage players/data/schedules, but NOT coach accounts
+  //   "VIEWER" — read-only across the whole app
+  // Null on a legacy coach is treated as ADMIN for backward-compat (the guard
+  // applies that default); new coaches always get an explicit level.
+  coachLevel String?
   // Per-subject notification channel matrix as JSON:
   //   { "<SUBJECT>": { "app": bool, "email": bool, "phone": bool }, … }
   // Missing subject/channel ⇒ default (app on, email on, phone off). Only the

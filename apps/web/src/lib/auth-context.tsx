@@ -4,10 +4,15 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import * as api from './api';
 import { setAuthToken } from './api';
 
+export type CoachLevel = 'ADMIN' | 'COACH' | 'VIEWER';
+
 interface AuthUser {
   id: string;
   email: string;
   role: 'COACH' | 'PLAYER';
+  /** Coach access level (null for players, and for legacy coaches → treated
+   *  as ADMIN below). */
+  coachLevel: CoachLevel | null;
   /** Account lifecycle — PENDING players are gated to the holding screen. */
   status: 'ACTIVE' | 'PENDING' | 'DECLINED';
   /** Display name from Settings → Account (null until the user sets it). */
@@ -18,6 +23,10 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   isCoach: boolean;
+  /** ADMIN-level coach — can manage coach accounts + approvals. */
+  isAdmin: boolean;
+  /** VIEWER-level coach — read-only across the app. */
+  isViewer: boolean;
   /** True while a self-registered player awaits coach approval. */
   isPending: boolean;
   isLoading: boolean;
@@ -30,6 +39,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isCoach: false,
+  isAdmin: false,
+  isViewer: false,
   isPending: false,
   isLoading: true,
   login: async () => {},
@@ -49,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: me.id,
         email: me.email,
         role: me.role as 'COACH' | 'PLAYER',
+        coachLevel: (me.coachLevel as CoachLevel | null) ?? null,
         status: (me.status as AuthUser['status']) || 'ACTIVE',
         name: me.name ?? null,
         playerId: me.playerId,
@@ -88,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: result.id,
       email: result.email,
       role: result.role as 'COACH' | 'PLAYER',
+      coachLevel: ((result as any).coachLevel as CoachLevel | null) ?? null,
       status: (result.status as AuthUser['status']) || 'ACTIVE',
       name: result.name ?? null,
       playerId: result.playerId,
@@ -102,11 +115,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('auth_user');
   };
 
+  const isCoach = user?.role === 'COACH';
+  const lvl = user?.coachLevel ?? null;
   return (
     <AuthContext.Provider
       value={{
         user,
-        isCoach: user?.role === 'COACH',
+        isCoach,
+        // Legacy coaches (null level) are treated as ADMIN, matching the API.
+        isAdmin: isCoach && (lvl === 'ADMIN' || lvl == null),
+        isViewer: isCoach && lvl === 'VIEWER',
         isPending: user?.status === 'PENDING',
         isLoading,
         login,

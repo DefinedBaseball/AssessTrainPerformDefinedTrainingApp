@@ -83,7 +83,7 @@ function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: nu
 }
 
 export function MessagesLauncher() {
-  const { user, isCoach } = useAuth();
+  const { user, isCoach, isAdmin } = useAuth();
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -345,7 +345,8 @@ export function MessagesLauncher() {
             ) : (
               <div className={styles.notifList}>
                 {notifList.map((n) => {
-                  const isRequest = n.type === 'ACCOUNT_REQUEST' && isCoach;
+                  // Only admins act on account requests (the API enforces it too).
+                  const isRequest = n.type === 'ACCOUNT_REQUEST' && isAdmin;
                   const clickable = !isRequest && !!n.linkUrl;
                   return (
                     <div

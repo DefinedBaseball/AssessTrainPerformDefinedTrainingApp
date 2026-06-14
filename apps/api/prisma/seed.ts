@@ -53,12 +53,13 @@ async function main() {
   await prisma.player.deleteMany({ where: { isPermanent: false } });
   await prisma.user.deleteMany({ where: { id: { notIn: keepUserIds } } });
 
-  // Create coach user
+  // Create coach user (ADMIN level so local dev can exercise admin features)
   const coachUser = await prisma.user.create({
     data: {
       email: 'coach@playerdev.com',
       password: hashPassword('coach123'),
       role: 'COACH',
+      coachLevel: 'ADMIN',
     },
   });
   const coach = await prisma.player.create({

@@ -126,6 +126,7 @@ export interface AuthResponse {
   id: string;
   email: string;
   role: string;
+  coachLevel?: string | null; // "ADMIN" | "COACH" | "VIEWER" | null (players)
   status: string; // "ACTIVE" | "PENDING" | "DECLINED"
   name?: string | null;
   playerId: string | null;
@@ -142,6 +143,7 @@ export interface AccountProfile {
   id: string;
   email: string;
   role: string;
+  coachLevel: string | null; // "ADMIN" | "COACH" | "VIEWER" | null (players)
   status: string;
   name: string | null;
   phone: string | null;
@@ -154,10 +156,15 @@ export async function getMe() {
   return request<AccountProfile>('/auth/me');
 }
 
-export async function register(email: string, password: string, role: string) {
+export async function register(
+  email: string,
+  password: string,
+  role: string,
+  coachLevel?: string, // for COACH accounts: "ADMIN" | "COACH" | "VIEWER"
+) {
   return request<AuthResponse>(
     '/auth/register',
-    { method: 'POST', body: JSON.stringify({ email, password, role }) },
+    { method: 'POST', body: JSON.stringify({ email, password, role, coachLevel }) },
   );
 }
 
@@ -217,12 +224,21 @@ export interface CoachAccount {
   name: string | null;
   position: string | null;
   isPrimaryAdmin: boolean;
+  coachLevel: string | null; // "ADMIN" | "COACH" | "VIEWER"
   createdAt: string;
 }
 
 /** List all coach accounts (coach-only endpoint). */
 export async function getCoaches() {
   return request<CoachAccount[]>('/auth/coaches');
+}
+
+/** Admin: set a coach's access level (ADMIN / COACH / VIEWER). */
+export async function setCoachLevel(userId: string, level: 'ADMIN' | 'COACH' | 'VIEWER') {
+  return request<{ ok: boolean; coachLevel: string }>(`/auth/users/${userId}/coach-level`, {
+    method: 'POST',
+    body: JSON.stringify({ level }),
+  });
 }
 
 // ---- Player self-registration + approval ----

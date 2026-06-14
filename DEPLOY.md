@@ -34,8 +34,11 @@ the idempotent prod seed (admin coach + drill library).
 | `BUNNY_STREAM_API_KEY` | from Bunny |
 | `BUNNY_STREAM_CDN_HOSTNAME` | from Bunny (e.g. `vz-xxxx.b-cdn.net`) |
 | `BUNNY_STREAM_MP4_QUALITY` | `720p` (default; match a resolution enabled on the library) |
-| `ADMIN_EMAIL` | `connor@definedbaseball.com` |
-| `ADMIN_PASSWORD` | your chosen admin password (the seed hashes it; never stored in repo) |
+| `SEED_PW_CONNOR` / `SEED_PW_JACOB` / `SEED_PW_DANIEL` | optional — override the 3 admin seed passwords (they default to `PasswordCoach`). Rotate at go-live. |
+
+The 3 Admin coach accounts (`connor` / `jacob` / `daniel@definedbaseball.com`) are
+seeded automatically as **Admin** level. They sign in, then create Coach/Viewer
+accounts under Settings → Staff.
 
 **pdev-web**
 | Var | Value |

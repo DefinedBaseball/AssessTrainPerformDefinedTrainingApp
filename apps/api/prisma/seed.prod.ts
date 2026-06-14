@@ -4,17 +4,17 @@
  * it never deletes anything, so it's safe to run on every deploy.
  *
  * It does two things:
- *   1. Ensures the primary-admin coach exists. Credentials come from env
- *      (ADMIN_EMAIL + ADMIN_PASSWORD) so no password is ever hardcoded in the
- *      repo. On re-runs an existing admin is left untouched (password not
- *      clobbered).
+ *   1. Ensures the 3 Admin coach accounts exist (connor/jacob/daniel). Their
+ *      passwords default to "PasswordCoach" but can be overridden per-account
+ *      via env (SEED_PW_CONNOR / SEED_PW_JACOB / SEED_PW_DANIEL) so the real
+ *      launch passwords never have to live in the repo. On re-runs an existing
+ *      account is left untouched (password not clobbered) — rotate via the app
+ *      (Settings → Account) or by setting the env + redeploying.
  *   2. Seeds the curated Drill library (from drills.seed.ts) the first time
  *      only — skipped if the Drill table already has rows.
  *
  * Real players / MLB-video entries are created by the coach through the app
  * after first login (so we never fabricate player login credentials here).
- *
- * Run:  ADMIN_EMAIL=… ADMIN_PASSWORD=… node dist-or-ts seed.prod
  */
 import { PrismaClient } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
@@ -29,38 +29,44 @@ function hashPassword(password: string): string {
   return `${salt}:${hash}`;
 }
 
+/* The three Admin-level coach accounts that ship with the app. Passwords
+   default to "PasswordCoach" but can be overridden per-account via env
+   (SEED_PW_CONNOR / SEED_PW_JACOB / SEED_PW_DANIEL) so the real launch
+   passwords never have to live in the repo. Rotate these at go-live. */
+const ADMIN_ACCOUNTS = [
+  { email: 'connor@definedbaseball.com', name: 'Connor Olson', envKey: 'SEED_PW_CONNOR', primary: true },
+  { email: 'jacob@definedbaseball.com', name: 'Jacob', envKey: 'SEED_PW_JACOB', primary: false },
+  { email: 'daniel@definedbaseball.com', name: 'Daniel', envKey: 'SEED_PW_DANIEL', primary: false },
+];
+const DEFAULT_ADMIN_PASSWORD = 'PasswordCoach';
+
 async function main() {
-  const email = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD || '';
-  const name = (process.env.ADMIN_NAME || 'Connor Olson').trim();
-
-  if (!email || !password) {
-    throw new Error(
-      'seed.prod: ADMIN_EMAIL and ADMIN_PASSWORD must be set (set them in the host env). Aborting so no broken admin is created.',
-    );
-  }
-
-  // 1. Primary-admin coach — create if missing, otherwise leave as-is.
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (!existing) {
-    await prisma.user.create({
-      data: {
-        email,
-        password: hashPassword(password),
-        role: 'COACH',
-        status: 'ACTIVE',
-        name,
-        isPrimaryAdmin: true,
-      },
-    });
-    console.log(`[seed.prod] created primary-admin coach: ${email}`);
-  } else {
-    // Make sure the flag/role are right, but never overwrite their password.
-    await prisma.user.update({
-      where: { email },
-      data: { role: 'COACH', status: 'ACTIVE', isPrimaryAdmin: true },
-    });
-    console.log(`[seed.prod] primary-admin coach already exists: ${email} (left password untouched)`);
+  // 1. The three Admin coach accounts — create if missing; on re-runs ensure
+  //    role/level/flags are right but never overwrite an existing password.
+  for (const a of ADMIN_ACCOUNTS) {
+    const email = a.email.toLowerCase();
+    const password = process.env[a.envKey] || DEFAULT_ADMIN_PASSWORD;
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (!existing) {
+      await prisma.user.create({
+        data: {
+          email,
+          password: hashPassword(password),
+          role: 'COACH',
+          coachLevel: 'ADMIN',
+          status: 'ACTIVE',
+          name: a.name,
+          isPrimaryAdmin: a.primary,
+        },
+      });
+      console.log(`[seed.prod] created ADMIN coach: ${email}`);
+    } else {
+      await prisma.user.update({
+        where: { email },
+        data: { role: 'COACH', coachLevel: 'ADMIN', status: 'ACTIVE', isPrimaryAdmin: a.primary },
+      });
+      console.log(`[seed.prod] ADMIN coach already exists: ${email} (password untouched)`);
+    }
   }
 
   // 2. Drill library — seed once (skip if any drills already present).

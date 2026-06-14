@@ -24,10 +24,15 @@ const SECRET = (() => {
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
+export type CoachLevel = 'ADMIN' | 'COACH' | 'VIEWER';
+
 export interface JwtPayload {
   sub: string; // user id
   email: string;
   role: 'COACH' | 'PLAYER';
+  // Coach access level (omitted/undefined for players, and for legacy coach
+  // tokens minted before RBAC — the guard defaults those to ADMIN).
+  coachLevel?: CoachLevel | null;
   playerId: string | null;
   iat: number;
   exp: number;

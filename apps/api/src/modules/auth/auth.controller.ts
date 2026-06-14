@@ -3,12 +3,16 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import type { SignupPlayerPayload } from './auth.service';
-import { JwtAuthGuard, Roles, Public, AuthenticatedRequest } from './jwt.guard';
+import { JwtAuthGuard, Roles, Public, AdminOnly, ViewerAllowed, AuthenticatedRequest } from './jwt.guard';
+import type { CoachLevel } from './jwt.util';
 
 class RegisterDto {
   email!: string;
   password!: string;
   role!: 'COACH' | 'PLAYER';
+  // Access level for new COACH accounts (ADMIN / COACH / VIEWER). Ignored for
+  // players. Defaults to COACH when omitted.
+  coachLevel?: CoachLevel;
 }
 
 class LoginDto {
@@ -25,13 +29,13 @@ export class AuthController {
   @Roles('COACH')
   @ApiBearerAuth()
   @Post('register')
-  /* Coach-only — a signed-in COACH creates a new COACH or PLAYER account
-   * (Settings → Staff, or Add New Athlete). No longer public: anonymous
-   * self-registration is rejected. Still throttled to 5 / 10 min. */
+  /* Signed-in COACH creates a new account. Creating a PLAYER (Add New Athlete)
+   * is open to any non-viewer coach; creating a COACH requires ADMIN level —
+   * that check lives in authService.register. No longer public. Throttled. */
   @Throttle({ short: { limit: 5, ttl: 600_000 } })
-  @ApiOperation({ summary: 'Create a new coach or player account (coach only)' })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto.email, dto.password, dto.role);
+  @ApiOperation({ summary: 'Create a coach (admin only) or player account' })
+  register(@Req() req: AuthenticatedRequest, @Body() dto: RegisterDto) {
+    return this.authService.register(req.user!, dto.email, dto.password, dto.role, dto.coachLevel);
   }
 
   @Public()
@@ -47,8 +51,9 @@ export class AuthController {
   @Get('pending')
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')
+  @AdminOnly()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List player accounts awaiting approval (coach only)' })
+  @ApiOperation({ summary: 'List player accounts awaiting approval (admin only)' })
   listPending() {
     return this.authService.listPending();
   }
@@ -56,8 +61,9 @@ export class AuthController {
   @Post('pending/:userId/approve')
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')
+  @AdminOnly()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a pending player account (coach only)' })
+  @ApiOperation({ summary: 'Approve a pending player account (admin only)' })
   approvePending(@Param('userId') userId: string) {
     return this.authService.approvePlayer(userId);
   }
@@ -65,8 +71,9 @@ export class AuthController {
   @Post('pending/:userId/decline')
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')
+  @AdminOnly()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Decline + remove a pending player account (coach only)' })
+  @ApiOperation({ summary: 'Decline + remove a pending player account (admin only)' })
   declinePending(@Param('userId') userId: string) {
     return this.authService.declinePlayer(userId);
   }
@@ -101,6 +108,7 @@ export class AuthController {
 
   @Patch('account')
   @UseGuards(JwtAuthGuard)
+  @ViewerAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update editable account fields (name, phone, position)' })
   updateAccount(
@@ -112,6 +120,7 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
+  @ViewerAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change the current user’s password' })
   changePassword(
@@ -125,13 +134,27 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Set another account’s password (coach only; primary admin is self-only)' })
+  @ApiOperation({ summary: 'Set another account’s password (coach for players; admin for coaches)' })
   setUserPassword(
     @Req() req: AuthenticatedRequest,
     @Param('userId') userId: string,
     @Body() dto: { newPassword: string },
   ) {
-    return this.authService.setUserPassword(req.user!.sub, userId, dto.newPassword);
+    return this.authService.setUserPassword(req.user!, userId, dto.newPassword);
+  }
+
+  @Post('users/:userId/coach-level')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set a coach’s access level — ADMIN / COACH / VIEWER (admin only)' })
+  setCoachLevel(
+    @Req() req: AuthenticatedRequest,
+    @Param('userId') userId: string,
+    @Body() dto: { level: CoachLevel },
+  ) {
+    return this.authService.setCoachLevel(req.user!.sub, userId, dto.level);
   }
 
   @Get('notification-prefs')
@@ -144,6 +167,7 @@ export class AuthController {
 
   @Put('notification-prefs')
   @UseGuards(JwtAuthGuard)
+  @ViewerAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Replace the current user’s notification channel matrix' })
   setNotificationPrefs(@Req() req: AuthenticatedRequest, @Body() dto: unknown) {

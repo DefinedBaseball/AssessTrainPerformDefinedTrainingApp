@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash, randomBytes } from 'crypto';
-import { signJwt } from './jwt.util';
+import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
 
 /** Full payload from the public /register form: profile + credentials. */
@@ -44,7 +44,23 @@ export class AuthService {
     return createHash('sha256').update(password + salt).digest('hex');
   }
 
-  async register(rawEmail: string, password: string, role: 'COACH' | 'PLAYER') {
+  async register(
+    actor: JwtPayload,
+    rawEmail: string,
+    password: string,
+    role: 'COACH' | 'PLAYER',
+    newCoachLevel?: CoachLevel,
+  ) {
+    /* Only ADMIN-level coaches may create COACH accounts. Player creation
+       (Add Athlete) stays open to any non-viewer coach — viewers are already
+       blocked from this POST by the guard. */
+    if (role === 'COACH') {
+      const actorLevel = actor.role === 'COACH' ? (actor.coachLevel || 'ADMIN') : null;
+      if (actorLevel !== 'ADMIN') {
+        throw new ForbiddenException('Only admins can create coach accounts.');
+      }
+    }
+
     /* Normalize to lowercase like signupPlayer does — emails are stored
        case-sensitively in the DB, and a mixed-case duplicate (e.g.
        Connor@ vs connor@) creates two near-identical logins. */
@@ -55,12 +71,15 @@ export class AuthService {
 
     const salt = randomBytes(16).toString('hex');
     const hashed = this.hashPassword(password, salt);
+    // New coaches get an explicit level (default COACH); players carry none.
+    const coachLevel = role === 'COACH' ? (newCoachLevel || 'COACH') : null;
 
     const user = await this.prisma.user.create({
       data: {
         email,
         password: `${salt}:${hashed}`,
         role,
+        coachLevel,
       },
       include: { player: true },
     });
@@ -69,6 +88,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role as 'COACH' | 'PLAYER',
+      coachLevel: user.coachLevel as CoachLevel | null,
       playerId: user.player?.id ?? null,
     });
 
@@ -77,6 +97,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      coachLevel: user.coachLevel ?? null,
       status: user.status,
       name: user.name ?? null,
       playerId: user.player?.id ?? null,
@@ -136,7 +157,8 @@ export class AuthService {
     });
 
     const fullName = `${user.player!.firstName} ${user.player!.lastName}`.trim();
-    await this.notifications.notifyAllCoaches({
+    // Only admins can approve/decline, so only admins are notified.
+    await this.notifications.notifyAdmins({
       type: 'ACCOUNT_REQUEST',
       title: 'New player account request',
       body: `${fullName} requested an account and is awaiting approval.`,
@@ -167,6 +189,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      coachLevel: user.coachLevel ?? null,
       status: user.status,
       name: user.name ?? null,
       phone: user.phone ?? null,
@@ -257,6 +280,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role as 'COACH' | 'PLAYER',
+      coachLevel: user.coachLevel as CoachLevel | null,
       playerId: user.player?.id ?? null,
     });
 
@@ -265,6 +289,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      coachLevel: user.coachLevel ?? null,
       status: user.status,
       name: user.name ?? null,
       playerId: user.player?.id ?? null,
@@ -274,9 +299,24 @@ export class AuthService {
   async listCoaches() {
     return this.prisma.user.findMany({
       where: { role: 'COACH' },
-      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, createdAt: true },
+      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  /** Admin sets another coach's access level (ADMIN / COACH / VIEWER).
+   *  The primary admin's level can't be downgraded by anyone else. */
+  async setCoachLevel(actorId: string, targetUserId: string, level: CoachLevel) {
+    if (!['ADMIN', 'COACH', 'VIEWER'].includes(level))
+      throw new BadRequestException('Invalid coach level');
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role !== 'COACH')
+      throw new BadRequestException('Access levels apply to coach accounts only');
+    if (target.isPrimaryAdmin && actorId !== target.id)
+      throw new ForbiddenException('The primary admin’s level cannot be changed by others');
+    await this.prisma.user.update({ where: { id: targetUserId }, data: { coachLevel: level } });
+    return { ok: true, coachLevel: level };
   }
 
   /**
@@ -285,12 +325,19 @@ export class AuthService {
    * admin's password can only be changed by the primary admin themselves
    * (via this route or the self change-password flow).
    */
-  async setUserPassword(actorId: string, targetUserId: string, newPassword: string) {
+  async setUserPassword(actor: JwtPayload, targetUserId: string, newPassword: string) {
     if (!newPassword || newPassword.length < 6)
       throw new BadRequestException('Password must be at least 6 characters');
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException('User not found');
-    if (target.isPrimaryAdmin && actorId !== target.id)
+    // Resetting another COACH's password is an admin action; resetting a
+    // PLAYER's password is allowed for any (non-viewer) coach.
+    if (target.role === 'COACH' && actor.sub !== target.id) {
+      const actorLevel = actor.coachLevel || 'ADMIN';
+      if (actorLevel !== 'ADMIN')
+        throw new ForbiddenException('Only admins can reset coach passwords');
+    }
+    if (target.isPrimaryAdmin && actor.sub !== target.id)
       throw new ForbiddenException('Only the primary admin can change their own password');
     const salt = randomBytes(16).toString('hex');
     const hash = this.hashPassword(newPassword, salt);

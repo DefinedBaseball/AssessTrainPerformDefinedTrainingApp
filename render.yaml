@@ -55,9 +55,13 @@ services:
         sync: false
       - key: BUNNY_STREAM_MP4_QUALITY
         value: "720p"
-      - key: ADMIN_EMAIL             # connor@definedbaseball.com
+      # Admin seed passwords — optional. The 3 admin accounts default to
+      # "PasswordCoach"; set these to override (then rotate at go-live).
+      - key: SEED_PW_CONNOR
         sync: false
-      - key: ADMIN_PASSWORD          # your chosen admin password
+      - key: SEED_PW_JACOB
+        sync: false
+      - key: SEED_PW_DANIEL
         sync: false
 
   # ── Web (Next.js) ───────────────────────────────────────────────

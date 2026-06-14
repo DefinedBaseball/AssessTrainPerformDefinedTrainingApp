@@ -118,6 +118,23 @@ export class NotificationsService {
     );
   }
 
+  /** Notify only ADMIN-level coaches (e.g. account-approval requests, which
+   *  only admins can action). Legacy coaches with a null level count as ADMIN. */
+  async notifyAdmins(payload: NotificationPayload, exceptId?: string) {
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: 'COACH',
+        status: 'ACTIVE',
+        OR: [{ coachLevel: 'ADMIN' }, { coachLevel: null }],
+      },
+      select: { id: true },
+    });
+    await this.notifyMany(
+      admins.map((c) => c.id).filter((id) => id !== exceptId),
+      payload,
+    );
+  }
+
   /** Notify every active player (optionally excluding the actor). */
   async notifyActivePlayers(payload: NotificationPayload, exceptId?: string) {
     const players = await this.prisma.user.findMany({

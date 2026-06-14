@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Post, Query, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
-import { AuthenticatedRequest } from '../auth/jwt.guard';
+import { AuthenticatedRequest, ViewerAllowed } from '../auth/jwt.guard';
 
 /**
  * In-app notifications for the current user. Protected by the global
@@ -27,12 +27,14 @@ export class NotificationsController {
   }
 
   @Post(':id/read')
+  @ViewerAllowed()
   @ApiOperation({ summary: 'Mark a notification as read' })
   markRead(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.notificationsService.markRead(req.user!.sub, id);
   }
 
   @Post('read-all')
+  @ViewerAllowed()
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllRead(@Request() req: AuthenticatedRequest) {
     return this.notificationsService.markAllRead(req.user!.sub);
