@@ -600,6 +600,13 @@
 .tabBarActions .reportSelectorBar {
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-btn);
+  /* Pin the height to the populated "1 report" size (≈38px) so the empty
+     "No reports yet" state doesn't collapse to a thin ~19px strip. This was
+     the actual "skinny when no report / thick in Hitting" issue — the bar's
+     HEIGHT, not its width. align-items:center keeps the shorter empty-state
+     content vertically centered in the taller bar. */
+  min-height: 38px;
+  align-items: center;
 }
 .tabBarActions .reportSelectorIcon {
   font-size: 13px;
