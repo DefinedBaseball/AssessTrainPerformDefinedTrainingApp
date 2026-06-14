@@ -11,6 +11,9 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "ts-node --project prisma/tsconfig.seed.json prisma/seed.ts",
+    "build:prod": "node scripts/use-postgres.js && prisma generate && tsc",
+    "db:deploy": "node scripts/use-postgres.js && prisma db push --skip-generate",
+    "seed:prod": "ts-node --project prisma/tsconfig.seed.json prisma/seed.prod.ts",
     "test": "ts-node --project test/tsconfig.test.json test/api.test.ts",
     "test:unit": "ts-node --project test/tsconfig.test.json test/unit.test.ts"
   },

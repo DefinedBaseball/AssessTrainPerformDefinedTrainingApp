@@ -8,5 +8,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["seed.ts"]
+  "include": ["seed.ts", "seed.prod.ts"]
 }

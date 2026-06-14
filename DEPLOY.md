@@ -1,0 +1,59 @@
+# Go-Live Deployment (Render + Bunny Stream)
+
+This repo is set up to deploy as **two Render services + one managed Postgres**,
+with video on **Bunny Stream**. Local dev is unaffected — it stays on SQLite +
+local-disk video. The Postgres switch happens only inside the Render build
+(`apps/api/scripts/use-postgres.js`).
+
+## 1. Create accounts (you)
+- **Render** — render.com
+- **Bunny.net** → create a **Stream** library → **enable "MP4 Fallback"** in the
+  library settings (required: our custom synced/drawing/frame-by-frame player
+  needs a progressive MP4, not Bunny's iframe player). Copy three values:
+  - **Library ID**
+  - **API key** (library API key)
+  - **CDN hostname** (pull-zone host, e.g. `vz-xxxx-yyy.b-cdn.net`)
+- **GitHub** — push this repo to a private repo (Render deploys from Git).
+
+## 2. Deploy (Render Blueprint)
+Point Render at this repo; it reads `render.yaml` and provisions:
+`pdev-postgres`, `pdev-api`, `pdev-web`. `DATABASE_URL` and `JWT_SECRET` are wired
+automatically. The API build flips Prisma to Postgres, pushes the schema, and runs
+the idempotent prod seed (admin coach + drill library).
+
+## 3. Set the dashboard env vars (not committed)
+**pdev-api**
+| Var | Value |
+|-----|-------|
+| `CORS_ORIGINS` | your web origin, e.g. `https://app.definedbaseball.com` |
+| `STORAGE_DRIVER` | `bunny` (already defaulted in the blueprint) |
+| `BUNNY_STREAM_LIBRARY_ID` | from Bunny |
+| `BUNNY_STREAM_API_KEY` | from Bunny |
+| `BUNNY_STREAM_CDN_HOSTNAME` | from Bunny (e.g. `vz-xxxx.b-cdn.net`) |
+| `BUNNY_STREAM_MP4_QUALITY` | `720p` (default; match a resolution enabled on the library) |
+| `ADMIN_EMAIL` | `connor@definedbaseball.com` |
+| `ADMIN_PASSWORD` | your chosen admin password (the seed hashes it; never stored in repo) |
+
+**pdev-web**
+| Var | Value |
+|-----|-------|
+| `API_PROXY_TARGET` | the pdev-api public URL, e.g. `https://pdev-api-xxxx.onrender.com` |
+
+## 4. Domain + HTTPS
+Add a custom domain (e.g. `app.definedbaseball.com`) to **pdev-web** in Render, add
+the CNAME it gives you at your DNS provider — Render issues TLS automatically. Then
+set `CORS_ORIGINS` (api) to that origin and redeploy.
+
+## 5. Smoke test
+Log in as the admin → create a coach + player → record a clip and confirm it plays
+on **iPhone and Android** → save a report → download a schedule PDF. Delete the test
+accounts.
+
+## Fast-follow (not required to launch)
+- **SendGrid** + **Twilio** to deliver the Email/SMS notification channels and the
+  forgot-password flow (the in-app bell works without them).
+- A Bunny **webhook** to flip a video's status PROCESSING→READY precisely (today the
+  API marks READY optimistically; short clips transcode in seconds).
+
+## Rollback
+The pre-go-live state is tagged: `git checkout save/pre-golive-postgres`.

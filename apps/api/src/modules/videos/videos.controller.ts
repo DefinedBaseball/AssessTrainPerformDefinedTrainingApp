@@ -6,6 +6,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
 import { S3Service } from './s3.service';
+import { BunnyService } from './bunny.service';
 import { Roles } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -79,6 +80,7 @@ export class VideosController {
   constructor(
     private videosService: VideosService,
     private s3: S3Service,
+    private bunny: BunnyService,
   ) {}
 
   /**
@@ -215,9 +217,19 @@ export class VideosController {
      * route for large client-side uploads — this server-side path is
      * here for legacy clients and small files. */
     const driver = process.env.STORAGE_DRIVER || 'local';
+    const videoTitle = title || file.originalname.replace(/\.[^.]+$/, '');
     let originalUrl: string;
+    let hlsUrl: string | undefined;
 
-    if (driver === 's3' && this.s3.isConfigured()) {
+    if (driver === 'bunny' && this.bunny.isConfigured()) {
+      /* Bunny Stream — auto-transcodes to MP4/HLS on its side. We store the
+         progressive MP4 (for the custom player) as originalUrl and the HLS
+         manifest as hlsUrl. Transcode is async; the URLs resolve once Bunny
+         finishes (fast for short clips), so we still mark READY below. */
+      const res = await this.bunny.uploadBuffer(file.buffer, videoTitle);
+      originalUrl = res.mp4Url;
+      hlsUrl = res.hlsUrl;
+    } else if (driver === 's3' && this.s3.isConfigured()) {
       const ym = new Date().toISOString().slice(0, 7);
       const key = `uploads/${ym}/${filename}`;
       await this.s3.putObjectFromBuffer(key, file.buffer, file.mimetype || 'video/mp4');
@@ -240,7 +252,6 @@ export class VideosController {
       originalUrl = `/api/videos/file/${filename}`;
     }
 
-    const videoTitle = title || file.originalname.replace(/\.[^.]+$/, '');
     const video = await this.videosService.create({
       playerId,
       uploadedById: uploadedById || undefined,
@@ -249,13 +260,14 @@ export class VideosController {
       originalUrl,
     });
 
-    // Mark as READY immediately (no transcoding step in this path)
-    await this.videosService.updateStatus(video.id, 'READY');
+    // Mark READY (Bunny path also records the HLS manifest URL).
+    await this.videosService.updateStatus(video.id, 'READY', hlsUrl);
 
     return {
       ...video,
       status: 'READY',
       originalUrl,
+      hlsUrl,
       fileSize: file.size,
     };
   }
@@ -279,6 +291,11 @@ export class VideosController {
     const ext = path.extname(file.originalname) || '.mp4';
     const filename = `${uuid()}${ext}`;
     const driver = process.env.STORAGE_DRIVER || 'local';
+
+    if (driver === 'bunny' && this.bunny.isConfigured()) {
+      const res = await this.bunny.uploadBuffer(file.buffer, file.originalname || 'Video');
+      return { url: res.mp4Url };
+    }
 
     if (driver === 's3' && this.s3.isConfigured()) {
       const ym = new Date().toISOString().slice(0, 7);

@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrainingService } from './training.service';
 import { S3Service } from '../videos/s3.service';
+import { BunnyService } from '../videos/bunny.service';
 import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -75,6 +76,7 @@ export class TrainingController {
   constructor(
     private trainingService: TrainingService,
     private s3: S3Service,
+    private bunny: BunnyService,
   ) {}
 
   // ─── Drill Library ─────────────────────────────────────────────
@@ -153,7 +155,10 @@ export class TrainingController {
     const driver = process.env.STORAGE_DRIVER || 'local';
     let videoUrl: string;
 
-    if (driver === 's3' && this.s3.isConfigured()) {
+    if (driver === 'bunny' && this.bunny.isConfigured()) {
+      const res = await this.bunny.uploadBuffer(file.buffer, filename);
+      videoUrl = res.mp4Url;
+    } else if (driver === 's3' && this.s3.isConfigured()) {
       const key = `drills/${filename}`;
       await this.s3.putObjectFromBuffer(key, file.buffer, file.mimetype || 'video/mp4');
       // Use CloudFront if CDN_BASE_URL is set, fall back to direct S3 URL.
