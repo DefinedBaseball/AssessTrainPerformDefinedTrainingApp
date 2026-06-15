@@ -44,7 +44,36 @@ export interface TrackmanPdfRow {
  * the coordinate frame the table parser expects. Kept isolated + lazy-required
  * so the heavy pdfjs dependency only loads when a PDF is actually uploaded.
  */
+/**
+ * pdf.js (legacy CJS build) resolves DOMMatrix / Path2D / ImageData / DOMPoint
+ * at the moment it is FIRST `require`d. If those globals aren't present it falls
+ * back to the native `canvas` (node-canvas) package — whose binary isn't built
+ * on our Linux host — and a later page.render() then HARD-CRASHES the process
+ * (the failure is native + uncatchable, so it 502s the whole API). We install
+ * the globals from @napi-rs/canvas (prebuilt, no node-gyp) BEFORE pdf.js loads,
+ * in EVERY entry point. Cached: returns the canvas module, or null when it's
+ * unavailable (callers then skip the bitmap render and keep the table data).
+ */
+let _canvasMod: any | null | undefined;
+function ensureCanvasGlobals(): any | null {
+  if (_canvasMod !== undefined) return _canvasMod;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const napi = require('@napi-rs/canvas');
+    for (const k of ['DOMMatrix', 'Path2D', 'ImageData', 'DOMPoint', 'DOMRect'])
+      if (!(globalThis as any)[k] && napi[k]) (globalThis as any)[k] = napi[k];
+    _canvasMod = (globalThis as any).DOMMatrix ? napi : null;
+  } catch {
+    _canvasMod = null;
+  }
+  return _canvasMod;
+}
+
 export async function extractPdfTextItems(buffer: Buffer): Promise<PdfTextItem[]> {
+  // Install the canvas globals BEFORE the first pdfjs require (see above) — even
+  // text extraction must do this, since this is usually the first PDF call and
+  // it's the require that binds pdf.js to its DOMMatrix source process-wide.
+  ensureCanvasGlobals();
   // pdfjs v3 legacy build is CommonJS-requireable (v4 is ESM-only, which the
   // Nest CommonJS bundle can't `require`). Lazy-require so boot stays fast and
   // a missing dep surfaces only on use.
@@ -95,10 +124,8 @@ const lc_tp = (m: number[], x: number, y: number) => [m[0]*x+m[2]*y+m[4], m[1]*x
  * returns [] so the upload still succeeds with an empty Location plot.
  */
 export async function extractTrackmanLocations(buffer: Buffer): Promise<LocationDot[]> {
-  let napi: any;
-  try { napi = require('@napi-rs/canvas'); } catch { return []; }
-  // pdf.js shading/pattern rendering needs these browser globals in Node.
-  for (const k of ['DOMMatrix', 'Path2D', 'ImageData', 'DOMPoint']) if (!(globalThis as any)[k] && napi[k]) (globalThis as any)[k] = napi[k];
+  const napi = ensureCanvasGlobals();
+  if (!napi) return [];   // no canvas globals → skip render; table data still saved
   const { createCanvas } = napi;
   const canvasFactory = {
     create(w: number, h: number) { const canvas = createCanvas(w, h); return { canvas, context: canvas.getContext('2d') }; },
@@ -207,9 +234,8 @@ export interface MovementDot { pitchType: string; horzBreak: number; inducedVert
  * table-driven synthetic scatter.
  */
 export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementDot[]> {
-  let napi: any;
-  try { napi = require('@napi-rs/canvas'); } catch { return []; }
-  for (const k of ['DOMMatrix', 'Path2D', 'ImageData', 'DOMPoint']) if (!(globalThis as any)[k] && napi[k]) (globalThis as any)[k] = napi[k];
+  const napi = ensureCanvasGlobals();
+  if (!napi) return [];   // no canvas globals → skip render; table data still saved
   const { createCanvas } = napi;
   const canvasFactory = {
     create(w: number, h: number) { const canvas = createCanvas(w, h); return { canvas, context: canvas.getContext('2d') }; },
