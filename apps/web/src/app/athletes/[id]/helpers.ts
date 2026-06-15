@@ -581,6 +581,10 @@ export type ManualSwingMetrics = {
   on_plane_efficiency: number | null;
   connection_at_contact: number | null;
   rotational_acceleration: number | null;
+  /* Rotational Acceleration (g) — its OWN metric, DISTINCT from
+     connection_at_contact. Populated by both the Blast CSV "Rotational
+     Acceleration (g)" column and the manual-entry field (same key). */
+  rotational_accel_g: number | null;
   /* New manual-entry fields added per the Blast CSV spec — these
      mirror the columns in the Blast Motion export so a coach can
      hand-enter them on a report when no CSV is uploaded. The Blast
@@ -611,15 +615,12 @@ export const MANUAL_SWING_METRIC_FIELDS: { key: keyof ManualSwingMetrics; label:
   { key: 'plane_angle',             label: 'Tilt (Plane Angle)',     unit: '°',   step: 0.1 },
   { key: 'time_to_contact',         label: 'Time to Contact',        unit: 's',   step: 0.001 },
   { key: 'on_plane_efficiency',     label: 'On-Plane Efficiency',    unit: '%',   step: 0.1 },
-  /* Display label re-purposed "Connection at Contact" → "Rotational
-     Acceleration" per coach feedback. Data key (`connection_at_contact`)
-     and persisted reports are untouched — only the label coaches see
-     in the manual entry form changes. The Power (Kwh) row above now
-     owns the old `rotational_acceleration` key; this row tracks a
-     separate Rotational Acceleration reading under the
-     `connection_at_contact` key. Unit switched %→g to match the
-     metric's actual unit. */
-  { key: 'connection_at_contact',   label: 'Rotational Acceleration', unit: 'g',  step: 0.1 },
+  /* Rotational Acceleration (g) — a DISTINCT metric, NOT Connection at
+     Contact. Uses the clean `rotational_accel_g` key so manual entry and
+     the Blast CSV "Rotational Acceleration (g)" column populate the very
+     same metric. (The legacy `connection_at_contact` key — abused as a
+     Connection Score source elsewhere — is intentionally not used here.) */
+  { key: 'rotational_accel_g',      label: 'Rotational Acceleration', unit: 'g',  step: 0.1 },
   /* Display label renamed "Rotational Acceleration" → "Power (Kwh)"
      per coach feedback. Data key (`rotational_acceleration`) and
      persisted reports are untouched — only the label coaches see
@@ -648,7 +649,7 @@ const EMPTY_MANUAL_SWING: ManualSwingMetrics = {
   max_bat_speed: null, avg_bat_speed: null,
   attack_angle: null, plane_angle: null,
   time_to_contact: null, on_plane_efficiency: null,
-  connection_at_contact: null, rotational_acceleration: null,
+  connection_at_contact: null, rotational_acceleration: null, rotational_accel_g: null,
   /* Blast CSV spec fields. Existing reports saved before these were
      added still load — `readManualNumberMap` clones this template
      then overlays whatever values are persisted, leaving the new
@@ -762,6 +763,7 @@ export const METRIC_LABELS: Record<string, string> = {
   power_output: 'Power',
   rotational_acceleration: 'Rotational Accel', // legacy
   connection_at_contact: 'Connection at Contact', // legacy
+  rotational_accel_g: 'Rotational Accel', // Blast CSV "Rotational Acceleration (g)" — clean key (avoids the overloaded legacy ones)
   early_connection: 'Early Connection',
   // Batted Ball (Full Swing / HitTrax)
   max_exit_velo: 'Max EV',
@@ -818,7 +820,7 @@ export const METRIC_LABELS: Record<string, string> = {
   // Manual coach scores (20-80)
   manual_forward_move: 'Forward Move',
   manual_posture: 'Posture',
-  manual_stability: 'Slot',
+  manual_stability: 'Adjust',
   manual_direction: 'Direction',
   // Vision (Vizual Edge)
   vizual_edge_convergence: 'Convergence',
@@ -1401,6 +1403,23 @@ export function scoreColor(score: number): string {
   return light ? '#C2161B' : '#EF4444';                       // red = bad
 }
 
+/** Physical (STRENGTH report) coach grades — three 20-80 sliders that drive
+ *  the Player Summary → Tool Grades → Physical bars. Persisted at
+ *  `content.physicalGrades` on the STRENGTH report. */
+export interface PhysicalGrades { speed: number | null; strength: number | null; mobility: number | null }
+
+export function getPhysicalGrades(report: ReportSummary | null): PhysicalGrades {
+  const empty: PhysicalGrades = { speed: null, strength: null, mobility: null };
+  if (!report?.content) return empty;
+  try {
+    const c = JSON.parse(report.content);
+    const pg = c?.physicalGrades;
+    if (!pg || typeof pg !== 'object') return empty;
+    const num = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    return { speed: num(pg.speed), strength: num(pg.strength), mobility: num(pg.mobility) };
+  } catch { return empty; }
+}
+
 export function computeAggregateScores(
   player: { positions: string | null; firstName?: string | null; lastName?: string | null },
   _reports: ReportSummary[],
@@ -1477,10 +1496,11 @@ export function computeAggregateScores(
       { key: 'stretch',     label: 'Counter' },
       { key: 'posture',     label: 'Posture' },
       { key: 'core',        label: 'Stability' },
-      { key: 'stability',   label: 'Slot' },
       { key: 'slot',        label: 'Path' },
       { key: 'direction',   label: 'Direction' },
       { key: 'timing',      label: 'Timing' },
+      // `stability` relabeled "Slot" → "Adjust" + moved to the end.
+      { key: 'stability',   label: 'Adjust' },
     ];
 
     /* For metric-keyed bars, build sub-metrics with their per-key grade
@@ -1519,40 +1539,6 @@ export function computeAggregateScores(
        If `_liveAtBats` is empty or unprovided, the four bars stay
        null (the bar renders as "—") instead of silently falling
        back to CSV data — keeps the source-of-truth honest. */
-    const liveStats = _liveAtBats && _liveAtBats.length > 0
-      ? computeLiveSwingDecisionStats(_liveAtBats)
-      : null;
-    const decisionSubs: AggregateSubMetric[] = [
-      {
-        key: 'decision_barrel',
-        label: 'Barrel %',
-        grade: liveStats?.barrelPct != null
-          ? toScoutingGrade(liveStats.barrelPct, 'overall_barrel_pct') ?? undefined
-          : undefined,
-      },
-      {
-        key: 'decision_whiff',
-        label: 'Whiff %',
-        grade: liveStats?.whiffPct != null
-          ? toScoutingGrade(liveStats.whiffPct, 'overall_whiff_pct') ?? undefined
-          : undefined,
-      },
-      {
-        key: 'decision_chase',
-        label: 'Chase %',
-        grade: liveStats?.chasePct != null
-          ? toScoutingGrade(liveStats.chasePct, 'overall_chase_pct') ?? undefined
-          : undefined,
-      },
-      {
-        key: 'decision_zone_sw',
-        label: 'In Zone Swing %',
-        grade: liveStats?.inZoneSwingPct != null
-          ? toScoutingGrade(liveStats.inZoneSwingPct, 'overall_in_zone_swing_pct') ?? undefined
-          : undefined,
-      },
-    ];
-
     const coachSubs: AggregateSubMetric[] = COACH_GRADE_DEFS.map(({ key, label }) => ({
       key: `manual_${key}`,
       label,
@@ -1562,7 +1548,6 @@ export function computeAggregateScores(
     /* Bar scores are the average of every populated sub-metric grade. */
     const swingScore    = averageGrades(swingSubs.map((s) => s.grade ?? null));
     const qocScore      = averageGrades(qocSubs.map((s) => s.grade ?? null));
-    const decisionScore = averageGrades(decisionSubs.map((s) => s.grade ?? null));
     const coachScore    = averageGrades(coachSubs.map((s) => s.grade ?? null));
 
     sections.push({
@@ -1572,8 +1557,13 @@ export function computeAggregateScores(
       bars: [
         { key: 'hit_swing',          label: 'Swing',              score: swingScore,    subMetrics: swingSubs },
         { key: 'hit_qoc',            label: 'Quality of Contact', score: qocScore,      subMetrics: qocSubs },
-        { key: 'hit_swing_decision', label: 'Swing Decision',     score: decisionScore, subMetrics: decisionSubs },
-        { key: 'hit_coach',          label: 'Coach Grades',       score: coachScore,    subMetrics: coachSubs },
+        /* 3rd bar = "Mechanical Grades" — sourced from the Hitting report's
+           coach swing-mechanics grades (Forward Move / Posture / Slot /
+           Direction). These are the same grades the Hitting Snapshot shows
+           as "Mechanical Grades" and the profile shows lower as "Coach
+           Grades", so we surface them as a single bar (replacing the old
+           live-at-bat "Swing Decision" bar, which is often empty). */
+        { key: 'hit_coach',          label: 'Mechanical Grades',  score: coachScore,    subMetrics: coachSubs },
       ],
     });
   }
@@ -1718,17 +1708,21 @@ export function computeAggregateScores(
   // Cognition / Vision was retired with the Vision tab — no longer
   // surfaced in Tool Grades since there's no profile tab to drill into.
 
-  // Physical (was "S & C") — always
-  sections.push({
-    key: 'strength',
-    label: 'Physical',
-    color: '#EF4444',
-    bars: [
-      { key: 'sc_speed', label: 'Speed', score: null, subMetrics: [] },
-      { key: 'sc_power', label: 'Power', score: null, subMetrics: [] },
-      { key: 'sc_endurance', label: 'Endurance', score: null, subMetrics: [] },
-    ],
-  });
+  // Physical (was "S & C") — always. The three bars are driven by the
+  // coach's Speed / Strength / Mobility sliders on the latest STRENGTH report.
+  {
+    const phys = getPhysicalGrades(getLatestReport(_reports, ['STRENGTH']));
+    sections.push({
+      key: 'strength',
+      label: 'Physical',
+      color: '#EF4444',
+      bars: [
+        { key: 'sc_speed',    label: 'Speed',    score: phys.speed,    subMetrics: [] },
+        { key: 'sc_strength', label: 'Strength', score: phys.strength, subMetrics: [] },
+        { key: 'sc_mobility', label: 'Mobility', score: phys.mobility, subMetrics: [] },
+      ],
+    });
+  }
 
   // Demo overlay — populate Cole Anderson / Mason Brown with realistic
   // fake scores so the bar chart visually renders before the real
@@ -1776,8 +1770,8 @@ const DEMO_PROFILES: Record<string, DemoProfile> = {
       vis_tracking: 55,
       vis_decision: 50,
       sc_speed: 55,
-      sc_power: 65,
-      sc_endurance: 55,
+      sc_strength: 65,
+      sc_mobility: 55,
     },
     subs: {
       hit_swing: {
@@ -1811,8 +1805,8 @@ const DEMO_PROFILES: Record<string, DemoProfile> = {
       pit_movement: 75,
       pit_execution: 65,
       sc_speed: 60,
-      sc_power: 70,
-      sc_endurance: 65,
+      sc_strength: 70,
+      sc_mobility: 65,
       vis_reaction: 55,
       vis_tracking: 50,
       vis_decision: 55,

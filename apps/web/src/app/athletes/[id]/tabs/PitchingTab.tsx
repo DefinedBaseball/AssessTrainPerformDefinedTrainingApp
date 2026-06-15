@@ -357,11 +357,12 @@ function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | nul
 
 /* ── Interactive Movement Plot — tactical HUD styling (matches spray chart) ── */
 function MovementPlot({
-  pitches, selected, onSelect,
+  pitches, selected, onSelect, interactive = true,
 }: {
   pitches: TrackmanPitch[];
   selected: TrackmanPitch | null;
   onSelect: (p: TrackmanPitch | null) => void;
+  interactive?: boolean;
 }) {
   const W = 460;
   const H = 440;
@@ -514,8 +515,8 @@ function MovementPlot({
               const color = getPitchColor(p.pitchType);
               return (
                 <g key={i}
-                  style={{ cursor: 'pointer' }}
-                  onClick={e => { e.stopPropagation(); onSelect(isSelected ? null : p); }}>
+                  style={{ cursor: interactive ? 'pointer' : 'default' }}
+                  onClick={interactive ? (e => { e.stopPropagation(); onSelect(isSelected ? null : p); }) : undefined}>
                   <circle cx={px} cy={py} r={isSelected ? 15 : 9}
                     fill={pitchGlow(p.pitchType, isSelected ? 0.6 : 0.4)}
                     opacity={dim ? 0.2 : (isSelected ? 0.95 : 0.55)} />
@@ -564,12 +565,13 @@ function MovementPlot({
 }
 
 /* ── Release Point Plot (fixed grid, handedness-aware) ── */
-function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 360 }: {
+function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 360, interactive = true }: {
   pitches: TrackmanPitch[];
   selected: TrackmanPitch | null;
   onSelect: (p: TrackmanPitch | null) => void;
   width?: number;
   height?: number;
+  interactive?: boolean;
 }) {
   const pad = { top: 36, right: 20, bottom: 44, left: 50 };
   const plotW = width - pad.left - pad.right;
@@ -678,8 +680,8 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
           const dim = !!selected && !isSelected;
           return (
             <g key={p.id ?? i}
-              style={{ cursor: 'pointer' }}
-              onClick={(e) => { e.stopPropagation(); onSelect(isSelected ? null : p); }}>
+              style={{ cursor: interactive ? 'pointer' : 'default' }}
+              onClick={interactive ? ((e) => { e.stopPropagation(); onSelect(isSelected ? null : p); }) : undefined}>
               {/* Halo for selected pitch */}
               {isSelected && (
                 <circle cx={cx} cy={cy} r={11}
@@ -716,11 +718,12 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
 
 /* ── Pitch Location Plot (strike zone, interactive) ── */
 function PitchLocationPlot({
-  pitches, selected, onSelect,
+  pitches, selected, onSelect, interactive = true,
 }: {
   pitches: TrackmanPitch[];
   selected: TrackmanPitch | null;
   onSelect: (p: TrackmanPitch | null) => void;
+  interactive?: boolean;
 }) {
   const W = 460;
   const H = 440;
@@ -841,9 +844,11 @@ function PitchLocationPlot({
               stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="2 3" />
             <line x1={sx(szLeft)} y1={sy(szTop - 2 * szH / 3)} x2={sx(szRight)} y2={sy(szTop - 2 * szH / 3)}
               stroke="var(--spray-gridline-color)" strokeWidth={0.7} strokeDasharray="2 3" />
-            {/* Zone frame */}
+            {/* Zone frame — uses the Movement-plot gridline color so it's the
+                same tone as the main gridlines (and stands out in light theme,
+                where the old faint silver washed out on the light surface). */}
             <rect x={x} y={y} width={w} height={h}
-              fill="none" stroke="rgba(223,227,232,0.55)" strokeWidth={1.25} />
+              fill="none" stroke="var(--spray-gridline-color)" strokeWidth={1.5} />
             {/* Zone numbers */}
             {zones.map(z => (
               <text key={z.n}
@@ -890,8 +895,8 @@ function PitchLocationPlot({
         const color = getPitchColor(p.pitchType);
         return (
           <g key={i}
-            style={{ cursor: 'pointer' }}
-            onClick={e => { e.stopPropagation(); onSelect(isSelected ? null : p); }}>
+            style={{ cursor: interactive ? 'pointer' : 'default' }}
+            onClick={interactive ? (e => { e.stopPropagation(); onSelect(isSelected ? null : p); }) : undefined}>
             <circle cx={px} cy={py} r={isSelected ? 15 : 9}
               fill={pitchGlow(p.pitchType, isSelected ? 0.6 : 0.4)}
               opacity={dim ? 0.2 : (isSelected ? 0.95 : 0.55)} />
@@ -1280,6 +1285,9 @@ export function PitchingTab({
   const pitchingGrades = persistedPitchingGrades;
 
   const hasPitchData = pitches.length > 0;
+  // Pitches rebuilt from a Trackman PDF report are table-driven (not tracked
+  // per pitch), so the plots render non-interactive — no click-to-inspect.
+  const pdfOrigin = hasPitchData && pitches.every(p => p.pdfSource);
   const arsenal = hasPitchData ? computeArsenal(pitches) : [];
 
   // Ensure we always show all 4 main pitch types in arsenal cards
@@ -1643,7 +1651,7 @@ export function PitchingTab({
                     <span className={hud.hudSubTitleDot} /> Movement &middot; Pitcher&rsquo;s View
                   </span>
                 </div>
-                <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+                <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
               </div>
             </div>
             <div className={hud.hudPlotPane}>
@@ -1653,7 +1661,7 @@ export function PitchingTab({
                     <span className={hud.hudSubTitleDot} /> Location &middot; Catcher&rsquo;s View
                   </span>
                 </div>
-                <PitchLocationPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+                <PitchLocationPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
               </div>
             </div>
             <div className={hud.hudPlotPane}>
@@ -1663,10 +1671,18 @@ export function PitchingTab({
                     <span className={hud.hudSubTitleDot} /> Release Point &middot; Pitcher&rsquo;s View
                   </span>
                 </div>
-                <ReleasePointPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} />
+                <ReleasePointPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
               </div>
             </div>
           </div>
+          {pdfOrigin && (
+            <div style={{ textAlign: 'center', fontSize: '0.72rem', lineHeight: 1.5, color: 'var(--text-muted)', margin: '8px auto 0', maxWidth: 620 }}>
+              Rebuilt from a Trackman session-report PDF — Movement &amp; Release reflect the
+              report&rsquo;s per-pitch-type averages; Location shows the pitches plotted on the
+              report. Points aren&rsquo;t individually clickable. Upload the CSV for fully
+              interactive, pitch-linked data.
+            </div>
+          )}
 
           {/* ── Mechanical Grades summary — section aggregates + descriptor
               tags from the active pitching report. Sits between the Movement

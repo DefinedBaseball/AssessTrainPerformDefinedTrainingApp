@@ -473,6 +473,9 @@ export interface TrackmanPitch {
   horzApprAngle: number | null;
   pitchCall: string | null;
   pitcherThrows: string | null;
+  /** True for pitches rebuilt from a Trackman PDF report (table-driven, not
+   *  per-pitch tracked) — the Pitching tab renders these non-interactive. */
+  pdfSource?: boolean;
 }
 
 export async function getTrackmanPitches(playerId: string, opts?: { from?: string; to?: string; uploadIds?: string[] }) {
@@ -499,6 +502,43 @@ export async function uploadCSV(file: File, uploadedById: string, source?: strin
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`/api/uploads/csv?${params}`, {
+    method: 'POST',
+    body: formData,
+    headers,
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Upload failed: ${body}`);
+  }
+
+  return res.json();
+}
+
+export interface TrackmanPdfResult {
+  message: string;
+  uploadId: string;
+  totalRows: number;
+  metricsCreated: number;
+  pitchTypes: string[];
+}
+
+/**
+ * Upload a Trackman session-report PDF for a player. The backend reads the
+ * summary table and rebuilds non-interactive `trackman_pitch` rows scoped to
+ * the returned uploadId (so the owning report can filter the Pitching tab).
+ */
+export async function uploadTrackmanPdf(file: File, uploadedById: string, playerId: string): Promise<TrackmanPdfResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const params = new URLSearchParams({ uploadedById, playerId });
+
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`/api/uploads/trackman-pdf?${params}`, {
     method: 'POST',
     body: formData,
     headers,

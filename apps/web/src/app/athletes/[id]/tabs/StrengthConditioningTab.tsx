@@ -1480,10 +1480,17 @@ function GreyMetricBubble({
   children: React.ReactNode;
   bg?: string;
 }) {
+  /* The `bg` overrides (e.g. "#ededed") are LIGHT-theme values picked to sit
+     between the page grey and the panel shine. In dark theme they render
+     near-white and wash the bubble out, so we ignore them there and fall back
+     to the shared `--bubble-chrome-bg` (the warm-grey "Curveball" surface that
+     every other secondary sub-bubble uses in dark theme). */
+  const isLight = typeof document !== 'undefined'
+    && document.documentElement.getAttribute('data-theme') === 'light';
   return (
     <div style={{
       ...movementPlotBubbleStyle,
-      ...(bg ? { background: bg } : null),
+      ...(bg && isLight ? { background: bg } : null),
       padding: '12px 14px 14px',
       display: 'flex',
       flexDirection: 'column',

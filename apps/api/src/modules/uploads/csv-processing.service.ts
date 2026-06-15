@@ -203,6 +203,36 @@ export class CsvProcessingService {
   }
 
   /**
+   * Store an already-parsed ParseResult against a single player + upload.
+   * Used by the Trackman PDF path (which parses a PDF rather than a CSV but
+   * produces the same metric shape). Mirrors the direct-playerId branch of
+   * processCSV: tag rows with the source + uploadId, drop invalid values,
+   * batch-insert, and kick off a leaderboard recompute.
+   */
+  async storeParsedMetricsForPlayer(
+    parseResult: ParsedMetric[],
+    opts: { playerId: string; uploadId: string; source: string },
+  ): Promise<number> {
+    const toInsert = parseResult.map(m => ({
+      playerId: opts.playerId,
+      source: opts.source,
+      metricType: m.metricType,
+      value: m.value,
+      unit: m.unit,
+      recordedAt: m.recordedAt,
+      rawData: JSON.stringify(m.rawData),
+      uploadId: opts.uploadId,
+    }));
+    const valid = toInsert.filter(m => m.value != null && !isNaN(m.value) && isFinite(m.value));
+    let created = 0;
+    if (valid.length > 0) {
+      created = (await this.prisma.metric.createMany({ data: valid })).count;
+      this.triggerLeaderboardRecompute([opts.playerId]).catch(() => {});
+    }
+    return created;
+  }
+
+  /**
    * Look up the grad years for given player IDs and recompute their leaderboards.
    */
   private async triggerLeaderboardRecompute(playerIds: string[]) {

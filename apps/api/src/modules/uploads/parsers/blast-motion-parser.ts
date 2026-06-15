@@ -80,6 +80,18 @@ export class BlastMotionParser implements VendorParser {
       'power':                    'power_output',
       'peak hand speed':          'peak_hand_speed',
       'hand speed':               'peak_hand_speed',
+      // Additional Blast columns surfaced in the Hitting Snapshot's Blast
+      // bubble (averages). The composite Connection/Rotation Score columns and
+      // the connection-degree readings use clean, dedicated metric keys that
+      // match the frontend's SWING_METRIC_KEYS. NOTE: Rotational Acceleration
+      // uses `rotational_accel_g` — deliberately NOT the legacy
+      // `rotational_acceleration` / `connection_at_contact` keys, which are
+      // overloaded as derived-score sources elsewhere in the app.
+      'connection score':         'connection_score',
+      'rotation score':           'rotation_score',
+      'rotational acceleration':  'rotational_accel_g',
+      'early connection':         'early_connection',
+      'connection at impact':     'connection_at_impact',
     };
 
     // Bucket every numeric value per target metric. No swing filter, no
@@ -146,6 +158,23 @@ export class BlastMotionParser implements VendorParser {
     }
     if (buckets.peak_hand_speed && buckets.peak_hand_speed.length > 0) {
       push('peak_hand_speed', mean(buckets.peak_hand_speed), 'mph');
+    }
+    // Blast bubble additions — session averages for the composite scores and
+    // connection-degree readings (shown in the Hitting Snapshot's Blast bubble).
+    if (buckets.connection_score && buckets.connection_score.length > 0) {
+      push('connection_score', mean(buckets.connection_score), '');
+    }
+    if (buckets.rotation_score && buckets.rotation_score.length > 0) {
+      push('rotation_score', mean(buckets.rotation_score), '');
+    }
+    if (buckets.rotational_accel_g && buckets.rotational_accel_g.length > 0) {
+      push('rotational_accel_g', mean(buckets.rotational_accel_g), 'g');
+    }
+    if (buckets.early_connection && buckets.early_connection.length > 0) {
+      push('early_connection', mean(buckets.early_connection), 'deg');
+    }
+    if (buckets.connection_at_impact && buckets.connection_at_impact.length > 0) {
+      push('connection_at_impact', mean(buckets.connection_at_impact), 'deg');
     }
 
     return { success, errors, totalRows: rows.length };

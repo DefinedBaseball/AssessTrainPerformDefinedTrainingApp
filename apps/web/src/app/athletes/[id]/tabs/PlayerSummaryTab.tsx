@@ -2509,17 +2509,13 @@ export function PlayerSummaryTab({
               : undefined}
           >
             {visibleSections.map((s) => {
-              /* Tool Grades visual scope — for the HITTING section we
-                 hide the "Coach Grades" sub-bar so the graph shows only
-                 the three primary underlying grades (Swing / Quality of
-                 Contact / Swing Decision). The aggregate score at the
-                 top of the bubble is recomputed from this filtered set
-                 so the total + bars stay consistent. The full section
-                 (Coach Grades included) is still available to the
-                 Sub-Grade Breakdown panel below via `selectedSection`. */
-              const visibleSection = s.key === 'hitting'
-                ? { ...s, bars: s.bars.filter(b => b.key !== 'hit_coach') }
-                : s;
+              /* Tool Grades — show every bar for each section. The HITTING
+                 section's three bars are Swing / Quality of Contact /
+                 Mechanical Grades (the `hit_coach` key, which now averages
+                 the coach swing-mechanics grades). It used to be filtered
+                 out of the chart back when there was a separate Swing
+                 Decision bar; now it IS a primary bar and must show. */
+              const visibleSection = s;
               const avg = sectionAvg(visibleSection);
               // `palette` (DOMAIN_PALETTE[s.key]) used to drive the
               // leading colored dot in the section label. That dot was

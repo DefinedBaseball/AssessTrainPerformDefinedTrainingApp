@@ -126,6 +126,7 @@ const SWING_METRIC_KEYS = [
   'rotation_score',
   'early_connection',
   'connection_at_impact',
+  'rotational_accel_g',   // Blast CSV "Rotational Acceleration (g)" average
 ] as const;
 
 /* ── Swing-decision metrics from LIVE at-bats ──
@@ -647,6 +648,7 @@ export function HittingTab(props: TabProps) {
              above for backward compat with previous reports. */
           if (k === 'early_connection' || k === 'connection_at_impact') return 'deg';
           if (k === 'plane_score' || k === 'connection_score' || k === 'rotation_score') return '';
+          if (k === 'rotational_accel_g') return 'g';
           return 'mph';
         });
         /* Alias the manual "Power (Kwh)" entry into the

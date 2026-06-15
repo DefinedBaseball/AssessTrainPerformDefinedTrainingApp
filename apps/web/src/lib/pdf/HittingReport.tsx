@@ -565,10 +565,10 @@ export function HittingReportPages({ data }: { data: HittingPdfData }) {
     { key: 'stretch',     label: 'Counter',    grade: manual.stretch },
     { key: 'posture',     label: 'Posture',    grade: manual.posture },
     { key: 'core',        label: 'Stability',  grade: manual.core },
-    { key: 'stability',   label: 'Slot',       grade: manual.stability },
     { key: 'slot',        label: 'Path',       grade: manual.slot },
     { key: 'direction',   label: 'Direction',  grade: manual.direction },
     { key: 'timing',      label: 'Timing',     grade: manual.timing },
+    { key: 'stability',   label: 'Adjust', grade: manual.stability },
   ];
   const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
 
@@ -704,10 +704,10 @@ export function HittingReportPages({ data }: { data: HittingPdfData }) {
               <PdfCoachGradeCard label="Counter"    value={manual.stretch}     options={data.manualOptions?.stretch} />
               <PdfCoachGradeCard label="Posture"    value={manual.posture}     options={data.manualOptions?.posture} />
               <PdfCoachGradeCard label="Stability"  value={manual.core}        options={data.manualOptions?.core} />
-              <PdfCoachGradeCard label="Slot"       value={manual.stability}   options={data.manualOptions?.stability} />
               <PdfCoachGradeCard label="Path"       value={manual.slot}        options={data.manualOptions?.slot} />
               <PdfCoachGradeCard label="Direction"  value={manual.direction}   options={data.manualOptions?.direction} />
               <PdfCoachGradeCard label="Timing"     value={manual.timing}      options={data.manualOptions?.timing} />
+              <PdfCoachGradeCard label="Adjust" value={manual.stability} options={data.manualOptions?.stability} />
             </View>
           </>
         )}

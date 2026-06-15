@@ -19,6 +19,7 @@ import {
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
   type PitchingGrades, type PitchingGradeEntry, getPitchingGrades,
+  getPhysicalGrades,
   type PitchingGradeItemConfig, type PitchingGradeSectionConfig,
   PITCHING_GRADE_SECTIONS, pitchingGradeKey,
   type DefenseCoachGrades, type DefensePosition,
@@ -191,7 +192,7 @@ function heightToInches(h: string): number | null {
   return parseInt(m[1]) * 12 + parseInt(m[2]);
 }
 
-interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; group?: 'swing' | 'decision'; }
+interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; group?: 'swing' | 'decision'; kind?: 'csv' | 'pdf'; }
 
 const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   // The HITTING report now bundles both swing and swing-decision data. The
@@ -212,7 +213,15 @@ const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
        — they continue to feed the assessment-side Spray Chart on
        the Swing sub-tab. */
   ],
-  PITCHING: [{ key: 'trackman', label: 'Pitch Data', subtitle: 'TrackMan CSV', vendor: 'TrackMan' }],
+  // Two ways to load pitch data into the same Pitching tab:
+  //  • CSV/XLSX (default) → fully-interactive, pitch-linked plots.
+  //  • Session-report PDF (fallback when no CSV is available) → table-driven,
+  //    non-interactive plots. Either fills the tab; coaches pick whichever
+  //    export they have on hand.
+  PITCHING: [
+    { key: 'trackman', label: 'Pitch Data', subtitle: 'TrackMan CSV', vendor: 'TrackMan', kind: 'csv' },
+    { key: 'trackman_pdf', label: 'Pitch Data', subtitle: 'TrackMan Session Report', vendor: 'TrackMan', kind: 'pdf' },
+  ],
   /* INFIELD uses a dedicated form — no CSV slots */
   /* OUTFIELD uses a dedicated form — no CSV slots */
   /* CATCHING uses a dedicated form — no CSV slots */
@@ -249,6 +258,11 @@ function CsvUploadCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const showExisting = !file && !!existingUpload && !manualMode;
   const supportsManual = !!onToggleManual;
+  // PDF slots (Trackman session report) accept a .pdf instead of a CSV/XLSX.
+  const isPdf = slot.kind === 'pdf';
+  const acceptAttr = isPdf ? '.pdf' : '.csv,.xlsx,.xls';
+  const fileRe = isPdf ? /\.pdf$/i : /\.(csv|xlsx?)$/i;
+  const noun = isPdf ? 'PDF' : 'CSV';
   return (
     <div className={rs.csvCard}>
       <div className={rs.csvCardHeader}>
@@ -307,7 +321,7 @@ function CsvUploadCard({
             <div className={rs.fileInfo} style={{ marginBottom: 8 }}>
               <div className={rs.fileName}>
                 <span className={rs.fileIcon}>📎</span>
-                {existingUpload!.vendor} CSV
+                {existingUpload!.vendor} {noun}
                 <span className={rs.fileSize}>
                   {existingUpload!.atBats != null
                     ? `(${existingUpload!.atBats} at-bats)`
@@ -326,14 +340,14 @@ function CsvUploadCard({
             onDrop={e => {
               e.preventDefault();
               const f = e.dataTransfer.files[0];
-              if (f && /\.(csv|xlsx?)$/i.test(f.name)) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
+              if (f && fileRe.test(f.name)) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
             }}
             onClick={() => inputRef.current?.click()}>
-            <span className={rs.dropIcon}>📄</span>
+            <span className={rs.dropIcon}>{isPdf ? '📕' : '📄'}</span>
             <span className={rs.dropText}>
-              {showExisting ? 'Drop CSV to replace, or click to browse' : 'Drop CSV here or click to browse'}
+              {showExisting ? `Drop ${noun} to replace, or click to browse` : `Drop ${noun} here or click to browse`}
             </span>
-            <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }}
+            <input ref={inputRef} type="file" accept={acceptAttr} style={{ display: 'none' }}
               onChange={e => {
                 const f = e.target.files?.[0];
                 if (f) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
@@ -3273,6 +3287,21 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     isEdit && existingReport ? getPitchingGrades(existingReport) : {}
   );
 
+  // Physical grades (STRENGTH reports) — three 20-80 sliders (Speed / Strength /
+  // Mobility) that drive the Player Summary Tool Grades → Physical bars. Stored
+  // as grade strings here ('' = ungraded); serialized to numbers on save.
+  const [physicalGrades, setPhysicalGrades] = useState<{ speed: string; strength: string; mobility: string }>(() => {
+    if (isEdit && existingReport) {
+      const pg = getPhysicalGrades(existingReport);
+      return {
+        speed: pg.speed != null ? String(pg.speed) : '',
+        strength: pg.strength != null ? String(pg.strength) : '',
+        mobility: pg.mobility != null ? String(pg.mobility) : '',
+      };
+    }
+    return { speed: '', strength: '', mobility: '' };
+  });
+
   /* Defense Coach Grades (CATCHING / INFIELD / OUTFIELD reports). Each
      defense position gets its own 7-section grade slot persisted at
      content.{position}CoachGrades. When editing an existing report,
@@ -3305,7 +3334,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       max_bat_speed: null, avg_bat_speed: null,
       attack_angle: null, plane_angle: null,
       time_to_contact: null, on_plane_efficiency: null,
-      connection_at_contact: null, rotational_acceleration: null,
+      connection_at_contact: null, rotational_acceleration: null, rotational_accel_g: null,
       /* Blast CSV spec additions — coaches can hand-enter these on
          a report when no CSV is uploaded. Default to null so they
          render as empty inputs until populated. */
@@ -3469,6 +3498,15 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
               atBatData = parsed;
               uploadSummary[slot.key] = { vendor: 'AtBat', atBats: parsed.atBats.length, playerName: parsed.playerName };
               setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'success', message: `${parsed.atBats.length} at-bats parsed with ${parsed.atBats.reduce((s: number, ab: any) => s + ab.pitches.length, 0)} total pitches`, rows: parsed.atBats.length, metrics: 11 } }));
+              continue;
+            }
+            // Trackman session-report PDF → backend reads the summary table and
+            // rebuilds non-interactive trackman_pitch rows. Returns an uploadId
+            // (like CSV) so the report scopes the Pitching tab to these pitches.
+            if (slot.kind === 'pdf') {
+              const result = await api.uploadTrackmanPdf(file, userId, player.id);
+              uploadSummary[slot.key] = { vendor: slot.vendor, rows: result.totalRows, metrics: result.metricsCreated, uploadId: result.uploadId, pdf: true };
+              setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'success', message: `${result.metricsCreated} metrics from ${result.totalRows} pitches (${result.pitchTypes.join(', ')})`, rows: result.totalRows, metrics: result.metricsCreated } }));
               continue;
             }
             const sourceMap: Record<string, string> = {
@@ -3649,7 +3687,16 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           /* STRENGTH reports serialize the structured S&C form blob
              under `strengthConditioning` so the profile S&C tab's
              `parseSCContent` helper can read it back on render. */
-          ...(reportType === 'STRENGTH' ? { strengthConditioning: scData } : {}),
+          ...(reportType === 'STRENGTH' ? {
+            strengthConditioning: scData,
+            /* Speed / Strength / Mobility 20-80 coach grades → Player Summary
+               Tool Grades → Physical bars. Empty slider = null (bar shows "—"). */
+            physicalGrades: {
+              speed:    physicalGrades.speed === ''    ? null : Number(physicalGrades.speed),
+              strength: physicalGrades.strength === '' ? null : Number(physicalGrades.strength),
+              mobility: physicalGrades.mobility === '' ? null : Number(physicalGrades.mobility),
+            },
+          } : {}),
           ...(reportType === 'HITTING' ? {
             manualScores: {
               forwardMove: manualScores.forwardMove,
@@ -3682,7 +3729,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
               : { max_bat_speed: null, avg_bat_speed: null,
                   attack_angle: null, plane_angle: null,
                   time_to_contact: null, on_plane_efficiency: null,
-                  connection_at_contact: null, rotational_acceleration: null },
+                  connection_at_contact: null, rotational_acceleration: null, rotational_accel_g: null },
             /* Persist the manual-mode flags so the read side can tell
                whether a manualBattedBall / manualSwingMetrics block
                represents real manual data or just leftover persisted
@@ -3933,6 +3980,16 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                  `content.strengthConditioning` on save and gets
                  read back by `parseSCContent` on the profile tab. */}
               <StrengthConditioningForm data={scData} setData={setScData} />
+              {/* Physical coach grades — three 20-80 sliders that populate the
+                  Player Summary → Tool Grades → Physical bars. */}
+              <div className={rs.section}>
+                <div className={rs.sectionHeader}><span className={rs.sectionIcon}>💪</span><span className={rs.sectionTitle}>Physical Grades</span></div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <DefenseGradeSlider label="Speed"    grade={physicalGrades.speed}    onGradeChange={(s) => setPhysicalGrades((p) => ({ ...p, speed: s }))} />
+                  <DefenseGradeSlider label="Strength" grade={physicalGrades.strength} onGradeChange={(s) => setPhysicalGrades((p) => ({ ...p, strength: s }))} />
+                  <DefenseGradeSlider label="Mobility" grade={physicalGrades.mobility} onGradeChange={(s) => setPhysicalGrades((p) => ({ ...p, mobility: s }))} />
+                </div>
+              </div>
               <div className={rs.section}>
                 <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>General Mechanical Notes</span></div>
                 <RichTextEditor
@@ -4127,10 +4184,12 @@ const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: stri
   { key: 'stretch',     label: 'Counter',      hint: 'Counter-rotation — lower-half load → directional intent toward the pitcher.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
   { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
   { key: 'core',        label: 'Stability',    hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
-  { key: 'stability',   label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.',         options: ['Steep', 'Flat', 'Uphill'] },
   { key: 'slot',        label: 'Path',         hint: 'Bat-path / barrel route through the zone.',                 options: ['Steep', 'Flat', 'Uphill'] },
   { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
   { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
+  /* `stability` key relabeled "Slot" → "Adjust" and moved to the end
+     (next to Timing) per coach-spec. Data key unchanged so saved scores stay. */
+  { key: 'stability',   label: 'Adjust', hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
 ];
 
 function CoachDiagnosisSliders({

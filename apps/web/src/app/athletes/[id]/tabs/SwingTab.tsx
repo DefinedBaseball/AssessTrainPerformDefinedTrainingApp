@@ -626,6 +626,7 @@ const SWING_METRIC_KEYS = [
   'rotation_score',
   'early_connection',
   'connection_at_impact',
+  'rotational_accel_g',   // Blast CSV "Rotational Acceleration (g)" average
 ] as const;
 
 /** Map a raw Blast metric to a friendlier "graded score" label used in the UI. */
@@ -658,10 +659,12 @@ const MANUAL_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; 
   { key: 'stretch',     label: 'Counter',      hint: 'Length & separation between hips and shoulders at launch.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
   { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
   { key: 'core',        label: 'Stability',    hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
-  { key: 'stability',   label: 'Slot',         hint: 'Hand path & barrel slot through the hitting zone.',         options: ['Steep', 'Flat', 'Uphill'] },
   { key: 'slot',        label: 'Path',         hint: 'Bat-path / barrel route through the zone.',                 options: ['Steep', 'Flat', 'Uphill'] },
   { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
   { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
+  /* `stability` relabeled "Slot" → "Adjust" + moved to the end (next to
+     Timing). Data key unchanged so saved scores survive. */
+  { key: 'stability',   label: 'Adjust', hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
 ];
 
 /** State and derived values shared between SwingTab + HittingTab's bubble. */
@@ -1195,7 +1198,7 @@ const SHORT_LABELS: Record<string, string> = {
      rotation as the full labels above. `Stable` (was the abbreviation
      for stability) is now `Slot`; `Core` becomes `Stability`; `Slot`
      becomes `Path`. */
-  manual_stability: 'Slot',
+  manual_stability: 'Adjust',
   manual_direction: 'Direction',
   manual_stretch: 'Counter',
   manual_core: 'Stability',
@@ -1389,10 +1392,10 @@ export function HittingGradeStack({
     { key: 'manual_stretch',     label: 'Counter',    grade: manual.stretch },
     { key: 'manual_posture',     label: 'Posture',    grade: manual.posture },
     { key: 'manual_core',        label: 'Stability',  grade: manual.core },
-    { key: 'manual_stability',   label: 'Slot',       grade: manual.stability },
     { key: 'manual_slot',        label: 'Path',       grade: manual.slot },
     { key: 'manual_direction',   label: 'Direction',  grade: manual.direction },
     { key: 'manual_timing',      label: 'Timing',     grade: manual.timing },
+    { key: 'manual_stability',   label: 'Adjust', grade: manual.stability },
   ];
   const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
 
