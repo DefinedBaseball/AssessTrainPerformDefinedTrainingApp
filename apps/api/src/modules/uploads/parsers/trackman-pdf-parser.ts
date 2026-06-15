@@ -110,6 +110,16 @@ export interface LocationDot { pitchType: string; plateLocSide: number; plateLoc
 // itself — which Trackman draws as radial-shading dots (no recoverable vector
 // geometry). We render page 1 to a bitmap and detect the coloured dots against
 // the dark strike-zone box, which is our self-calibrating coordinate reference.
+// Bitmap render scale for dot detection. Higher = sharper detection but more
+// memory: a full letter page at scale 6 is ~70 MB/canvas, which OOMs a 512 MB
+// instance. Default 3 (~17 MB) is memory-safe; set env PDF_RENDER_SCALE=6 once
+// the API instance has more RAM for the sharpest dots. The cell/minN detection
+// constants derive from this (cellFor/minNFor) so behaviour matches the
+// original scale-6 tuning at whatever scale is in effect.
+const PDF_RENDER_SCALE = Math.max(2, Math.min(6, Number(process.env.PDF_RENDER_SCALE) || 3));
+const cellFor = (s: number, base6: number) => Math.max(2, Math.round((base6 * s) / 6));
+const minNFor = (s: number, base6: number) => Math.max(5, Math.round(base6 * (s / 6) ** 2));
+
 const LOC_REF: [string, number, number, number][] = [
   ['Slider', 210, 175, 0], ['Curveball', 70, 140, 245], ['Fastball', 140, 0, 35], ['Other', 245, 105, 35],
 ];
@@ -156,7 +166,7 @@ export async function extractTrackmanLocations(buffer: Buffer): Promise<Location
     if (!box) return [];
 
     // 2) Render page 1 to a bitmap.
-    const S = 6; const vp = page.getViewport({ scale: S });
+    const S = PDF_RENDER_SCALE; const vp = page.getViewport({ scale: S });
     const canvas = createCanvas(vp.width, vp.height); const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport: vp, canvasFactory }).promise;
@@ -174,7 +184,7 @@ export async function extractTrackmanLocations(buffer: Buffer): Promise<Location
       for (const [t, R, G, B] of LOC_REF) { const d = (r - (R as number)) ** 2 + (g - (G as number)) ** 2 + (b - (B as number)) ** 2; if (d < bd) { bd = d; best = t as string; } }
       return best;
     };
-    const CELL = 8; const GW = Math.ceil(RW / CELL), GH = Math.ceil(RH / CELL);
+    const CELL = cellFor(S, 8); const GW = Math.ceil(RW / CELL), GH = Math.ceil(RH / CELL);
     const cells: Record<string, Map<number, { n: number; sx: number; sy: number }>> = {};
     for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) {
       const p = (y * RW + x) * 4; const t = classify(img[p], img[p + 1], img[p + 2]); if (!t) continue;
@@ -202,7 +212,7 @@ export async function extractTrackmanLocations(buffer: Buffer): Promise<Location
             const nk = ny * GW + nx; if (occ.has(nk) && !seen.has(nk)) { seen.add(nk); stack.push(nk); }
           }
         }
-        if (n >= 60) { const cx = rx0 + sx / n, cy = ry0 + sy / n; dots.push({ pitchType: t, ...calib(cx, cy) }); }
+        if (n >= minNFor(S, 60)) { const cx = rx0 + sx / n, cy = ry0 + sy / n; dots.push({ pitchType: t, ...calib(cx, cy) }); }
       }
     }
     return dots;
@@ -270,7 +280,7 @@ export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementD
     if (!isFinite(pxPerIn) || pxPerIn < 1) return [];
 
     // Render + detect dots in the plot interior (around the ticks, above the axis labels).
-    const S = 6; const vp = page.getViewport({ scale: S });
+    const S = PDF_RENDER_SCALE; const vp = page.getViewport({ scale: S });
     const canvas = createCanvas(vp.width, vp.height); const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport: vp, canvasFactory }).promise;
@@ -289,7 +299,7 @@ export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementD
       for (const [t, R, G, B] of REF) { const d = (r - (R as number)) ** 2 + (g - (G as number)) ** 2 + (b - (B as number)) ** 2; if (d < bd) { bd = d; best = t as string; } }
       return best;
     };
-    const CELL = 7, GW = Math.ceil(RW / CELL), GH = Math.ceil(RH / CELL);
+    const CELL = cellFor(S, 7), GW = Math.ceil(RW / CELL), GH = Math.ceil(RH / CELL);
     const cells: Record<string, Map<number, { n: number; sx: number; sy: number }>> = {};
     for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) {
       const p = (y * RW + x) * 4; const t = classify(img[p], img[p + 1], img[p + 2]); if (!t) continue;
@@ -307,7 +317,7 @@ export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementD
           const gx = k % GW, gy = (k / GW) | 0;
           for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = gx + dx, ny = gy + dy; if (nx < 0 || ny < 0 || nx >= GW || ny >= GH) continue; const nk = ny * GW + nx; if (occ.has(nk) && !seen.has(nk)) { seen.add(nk); stack.push(nk); } }
         }
-        if (cnt >= 45) arr.push({ px: (rx0 + sx / cnt) / S, py: (ry0 + sy / cnt) / S });
+        if (cnt >= minNFor(S, 45)) arr.push({ px: (rx0 + sx / cnt) / S, py: (ry0 + sy / cnt) / S });
       }
       if (arr.length) raw[t] = arr;
     }
