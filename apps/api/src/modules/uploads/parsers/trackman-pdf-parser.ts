@@ -110,13 +110,16 @@ export interface LocationDot { pitchType: string; plateLocSide: number; plateLoc
 // itself — which Trackman draws as radial-shading dots (no recoverable vector
 // geometry). We render page 1 to a bitmap and detect the coloured dots against
 // the dark strike-zone box, which is our self-calibrating coordinate reference.
-// Bitmap render scale for dot detection. Higher = sharper detection but more
-// memory: a full letter page at scale 6 is ~70 MB/canvas, which OOMs a 512 MB
-// instance. Default 3 (~17 MB) is memory-safe; set env PDF_RENDER_SCALE=6 once
-// the API instance has more RAM for the sharpest dots. The cell/minN detection
-// constants derive from this (cellFor/minNFor) so behaviour matches the
-// original scale-6 tuning at whatever scale is in effect.
-const PDF_RENDER_SCALE = Math.max(2, Math.min(6, Number(process.env.PDF_RENDER_SCALE) || 3));
+// Server-side dot detection renders the PDF page to a bitmap, which is too
+// memory-heavy for a 512 MB instance (even scale 3 OOM'd in practice). So it is
+// OFF BY DEFAULT: a PDF upload always saves the table-driven metrics + the
+// synthetic Movement/Release scatter (the Location plot is just left empty), and
+// can NEVER OOM or crash. To turn the REAL dots back on once the API instance has
+// more RAM, set env PDF_RENDER_SCALE to 3–6 (higher = sharper but more memory:
+// ~17 MB/canvas at 3, ~70 MB at 6). cell/minN derive from the scale so detection
+// matches the original scale-6 tuning at whatever scale is in effect.
+const PDF_RENDER_SCALE = Math.max(0, Math.min(6, Number(process.env.PDF_RENDER_SCALE) || 0));
+const DOT_RENDER_ENABLED = PDF_RENDER_SCALE >= 2;
 const cellFor = (s: number, base6: number) => Math.max(2, Math.round((base6 * s) / 6));
 const minNFor = (s: number, base6: number) => Math.max(5, Math.round(base6 * (s / 6) ** 2));
 
@@ -134,6 +137,7 @@ const lc_tp = (m: number[], x: number, y: number) => [m[0]*x+m[2]*y+m[4], m[1]*x
  * returns [] so the upload still succeeds with an empty Location plot.
  */
 export async function extractTrackmanLocations(buffer: Buffer): Promise<LocationDot[]> {
+  if (!DOT_RENDER_ENABLED) return [];   // dot render off by default (memory) — table data still saved
   const napi = ensureCanvasGlobals();
   if (!napi) return [];   // no canvas globals → skip render; table data still saved
   const { createCanvas } = napi;
@@ -244,6 +248,7 @@ export interface MovementDot { pitchType: string; horzBreak: number; inducedVert
  * table-driven synthetic scatter.
  */
 export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementDot[]> {
+  if (!DOT_RENDER_ENABLED) return [];   // dot render off by default (memory) — table data still saved
   const napi = ensureCanvasGlobals();
   if (!napi) return [];   // no canvas globals → skip render; table data still saved
   const { createCanvas } = napi;
