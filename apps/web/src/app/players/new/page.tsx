@@ -128,6 +128,7 @@ export default function NewPlayerPage() {
             <label className={styles.label}>Email *</label>
             <input
               type="email"
+              autoComplete="off"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="player@example.com"
