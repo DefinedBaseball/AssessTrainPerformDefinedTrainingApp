@@ -18,6 +18,7 @@ export default function NewPlayerPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [positions, setPositions] = useState<string[]>([]);
   const [bats, setBats] = useState('');
   const [throws_, setThrows] = useState('');
@@ -56,11 +57,15 @@ export default function NewPlayerPage() {
       setError('Select at least one position');
       return;
     }
+    if (password.trim() && password.trim().length < 6) {
+      setError('Password must be at least 6 characters (or leave blank for the default)');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
       // First register the user account
-      const regResult = await api.register(email, 'player123', 'PLAYER');
+      const regResult = await api.register(email, password.trim() || 'player123', 'PLAYER');
       const userId = regResult.id;
 
       // Calculate height in inches
@@ -135,6 +140,17 @@ export default function NewPlayerPage() {
               required
             />
           </div>
+        </div>
+
+        <div className={styles.fieldGroup}>
+          <label className={styles.label}>Password</label>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Leave blank for default (player123)"
+          />
         </div>
 
         {/* ── Section: Positions ── */}
@@ -258,7 +274,7 @@ export default function NewPlayerPage() {
 
         {/* ── Hint ── */}
         <p className={styles.hint}>
-          Default password for new athletes is <strong>player123</strong>. They can log in with their email.
+          Leave <strong>Password</strong> blank to use the default <strong>player123</strong>. Athletes log in with their email.
         </p>
 
         {error && <div className={styles.error}>{error}</div>}

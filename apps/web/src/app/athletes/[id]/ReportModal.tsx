@@ -8,6 +8,7 @@ import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import rs from '@/components/assessment/report-form.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { useTheme } from '@/lib/theme-context';
 import styles from './page.module.css';
 import { StrengthConditioningForm, emptyScForm } from './StrengthConditioningForm';
@@ -693,7 +694,7 @@ interface SummaryData {
   playingLevelGoal: string; goals: string;
 }
 
-function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: SummaryData) => void }) {
+function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d: SummaryData) => void; player: Player }) {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const update = (fields: Partial<SummaryData>) => setData({ ...data, ...fields });
   const togglePosition = (pos: string) => {
@@ -775,6 +776,12 @@ function SummaryForm({ data, setData }: { data: SummaryData; setData: (d: Summar
             <input type="text" className={rs.summaryInput} value={data.lastName} onChange={e => update({ lastName: e.target.value })} placeholder="Last name" />
           </div>
         </div>
+        {player.userId && (
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Login Password</label>
+            <ResetPasswordButton userId={player.userId} label="🔑 Set Password" />
+          </div>
+        )}
         <div className={rs.summaryField}>
           <label className={rs.summaryLabel}>Position(s)</label>
           <div className={rs.posChipRow}>
@@ -3910,7 +3917,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
 
           {/* Summary form / Catching form / CSV+Notes+Videos */}
           {reportType === 'SUMMARY' ? (
-            <SummaryForm data={summaryData} setData={setSummaryData} />
+            <SummaryForm data={summaryData} setData={setSummaryData} player={player} />
           ) : reportType === 'CATCHING' ? (
             <>
               <CatchingForm data={catchingData} setData={setCatchingData} />
