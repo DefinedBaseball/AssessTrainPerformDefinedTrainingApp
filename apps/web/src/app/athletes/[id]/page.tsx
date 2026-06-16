@@ -11,6 +11,7 @@ import type { Player, Metric, Video } from '@/lib/api';
 import { TabBar, TabPanel } from '@/components/assessment';
 import type { Tab } from '@/components/assessment';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
+import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
@@ -483,7 +484,12 @@ export default function PlayerProfilePage() {
       {isCoach && params?.id && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
-          {player.userId && <ResetPasswordButton userId={player.userId} />}
+          {player.userId && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <ChangeEmailButton userId={player.userId} currentEmail={player.user?.email} />
+              <ResetPasswordButton userId={player.userId} />
+            </span>
+          )}
         </div>
       )}
 

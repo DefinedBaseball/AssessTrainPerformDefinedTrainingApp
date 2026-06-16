@@ -198,6 +198,14 @@ export async function setUserPassword(userId: string, newPassword: string) {
   });
 }
 
+/** Coach changes a player account's login email (from the athlete profile). */
+export async function setUserEmail(userId: string, email: string) {
+  return request<{ ok: boolean; email: string }>(`/auth/users/${userId}/email`, {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
 // ---- Notification channel preferences ----
 
 export interface NotifChannelPrefs {

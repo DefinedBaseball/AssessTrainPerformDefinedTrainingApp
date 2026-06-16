@@ -143,6 +143,18 @@ export class AuthController {
     return this.authService.setUserPassword(req.user!, userId, dto.newPassword);
   }
 
+  @Post('users/:userId/email')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Change a player account's login email (coach)" })
+  setUserEmail(
+    @Param('userId') userId: string,
+    @Body() dto: { email: string },
+  ) {
+    return this.authService.setUserEmail(userId, dto.email);
+  }
+
   @Post('users/:userId/coach-level')
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')

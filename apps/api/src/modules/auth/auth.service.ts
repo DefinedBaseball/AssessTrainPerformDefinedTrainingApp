@@ -366,6 +366,29 @@ export class AuthService {
     return { ok: true };
   }
 
+  /**
+   * Coach changes another account's LOGIN email (e.g. fixing a typo from the
+   * athlete profile). Scoped to PLAYER targets only — coach emails key the
+   * prod-seed admins, so they aren't changed via this route. Validates format
+   * and enforces uniqueness (lowercased).
+   */
+  async setUserEmail(targetUserId: string, rawEmail: string) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role !== 'PLAYER')
+      throw new ForbiddenException('Only player account emails can be changed here.');
+    const email = rawEmail?.trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+      throw new BadRequestException('Enter a valid email address');
+    if (email !== target.email) {
+      const existing = await this.prisma.user.findUnique({ where: { email } });
+      if (existing && existing.id !== targetUserId)
+        throw new ConflictException('That email is already in use');
+      await this.prisma.user.update({ where: { id: targetUserId }, data: { email } });
+    }
+    return { ok: true, email };
+  }
+
   /** Pending player accounts awaiting coach acceptance. */
   async listPending() {
     const users = await this.prisma.user.findMany({
