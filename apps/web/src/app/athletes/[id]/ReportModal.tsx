@@ -3107,6 +3107,29 @@ interface ReportModalProps {
   profileOnly?: boolean;
 }
 
+/* Coach Notes — a private second notes box added to every report type. Saved
+   inside content.coachNotes and only ever rendered here in the coach-only
+   report editor; no profile tab reads it, so the athlete never sees it. */
+function CoachNotesSection({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className={rs.section}>
+      <div className={rs.sectionHeader}>
+        <span className={rs.sectionIcon}>🔒</span>
+        <span className={rs.sectionTitle}>Coach Notes</span>
+        <span style={{ marginLeft: 'auto', fontSize: rem(11), fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Private · not shown to the athlete
+        </span>
+      </div>
+      <RichTextEditor
+        value={value}
+        onChange={onChange}
+        placeholder="Private coaching notes — strategy, reminders, things to work on. Saved with the report; the athlete never sees this."
+        minHeight={120}
+      />
+    </div>
+  );
+}
+
 export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly }: ReportModalProps) {
   const isEdit = !!existingReport;
   const [reportType, setReportType] = useState(existingReport?.reportType || initialReportType || 'HITTING');
@@ -3170,6 +3193,13 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
   const [swingDecisionNotes, setSwingDecisionNotes] = useState<string>(() => {
     const c = parseExistingContent();
     return typeof c.swingDecisionNotes === 'string' ? c.swingDecisionNotes : '';
+  });
+  // Coach Notes — a private second notes box on every report type. Saved at
+  // content.coachNotes and only ever rendered in this coach-only editor; no
+  // profile tab reads it, so the athlete never sees it.
+  const [coachNotes, setCoachNotes] = useState<string>(() => {
+    const c = parseExistingContent();
+    return typeof c.coachNotes === 'string' ? c.coachNotes : '';
   });
   const [swingDecisionVideos, setSwingDecisionVideos] = useState<VideoEntry[]>([]);
 
@@ -3659,6 +3689,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         const atBatStillPresent = !!atBatData || !!existingCsvUploads.atbat;
         const newContent = {
           ...prevContent,
+          // Coach Notes — private; saved inside content, never shown to players.
+          coachNotes: coachNotes || undefined,
           ...(Object.keys(mergedCsvUploads).length > 0 ? { csvUploads: mergedCsvUploads } : { csvUploads: undefined }),
           ...(mergedVideos.length > 0 ? { videos: mergedVideos } : { videos: undefined }),
           ...(atBatData
@@ -3939,6 +3971,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={120}
                 />
               </div>
+              <CoachNotesSection value={coachNotes} onChange={setCoachNotes} />
               <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : reportType === 'INFIELD' ? (
@@ -3957,6 +3990,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={120}
                 />
               </div>
+              <CoachNotesSection value={coachNotes} onChange={setCoachNotes} />
               <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : reportType === 'OUTFIELD' ? (
@@ -3975,6 +4009,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={120}
                 />
               </div>
+              <CoachNotesSection value={coachNotes} onChange={setCoachNotes} />
               <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : reportType === 'STRENGTH' ? (
@@ -4006,6 +4041,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={140}
                 />
               </div>
+              <CoachNotesSection value={coachNotes} onChange={setCoachNotes} />
               <VideoSection videos={videos} setVideos={setVideos} existingVideos={existingVideos} setExistingVideos={setExistingVideos} relatedVideos={relatedVideos} />
             </>
           ) : (
@@ -4033,6 +4069,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   minHeight={reportType === 'HITTING' ? 220 : 120}
                 />
               </div>
+              <CoachNotesSection value={coachNotes} onChange={setCoachNotes} />
               {/* HITTING reports split CSV slots into two visual groups —
                   Swing (Blast / Full Swing) and Swing Decision (At-Bat).
                   Other report types render a single Data Imports group. */}
