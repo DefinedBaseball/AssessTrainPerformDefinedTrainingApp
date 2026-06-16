@@ -211,12 +211,30 @@ export class AuthService {
   /** Update editable account fields (Settings → Account). */
   async updateAccount(
     userId: string,
-    dto: { name?: string | null; phone?: string | null; position?: string | null },
+    dto: { name?: string | null; phone?: string | null; position?: string | null; email?: string | null },
   ) {
-    const data: { name?: string | null; phone?: string | null; position?: string | null } = {};
+    const data: { name?: string | null; phone?: string | null; position?: string | null; email?: string } = {};
     if (dto.name !== undefined) data.name = dto.name?.trim() || null;
     if (dto.phone !== undefined) data.phone = dto.phone?.trim() || null;
     if (dto.position !== undefined) data.position = dto.position?.trim() || null;
+    // Email is the login username. Only PLAYER accounts may self-change it here:
+    // coach emails are how the prod seed keys the seeded admins, so renaming one
+    // would let the next deploy re-create a duplicate admin.
+    if (dto.email !== undefined) {
+      const me = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!me) throw new NotFoundException('User not found');
+      if (me.role !== 'PLAYER')
+        throw new ForbiddenException('Only player accounts can change their email here.');
+      const email = dto.email?.trim().toLowerCase();
+      if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+        throw new BadRequestException('Enter a valid email address');
+      if (email !== me.email) {
+        const existing = await this.prisma.user.findUnique({ where: { email } });
+        if (existing && existing.id !== userId)
+          throw new ConflictException('That email is already in use');
+        data.email = email;
+      }
+    }
     const user = await this.prisma.user.update({
       where: { id: userId },
       data,

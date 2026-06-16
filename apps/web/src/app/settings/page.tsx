@@ -244,7 +244,9 @@ function CamerasTab() {
 /* ─── Account ──────────────────────────────────────────────── */
 
 function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => void; isCoach: boolean }) {
+  const { refresh } = useAuth();
   const [profile, setProfile] = useState<api.AccountProfile | null>(null);
+  const [email, setEmail] = useState(user.email || '');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [position, setPosition] = useState('');
@@ -267,6 +269,7 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
         setName(p.name || '');
         setPhone(p.phone || '');
         setPosition(p.position || '');
+        setEmail(p.email || user.email || '');
       })
       .catch(() => { /* fall back to session values below */ });
   }, []);
@@ -279,9 +282,12 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
       const updated = await api.updateAccount({
         name,
         phone,
-        ...(isCoach ? { position } : {}),
+        ...(isCoach ? { position } : { email }),
       });
       setProfile(updated);
+      // Players can change their login email here — refresh the session so the
+      // stored email (and what they sign in with) reflects the new value.
+      if (!isCoach) await refresh();
       setProfileMsg('Saved.');
       setTimeout(() => setProfileMsg(''), 2000);
     } catch (e: any) {
@@ -334,9 +340,24 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Email</span>
-            <span className={styles.rowSub}>Your login email (cannot be changed here)</span>
+            <span className={styles.rowSub}>
+              {isCoach
+                ? 'Your login email (managed by an admin)'
+                : 'The email you sign in with — update it here'}
+            </span>
           </div>
-          <span className={styles.rowSub}>{user.email}</span>
+          {isCoach ? (
+            <span className={styles.rowSub}>{user.email}</span>
+          ) : (
+            <input
+              className={styles.input}
+              type="email"
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
+          )}
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>

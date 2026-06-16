@@ -173,6 +173,7 @@ export async function updateAccount(dto: {
   name?: string | null;
   phone?: string | null;
   position?: string | null;
+  email?: string | null;
 }) {
   return request<AccountProfile>('/auth/account', {
     method: 'PATCH',

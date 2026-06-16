@@ -110,10 +110,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ViewerAllowed()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update editable account fields (name, phone, position)' })
+  @ApiOperation({ summary: 'Update editable account fields (name, phone, position; email for players)' })
   updateAccount(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: { name?: string | null; phone?: string | null; position?: string | null },
+    @Body() dto: { name?: string | null; phone?: string | null; position?: string | null; email?: string | null },
   ) {
     return this.authService.updateAccount(req.user!.sub, dto);
   }
