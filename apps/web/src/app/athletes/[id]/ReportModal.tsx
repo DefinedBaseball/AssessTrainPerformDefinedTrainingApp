@@ -193,15 +193,15 @@ function heightToInches(h: string): number | null {
   return parseInt(m[1]) * 12 + parseInt(m[2]);
 }
 
-interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; group?: 'swing' | 'decision'; kind?: 'csv' | 'pdf'; }
+interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; group?: 'swing' | 'decision'; kind?: 'csv' | 'pdf'; multi?: boolean; }
 
 const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   // The HITTING report now bundles both swing and swing-decision data. The
   // `group` tag drives which subsection a slot renders in (swing / decision).
   HITTING: [
-    { key: 'blast',     label: 'Swing Metrics',         subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing' },
-    { key: 'fullswing', label: 'Batted Ball Metrics',   subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing' },
-    { key: 'hittrax',   label: 'Batted Ball — HitTrax', subtitle: 'HitTrax CSV',              vendor: 'HitTrax',      group: 'swing' },
+    { key: 'blast',     label: 'Swing Metrics',         subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing', multi: true },
+    { key: 'fullswing', label: 'Batted Ball Metrics',   subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing', multi: true },
+    { key: 'hittrax',   label: 'Batted Ball — HitTrax', subtitle: 'HitTrax CSV',              vendor: 'HitTrax',      group: 'swing', multi: true },
     { key: 'atbat',     label: 'At-Bat Assessment',     subtitle: 'At-Bat Assessment XLSX',   vendor: 'AtBat',        group: 'decision' },
     /* `atbat_fullswing` + `atbat_hittrax` CSV slots retired in
        Phase 6 — at-bat batted-ball data is now captured live via
@@ -220,7 +220,7 @@ const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   //    non-interactive plots. Either fills the tab; coaches pick whichever
   //    export they have on hand.
   PITCHING: [
-    { key: 'trackman', label: 'Pitch Data', subtitle: 'TrackMan CSV', vendor: 'TrackMan', kind: 'csv' },
+    { key: 'trackman', label: 'Pitch Data', subtitle: 'TrackMan CSV', vendor: 'TrackMan', kind: 'csv', multi: true },
     { key: 'trackman_pdf', label: 'Pitch Data', subtitle: 'TrackMan Session Report', vendor: 'TrackMan', kind: 'pdf' },
   ],
   /* INFIELD uses a dedicated form — no CSV slots */
@@ -241,29 +241,69 @@ interface UploadResult { status: 'success' | 'error' | 'processing'; message: st
 /** Shape of a previously-saved CSV upload, persisted into a report's
  *  content.csvUploads[slotKey] entry. We surface it in edit mode so the coach
  *  sees what's already attached and can remove or replace it. */
-interface ExistingUpload { vendor: string; rows?: number; metrics?: number; uploadId?: string; atBats?: number; playerName?: string; error?: string; }
+interface ExistingFile { name?: string; uploadId: string; rows?: number; metrics?: number; }
+interface ExistingUpload { vendor: string; rows?: number; metrics?: number; uploadId?: string; uploadIds?: string[]; files?: ExistingFile[]; atBats?: number; playerName?: string; error?: string; pdf?: boolean; }
+
+/** Dedupe Files by name+size so re-dropping the same export doesn't double it. */
+function dedupeFiles(arr: File[]): File[] {
+  const seen = new Set<string>();
+  const out: File[] = [];
+  for (const f of arr) { const k = `${f.name}:${f.size}`; if (!seen.has(k)) { seen.add(k); out.push(f); } }
+  return out;
+}
+
+/** Normalize any saved csvUploads slot entry into a flat list of saved files.
+ *  Multi-file slots store `files[]` / `uploadIds[]`; legacy + single-file slots
+ *  store one `uploadId`; client-parsed slots (At-Bat XLSX) carry no id at all
+ *  but still need one summary row, so emit a synthetic empty-id row. */
+function existingFilesOf(entry: ExistingUpload | null): ExistingFile[] {
+  if (!entry) return [];
+  if (Array.isArray(entry.files) && entry.files.length) return entry.files;
+  if (Array.isArray(entry.uploadIds) && entry.uploadIds.length) {
+    return entry.uploadIds.filter(Boolean).map(id => ({ uploadId: id }));
+  }
+  if (entry.uploadId) return [{ uploadId: entry.uploadId, rows: entry.rows, metrics: entry.metrics }];
+  return [{ uploadId: '' }];
+}
 
 function CsvUploadCard({
-  slot, file, uploadResult, existingUpload, onSelect, onRemove, onRemoveExisting,
+  slot, files, uploadResult, existingUpload, onSelect, onRemoveFile, onRemoveExistingFile,
   manualMode, onToggleManual, manualNode,
 }: {
-  slot: CsvSlot; file: File | null; uploadResult: UploadResult | null;
+  slot: CsvSlot; files: File[]; uploadResult: UploadResult | null;
   existingUpload?: ExistingUpload | null;
-  onSelect: (f: File) => void; onRemove: () => void;
-  onRemoveExisting?: () => void;
+  onSelect: (fs: File[]) => void;
+  onRemoveFile: (idx: number) => void;
+  onRemoveExistingFile: (uploadId: string) => void;
   /** When true, the card renders manualNode in place of the drop zone. */
   manualMode?: boolean;
   onToggleManual?: () => void;
   manualNode?: React.ReactNode;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const showExisting = !file && !!existingUpload && !manualMode;
   const supportsManual = !!onToggleManual;
+  const isMulti = !!slot.multi;
   // PDF slots (Trackman session report) accept a .pdf instead of a CSV/XLSX.
   const isPdf = slot.kind === 'pdf';
   const acceptAttr = isPdf ? '.pdf' : '.csv,.xlsx,.xls';
   const fileRe = isPdf ? /\.pdf$/i : /\.(csv|xlsx?)$/i;
   const noun = isPdf ? 'PDF' : 'CSV';
+  const staged = files || [];
+  const existingFiles = manualMode ? [] : existingFilesOf(existingUpload || null);
+  // Multi-file slots keep the drop zone visible so more files can be added;
+  // single-file slots hide it once a file is staged (a saved file still shows
+  // it so the coach can drop a replacement).
+  const showDropZone = !manualMode && (isMulti || staged.length === 0);
+  const hasAny = staged.length > 0 || existingFiles.length > 0;
+  const dropText = isMulti
+    ? (hasAny ? `Drop another ${noun} or click to add` : `Drop ${noun}s here or click to browse`)
+    : (existingFiles.length > 0 ? `Drop ${noun} to replace, or click to browse` : `Drop ${noun} here or click to browse`);
+  const pickFiles = (list: FileList | null) => {
+    if (!list) return;
+    let valid = Array.from(list).filter(f => fileRe.test(f.name));
+    if (!isMulti) valid = valid.slice(0, 1);
+    if (valid.length) onSelect(valid);
+  };
   return (
     <div className={rs.csvCard}>
       <div className={rs.csvCardHeader}>
@@ -300,61 +340,56 @@ function CsvUploadCard({
       </div>
       {manualMode ? (
         <div style={{ marginTop: 8 }}>{manualNode}</div>
-      ) : file ? (
-        <div className={rs.fileInfo}>
-          <div className={rs.fileName}>
-            <span className={rs.fileIcon}>✅</span>{file.name}
-            <span className={rs.fileSize}>({(file.size / 1024).toFixed(1)} KB)</span>
-          </div>
-          <button type="button" className={rs.removeBtn} onClick={onRemove}>Remove</button>
-          {uploadResult && (
-            <div className={`${rs.uploadResult} ${uploadResult.status === 'success' ? rs.uploadSuccess : uploadResult.status === 'error' ? rs.uploadError : ''}`}>
-              {uploadResult.message}
-            </div>
-          )}
-        </div>
       ) : (
         <>
-          {/* Saved upload row (edit mode) — shows above the drop zone so the
-              coach can see what's already attached, remove it, or upload a
-              fresh file (which replaces the saved entry on save). */}
-          {showExisting && (
-            <div className={rs.fileInfo} style={{ marginBottom: 8 }}>
+          {/* Saved uploads (edit mode) — one row per attached file so a coach
+              can remove an individual file from a multi-file slot. */}
+          {existingFiles.map((ef, i) => (
+            <div key={ef.uploadId || `saved-${i}`} className={rs.fileInfo} style={{ marginBottom: 8 }}>
               <div className={rs.fileName}>
                 <span className={rs.fileIcon}>📎</span>
-                {existingUpload!.vendor} {noun}
+                {ef.name || `${existingUpload!.vendor} ${noun}`}
                 <span className={rs.fileSize}>
-                  {existingUpload!.atBats != null
-                    ? `(${existingUpload!.atBats} at-bats)`
-                    : existingUpload!.rows != null
-                      ? `(${existingUpload!.rows} rows · ${existingUpload!.metrics ?? 0} metrics)`
+                  {existingUpload?.atBats != null
+                    ? `(${existingUpload.atBats} at-bats)`
+                    : ef.rows != null
+                      ? `(${ef.rows} rows${ef.metrics != null ? ` · ${ef.metrics} metrics` : ''})`
                       : '(saved)'}
                 </span>
               </div>
-              <button type="button" className={rs.removeBtn} onClick={() => onRemoveExisting?.()}>Remove</button>
+              <button type="button" className={rs.removeBtn} onClick={() => onRemoveExistingFile(ef.uploadId)}>Remove</button>
+            </div>
+          ))}
+          {/* Newly-staged files (not yet uploaded) */}
+          {staged.map((f, i) => (
+            <div key={`${f.name}-${f.size}-${i}`} className={rs.fileInfo} style={{ marginBottom: 8 }}>
+              <div className={rs.fileName}>
+                <span className={rs.fileIcon}>✅</span>{f.name}
+                <span className={rs.fileSize}>({(f.size / 1024).toFixed(1)} KB)</span>
+              </div>
+              <button type="button" className={rs.removeBtn} onClick={() => onRemoveFile(i)}>Remove</button>
+            </div>
+          ))}
+          {uploadResult && (
+            <div
+              className={`${rs.uploadResult} ${uploadResult.status === 'success' ? rs.uploadSuccess : uploadResult.status === 'error' ? rs.uploadError : ''}`}
+              style={{ marginBottom: showDropZone ? 8 : 0 }}
+            >
+              {uploadResult.message}
             </div>
           )}
-          {/* Drop zone — always visible, even when a saved CSV is already on
-              file. Selecting/dropping a new file replaces the saved entry on
-              save (since each slot holds a single CSV). */}
-          <div className={rs.dropZone} onDragOver={e => e.preventDefault()}
-            onDrop={e => {
-              e.preventDefault();
-              const f = e.dataTransfer.files[0];
-              if (f && fileRe.test(f.name)) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
-            }}
-            onClick={() => inputRef.current?.click()}>
-            <span className={rs.dropIcon}>{isPdf ? '📕' : '📄'}</span>
-            <span className={rs.dropText}>
-              {showExisting ? `Drop ${noun} to replace, or click to browse` : `Drop ${noun} here or click to browse`}
-            </span>
-            <input ref={inputRef} type="file" accept={acceptAttr} style={{ display: 'none' }}
-              onChange={e => {
-                const f = e.target.files?.[0];
-                if (f) { if (showExisting) onRemoveExisting?.(); onSelect(f); }
-                e.target.value = '';
-              }} />
-          </div>
+          {/* Drop zone — for multi slots always visible (add more); for single
+              slots visible until a file is staged. */}
+          {showDropZone && (
+            <div className={rs.dropZone} onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); pickFiles(e.dataTransfer.files); }}
+              onClick={() => inputRef.current?.click()}>
+              <span className={rs.dropIcon}>{isPdf ? '📕' : '📄'}</span>
+              <span className={rs.dropText}>{dropText}</span>
+              <input ref={inputRef} type="file" accept={acceptAttr} multiple={isMulti} style={{ display: 'none' }}
+                onChange={e => { pickFiles(e.target.files); e.target.value = ''; }} />
+            </div>
+          )}
         </>
       )}
     </div>
@@ -3135,7 +3170,7 @@ function CoachNotesSection({ value, onChange }: { value: string; onChange: (v: s
 export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly }: ReportModalProps) {
   const isEdit = !!existingReport;
   const [reportType, setReportType] = useState(existingReport?.reportType || initialReportType || 'HITTING');
-  const [csvFiles, setCsvFiles] = useState<Record<string, File | null>>({});
+  const [csvFiles, setCsvFiles] = useState<Record<string, File[]>>({});
   const [csvResults, setCsvResults] = useState<Record<string, UploadResult | null>>({});
   /* Per-section state — each report-type chip keeps its OWN name, notes, and
      pending video uploads, so a coach can fill out several sections in one
@@ -3442,6 +3477,50 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
      player-profile editor, handled separately). */
   const REPORT_DATA_TYPES = ['HITTING', 'PITCHING', 'CATCHING', 'INFIELD', 'OUTFIELD', 'STRENGTH'];
 
+  /* ── CSV slot file handlers (shared by both card call sites) ──
+     Multi-file slots accumulate files; single-file slots replace. */
+  const handleCsvSelect = (slot: CsvSlot, picked: File[]) => {
+    if (picked.length === 0) return;
+    if (slot.multi) {
+      setCsvFiles(prev => ({ ...prev, [slot.key]: dedupeFiles([...(prev[slot.key] || []), ...picked]) }));
+    } else {
+      setCsvFiles(prev => ({ ...prev, [slot.key]: [picked[0]] }));
+      // Single slot: staging a file replaces any previously-saved upload on save.
+      setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; });
+      setCsvResults(prev => ({ ...prev, [slot.key]: null }));
+    }
+  };
+  const handleCsvRemoveStaged = (slot: CsvSlot, idx: number) => {
+    setCsvFiles(prev => {
+      const arr = [...(prev[slot.key] || [])];
+      arr.splice(idx, 1);
+      return { ...prev, [slot.key]: arr };
+    });
+    if (!slot.multi) setCsvResults(prev => ({ ...prev, [slot.key]: null }));
+  };
+  const handleCsvRemoveExisting = (slot: CsvSlot, uploadId: string) => {
+    setExistingCsvUploads(prev => {
+      const entry = prev[slot.key];
+      if (!entry) return prev;
+      const remaining = existingFilesOf(entry).filter(f => f.uploadId && f.uploadId !== uploadId);
+      // Single slot, synthetic (no id), or last file removed → drop the slot.
+      if (!slot.multi || !uploadId || remaining.length === 0) {
+        const n = { ...prev }; delete n[slot.key]; return n;
+      }
+      return {
+        ...prev,
+        [slot.key]: {
+          ...entry,
+          files: remaining,
+          uploadIds: remaining.map(f => f.uploadId),
+          uploadId: remaining[0]?.uploadId,
+          rows: remaining.reduce((s, f) => s + (f.rows || 0), 0),
+          metrics: remaining.reduce((s, f) => s + (f.metrics || 0), 0),
+        },
+      };
+    });
+  };
+
   /* Does a given section have anything worth saving? Drives which separate
      reports get created on a multi-section save — checks the section's name,
      notes, pending videos, selected CSVs, and its type-specific grade data. */
@@ -3449,7 +3528,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     if ((titlesByType[t] ?? '').trim()) return true;
     if ((notesByType[t] ?? '').trim()) return true;
     if ((videosByType[t] ?? []).length > 0) return true;
-    if ((REPORT_CSV_SLOTS[t] || []).some(s => csvFiles[s.key])) return true;
+    if ((REPORT_CSV_SLOTS[t] || []).some(s => (csvFiles[s.key]?.length ?? 0) > 0)) return true;
     switch (t) {
       case 'HITTING':
         return Object.values(manualScores).some(v => v != null)
@@ -3528,13 +3607,14 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         const uploadSummary: Record<string, any> = {};
         let atBatData: any = null;
         for (const slot of csvSlots) {
-          const file = csvFiles[slot.key];
-          if (!file) continue;
+          const slotFiles = csvFiles[slot.key] || [];
+          if (slotFiles.length === 0) continue;
           setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'processing' as const, message: 'Uploading...' } }));
           try {
             // At-Bat Assessment: parse XLSX on frontend, store in report content
+            // (single-file slot — only the first staged file is used).
             if (slot.vendor === 'AtBat') {
-              const buf = await file.arrayBuffer();
+              const buf = await slotFiles[0].arrayBuffer();
               const parsed = parseAtBatXlsx(buf);
               atBatData = parsed;
               uploadSummary[slot.key] = { vendor: 'AtBat', atBats: parsed.atBats.length, playerName: parsed.playerName };
@@ -3545,7 +3625,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             // rebuilds non-interactive trackman_pitch rows. Returns an uploadId
             // (like CSV) so the report scopes the Pitching tab to these pitches.
             if (slot.kind === 'pdf') {
-              const result = await api.uploadTrackmanPdf(file, userId, player.id);
+              const result = await api.uploadTrackmanPdf(slotFiles[0], userId, player.id);
               uploadSummary[slot.key] = { vendor: slot.vendor, rows: result.totalRows, metrics: result.metricsCreated, uploadId: result.uploadId, pdf: true };
               setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'success', message: `${result.metricsCreated} metrics from ${result.totalRows} pitches (${result.pitchTypes.join(', ')})`, rows: result.totalRows, metrics: result.metricsCreated } }));
               continue;
@@ -3555,9 +3635,20 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
               'TrackMan': 'TRACKMAN', 'VALD': 'VALD', 'Vizual Edge': 'VIZUAL_EDGE',
               'Custom': 'AUTO_DETECT',
             };
-            const result = await api.uploadCSV(file, userId, sourceMap[slot.vendor], player.id);
-            uploadSummary[slot.key] = { vendor: slot.vendor, rows: result.totalRows, metrics: result.metricsCreated, uploadId: result.uploadId };
-            setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'success', message: `${result.metricsCreated} metrics from ${result.totalRows} rows`, rows: result.totalRows, metrics: result.metricsCreated } }));
+            // CSV/XLSX vendors — upload every staged file. Multi-file slots keep
+            // each file's own uploadId so the report's metric aggregation pools
+            // (averages / maxes) across all of them into one trend value.
+            const fileResults: ExistingFile[] = [];
+            for (const file of slotFiles) {
+              const result = await api.uploadCSV(file, userId, sourceMap[slot.vendor], player.id);
+              fileResults.push({ name: file.name, uploadId: result.uploadId, rows: result.totalRows, metrics: result.metricsCreated });
+            }
+            const totalRows = fileResults.reduce((s, r) => s + (r.rows || 0), 0);
+            const totalMetrics = fileResults.reduce((s, r) => s + (r.metrics || 0), 0);
+            uploadSummary[slot.key] = slot.multi
+              ? { vendor: slot.vendor, files: fileResults, uploadIds: fileResults.map(r => r.uploadId), uploadId: fileResults[0]?.uploadId, rows: totalRows, metrics: totalMetrics }
+              : { vendor: slot.vendor, uploadId: fileResults[0]?.uploadId, rows: totalRows, metrics: totalMetrics };
+            setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'success', message: fileResults.length > 1 ? `${fileResults.length} files · ${totalMetrics} metrics from ${totalRows} rows` : `${totalMetrics} metrics from ${totalRows} rows`, rows: totalRows, metrics: totalMetrics } }));
           } catch (err: any) {
             setCsvResults(prev => ({ ...prev, [slot.key]: { status: 'error', message: err?.message || 'Upload failed' } }));
             uploadSummary[slot.key] = { vendor: slot.vendor, error: err?.message };
@@ -3671,7 +3762,28 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         if (isEdit && existingReport?.content) {
           try { prevContent = JSON.parse(existingReport.content) || {}; } catch { /* ignore */ }
         }
-        const mergedCsvUploads = { ...existingCsvUploads, ...uploadSummary };
+        // Combine kept-existing uploads with the newly-uploaded ones. For
+        // multi-file slots, APPEND the new files to whatever the coach kept
+        // (per-file Remove already pruned existingCsvUploads); single-file
+        // slots and errors simply replace the slot.
+        const mergedCsvUploads: Record<string, any> = { ...existingCsvUploads };
+        for (const [key, summary] of Object.entries(uploadSummary)) {
+          const slot = csvSlots.find(s => s.key === key);
+          if (slot?.multi && summary && !(summary as any).error) {
+            const keptFiles = existingFilesOf(existingCsvUploads[key] || null).filter(f => f.uploadId);
+            const allFiles = [...keptFiles, ...(((summary as any).files as ExistingFile[]) || [])];
+            mergedCsvUploads[key] = {
+              vendor: (summary as any).vendor,
+              files: allFiles,
+              uploadIds: allFiles.map(f => f.uploadId).filter(Boolean),
+              uploadId: allFiles[0]?.uploadId,
+              rows: allFiles.reduce((s, f) => s + (f.rows || 0), 0),
+              metrics: allFiles.reduce((s, f) => s + (f.metrics || 0), 0),
+            };
+          } else {
+            mergedCsvUploads[key] = summary;
+          }
+        }
         const tagSwing    = (v: ExistingVideo): SavedVideo => ({ ...v, section: 'swing' });
         const tagDecision = (v: ExistingVideo): SavedVideo => ({ ...v, section: 'decision' });
         const mergedVideos: SavedVideo[] = [
@@ -4124,11 +4236,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                             ))
                           : undefined;
                         return (
-                          <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
+                          <CsvUploadCard key={slot.key} slot={slot} files={csvFiles[slot.key] || []} uploadResult={csvResults[slot.key] || null}
                             existingUpload={existingCsvUploads[slot.key] || null}
-                            onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
-                            onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }}
-                            onRemoveExisting={() => setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; })}
+                            onSelect={fs => handleCsvSelect(slot, fs)}
+                            onRemoveFile={idx => handleCsvRemoveStaged(slot, idx)}
+                            onRemoveExistingFile={id => handleCsvRemoveExisting(slot, id)}
                             manualMode={isManual}
                             onToggleManual={supportsManual
                               ? () => setManualMode(prev => ({ ...prev, [slot.key]: !prev[slot.key] }))
@@ -4177,11 +4289,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                         </div>
                         <div className={rs.csvGrid}>
                           {decisionGroup.map(slot => (
-                            <CsvUploadCard key={slot.key} slot={slot} file={csvFiles[slot.key] || null} uploadResult={csvResults[slot.key] || null}
+                            <CsvUploadCard key={slot.key} slot={slot} files={csvFiles[slot.key] || []} uploadResult={csvResults[slot.key] || null}
                               existingUpload={existingCsvUploads[slot.key] || null}
-                              onSelect={f => setCsvFiles(prev => ({ ...prev, [slot.key]: f }))}
-                              onRemove={() => { setCsvFiles(prev => ({ ...prev, [slot.key]: null })); setCsvResults(prev => ({ ...prev, [slot.key]: null })); }}
-                              onRemoveExisting={() => setExistingCsvUploads(prev => { const n = { ...prev }; delete n[slot.key]; return n; })} />
+                              onSelect={fs => handleCsvSelect(slot, fs)}
+                              onRemoveFile={idx => handleCsvRemoveStaged(slot, idx)}
+                              onRemoveExistingFile={id => handleCsvRemoveExisting(slot, id)} />
                           ))}
                         </div>
                       </div>

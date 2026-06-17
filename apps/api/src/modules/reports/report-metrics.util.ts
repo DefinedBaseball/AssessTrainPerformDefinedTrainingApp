@@ -80,7 +80,10 @@ function collectUploadIds(content: any): string[] {
   const cu = content?.csvUploads;
   if (cu && typeof cu === 'object') {
     for (const slot of Object.values(cu) as any[]) {
-      if (slot?.uploadId) ids.push(slot.uploadId);
+      // Multi-file slots carry `uploadIds: string[]`; legacy/single-file
+      // slots carry one `uploadId`. Gather whichever is present.
+      if (Array.isArray(slot?.uploadIds)) ids.push(...slot.uploadIds.filter(Boolean));
+      else if (slot?.uploadId) ids.push(slot.uploadId);
     }
   }
   return ids;

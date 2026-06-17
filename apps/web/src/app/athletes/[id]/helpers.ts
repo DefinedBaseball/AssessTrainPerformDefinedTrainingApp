@@ -712,6 +712,14 @@ export function metricToGrade(
   return toScoutingGrade(m.value, metricKey);
 }
 
+/** Upload IDs carried by a single csvUploads slot entry. Multi-file slots
+ *  store `uploadIds: string[]`; legacy / single-file slots store one
+ *  `uploadId`. Either shape resolves to a flat string[]. */
+export function slotUploadIds(entry: any): string[] {
+  if (Array.isArray(entry?.uploadIds)) return entry.uploadIds.filter(Boolean);
+  return entry?.uploadId ? [entry.uploadId] : [];
+}
+
 /** Extract all uploadIds from a report's content JSON (from csvUploads) */
 export function getReportUploadIds(report: ReportSummary | null): string[] {
   if (!report?.content) return [];
@@ -720,10 +728,7 @@ export function getReportUploadIds(report: ReportSummary | null): string[] {
     const uploads = parsed.csvUploads;
     if (!uploads || typeof uploads !== 'object') return [];
     const ids: string[] = [];
-    for (const val of Object.values(uploads)) {
-      const entry = val as any;
-      if (entry?.uploadId) ids.push(entry.uploadId);
-    }
+    for (const val of Object.values(uploads)) ids.push(...slotUploadIds(val));
     return ids;
   } catch { /* ignore */ }
   return [];
@@ -746,10 +751,7 @@ export function getReportUploadIdsForKeys(
     const uploads = parsed.csvUploads;
     if (!uploads || typeof uploads !== 'object') return [];
     const ids: string[] = [];
-    for (const key of slotKeys) {
-      const entry = uploads[key];
-      if (entry?.uploadId) ids.push(entry.uploadId);
-    }
+    for (const key of slotKeys) ids.push(...slotUploadIds(uploads[key]));
     return ids;
   } catch { /* ignore */ }
   return [];

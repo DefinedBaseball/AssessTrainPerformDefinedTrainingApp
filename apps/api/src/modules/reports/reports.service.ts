@@ -139,7 +139,10 @@ export class ReportsService {
       const uploadIds: string[] = [];
       if (content.csvUploads) {
         for (const slot of Object.values(content.csvUploads) as any[]) {
-          if (slot?.uploadId) uploadIds.push(slot.uploadId);
+          // Multi-file slots carry `uploadIds: string[]`; legacy/single-file
+          // slots carry one `uploadId`. Clean up whichever is present.
+          if (Array.isArray(slot?.uploadIds)) uploadIds.push(...slot.uploadIds.filter(Boolean));
+          else if (slot?.uploadId) uploadIds.push(slot.uploadId);
         }
       }
       if (uploadIds.length > 0) {
