@@ -150,6 +150,14 @@ export default function LeaderboardPage() {
               {availableGradYears.map(y => (
                 <option key={y} value={y}>{api.formatGradYear(y)}</option>
               ))}
+              {/* Always offer College + Professional, even when no athlete
+                  currently carries that grad year. */}
+              {!availableGradYears.includes(api.GRAD_COLLEGE) && (
+                <option value={api.GRAD_COLLEGE}>{api.formatGradYear(api.GRAD_COLLEGE)}</option>
+              )}
+              {!availableGradYears.includes(api.GRAD_PRO) && (
+                <option value={api.GRAD_PRO}>{api.formatGradYear(api.GRAD_PRO)}</option>
+              )}
             </select>
           ) : (
             <span className={styles.noYears}>No athletes found — add players to see grad years.</span>

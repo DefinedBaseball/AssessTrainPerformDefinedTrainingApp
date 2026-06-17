@@ -127,7 +127,6 @@ export default function AthletesPage() {
             <span className={styles.colHt}>Height</span>
             <span className={styles.colWt}>Weight</span>
             <span className={styles.colPbr}>PBR St.</span>
-            <span className={styles.colPg}>PG</span>
           </div>
           {sorted.map(p => {
             // Age comes strictly from birthDate via the shared
@@ -160,7 +159,6 @@ export default function AthletesPage() {
                 <span className={styles.colHt}>{ht}</span>
                 <span className={styles.colWt}>{p.weightLbs ?? '—'}</span>
                 <span className={styles.colPbr}>{p.pbrState ?? '—'}</span>
-                <span className={styles.colPg}>{p.pgScore ?? '—'}</span>
               </Link>
             );
           })}

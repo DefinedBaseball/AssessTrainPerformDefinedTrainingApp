@@ -135,7 +135,7 @@
 
 .listHeader {
   display: grid;
-  grid-template-columns: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr 0.6fr;
+  grid-template-columns: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr;
   gap: 8px;
   padding: 12px 20px;
   background: rgba(255,255,255,0.025);
@@ -152,7 +152,7 @@
 
 .listRow {
   display: grid;
-  grid-template-columns: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr 0.6fr;
+  grid-template-columns: 2.2fr 0.6fr 0.7fr 1.2fr 0.7fr 0.7fr 0.7fr;
   gap: 8px;
   align-items: center;
   padding: 14px 20px;
