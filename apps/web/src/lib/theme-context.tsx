@@ -26,11 +26,12 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = 'pdapp_theme';
 
 function readStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+  // Light is the default — only an explicit saved 'dark' opts out.
+  if (typeof window === 'undefined') return 'light';
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
-    return v === 'light' ? 'light' : 'dark';
-  } catch { return 'dark'; }
+    return v === 'dark' ? 'dark' : 'light';
+  } catch { return 'light'; }
 }
 
 function applyToDocument(theme: Theme) {
@@ -43,10 +44,10 @@ function applyToDocument(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // We start at 'dark' on the server and then sync with the bootstrap
-  // script's choice on the client via the effect below. The effect
-  // only updates state — the DOM was already correct from bootstrap.
-  const [theme, setThemeState] = useState<Theme>('dark');
+  // We start at 'light' (the default) on the server and then sync with
+  // the bootstrap script's choice on the client via the effect below. The
+  // effect only updates state — the DOM was already correct from bootstrap.
+  const [theme, setThemeState] = useState<Theme>('light');
 
   useEffect(() => {
     const stored = readStoredTheme();
@@ -86,7 +87,7 @@ export function useTheme(): ThemeContextValue {
     // Permissive fallback so a stray useTheme() doesn't crash — most
     // call sites are inside the provider, but the toggle button might
     // briefly mount during hydration.
-    return { theme: 'dark', setTheme: () => undefined, toggle: () => undefined };
+    return { theme: 'light', setTheme: () => undefined, toggle: () => undefined };
   }
   return ctx;
 }
@@ -99,7 +100,10 @@ export const themeBootstrapScript = `
 (function () {
   try {
     var t = window.localStorage.getItem('${STORAGE_KEY}');
-    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  } catch (e) {}
+    // Light is the default — apply it unless the user explicitly saved 'dark'.
+    if (t !== 'dark') document.documentElement.setAttribute('data-theme', 'light');
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
 })();
 `.trim();
