@@ -3308,6 +3308,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     isEdit && existingReport ? getManualSwingScores(existingReport) : {
       forwardMove: null, posture: null, stability: null, direction: null,
       stretch: null, core: null, slot: null, timing: null, stride: null,
+      connection: null,
     }
   );
   // Multi-select option tags paired with each manual score (descriptive
@@ -3316,6 +3317,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     isEdit && existingReport ? getManualSwingOptions(existingReport) : {
       forwardMove: [], posture: [], stability: [], direction: [],
       stretch: [], core: [], slot: [], timing: [], stride: [],
+      connection: [],
     }
   );
 
@@ -3749,6 +3751,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
               slot:        manualScores.slot,
               timing:      manualScores.timing,
               stride:      manualScores.stride,
+              connection:  manualScores.connection,
               updatedAt:   new Date().toISOString(),
               updatedBy:   userId,
             },
@@ -4236,6 +4239,7 @@ const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: stri
   /* `stability` key relabeled "Slot" → "Adjust" and moved to the end
      (next to Timing) per coach-spec. Data key unchanged so saved scores stay. */
   { key: 'stability',   label: 'Adjust', hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
+  { key: 'connection',  label: 'Conn',   hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
 ];
 
 function CoachDiagnosisSliders({

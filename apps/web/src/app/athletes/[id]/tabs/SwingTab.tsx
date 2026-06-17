@@ -665,6 +665,7 @@ const MANUAL_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; 
   /* `stability` relabeled "Slot" → "Adjust" + moved to the end (next to
      Timing). Data key unchanged so saved scores survive. */
   { key: 'stability',   label: 'Adjust', hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
+  { key: 'connection',  label: 'Conn',   hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
 ];
 
 /** State and derived values shared between SwingTab + HittingTab's bubble. */
@@ -1396,6 +1397,7 @@ export function HittingGradeStack({
     { key: 'manual_direction',   label: 'Direction',  grade: manual.direction },
     { key: 'manual_timing',      label: 'Timing',     grade: manual.timing },
     { key: 'manual_stability',   label: 'Adjust', grade: manual.stability },
+    { key: 'manual_connection',  label: 'Conn',   grade: manual.connection },
   ];
   const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
 

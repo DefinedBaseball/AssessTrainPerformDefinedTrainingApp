@@ -236,6 +236,9 @@ export interface ManualSwingScores {
    *  to launch. Persisted alongside the other Coach Diagnosis keys at
    *  content.manualScores on the HITTING report. */
   stride: number | null;
+  /** Coach grade on hand-to-body connection through contact. Persisted at
+   *  content.manualScores alongside the other Coach Diagnosis keys. */
+  connection: number | null;
 }
 
 /** Mechanical coach grades for a PITCHING report (20-80 scale). Persisted at
@@ -514,6 +517,7 @@ export function getManualSwingOptions(report: ReportSummary | null): ManualSwing
   const empty: ManualSwingOptions = {
     forwardMove: [], posture: [], stability: [], direction: [],
     stretch: [], core: [], slot: [], timing: [], stride: [],
+    connection: [],
   };
   if (!report?.content) return empty;
   try {
@@ -535,6 +539,7 @@ export function getManualSwingScores(report: ReportSummary | null): ManualSwingS
   const empty: ManualSwingScores = {
     forwardMove: null, posture: null, stability: null, direction: null,
     stretch: null, core: null, slot: null, timing: null, stride: null,
+    connection: null,
   };
   if (!report?.content) return empty;
   try {
@@ -554,6 +559,7 @@ export function getManualSwingScores(report: ReportSummary | null): ManualSwingS
       slot:        num(m.slot),
       timing:      num(m.timing),
       stride:      num(m.stride),
+      connection:  num(m.connection),
     };
   } catch { return empty; }
 }
@@ -1501,6 +1507,7 @@ export function computeAggregateScores(
       { key: 'timing',      label: 'Timing' },
       // `stability` relabeled "Slot" → "Adjust" + moved to the end.
       { key: 'stability',   label: 'Adjust' },
+      { key: 'connection',  label: 'Conn' },
     ];
 
     /* For metric-keyed bars, build sub-metrics with their per-key grade
