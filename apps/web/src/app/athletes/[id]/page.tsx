@@ -592,7 +592,7 @@ export default function PlayerProfilePage() {
                   <span>HT <b>{formatHeight(player.heightInches)}</b></span>
                   <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
                   <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
-                  <span>GRAD <b>{player.gradYear || '—'}</b></span>
+                  <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>
                   <span>AGE <b>{getAge(player.birthDate)}</b></span>
                   <span>HS <b>{player.highSchool || '—'}</b></span>
                   <span>Club <b>{player.clubTeam || '—'}</b></span>

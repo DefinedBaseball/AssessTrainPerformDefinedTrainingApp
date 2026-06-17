@@ -230,6 +230,8 @@ export default function NewPlayerPage() {
               {[2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
+              <option value={api.GRAD_COLLEGE}>College</option>
+              <option value={api.GRAD_PRO}>Professional</option>
             </select>
           </div>
           <div className={styles.fieldGroup}>

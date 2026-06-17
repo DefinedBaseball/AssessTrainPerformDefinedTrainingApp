@@ -1245,7 +1245,7 @@ function ComparePane() {
                   />
                   <span>{p.firstName} {p.lastName}</span>
                   <span className={styles.columnUnit}>
-                    {p.gradYear ? `'${String(p.gradYear).slice(-2)} ` : ''}{p.positions || ''}
+                    {p.gradYear ? `${api.gradYearShort(p.gradYear)} ` : ''}{p.positions || ''}
                   </span>
                 </label>
               ))}

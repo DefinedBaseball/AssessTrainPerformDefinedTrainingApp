@@ -358,6 +358,24 @@ export function markAllNotificationsRead() {
 
 // ---- Players ----
 
+/* Grad-year sentinels for athletes past high school. Stored in the numeric
+   gradYear field so the leaderboard's existing numeric grouping keeps working;
+   formatGradYear maps them back to labels for display. */
+export const GRAD_COLLEGE = 9001;
+export const GRAD_PRO = 9002;
+export function formatGradYear(y: number | null | undefined): string {
+  if (y == null) return '—';
+  if (y === GRAD_COLLEGE) return 'College';
+  if (y === GRAD_PRO) return 'Professional';
+  return String(y);
+}
+export function gradYearShort(y: number | null | undefined): string {
+  if (y == null) return '';
+  if (y === GRAD_COLLEGE) return 'College';
+  if (y === GRAD_PRO) return 'Pro';
+  return `'${String(y).slice(-2)}`;
+}
+
 export async function getPlayers(filters?: { gradYear?: number; position?: string }) {
   const params = new URLSearchParams();
   if (filters?.gradYear) params.set('gradYear', String(filters.gradYear));

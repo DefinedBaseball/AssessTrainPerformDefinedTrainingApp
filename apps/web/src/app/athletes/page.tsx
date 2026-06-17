@@ -133,7 +133,7 @@ export default function AthletesPage() {
                   <span className={styles.playerName}>{p.firstName} {p.lastName}</span>
                 </span>
                 <span className={styles.colAge}>{age ?? '—'}</span>
-                <span className={styles.colGrad}>{p.gradYear ?? '—'}</span>
+                <span className={styles.colGrad}>{api.formatGradYear(p.gradYear)}</span>
                 <span className={styles.colPos}>
                   <span className={styles.positionsRow}>
                     {p.positions.split(',').map(pos => (

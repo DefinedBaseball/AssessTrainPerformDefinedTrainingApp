@@ -832,6 +832,8 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             <select className={rs.summarySelect} value={data.gradYear} onChange={e => update({ gradYear: e.target.value })}>
               <option value="">Select...</option>
               {Array.from({ length: 15 }, (_, i) => 2026 + i).map(y => <option key={y} value={String(y)}>{y}</option>)}
+              <option value={String(api.GRAD_COLLEGE)}>College</option>
+              <option value={String(api.GRAD_PRO)}>Professional</option>
             </select>
           </div>
           <div className={rs.summaryField}>

@@ -148,7 +148,7 @@ export default function LeaderboardPage() {
               {/* All Ages = sentinel 0 → backend ranks every grad year together. */}
               <option value={0}>All Ages</option>
               {availableGradYears.map(y => (
-                <option key={y} value={y}>{y}</option>
+                <option key={y} value={y}>{api.formatGradYear(y)}</option>
               ))}
             </select>
           ) : (
@@ -182,8 +182,8 @@ export default function LeaderboardPage() {
             <p className={styles.emptyTitle}>No rankings available</p>
             <p className={styles.emptyHint}>
               {isCoach
-                ? `No data for ${activeMetric?.label || metricType} ${gradYear === 0 ? 'across all ages' : `in the ${gradYear} class`}. Upload metrics via CSV or manual entry, then click "Recompute Rankings" above.`
-                : `No data for ${activeMetric?.label || metricType} ${gradYear === 0 ? 'across all ages' : `in the ${gradYear} class`} yet.`}
+                ? `No data for ${activeMetric?.label || metricType} ${gradYear === 0 ? 'across all ages' : `in the ${api.formatGradYear(gradYear)} class`}. Upload metrics via CSV or manual entry, then click "Recompute Rankings" above.`
+                : `No data for ${activeMetric?.label || metricType} ${gradYear === 0 ? 'across all ages' : `in the ${api.formatGradYear(gradYear)} class`} yet.`}
             </p>
           </div>
         ) : (

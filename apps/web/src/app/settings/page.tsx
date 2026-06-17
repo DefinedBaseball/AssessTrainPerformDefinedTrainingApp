@@ -1490,7 +1490,14 @@ function MyProfileTab({ playerId }: { playerId: string }) {
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}><span className={styles.rowTitle}>Grad Year</span></div>
-          <input className={styles.input} type="number" min={2020} max={2045} value={gradYear} onChange={(e) => setGradYear(e.target.value)} />
+          <select className={styles.input} value={gradYear} onChange={(e) => setGradYear(e.target.value)}>
+            <option value="">--</option>
+            {Array.from({ length: 26 }, (_, i) => 2020 + i).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+            <option value={api.GRAD_COLLEGE}>College</option>
+            <option value={api.GRAD_PRO}>Professional</option>
+          </select>
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}><span className={styles.rowTitle}>Birthday</span></div>
