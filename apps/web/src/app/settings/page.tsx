@@ -646,7 +646,7 @@ function StaffTab() {
         </div>
       </form>
 
-      <div className={styles.card}>
+      <div className={styles.card} style={{ order: -1 }}>
         <h3 className={styles.cardTitle}>Coaches</h3>
         <p className={styles.cardDesc}>Everyone with a coach login.</p>
         {loadingCoaches ? (
