@@ -9,6 +9,7 @@ import type { CoachLevel } from './jwt.util';
 class RegisterDto {
   email!: string;
   password!: string;
+  name?: string; // optional display name (First Last) for the new account
   role!: 'COACH' | 'PLAYER';
   // Access level for new COACH accounts (ADMIN / COACH / VIEWER). Ignored for
   // players. Defaults to COACH when omitted.
@@ -35,7 +36,7 @@ export class AuthController {
   @Throttle({ short: { limit: 5, ttl: 600_000 } })
   @ApiOperation({ summary: 'Create a coach (admin only) or player account' })
   register(@Req() req: AuthenticatedRequest, @Body() dto: RegisterDto) {
-    return this.authService.register(req.user!, dto.email, dto.password, dto.role, dto.coachLevel);
+    return this.authService.register(req.user!, dto.email, dto.password, dto.role, dto.coachLevel, dto.name);
   }
 
   @Public()
@@ -153,6 +154,19 @@ export class AuthController {
     @Body() dto: { email: string },
   ) {
     return this.authService.setUserEmail(userId, dto.email);
+  }
+
+  @Post('users/:userId/name')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Set another account's display name (admin for anyone; self allowed)" })
+  setUserName(
+    @Req() req: AuthenticatedRequest,
+    @Param('userId') userId: string,
+    @Body() dto: { name: string },
+  ) {
+    return this.authService.setUserName(req.user!, userId, dto.name);
   }
 
   @Post('users/:userId/coach-level')

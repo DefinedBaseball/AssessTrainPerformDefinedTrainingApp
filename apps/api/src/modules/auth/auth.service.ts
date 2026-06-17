@@ -50,6 +50,7 @@ export class AuthService {
     password: string,
     role: 'COACH' | 'PLAYER',
     newCoachLevel?: CoachLevel,
+    name?: string,
   ) {
     /* Only ADMIN-level coaches may create COACH accounts. Player creation
        (Add Athlete) stays open to any non-viewer coach — viewers are already
@@ -80,6 +81,7 @@ export class AuthService {
         password: `${salt}:${hashed}`,
         role,
         coachLevel,
+        name: name?.trim() || null,
       },
       include: { player: true },
     });
@@ -387,6 +389,24 @@ export class AuthService {
       await this.prisma.user.update({ where: { id: targetUserId }, data: { email } });
     }
     return { ok: true, email };
+  }
+
+  /**
+   * Set another account's display name. Admins may set anyone's; a non-admin
+   * may only set their own (self-edit also flows through updateAccount). Stored
+   * on User.name (First Last combined).
+   */
+  async setUserName(actor: JwtPayload, targetUserId: string, rawName: string) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (actor.sub !== target.id) {
+      const actorLevel = actor.role === 'COACH' ? (actor.coachLevel || 'ADMIN') : null;
+      if (actorLevel !== 'ADMIN')
+        throw new ForbiddenException('Only admins can edit another account’s name.');
+    }
+    const name = rawName?.trim() || null;
+    await this.prisma.user.update({ where: { id: targetUserId }, data: { name } });
+    return { ok: true, name };
   }
 
   /** Pending player accounts awaiting coach acceptance. */

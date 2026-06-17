@@ -161,10 +161,11 @@ export async function register(
   password: string,
   role: string,
   coachLevel?: string, // for COACH accounts: "ADMIN" | "COACH" | "VIEWER"
+  name?: string,       // optional display name (First Last)
 ) {
   return request<AuthResponse>(
     '/auth/register',
-    { method: 'POST', body: JSON.stringify({ email, password, role, coachLevel }) },
+    { method: 'POST', body: JSON.stringify({ email, password, role, coachLevel, name }) },
   );
 }
 
@@ -203,6 +204,14 @@ export async function setUserEmail(userId: string, email: string) {
   return request<{ ok: boolean; email: string }>(`/auth/users/${userId}/email`, {
     method: 'POST',
     body: JSON.stringify({ email }),
+  });
+}
+
+/** Set another account's display name (admin for anyone; self allowed). */
+export async function setUserName(userId: string, name: string) {
+  return request<{ ok: boolean; name: string }>(`/auth/users/${userId}/name`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
   });
 }
 

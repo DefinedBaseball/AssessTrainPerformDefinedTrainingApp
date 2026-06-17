@@ -247,7 +247,8 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
   const { refresh } = useAuth();
   const [profile, setProfile] = useState<api.AccountProfile | null>(null);
   const [email, setEmail] = useState(user.email || '');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [position, setPosition] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -266,7 +267,9 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
     api.getMe()
       .then((p) => {
         setProfile(p);
-        setName(p.name || '');
+        const nameParts = (p.name || '').trim().split(/\s+/);
+        setFirstName(nameParts[0] || '');
+        setLastName(nameParts.slice(1).join(' '));
         setPhone(p.phone || '');
         setPosition(p.position || '');
         setEmail(p.email || user.email || '');
@@ -279,8 +282,9 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
     setProfileMsg('');
     setProfileErr('');
     try {
+      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
       const updated = await api.updateAccount({
-        name,
+        name: fullName,
         phone,
         ...(isCoach ? { position } : { email }),
       });
@@ -367,10 +371,16 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Full name</span>
+            <span className={styles.rowTitle}>First name</span>
             <span className={styles.rowSub}>Shown in place of your email where supported</span>
           </div>
-          <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Connor Olson" />
+          <input className={styles.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Connor" />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Last name</span>
+          </div>
+          <input className={styles.input} value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Olson" />
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
@@ -442,6 +452,8 @@ function StaffTab() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [level, setLevel] = useState<'ADMIN' | 'COACH' | 'VIEWER'>('COACH');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -483,6 +495,27 @@ function StaffTab() {
     }
   };
 
+  // Per-coach inline "Edit name" — admin edits another coach's display name.
+  const [nameForId, setNameForId] = useState<string | null>(null);
+  const [nameFirst, setNameFirst] = useState('');
+  const [nameLast, setNameLast] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameMsg, setNameMsg] = useState('');
+  const saveName = async (coachId: string) => {
+    setNameSaving(true);
+    setNameMsg('');
+    try {
+      await api.setUserName(coachId, [nameFirst.trim(), nameLast.trim()].filter(Boolean).join(' '));
+      setNameMsg('Name updated.');
+      loadCoaches();
+      setTimeout(() => { setNameForId(null); setNameMsg(''); }, 1200);
+    } catch (e: any) {
+      setNameMsg(e?.message || 'Could not update name');
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
   const loadCoaches = async () => {
     try {
       setCoaches(await api.getCoaches());
@@ -504,8 +537,11 @@ function StaffTab() {
     if (password !== confirm) { setError('Passwords do not match'); return; }
     setSubmitting(true);
     try {
-      await api.register(em, password, 'COACH', level);
+      const coachName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ') || undefined;
+      await api.register(em, password, 'COACH', level, coachName);
       setSuccess(`${LEVEL_LABEL[level]} account created for ${em}. They can sign in now with this email + password.`);
+      setFirstName('');
+      setLastName('');
       setEmail('');
       setPassword('');
       setConfirm('');
@@ -523,6 +559,21 @@ function StaffTab() {
       <form className={styles.card} onSubmit={handleCreate} autoComplete="off">
         <h3 className={styles.cardTitle}>Create coach account</h3>
         <p className={styles.cardDesc}>Add another coach to the facility. They sign in at the login page with the email + password you set here.</p>
+
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>First name</span>
+            <span className={styles.rowSub}>Optional — shown in place of their email</span>
+          </div>
+          <input className={styles.input} type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Connor" autoComplete="off" />
+        </div>
+
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Last name</span>
+          </div>
+          <input className={styles.input} type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Olson" autoComplete="off" />
+        </div>
 
         <div className={styles.row}>
           <div className={styles.rowLabel}>
@@ -656,6 +707,19 @@ function StaffTab() {
                         {pwForId === c.id ? 'Cancel' : 'Set password'}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className={styles.btnSecondary}
+                      onClick={() => {
+                        setNameForId(nameForId === c.id ? null : c.id);
+                        const parts = (c.name || '').trim().split(/\s+/);
+                        setNameFirst(parts[0] || '');
+                        setNameLast(parts.slice(1).join(' '));
+                        setNameMsg('');
+                      }}
+                    >
+                      {nameForId === c.id ? 'Cancel' : 'Edit name'}
+                    </button>
                   </div>
                 </div>
                 {pwForId === c.id && (
@@ -680,6 +744,20 @@ function StaffTab() {
                     {pwMsg && (
                       <span className={styles.rowSub} style={pwMsg === 'Password updated.' ? { color: '#34D399' } : { color: '#E11D48' }}>
                         {pwMsg}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {nameForId === c.id && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0 12px', flexWrap: 'wrap' }}>
+                    <input className={styles.input} type="text" value={nameFirst} onChange={(e) => setNameFirst(e.target.value)} placeholder="First name" autoComplete="off" style={{ maxWidth: 160 }} />
+                    <input className={styles.input} type="text" value={nameLast} onChange={(e) => setNameLast(e.target.value)} placeholder="Last name" autoComplete="off" style={{ maxWidth: 160 }} />
+                    <button type="button" className={styles.btn} disabled={nameSaving} onClick={() => void saveName(c.id)}>
+                      {nameSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    {nameMsg && (
+                      <span className={styles.rowSub} style={nameMsg === 'Name updated.' ? { color: '#34D399' } : { color: '#E11D48' }}>
+                        {nameMsg}
                       </span>
                     )}
                   </div>
