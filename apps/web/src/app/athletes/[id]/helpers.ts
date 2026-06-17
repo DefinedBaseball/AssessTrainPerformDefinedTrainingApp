@@ -825,9 +825,9 @@ export const METRIC_LABELS: Record<string, string> = {
   rotation_score: 'Rotation Score',
   // Manual coach scores (20-80)
   manual_forward_move: 'Forward Move',
-  manual_posture: 'Posture',
+  manual_posture: 'Tilt',
   manual_stability: 'Adjust',
-  manual_direction: 'Direction',
+  manual_direction: 'Direct',
   // Vision (Vizual Edge)
   vizual_edge_convergence: 'Convergence',
   vizual_edge_divergence: 'Divergence',
@@ -1500,14 +1500,13 @@ export function computeAggregateScores(
          alongside the other manual scores once a coach grades it. */
       { key: 'stride',      label: 'Stride' },
       { key: 'stretch',     label: 'Counter' },
-      { key: 'posture',     label: 'Posture' },
-      { key: 'core',        label: 'Stability' },
-      { key: 'slot',        label: 'Path' },
-      { key: 'direction',   label: 'Direction' },
-      { key: 'timing',      label: 'Timing' },
-      // `stability` relabeled "Slot" → "Adjust" + moved to the end.
-      { key: 'stability',   label: 'Adjust' },
+      { key: 'posture',     label: 'Tilt' },
       { key: 'connection',  label: 'Conn' },
+      { key: 'slot',        label: 'Path' },
+      { key: 'core',        label: 'Stable' },
+      { key: 'direction',   label: 'Direct' },
+      { key: 'timing',      label: 'Timing' },
+      { key: 'stability',   label: 'Adjust' },
     ];
 
     /* For metric-keyed bars, build sub-metrics with their per-key grade

@@ -358,7 +358,6 @@ interface HittingMetricCell {
    below so every two-word+ label stacks on two lines by default —
    e.g. "Max Bat Speed" → ["Max Bat", "Speed"], "Avg Exit Velocity"
    → ["Avg Exit", "Velocity"], "Squared Up %" → ["Squared", "Up %"]. */
-const UNIT_ONLY_TOKENS = new Set(['%', '°']);
 function splitLabelBalanced(label: string): string[] {
   const trimmed = label.trim();
   const words = trimmed.split(/\s+/);
@@ -368,15 +367,12 @@ function splitLabelBalanced(label: string): string[] {
   for (let i = 1; i < words.length; i++) {
     const leftStr = words.slice(0, i).join(' ');
     const rightStr = words.slice(i).join(' ');
-    /* Reject splits where either half is JUST a unit symbol (`%` /
-       `°`) — those produce labels like "Barrel" / "%" that read
-       worse than the unbroken "Barrel %". Labels whose only viable
-       split orphans a unit symbol (e.g. "Barrel %", "Whiff %",
-       "Chase %") drop through this filter with no valid candidate
-       and render as a single line. Multi-word labels with a unit
-       suffix (e.g. "Squared Up %") still split at the non-unit
-       boundary ("Squared" / "Up %"). */
-    if (UNIT_ONLY_TOKENS.has(leftStr) || UNIT_ONLY_TOKENS.has(rightStr)) continue;
+    /* A trailing unit symbol (`%` / `°`) is allowed onto its own line —
+       e.g. "Barrel %" → "Barrel" / "%", "Miss %" → "Miss" / "%" — so
+       single-word percentage labels stack two lines like "Smash" /
+       "Factor" instead of sitting on one line and breaking the rhythm.
+       Multi-word labels still pick the most balanced boundary first
+       ("Squared Up %" → "Squared" / "Up %"). */
     const diff = Math.abs(leftStr.length - rightStr.length);
     if (diff < bestDiff) {
       bestDiff = diff;
@@ -657,15 +653,13 @@ const MANUAL_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; 
      swing sequence (stride → counter → posture → ...). */
   { key: 'stride',      label: 'Stride',       hint: 'Stride length & direction from load to launch.',            options: ['Short', 'Long', 'Square', 'Open'] },
   { key: 'stretch',     label: 'Counter',      hint: 'Length & separation between hips and shoulders at launch.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
-  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
-  { key: 'core',        label: 'Stability',    hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
+  { key: 'posture',     label: 'Tilt',         hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
+  { key: 'connection',  label: 'Conn',         hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
   { key: 'slot',        label: 'Path',         hint: 'Bat-path / barrel route through the zone.',                 options: ['Steep', 'Flat', 'Uphill'] },
-  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
+  { key: 'core',        label: 'Stable',       hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
+  { key: 'direction',   label: 'Direct',       hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
   { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
-  /* `stability` relabeled "Slot" → "Adjust" + moved to the end (next to
-     Timing). Data key unchanged so saved scores survive. */
-  { key: 'stability',   label: 'Adjust', hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
-  { key: 'connection',  label: 'Conn',   hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
+  { key: 'stability',   label: 'Adjust',       hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
 ];
 
 /** State and derived values shared between SwingTab + HittingTab's bubble. */
@@ -1391,13 +1385,13 @@ export function HittingGradeStack({
   const diagnosisChips: { key: string; label: string; grade: number | null }[] = [
     { key: 'manual_stride',      label: 'Stride',     grade: manual.stride },
     { key: 'manual_stretch',     label: 'Counter',    grade: manual.stretch },
-    { key: 'manual_posture',     label: 'Posture',    grade: manual.posture },
-    { key: 'manual_core',        label: 'Stability',  grade: manual.core },
+    { key: 'manual_posture',     label: 'Tilt',       grade: manual.posture },
+    { key: 'manual_connection',  label: 'Conn',       grade: manual.connection },
     { key: 'manual_slot',        label: 'Path',       grade: manual.slot },
-    { key: 'manual_direction',   label: 'Direction',  grade: manual.direction },
+    { key: 'manual_core',        label: 'Stable',     grade: manual.core },
+    { key: 'manual_direction',   label: 'Direct',     grade: manual.direction },
     { key: 'manual_timing',      label: 'Timing',     grade: manual.timing },
     { key: 'manual_stability',   label: 'Adjust', grade: manual.stability },
-    { key: 'manual_connection',  label: 'Conn',   grade: manual.connection },
   ];
   const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
 

@@ -4231,15 +4231,13 @@ const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: stri
      persists alongside the other manual scores once a coach grades it. */
   { key: 'stride',      label: 'Stride',       hint: 'Stride length & direction from load to launch.',            options: ['Short', 'Long', 'Square', 'Open'] },
   { key: 'stretch',     label: 'Counter',      hint: 'Counter-rotation — lower-half load → directional intent toward the pitcher.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
-  { key: 'posture',     label: 'Posture',      hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
-  { key: 'core',        label: 'Stability',    hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
+  { key: 'posture',     label: 'Tilt',         hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
+  { key: 'connection',  label: 'Conn',         hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
   { key: 'slot',        label: 'Path',         hint: 'Bat-path / barrel route through the zone.',                 options: ['Steep', 'Flat', 'Uphill'] },
-  { key: 'direction',   label: 'Direction',    hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
+  { key: 'core',        label: 'Stable',       hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
+  { key: 'direction',   label: 'Direct',       hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
   { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
-  /* `stability` key relabeled "Slot" → "Adjust" and moved to the end
-     (next to Timing) per coach-spec. Data key unchanged so saved scores stay. */
-  { key: 'stability',   label: 'Adjust', hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
-  { key: 'connection',  label: 'Conn',   hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
+  { key: 'stability',   label: 'Adjust',       hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
 ];
 
 function CoachDiagnosisSliders({
