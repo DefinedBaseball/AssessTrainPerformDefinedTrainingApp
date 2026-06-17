@@ -19,6 +19,7 @@ export default function AthletesPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('All');
+  const [sortDir, setSortDir] = useState<'az' | 'za'>('az'); // default alphabetical
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +48,14 @@ export default function AthletesPage() {
     const matchesSearch = !search || name.includes(search.toLowerCase());
     const matchesPos = posFilter === 'All' || p.positions.includes(posFilter);
     return matchesSearch && matchesPos;
+  });
+
+  // Alphabetical by displayed name ("First Last"); toggle flips A–Z / Z–A.
+  const sorted = [...filtered].sort((a, b) => {
+    const cmp = `${a.firstName} ${a.lastName}`.localeCompare(
+      `${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' },
+    );
+    return sortDir === 'az' ? cmp : -cmp;
   });
 
   const gradYears = [...new Set(players.map(p => p.gradYear).filter(Boolean))].sort();
@@ -104,7 +113,14 @@ export default function AthletesPage() {
       ) : (
         <div className={styles.listWrap}>
           <div className={styles.listHeader}>
-            <span className={styles.colName}>Name</span>
+            <span
+              className={styles.colName}
+              onClick={() => setSortDir(d => (d === 'az' ? 'za' : 'az'))}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              title={sortDir === 'az' ? 'Sorted A–Z — click for Z–A' : 'Sorted Z–A — click for A–Z'}
+            >
+              Name {sortDir === 'az' ? '↑' : '↓'}
+            </span>
             <span className={styles.colAge}>Age</span>
             <span className={styles.colGrad}>Grad</span>
             <span className={styles.colPos}>Position</span>
@@ -113,7 +129,7 @@ export default function AthletesPage() {
             <span className={styles.colPbr}>PBR St.</span>
             <span className={styles.colPg}>PG</span>
           </div>
-          {filtered.map(p => {
+          {sorted.map(p => {
             // Age comes strictly from birthDate via the shared
             // helper so the athletes-list and profile telemetry
             // strip agree exactly. Replaces the previous
