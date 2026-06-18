@@ -307,6 +307,12 @@ model AtBat {
   // strikeouts, walks, and in-progress at-bats.
   sprayX            Float?
   sprayY            Float?
+  // Quality of contact for balls in play — a separate dimension from the
+  // batted-ball type in `outcome` (LINE_DRIVE / FLY_BALL / GROUND_BALL).
+  // Captured by the coach after the in-play result and before the spray
+  // location. "BARREL" | "JAM" | "CAP" | null. Legacy at-bats that
+  // recorded a BARREL outcome keep that in `outcome` and leave this null.
+  qualityOfContact  String?
   startedAt         DateTime @default(now())
   endedAt           DateTime?
 

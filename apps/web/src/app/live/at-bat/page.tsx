@@ -51,9 +51,9 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type {
-  Player, LiveSession, AtBat, Pitch, PitchType, PitchResult,
+  Player, LiveSession, AtBat, Pitch, PitchType, PitchResult, QualityOfContact,
 } from '@/lib/api';
-import { TERMINAL_PITCH_RESULTS } from '@/lib/api';
+import { TERMINAL_PITCH_RESULTS, QUALITY_OF_CONTACT } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import pageStyles from '../page.module.css';
 import trainingStyles from '../training/page.module.css';
@@ -127,8 +127,18 @@ function fmtResult(r: PitchResult | string): ReactNode {
 const PITCH_RESULT_ROWS: PitchResult[][] = [
   ['STRIKE_LOOKING', 'STRIKE_SWINGING', 'FOUL'],
   ['BALL'],
-  ['GROUND_BALL', 'FLY_BALL', 'LINE_DRIVE', 'BARREL'],
+  ['GROUND_BALL', 'FLY_BALL', 'LINE_DRIVE'],
 ];
+
+/* Quality-of-contact labels for the in-play picker. Captured AFTER the
+   batted-ball type (LD/FB/GB) and BEFORE the spray location — Barrel is
+   no longer a Pitch Result, it's this separate quality dimension so
+   LD/FB/GB% stay accurate. */
+const QOC_LABELS: Record<string, string> = {
+  BARREL: 'Barrel',
+  JAM:    'Jam',
+  CAP:    'Cap',
+};
 
 /* Pitch-type rows mirror the way coaches read a pitch chart:
    Row 1 — fastballs (4-seam / 2-seam family)
@@ -181,6 +191,9 @@ interface AtBatClip {
   savedVideoId?: string;
   uploading?: boolean;
   uploadError?: string;
+  /** Which camera recorded this clip (multi-camera at-bats). */
+  cameraDeviceId?: string;
+  cameraLabel?: string;
 }
 
 export default function LiveAtBatPage() {
@@ -238,6 +251,10 @@ export default function LiveAtBatPage() {
      normalized (x,y) coords and finalizes the close call. Cleared
      after close, or on AB switch / Next AB. */
   const [pendingInPlayOutcome, setPendingInPlayOutcome] = useState<PitchResult | null>(null);
+  /* Quality of contact for the pending in-play outcome (Barrel / Jam /
+     Cap). Required before the spray field arms; cleared alongside
+     `pendingInPlayOutcome`. */
+  const [pendingQoC, setPendingQoC] = useState<QualityOfContact | null>(null);
   // Recent at-bats list — surfaces under the tracker for context.
   // Re-fetched whenever the active hitter changes or an AB closes.
   const [recentAtBats, setRecentAtBats] = useState<api.AtBatDetail[]>([]);
@@ -263,21 +280,17 @@ export default function LiveAtBatPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [recording, setRecording]     = useState(false);
   const [clips, setClips]             = useState<AtBatClip[]>([]);
-  const videoElRef  = useRef<HTMLVideoElement | null>(null);
-  const streamRef   = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef   = useRef<Blob[]>([]);
-  // Metadata snapshot for the currently-recording AB — captured at
-  // recording-start so we can stamp the clip even if `currentAB`
-  // is cleared by the parent flow before `onstop` fires.
-  const recMetaRef  = useRef<{
-    atBatId: string;
-    hitterId: string;
-    pitcherId: string | null;
-    hitterName: string;
-    pitcherName: string;
-    startedAt: number;
-  } | null>(null);
+  /* Multi-camera selection (mirrors /live/training). Up to MAX_CAMERAS
+     angles record at once; the second preview stacks under the first in
+     the video column. Each angle saves its own clip per at-bat. */
+  const MAX_CAMERAS = 2;
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([]);
+  // ── Per-camera capture pipeline (Map-keyed by deviceId) ──
+  const streamsRef   = useRef<Map<string, MediaStream>>(new Map());
+  const recordersRef = useRef<Map<string, MediaRecorder>>(new Map());
+  const chunksRef    = useRef<Map<string, Blob[]>>(new Map());
+  const videoElsRef  = useRef<Map<string, HTMLVideoElement>>(new Map());
   // Tracks whether this component is still mounted so async
   // recorder callbacks (onstop) can bail out of setState if the
   // user navigated away mid-recording.
@@ -401,56 +414,118 @@ export default function LiveAtBatPage() {
   // browser back button) actually releases the device. Previously
   // the unmount path only set `cancelled = true` and the stream
   // tracks stayed alive, leaving the OS camera light on.
+  // ── Camera enumeration (multi-camera) ──
+  // When the coach turns the camera on, probe for permission so device
+  // labels resolve, enumerate video inputs (filtering virtual cams), and
+  // auto-select the first so single-camera setups just work.
   useEffect(() => {
     if (!cameraOn) return;
     let cancelled = false;
     setCameraError(null);
-    navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          facingMode: 'environment',
-          /* Request the camera's native SOURCE up to 4K @ 240 fps so
-             pitch-by-pitch review captures at the device's full
-             slow-motion / high-resolution capability. Every constraint
-             uses ONLY `ideal` (no `min`) so the camera negotiates its
-             highest supported rung under the cap and falls back
-             gracefully on lower-tier devices instead of throwing
-             OverconstrainedError. The MediaRecorder bitrate inside
-             `startRecording` below reads the actually-negotiated
-             width × height × fps off the track settings and scales
-             the encoded bitrate accordingly so the saved clip
-             preserves the source per-frame quality. */
-          width:     { ideal: 3840 },
-          height:    { ideal: 2160 },
-          frameRate: { ideal: 240 },
-        },
-        audio: true,
-      })
-      .then(stream => {
-        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoElRef.current) videoElRef.current.srcObject = stream;
-      })
-      .catch(err => {
+    (async () => {
+      try {
+        const probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        probe.getTracks().forEach((t) => t.stop());
+        if (cancelled) return;
+        const list = await navigator.mediaDevices.enumerateDevices();
+        if (cancelled) return;
+        const VIRTUAL_CAM_PATTERNS = [/obs\s*virtual/i, /\bvirtual\s*camera\b/i, /nvidia\s*broadcast/i, /snap\s*camera/i, /xsplit\s*vcam/i];
+        const isVirtual = (label?: string) => !!label && VIRTUAL_CAM_PATTERNS.some((re) => re.test(label));
+        const videoInputs = list.filter((d) => d.kind === 'videoinput' && d.deviceId && !isVirtual(d.label));
+        if (cancelled) return;
+        setAvailableCameras(videoInputs);
+        setSelectedCameraIds((prev) => (prev.length > 0 ? prev : (videoInputs.length > 0 ? [videoInputs[0].deviceId] : [])));
+      } catch (err: any) {
         if (cancelled) return;
         setCameraError(err?.message || 'Camera access denied');
         setCameraOn(false);
-      });
-    return () => {
-      cancelled = true;
-      // Stop any active recording before killing the stream so the
-      // final blob still flushes through onstop.
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-        try { recorderRef.current.stop(); } catch { /* ignore */ }
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t: MediaStreamTrack) => t.stop());
-        streamRef.current = null;
-      }
-      if (videoElRef.current) videoElRef.current.srcObject = null;
-      setRecording(false);
-    };
+    })();
+    return () => { cancelled = true; };
   }, [cameraOn]);
+
+  // ── Per-camera stream lifecycle ──
+  // Open a stream per selected camera (4K @ 240 ideal so 120 fps is used
+  // when the device supports it); tear down any camera that gets
+  // unchecked. Streams persist across record start/stop so previews stay
+  // warm. `audio` is captured only on the first stream.
+  useEffect(() => {
+    if (!cameraOn) return;
+    let cancelled = false;
+    const openNeeded = async () => {
+      for (const id of selectedCameraIds) {
+        if (cancelled) return;
+        if (streamsRef.current.has(id)) continue;
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: id },
+              width:     { ideal: 3840 },
+              height:    { ideal: 2160 },
+              frameRate: { ideal: 240 },
+            },
+            audio: streamsRef.current.size === 0,
+          });
+          if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+          streamsRef.current.set(id, stream);
+          const el = videoElsRef.current.get(id);
+          if (el) el.srcObject = stream;
+        } catch (err: any) {
+          if (cancelled) return;
+          setCameraError(err?.message || 'Camera access denied');
+        }
+      }
+    };
+    const closeRemoved = () => {
+      const keep = new Set(selectedCameraIds);
+      for (const [id, stream] of streamsRef.current.entries()) {
+        if (keep.has(id)) continue;
+        try { stream.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+        streamsRef.current.delete(id);
+        const rec = recordersRef.current.get(id);
+        if (rec && rec.state !== 'inactive') { try { rec.stop(); } catch { /* ignore */ } }
+        recordersRef.current.delete(id);
+        chunksRef.current.delete(id);
+        const el = videoElsRef.current.get(id);
+        if (el) el.srcObject = null;
+      }
+    };
+    closeRemoved();
+    openNeeded();
+    return () => { cancelled = true; };
+  }, [cameraOn, selectedCameraIds]);
+
+  // ── Camera-off teardown ──
+  // When the coach turns the camera off, stop every recorder + stream so
+  // the OS camera light goes out and recording state resets.
+  useEffect(() => {
+    if (cameraOn) return;
+    for (const [, rec] of recordersRef.current.entries()) {
+      if (rec.state !== 'inactive') { try { rec.stop(); } catch { /* ignore */ } }
+    }
+    recordersRef.current.clear();
+    for (const [, stream] of streamsRef.current.entries()) {
+      try { stream.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+    }
+    streamsRef.current.clear();
+    chunksRef.current.clear();
+    setRecording(false);
+  }, [cameraOn]);
+
+  // ── Final teardown on unmount — release every stream + recorder so
+  // navigating away (End Session, sidebar, back button) frees the camera. ──
+  useEffect(() => {
+    return () => {
+      for (const [, rec] of recordersRef.current.entries()) {
+        if (rec.state !== 'inactive') { try { rec.stop(); } catch { /* ignore */ } }
+      }
+      recordersRef.current.clear();
+      for (const [, stream] of streamsRef.current.entries()) {
+        try { stream.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
+      }
+      streamsRef.current.clear();
+    };
+  }, []);
 
   // Revoke object URLs ONCE on unmount, reading the latest clips
   // through a ref. The previous version had `[clips]` deps which
@@ -469,13 +544,15 @@ export default function LiveAtBatPage() {
     };
   }, []);
 
-  /** Begin recording for the CURRENT at-bat. Captures a metadata
-   *  snapshot in `recMetaRef` so the resulting clip can be stamped
-   *  with hitter / pitcher names even after `currentAB` is cleared
-   *  by the AB-close flow. */
+  /** Begin recording the CURRENT at-bat on every active camera. Each
+   *  angle gets its own MediaRecorder + chunk buffer; their onstop
+   *  callbacks each append a clip tagged with the camera label. AB
+   *  metadata is snapshotted into closure locals so clips stamp
+   *  correctly even after `currentAB` clears on AB close. */
   const startRecording = () => {
-    if (!streamRef.current || !currentAB || !activeHitter) return;
-    chunksRef.current = [];
+    if (!currentAB || !activeHitter) return;
+    const activeIds = selectedCameraIds.filter((id) => streamsRef.current.has(id));
+    if (activeIds.length === 0) return;
     const mimeCandidates = [
       'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
@@ -483,71 +560,58 @@ export default function LiveAtBatPage() {
       'video/mp4',
     ];
     const mime = mimeCandidates.find((m: string) => MediaRecorder.isTypeSupported(m)) ?? '';
-    /* Adaptive bitrate — matches the /live/training page recipe.
-       Reads back the camera's actually-negotiated width × height ×
-       fps and scales the MediaRecorder bitrate against 0.10 bits per
-       pixel so the encoded clip preserves source quality (~3.5 Mbps
-       on 720p30, ~12 Mbps on 1080p60, ~25 Mbps on 1080p120, ~50 Mbps
-       on 1080p240 / 4K60, capped at 60 Mbps on 4K120). Default
-       browser bitrate is ~2.5 Mbps which falls apart at high fps /
-       resolution; this keeps the saved at-bat clips watchable for
-       slow-motion review. */
-    const videoTrack = streamRef.current.getVideoTracks()[0];
-    const trackSettings = videoTrack?.getSettings();
-    const negotiatedWidth  = trackSettings?.width      ?? 1920;
-    const negotiatedHeight = trackSettings?.height     ?? 1080;
-    const negotiatedFps    = trackSettings?.frameRate  ?? 30;
-    const pixelsPerSecond = negotiatedWidth * negotiatedHeight * negotiatedFps;
-    const videoBitsPerSecond = Math.max(
-      3_500_000,
-      Math.min(60_000_000, Math.round(pixelsPerSecond * 0.10)),
-    );
-    const recorderOpts: MediaRecorderOptions = {
-      ...(mime ? { mimeType: mime } : {}),
-      videoBitsPerSecond,
-    };
-    const recorder = new MediaRecorder(streamRef.current, recorderOpts);
-    recMetaRef.current = {
-      atBatId:     currentAB.id,
-      hitterId:    activeHitter.id,
-      pitcherId:   activePitcher?.id ?? null,
-      hitterName:  `${activeHitter.firstName} ${activeHitter.lastName}`,
-      pitcherName: activePitcher ? `${activePitcher.firstName} ${activePitcher.lastName}` : 'Unknown',
-      startedAt:   Date.now(),
-    };
-    recorder.ondataavailable = (ev) => {
-      if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
-    };
-    recorder.onstop = () => {
-      const meta = recMetaRef.current;
-      recMetaRef.current = null;
-      const blob = new Blob(chunksRef.current, { type: mime || 'video/webm' });
-      chunksRef.current = [];
-      if (!meta || blob.size === 0) return;
-      // Component unmounted while the recorder was stopping. Skip
-      // the setState to avoid a "set state on unmounted component"
-      // warning and drop the orphan clip.
-      if (!isMountedRef.current) return;
-      const duration = Math.round((Date.now() - meta.startedAt) / 1000);
-      const previewUrl = URL.createObjectURL(blob);
-      setClips(prev => [
-        ...prev,
-        {
-          clientId: `${meta.atBatId}-${Date.now()}`,
-          atBatId: meta.atBatId,
-          hitterId: meta.hitterId,
-          pitcherId: meta.pitcherId,
-          hitterName: meta.hitterName,
-          pitcherName: meta.pitcherName,
-          blob,
-          previewUrl,
-          durationSec: duration,
-          decision: 'pending',
-        },
-      ]);
-    };
-    recorder.start();
-    recorderRef.current = recorder;
+    const startedAt = Date.now();
+    const atBatIdSnapshot     = currentAB.id;
+    const hitterIdSnapshot    = activeHitter.id;
+    const pitcherIdSnapshot   = activePitcher?.id ?? null;
+    const hitterNameSnapshot  = `${activeHitter.firstName} ${activeHitter.lastName}`;
+    const pitcherNameSnapshot = activePitcher ? `${activePitcher.firstName} ${activePitcher.lastName}` : 'Unknown';
+    activeIds.forEach((deviceId, idx) => {
+      const stream = streamsRef.current.get(deviceId);
+      if (!stream) return;
+      /* Adaptive bitrate — reads the camera's actually-negotiated
+         width × height × fps and scales against 0.10 bits/pixel so the
+         encoded clip preserves source quality (~3.5 Mbps on 720p30 up
+         to 60 Mbps on 4K120). Keeps high-fps at-bat clips watchable for
+         slow-motion review. */
+      const videoTrack = stream.getVideoTracks()[0];
+      const ts = videoTrack?.getSettings();
+      const w = ts?.width ?? 1920, h = ts?.height ?? 1080, fps = ts?.frameRate ?? 30;
+      const videoBitsPerSecond = Math.max(3_500_000, Math.min(60_000_000, Math.round(w * h * fps * 0.10)));
+      const recorderOpts: MediaRecorderOptions = { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond };
+      const recorder = new MediaRecorder(stream, recorderOpts);
+      const chunks: Blob[] = [];
+      chunksRef.current.set(deviceId, chunks);
+      const cameraDevice = availableCameras.find((c) => c.deviceId === deviceId);
+      const cameraLabelSnapshot = cameraDevice?.label || (activeIds.length > 1 ? `Camera ${idx + 1}` : 'Camera');
+      recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) chunks.push(ev.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mime || 'video/webm' });
+        chunksRef.current.delete(deviceId);
+        if (blob.size === 0 || !isMountedRef.current) return;
+        const duration = Math.round((Date.now() - startedAt) / 1000);
+        const previewUrl = URL.createObjectURL(blob);
+        setClips(prev => [
+          ...prev,
+          {
+            clientId: `${atBatIdSnapshot}-${deviceId}-${Date.now()}`,
+            atBatId: atBatIdSnapshot,
+            hitterId: hitterIdSnapshot,
+            pitcherId: pitcherIdSnapshot,
+            hitterName: hitterNameSnapshot,
+            pitcherName: pitcherNameSnapshot,
+            blob,
+            previewUrl,
+            durationSec: duration,
+            cameraDeviceId: deviceId,
+            cameraLabel: cameraLabelSnapshot,
+            decision: 'pending',
+          },
+        ]);
+      };
+      recorder.start();
+      recordersRef.current.set(deviceId, recorder);
+    });
     setRecording(true);
   };
 
@@ -558,20 +622,24 @@ export default function LiveAtBatPage() {
    *  is in `clips` before they navigate away. */
   const stopRecording = (): Promise<void> => {
     return new Promise((resolve) => {
-      const rec = recorderRef.current;
-      if (!rec || rec.state === 'inactive') { setRecording(false); resolve(); return; }
-      const prevOnStop = rec.onstop;
-      rec.onstop = (ev: Event) => {
-        // Wrap prevOnStop in try/catch so callers awaiting this
-        // promise always settle. Without this, an exception inside
-        // the original onstop (e.g. an unmount-time setState that
-        // throws) would let the promise hang forever and freeze
-        // `submitPitch` / `handleNextAtBat` / `handleEndSession`.
-        try { if (prevOnStop) (prevOnStop as any).call(rec, ev); } catch { /* swallow */ }
-        setRecording(false);
-        resolve();
+      const recs = Array.from(recordersRef.current.values()).filter((r) => r.state !== 'inactive');
+      if (recs.length === 0) { recordersRef.current.clear(); setRecording(false); resolve(); return; }
+      let pending = recs.length;
+      const done = () => {
+        pending -= 1;
+        if (pending <= 0) { recordersRef.current.clear(); setRecording(false); resolve(); }
       };
-      try { rec.stop(); } catch { setRecording(false); resolve(); }
+      for (const rec of recs) {
+        const prevOnStop = rec.onstop;
+        rec.onstop = (ev: Event) => {
+          /* Wrap the original onstop so an exception inside it (e.g. an
+             unmount-time setState) never leaves the awaited promise
+             hanging and freezing the AB-close flow. */
+          try { if (prevOnStop) (prevOnStop as any).call(rec, ev); } catch { /* swallow */ }
+          done();
+        };
+        try { rec.stop(); } catch { done(); }
+      }
     });
   };
 
@@ -658,6 +726,7 @@ export default function LiveAtBatPage() {
              selection just leaves the AB open with the last pitch
              recorded — coaches can retry the spray click. */
           setPendingInPlayOutcome(terminalOutcome);
+          setPendingQoC(null);
         } else {
           /* Strikeouts and walks close immediately — no spray
              location applies. */
@@ -708,18 +777,18 @@ export default function LiveAtBatPage() {
    *  Spray Chart can render the point — and clicking that point
    *  later opens the AB's linked video clip when one exists. */
   const finalizeInPlayAtBat = async (x: number, y: number) => {
-    if (!currentAB || !pendingInPlayOutcome || submittingPitch) return;
+    if (!currentAB || !pendingInPlayOutcome || !pendingQoC || submittingPitch) return;
     setSubmittingPitch(true);
     try {
       if (recording) await stopRecording();
-      await api.closeAtBat(currentAB.id, pendingInPlayOutcome, { x, y });
+      await api.closeAtBat(currentAB.id, pendingInPlayOutcome, { x, y }, pendingQoC);
       /* Tally the hitter outcome — in-play paths always come
          through here (so the K / BB branch in submitPitch above
          and this branch together cover every terminal outcome).
          `good` = barrels + line drives. */
       if (currentAB.hitterId) {
         const hid = currentAB.hitterId;
-        const isGood = pendingInPlayOutcome === 'BARREL' || pendingInPlayOutcome === 'LINE_DRIVE';
+        const isGood = pendingInPlayOutcome === 'LINE_DRIVE' || pendingQoC === 'BARREL';
         setHitterOutcomes(prev => {
           const prior = prev[hid] || { good: 0, total: 0 };
           return {
@@ -732,6 +801,7 @@ export default function LiveAtBatPage() {
         });
       }
       setPendingInPlayOutcome(null);
+      setPendingQoC(null);
       setCurrentAB(null);
     } catch (err: any) {
       setError(`Failed to close at-bat: ${err?.message || err}`);
@@ -767,6 +837,7 @@ export default function LiveAtBatPage() {
        no outcome / location, which is the right behaviour for a
        coach who deliberately walks away from the spray pick. */
     setPendingInPlayOutcome(null);
+    setPendingQoC(null);
   };
 
   const handlePickPitcher = async (id: string) => {
@@ -1292,8 +1363,37 @@ export default function LiveAtBatPage() {
                    AtBat's existing `videoId` link makes clicking
                    that spray point open the recorded clip when one
                    exists. */}
+                {/* Quality of Contact — appears once an in-play result is
+                   picked, BEFORE the spray field. Barrel / Jam / Cap;
+                   required so Barrel% is tracked separately from the
+                   LD/FB/GB batted-ball type. */}
+                {pendingInPlayOutcome && (
+                  <div className={styles.pickerBlock}>
+                    <div className={styles.pickerLabel}>
+                      Quality of Contact
+                      {!pendingQoC && <span className={styles.pickerHint}> · pick before the spray location</span>}
+                    </div>
+                    <div className={styles.pickerRows}>
+                      <div className={styles.pickerRow}>
+                        {QUALITY_OF_CONTACT.map(q => (
+                          <button
+                            key={q}
+                            type="button"
+                            className={`${styles.pickerBtn} ${pendingQoC === q ? styles.pickerBtnActive : ''}`}
+                            disabled={submittingPitch}
+                            onClick={() => setPendingQoC(pendingQoC === q ? null : q)}
+                          >
+                            {QOC_LABELS[q]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <MiniSprayField
                   pending={pendingInPlayOutcome}
+                  armed={!!pendingInPlayOutcome && !!pendingQoC}
                   disabled={submittingPitch}
                   onPick={(x, y) => finalizeInPlayAtBat(x, y)}
                 />
@@ -1405,28 +1505,65 @@ export default function LiveAtBatPage() {
                   </button>
                 ) : (
                   <>
-                    <div className={styles.videoFrame}>
-                      {cameraError ? (
-                        <div className={styles.videoErr}>
-                          <strong>Camera blocked:</strong> {cameraError}
+                    {/* Camera selection — pick up to MAX_CAMERAS angles.
+                        The second camera's preview stacks under the first
+                        in this column. Locked while recording. */}
+                    {availableCameras.length > 1 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                        {availableCameras.map((cam, i) => {
+                          const active = selectedCameraIds.includes(cam.deviceId);
+                          const atCap = !active && selectedCameraIds.length >= MAX_CAMERAS;
+                          return (
+                            <button
+                              key={cam.deviceId}
+                              type="button"
+                              className={`${styles.recentChip} ${active ? styles.recentChipActive : ''}`}
+                              disabled={recording || atCap}
+                              title={atCap ? `Max ${MAX_CAMERAS} cameras — uncheck one first` : (cam.label || `Camera ${i + 1}`)}
+                              onClick={() => setSelectedCameraIds(prev =>
+                                prev.includes(cam.deviceId)
+                                  ? prev.filter(id => id !== cam.deviceId)
+                                  : (prev.length >= MAX_CAMERAS ? prev : [...prev, cam.deviceId]),
+                              )}
+                            >
+                              {active ? '✓ ' : ''}{cam.label || `Camera ${i + 1}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {cameraError ? (
+                      <div className={styles.videoErr}>
+                        <strong>Camera blocked:</strong> {cameraError}
+                      </div>
+                    ) : (
+                      selectedCameraIds.map((id) => (
+                        <div key={id} className={styles.videoFrame} style={{ marginBottom: 8 }}>
+                          <video
+                            ref={(el) => {
+                              if (el) {
+                                videoElsRef.current.set(id, el);
+                                const s = streamsRef.current.get(id);
+                                if (s && el.srcObject !== s) el.srcObject = s;
+                              } else {
+                                videoElsRef.current.delete(id);
+                              }
+                            }}
+                            autoPlay
+                            playsInline
+                            muted
+                            className={styles.videoEl}
+                          />
+                          {recording && <span className={styles.videoRecDot}>● REC</span>}
                         </div>
-                      ) : (
-                        <video
-                          ref={videoElRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className={styles.videoEl}
-                        />
-                      )}
-                      {recording && <span className={styles.videoRecDot}>● REC</span>}
-                    </div>
+                      ))
+                    )}
                     <div className={styles.videoControls}>
                       {!recording ? (
                         <button
                           type="button"
                           className={trainingStyles.primaryBtn}
-                          disabled={!currentAB || !!cameraError}
+                          disabled={!currentAB || !!cameraError || selectedCameraIds.length === 0}
                           onClick={startRecording}
                         >
                           ● Record At-Bat
@@ -1590,14 +1727,17 @@ function RosterColumn({
    the chart can stay rendered as a visual reference between
    at-bats. */
 function MiniSprayField({
-  pending, disabled, onPick,
+  pending, armed, disabled, onPick,
 }: {
   pending: PitchResult | null;
+  /** True once BOTH an in-play result AND a quality of contact are picked
+   *  — only then does the field accept a spray click. */
+  armed: boolean;
   disabled: boolean;
   onPick: (x: number, y: number) => void;
 }) {
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!pending || disabled) return;
+    if (!armed || disabled) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     /* Invert Y so home plate (visually at the bottom of the SVG)
@@ -1605,16 +1745,16 @@ function MiniSprayField({
     const y = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
     onPick(x, y);
   };
+  const hint = !pending
+    ? ' · enabled after an in-play result'
+    : !armed
+      ? ' · pick quality of contact first'
+      : ' · tap where the ball landed';
   return (
     <div className={styles.pickerBlock}>
       <div className={styles.pickerLabel}>
         Spray Location
-        {pending && (
-          <span className={styles.pickerHint}> · tap where the ball landed</span>
-        )}
-        {!pending && (
-          <span className={styles.pickerHint}> · enabled after an in-play result</span>
-        )}
+        <span className={styles.pickerHint}>{hint}</span>
       </div>
       <svg
         viewBox="0 0 100 100"
@@ -1627,45 +1767,41 @@ function MiniSprayField({
           borderRadius: 10,
           background: '#0a0e14',
           border: '1px solid var(--border)',
-          cursor: pending && !disabled ? 'crosshair' : 'default',
-          opacity: pending ? 1 : 0.55,
+          cursor: armed && !disabled ? 'crosshair' : 'default',
+          opacity: armed ? 1 : 0.55,
           transition: 'opacity 0.15s ease',
         }}
       >
-        {/* Outfield grass — fan shape between the foul lines, capped
-           by a curved wall at the deep end. */}
+        {/* Outfield grass — a ~90° fan from home plate out to a curved
+           wall (average field proportions, not the old narrow wedge). */}
         <path
-          d="M 50 95 L 8 8 A 60 60 0 0 1 92 8 Z"
+          d="M 50 94 L 4.8 48.8 A 64 64 0 0 1 95.2 48.8 Z"
           fill="#1a3a1f"
           stroke="var(--border)"
           strokeWidth="0.4"
         />
         {/* Infield dirt — diamond bounded by the 4 bases. */}
         <path
-          d="M 35 78 L 50 60 L 65 78 L 50 92 Z"
+          d="M 34.5 78.5 L 50 62 L 65.5 78.5 L 50 93 Z"
           fill="#5c3d2e"
           stroke="var(--border-strong)"
           strokeWidth="0.4"
         />
-        {/* Foul lines — from home plate diagonally out to the
-           outfield corners. */}
-        <line x1="50" y1="93" x2="8" y2="8" stroke="rgba(255,255,255,0.45)" strokeWidth="0.4" />
-        <line x1="50" y1="93" x2="92" y2="8" stroke="rgba(255,255,255,0.45)" strokeWidth="0.4" />
-        {/* Pitcher's mound — small circle at the centre of the
-           diamond, between home and second base. */}
-        <circle cx="50" cy="76" r="2.5" fill="#8a6248" stroke="var(--border-strong)" strokeWidth="0.3" />
-        {/* Bases — small white squares at 1B / 2B / 3B; home plate
-           is the pentagon below. */}
-        <rect x="63.5" y="76.5" width="3" height="3" fill="var(--text-bright)" />
-        <rect x="48.5" y="58.5" width="3" height="3" fill="var(--text-bright)" />
-        <rect x="33.5" y="76.5" width="3" height="3" fill="var(--text-bright)" />
+        {/* Foul lines — from home plate out to the foul poles. */}
+        <line x1="50" y1="93" x2="4.8" y2="48.8" stroke="rgba(255,255,255,0.45)" strokeWidth="0.4" />
+        <line x1="50" y1="93" x2="95.2" y2="48.8" stroke="rgba(255,255,255,0.45)" strokeWidth="0.4" />
+        {/* Pitcher's mound */}
+        <circle cx="50" cy="80" r="2.2" fill="#8a6248" stroke="var(--border-strong)" strokeWidth="0.3" />
+        {/* Bases — 1B / 2B / 3B; home plate is the pentagon below. */}
+        <rect x="64" y="77" width="3" height="3" fill="var(--text-bright)" />
+        <rect x="48.5" y="60.5" width="3" height="3" fill="var(--text-bright)" />
+        <rect x="33" y="77" width="3" height="3" fill="var(--text-bright)" />
         {/* Home plate — pentagonal */}
         <polygon points="47,91 53,91 53,93 50,95 47,93" fill="var(--text-bright)" />
-        {/* Reticle when waiting for a spray pick — subtle pulsing
-           dot at the centre of the diamond invites the click. */}
-        {pending && (
-          <circle cx="50" cy="76" r="1.2" fill="#7eb6ff">
-            <animate attributeName="r" values="1.2;2.6;1.2" dur="1.2s" repeatCount="indefinite" />
+        {/* Reticle when armed — subtle pulsing dot invites the click. */}
+        {armed && (
+          <circle cx="50" cy="66" r="1.4" fill="#7eb6ff">
+            <animate attributeName="r" values="1.4;2.8;1.4" dur="1.2s" repeatCount="indefinite" />
             <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.2s" repeatCount="indefinite" />
           </circle>
         )}

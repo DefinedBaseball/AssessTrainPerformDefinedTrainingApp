@@ -172,7 +172,11 @@ function computeLiveAtBatSwingMetrics(
       const swung = !!p.result && SWING_RESULTS_AB.has(p.result);
       const whiff = p.result === 'STRIKE_SWINGING' || p.result === 'STRIKE_OUT_SWINGING';
       const inPlay = !!p.result && INPLAY_RESULTS_AB.has(p.result);
-      const barrel = p.result === 'BARREL';
+      /* Barrel is now the at-bat's quality of contact (separate from the
+         batted-ball type), attributed to the terminal in-play pitch's
+         family. Legacy at-bats that recorded a BARREL pitch/outcome still
+         count via the `p.result === 'BARREL'` fallback. */
+      const barrel = inPlay && (r.qualityOfContact === 'BARREL' || p.result === 'BARREL');
       const inZone = p.callBallStrike === 'STRIKE';
       const outZone = p.callBallStrike === 'BALL';
       for (const s of [fam, all]) {

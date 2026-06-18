@@ -240,9 +240,9 @@ export class LiveSessionsController {
        the coach taps a location on the live-tracker mini field;
        omitted for strikeouts and walks where no field location
        applies. Both values are normalized to [0,1]. */
-    @Body() dto: { outcome: string; sprayX?: number | null; sprayY?: number | null },
+    @Body() dto: { outcome: string; sprayX?: number | null; sprayY?: number | null; qualityOfContact?: string | null },
   ) {
-    return this.liveSessionsService.closeAtBat(atBatId, dto.outcome, dto.sprayX ?? null, dto.sprayY ?? null);
+    return this.liveSessionsService.closeAtBat(atBatId, dto.outcome, dto.sprayX ?? null, dto.sprayY ?? null, dto.qualityOfContact ?? null);
   }
 
   // ── Pitches ───────────────────────────────────────────────────

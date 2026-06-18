@@ -188,10 +188,16 @@ export class LiveSessionsService {
    *  `sprayX` / `sprayY` are the normalized field coordinates the
    *  coach tapped on the live-tracker mini field for in-play
    *  outcomes; they're null for strikeouts and walks. */
-  closeAtBat(id: string, outcome: string, sprayX: number | null = null, sprayY: number | null = null) {
+  closeAtBat(
+    id: string,
+    outcome: string,
+    sprayX: number | null = null,
+    sprayY: number | null = null,
+    qualityOfContact: string | null = null,
+  ) {
     return this.prisma.atBat.update({
       where: { id },
-      data: { outcome, sprayX, sprayY, endedAt: new Date() },
+      data: { outcome, sprayX, sprayY, qualityOfContact, endedAt: new Date() },
     });
   }
 

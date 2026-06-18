@@ -1386,6 +1386,14 @@ export const TERMINAL_PITCH_RESULTS: ReadonlySet<PitchResult> = new Set<PitchRes
   'WALK',
 ]);
 
+/** Quality-of-contact options for balls in play — a separate dimension
+ *  from the batted-ball type (LINE_DRIVE / FLY_BALL / GROUND_BALL). The
+ *  coach picks one after the in-play result and before the spray
+ *  location. Barrel% across balls in play derives from these. Legacy
+ *  ABs that recorded a BARREL `outcome` keep that and have no QoC. */
+export const QUALITY_OF_CONTACT = ['BARREL', 'JAM', 'CAP'] as const;
+export type QualityOfContact = (typeof QUALITY_OF_CONTACT)[number];
+
 export interface AtBat {
   id: string;
   liveSessionId: string | null;
@@ -1403,6 +1411,11 @@ export interface AtBat {
    *  Null for K / BB / in-progress. */
   sprayX: number | null;
   sprayY: number | null;
+  /** Quality of contact for balls in play — separate from the batted-ball
+   *  type in `outcome`. "BARREL" | "JAM" | "CAP" | null. Null for legacy
+   *  ABs (which may carry BARREL in `outcome` instead), K / BB, and
+   *  in-progress at-bats. */
+  qualityOfContact: string | null;
   startedAt: string;
   endedAt: string | null;
 }
@@ -1450,6 +1463,7 @@ export async function closeAtBat(
   atBatId: string,
   outcome: string,
   spray?: { x: number; y: number } | null,
+  qualityOfContact?: string | null,
 ): Promise<AtBat> {
   return request(`/live-sessions/at-bats/${atBatId}/close`, {
     method: 'POST',
@@ -1457,6 +1471,7 @@ export async function closeAtBat(
       outcome,
       sprayX: spray?.x ?? null,
       sprayY: spray?.y ?? null,
+      qualityOfContact: qualityOfContact ?? null,
     }),
   });
 }

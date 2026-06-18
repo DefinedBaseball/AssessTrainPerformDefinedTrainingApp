@@ -51,7 +51,8 @@ function pitchInZone(p: Pitch): 'in' | 'out' | 'unknown' {
 }
 
 export interface LiveSwingDecisionStats {
-  /** Barrel % across all balls in play (BARREL / BIP). */
+  /** Barrel % across all balls in play (barrels / BIP) — barrels are now
+   *  the at-bat's quality of contact, not a batted-ball type. */
   barrelPct: number | null;
   /** Whiff % across all swings (swing-and-miss / total swings). */
   whiffPct: number | null;
@@ -59,6 +60,11 @@ export interface LiveSwingDecisionStats {
   chasePct: number | null;
   /** In-Zone Swing % across in-zone pitches (iz swings / iz pitches). */
   inZoneSwingPct: number | null;
+  /** Batted-ball type distribution across balls in play (type / BIP).
+   *  Now accurate because Barrel is tracked separately from LD/FB/GB. */
+  ldPct: number | null;
+  fbPct: number | null;
+  gbPct: number | null;
   /** Total pitches counted — surfaces "0 pitches" empty state in the UI. */
   pitchCount: number;
 }
@@ -67,12 +73,19 @@ export function computeLiveSwingDecisionStats(atBats: AtBatDetail[]): LiveSwingD
   let pitchCount = 0;
   let swings = 0;
   let whiffs = 0;
-  let bip = 0;
-  let barrels = 0;
   let inZone = 0;
   let outZone = 0;
   let inZoneSwings = 0;
   let outZoneSwings = 0;
+  /* Balls-in-play, quality of contact, and batted-ball type are counted
+     PER AT-BAT (one terminal BIP per AB), so Barrel% derives from the
+     at-bat's `qualityOfContact` and the LD/FB/GB split from its `outcome`.
+     Whiff / chase / zone stay per-pitch below. */
+  let bip = 0;
+  let barrels = 0;
+  let ld = 0;
+  let fb = 0;
+  let gb = 0;
 
   for (const ab of atBats) {
     for (const p of ab.pitches || []) {
@@ -80,11 +93,19 @@ export function computeLiveSwingDecisionStats(atBats: AtBatDetail[]): LiveSwingD
       const swung = p.result ? SWING_RESULTS.has(p.result) : false;
       if (swung) swings++;
       if (p.result && WHIFF_RESULTS.has(p.result)) whiffs++;
-      if (p.result && IN_PLAY_RESULTS.has(p.result)) bip++;
-      if (p.result === 'BARREL') barrels++;
       const zone = pitchInZone(p);
       if (zone === 'in')  { inZone++;  if (swung) inZoneSwings++;  }
       if (zone === 'out') { outZone++; if (swung) outZoneSwings++; }
+    }
+    const oc = ab.outcome;
+    if (oc && IN_PLAY_RESULTS.has(oc)) {
+      bip++;
+      if (oc === 'LINE_DRIVE') ld++;
+      else if (oc === 'FLY_BALL') fb++;
+      else if (oc === 'GROUND_BALL') gb++;
+      /* `oc === 'BARREL'` is a legacy outcome with no batted-ball type, so
+         it's excluded from ld/fb/gb but still counts as a barrel below. */
+      if (ab.qualityOfContact === 'BARREL' || oc === 'BARREL') barrels++;
     }
   }
 
@@ -96,6 +117,9 @@ export function computeLiveSwingDecisionStats(atBats: AtBatDetail[]): LiveSwingD
     whiffPct:        pct(whiffs, swings),
     chasePct:        pct(outZoneSwings, outZone),
     inZoneSwingPct:  pct(inZoneSwings, inZone),
+    ldPct:           pct(ld, bip),
+    fbPct:           pct(fb, bip),
+    gbPct:           pct(gb, bip),
     pitchCount,
   };
 }
