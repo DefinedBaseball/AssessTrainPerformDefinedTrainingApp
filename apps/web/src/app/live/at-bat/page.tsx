@@ -259,6 +259,11 @@ export default function LiveAtBatPage() {
   // Re-fetched whenever the active hitter changes or an AB closes.
   const [recentAtBats, setRecentAtBats] = useState<api.AtBatDetail[]>([]);
   const [recentFilterLimit, setRecentFilterLimit] = useState<number>(25);
+  /* Delete-confirm for the Recent at-bats list — coaches can prune a
+     mistaken AB straight from the recorder. `confirmDeleteAbId` opens the
+     tiny popover; `deletingAbId` blocks repeat clicks while in flight. */
+  const [confirmDeleteAbId, setConfirmDeleteAbId] = useState<string | null>(null);
+  const [deletingAbId, setDeletingAbId] = useState<string | null>(null);
 
   // ── Phase 5 — Save step: per-clip report-attach selection ──
   // Map clip.clientId → selected report id (or the sentinel
@@ -347,6 +352,22 @@ export default function LiveAtBatPage() {
       .catch(() => { /* ignore */ });
     return () => { cancelled = true; };
   }, [activeHitterId, recentFilterLimit, currentAB?.id]);
+
+  /* Delete an at-bat from the Recent list. Removes it locally on success
+     so the row disappears immediately. */
+  const handleDeleteRecentAtBat = async (id: string) => {
+    if (deletingAbId) return;
+    setDeletingAbId(id);
+    try {
+      await api.deleteAtBat(id);
+      setRecentAtBats(prev => prev.filter(r => r.id !== id));
+      setConfirmDeleteAbId(null);
+    } catch (err: any) {
+      setError(`Failed to delete at-bat: ${err?.message || err}`);
+    } finally {
+      setDeletingAbId(null);
+    }
+  };
 
   // ── Step 1 → Step 2: start the session ──
   const handleStartSession = async () => {
@@ -1468,7 +1489,41 @@ export default function LiveAtBatPage() {
                         <span className={styles.recentOutcome}>
                           {ab.outcome ? fmtResult(ab.outcome) : <em>open</em>}
                         </span>
-                        <span className={trainingStyles.dim}>{ab.pitches.length} pitch{ab.pitches.length === 1 ? '' : 'es'}</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifySelf: 'end', position: 'relative' }}>
+                          <span className={trainingStyles.dim}>{ab.pitches.length} pitch{ab.pitches.length === 1 ? '' : 'es'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteAbId(confirmDeleteAbId === ab.id ? null : ab.id)}
+                            aria-label="Delete at-bat"
+                            title="Delete at-bat"
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: 26, height: 26, padding: 0, borderRadius: 6, flexShrink: 0,
+                              background: confirmDeleteAbId === ab.id ? 'rgba(221,105,116,0.20)' : 'rgba(255,255,255,0.04)',
+                              border: '1px solid rgba(221,105,116,0.40)', color: 'var(--red, #dd6974)', cursor: 'pointer',
+                            }}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <line x1="2" y1="2" x2="10" y2="10" />
+                              <line x1="10" y1="2" x2="2" y2="10" />
+                            </svg>
+                          </button>
+                          {confirmDeleteAbId === ab.id && (
+                            <div style={{
+                              position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 30,
+                              display: 'flex', flexDirection: 'column', gap: 6, whiteSpace: 'nowrap',
+                              padding: '8px 10px', borderRadius: 8,
+                              background: 'var(--surface-bright, #14161c)', border: '1px solid var(--border)',
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                            }}>
+                              <span style={{ fontSize: 11.5, color: 'var(--text)', fontWeight: 600 }}>Delete this at-bat?</span>
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setConfirmDeleteAbId(null)} style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancel</button>
+                                <button type="button" disabled={deletingAbId === ab.id} onClick={() => handleDeleteRecentAtBat(ab.id)} style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: '1px solid rgba(221,105,116,0.5)', background: 'rgba(221,105,116,0.18)', color: '#f2bcc3', cursor: deletingAbId === ab.id ? 'default' : 'pointer', opacity: deletingAbId === ab.id ? 0.6 : 1 }}>{deletingAbId === ab.id ? 'Deleting…' : 'Delete'}</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

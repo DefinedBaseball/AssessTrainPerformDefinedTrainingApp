@@ -1476,6 +1476,7 @@ export function HittingTab(props: TabProps) {
           <LiveAtBatsList
             hitterId={player.id}
             title="Live At-Bats"
+            canDelete={isCoach}
           />
         </Section>
       )}

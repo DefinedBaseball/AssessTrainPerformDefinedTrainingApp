@@ -245,6 +245,13 @@ export class LiveSessionsController {
     return this.liveSessionsService.closeAtBat(atBatId, dto.outcome, dto.sprayX ?? null, dto.sprayY ?? null, dto.qualityOfContact ?? null);
   }
 
+  @Delete('at-bats/:atBatId')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Delete an at-bat (cascades its pitches)' })
+  deleteAtBat(@Param('atBatId') atBatId: string) {
+    return this.liveSessionsService.deleteAtBat(atBatId);
+  }
+
   // ── Pitches ───────────────────────────────────────────────────
 
   @Post('at-bats/:atBatId/pitches')

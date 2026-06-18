@@ -201,6 +201,13 @@ export class LiveSessionsService {
     });
   }
 
+  /** Delete an at-bat and its pitches (Pitch rows cascade via the
+   *  schema's `onDelete: Cascade`). Any linked Video is left intact —
+   *  that relation is SetNull, so only the AtBat reference is removed. */
+  deleteAtBat(id: string) {
+    return this.prisma.atBat.delete({ where: { id } });
+  }
+
   /** List at-bats for a hitter or pitcher (or both). Used by the
    *  "Live Results" history surfaces and the Spray-Decision
    *  consumer in the Hitting tab. `limit` defaults to 50 (matches

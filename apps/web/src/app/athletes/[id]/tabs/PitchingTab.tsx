@@ -1365,6 +1365,7 @@ export function PitchingTab({
           <LiveAtBatsList
             pitcherId={player.id}
             title="Live Results"
+            canDelete={isCoach}
           />
         </Section>
       )}

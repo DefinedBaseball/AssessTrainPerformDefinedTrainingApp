@@ -1476,6 +1476,10 @@ export async function closeAtBat(
   });
 }
 
+export async function deleteAtBat(atBatId: string): Promise<void> {
+  return request(`/live-sessions/at-bats/${atBatId}`, { method: 'DELETE' });
+}
+
 export async function listAtBats(filters: {
   hitterId?: string;
   pitcherId?: string;

@@ -36,6 +36,9 @@ interface Props {
    *  makes sense in the hitter context). Defaults to true when
    *  `hitterId` is set, false when `pitcherId` is set. */
   showHandednessFilter?: boolean;
+  /** When true, show a delete (✕) control on each at-bat row. Gated to
+   *  coaches by the caller; players viewing their own profile pass false. */
+  canDelete?: boolean;
 }
 
 /* ── Filter-chip values ──
@@ -237,6 +240,7 @@ export function LiveAtBatsList({
   pitcherId,
   title,
   showHandednessFilter,
+  canDelete,
 }: Props) {
   const [chip, setChip] = useState<LimitChipKey>('L50');
   // 'ALL' → no handedness filter; 'L' / 'R' apply the
@@ -262,6 +266,11 @@ export function LiveAtBatsList({
      (0.25×–2×) directly from the inline player without diving into
      browser overflow menus. */
   const inlineVideoRef = useRef<HTMLVideoElement | null>(null);
+  /* Delete-confirm state — `confirmingDeleteId` is the AB whose tiny
+     "Delete this at-bat?" popover is open; `deletingId` blocks repeat
+     clicks while the request is in flight. */
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Default `showHandednessFilter` based on which side we're scoped to.
   const handChipsVisible = showHandednessFilter ?? !!hitterId;
@@ -317,6 +326,22 @@ export function LiveAtBatsList({
   // reflect completed at-bats only (and 0% doesn't tick up just
   // because the coach hasn't closed yesterday's AB yet).
   const completed = rollup.totalAB - rollup.open;
+
+  /* Delete an at-bat — removes it locally so the list + rollup update
+     immediately without a refetch. */
+  const handleDelete = async (id: string) => {
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await api.deleteAtBat(id);
+      setRows(prev => prev.filter(r => r.id !== id));
+      setConfirmingDeleteId(null);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete at-bat');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className={styles.bubble}>
@@ -374,15 +399,15 @@ export function LiveAtBatsList({
             <Stat label="K %"           value={pct(rollup.strikeouts,        completed)} />
             <Stat label="BB %"          value={pct(rollup.walks,             completed)} />
             <Stat label="GB %"          value={pct(rollup.groundBalls,       rollup.ballsInPlay)} />
-            <Stat label="Fly Ball %"    value={pct(rollup.flyBalls,          rollup.ballsInPlay)} />
+            <Stat label="FB %"    value={pct(rollup.flyBalls,          rollup.ballsInPlay)} />
             <Stat label="2K Strike %"   value={pct(rollup.twoStrikeStrikes,  rollup.twoStrikePitches)} />
           </>
         ) : (
           <>
             <Stat label="Barrel %"     value={pct(rollup.barrels,     rollup.ballsInPlay)} />
             <Stat label="Line Drive %" value={pct(rollup.lineDrives,  rollup.ballsInPlay)} />
-            <Stat label="Fly Ball %"   value={pct(rollup.flyBalls,    rollup.ballsInPlay)} />
-            <Stat label="Ground %"     value={pct(rollup.groundBalls, rollup.ballsInPlay)} />
+            <Stat label="FB %"   value={pct(rollup.flyBalls,    rollup.ballsInPlay)} />
+            <Stat label="GB %"         value={pct(rollup.groundBalls, rollup.ballsInPlay)} />
             <Stat label="K %"          value={pct(rollup.strikeouts,  completed)} />
             <Stat label="BB %"         value={pct(rollup.walks,       completed)} />
           </>
@@ -469,48 +494,108 @@ export function LiveAtBatsList({
                      when this AB has a linked, playable video. Click
                      toggles the inline player below; the icon flips
                      to a "close" glyph while open. */}
-                  {videoSrc ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveVideoAbId(playerOpen ? null : ab.id);
-                      }}
-                      aria-label={playerOpen ? 'Hide video' : 'Play video'}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 28, height: 28,
-                        padding: 0,
-                        borderRadius: 6,
-                        background: playerOpen
-                          ? 'rgba(126,182,255,0.20)'
-                          : 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(126,182,255,0.40)',
-                        color: 'var(--accent-bright, #7eb6ff)',
-                        cursor: 'pointer',
-                        transition: 'background 0.12s ease',
-                      }}
-                    >
-                      {playerOpen ? (
-                        /* "Close" glyph — small × */
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifySelf: 'end', position: 'relative' }}>
+                    {videoSrc ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveVideoAbId(playerOpen ? null : ab.id);
+                        }}
+                        aria-label={playerOpen ? 'Hide video' : 'Play video'}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 28, height: 28,
+                          padding: 0,
+                          borderRadius: 6,
+                          background: playerOpen
+                            ? 'rgba(126,182,255,0.20)'
+                            : 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(126,182,255,0.40)',
+                          color: 'var(--accent-bright, #7eb6ff)',
+                          cursor: 'pointer',
+                          transition: 'background 0.12s ease',
+                        }}
+                      >
+                        {playerOpen ? (
+                          /* "Close" glyph — small × */
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <line x1="2" y1="2" x2="10" y2="10" />
+                            <line x1="10" y1="2" x2="2" y2="10" />
+                          </svg>
+                        ) : (
+                          /* Play glyph — filled triangle */
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                            <polygon points="3,2 3,10 10,6" />
+                          </svg>
+                        )}
+                      </button>
+                    ) : (
+                      /* Width-matched spacer so rows without a video
+                         still left-align with rows that have one. */
+                      <span style={{ width: 28 }} aria-hidden="true" />
+                    )}
+                    {/* Delete (✕) — coach-only. Opens a tiny confirm popover. */}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmingDeleteId(confirmingDeleteId === ab.id ? null : ab.id);
+                        }}
+                        aria-label="Delete at-bat"
+                        title="Delete at-bat"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 28, height: 28, padding: 0, borderRadius: 6,
+                          background: confirmingDeleteId === ab.id ? 'rgba(221,105,116,0.20)' : 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(221,105,116,0.40)',
+                          color: 'var(--red, #dd6974)',
+                          cursor: 'pointer', transition: 'background 0.12s ease',
+                        }}
+                      >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                           <line x1="2" y1="2" x2="10" y2="10" />
                           <line x1="10" y1="2" x2="2" y2="10" />
                         </svg>
-                      ) : (
-                        /* Play glyph — filled triangle */
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                          <polygon points="3,2 3,10 10,6" />
-                        </svg>
-                      )}
-                    </button>
-                  ) : (
-                    /* Width-matched spacer so rows without a video
-                       still left-align with rows that have one. */
-                    <span style={{ width: 28 }} aria-hidden="true" />
-                  )}
+                      </button>
+                    )}
+                    {/* Tiny confirm popover, anchored to the ✕. */}
+                    {canDelete && confirmingDeleteId === ab.id && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 20,
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                          padding: '8px 10px', borderRadius: 8, whiteSpace: 'nowrap',
+                          background: 'var(--surface-bright, #14161c)',
+                          border: '1px solid var(--border)',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                        }}
+                      >
+                        <span style={{ fontSize: 11.5, color: 'var(--text)', fontWeight: 600 }}>Delete this at-bat?</span>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingDeleteId(null)}
+                            style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingId === ab.id}
+                            onClick={() => handleDelete(ab.id)}
+                            style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: '1px solid rgba(221,105,116,0.5)', background: 'rgba(221,105,116,0.18)', color: '#f2bcc3', cursor: deletingId === ab.id ? 'default' : 'pointer', opacity: deletingId === ab.id ? 0.6 : 1 }}
+                          >
+                            {deletingId === ab.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {playerOpen && videoSrc && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
