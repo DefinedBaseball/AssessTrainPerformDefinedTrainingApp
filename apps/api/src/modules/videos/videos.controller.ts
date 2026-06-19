@@ -1,13 +1,13 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query,
-  UploadedFile, UseInterceptors, BadRequestException,
+  UploadedFile, UseInterceptors, BadRequestException, Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { VideosService } from './videos.service';
 import { S3Service } from './s3.service';
 import { BunnyService } from './bunny.service';
-import { Roles } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuid } from 'uuid';
@@ -331,26 +331,34 @@ export class VideosController {
    *
    * Returns videos with embedded player info.
    */
-  /* Read endpoints require an authenticated user (coach OR player). The
-     previous behaviour was open — any authenticated request could pull
-     any other player's video listing. Locking to the two known roles
-     is the academy-appropriate floor; finer-grained "this player can
-     only see THEIR OWN videos" can layer on later if needed. */
+  /* Read endpoints require an authenticated user (coach OR player) AND are
+     ownership-scoped: coaches see the whole roster, a player may only read
+     THEIR OWN videos. assertPlayerOwnership (and browse's self-scoping below)
+     enforce this so a player can't pull a peer's clips by guessing ids. */
   @Get('browse')
   @Roles('COACH', 'PLAYER')
-  @ApiOperation({ summary: 'Browse all videos with filters (includes player info)' })
+  @ApiOperation({ summary: 'Browse videos with filters (own clips for players, roster-wide for coaches)' })
   async browse(
+    @Request() req: AuthenticatedRequest,
     @Query('playerId') playerId?: string,
     @Query('category') category?: string,
     @Query('gradYears') gradYears?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
+    // Players may only browse their OWN clips; coaches see the whole roster.
+    // (Without this, a player could pass any ?playerId= to read a peer's
+    // videos, or omit it to list the entire academy.)
+    let scopedPlayerId = playerId || undefined;
+    if (req.user?.role === 'PLAYER') {
+      if (!req.user.playerId) return [];
+      scopedPlayerId = req.user.playerId;
+    }
     const parsedGradYears = gradYears
       ? gradYears.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
       : undefined;
     return this.videosService.findAll({
-      playerId: playerId || undefined,
+      playerId: scopedPlayerId,
       category: category || undefined,
       gradYears: parsedGradYears?.length ? parsedGradYears : undefined,
       from: from || undefined,
@@ -362,17 +370,22 @@ export class VideosController {
   @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Get all videos for a player (auth required)' })
   findByPlayer(
+    @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Query('category') category?: string,
   ) {
+    assertPlayerOwnership(req, playerId);
     return this.videosService.findByPlayer(playerId, category);
   }
 
   @Get(':id')
   @Roles('COACH', 'PLAYER')
-  @ApiOperation({ summary: 'Get a video with annotations and voice-overs (auth required)' })
-  findOne(@Param('id') id: string) {
-    return this.videosService.findOne(id);
+  @ApiOperation({ summary: 'Get a video with annotations and voice-overs (own video for players)' })
+  async findOne(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    const video = await this.videosService.findOne(id);
+    // A player may only open their own video; coaches may open any.
+    assertPlayerOwnership(req, video.playerId);
+    return video;
   }
 
   @Patch(':id/status')

@@ -7,7 +7,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -40,8 +41,41 @@ export class AuthService {
     private notifications: NotificationsService,
   ) {}
 
-  private hashPassword(password: string, salt: string): string {
-    return createHash('sha256').update(password + salt).digest('hex');
+  /**
+   * Cost factor for bcrypt. 10 is a sound default for the pure-JS bcryptjs
+   * (roughly comparable in wall-time to native bcrypt at 12) — expensive
+   * enough to make offline cracking impractical without stalling logins on
+   * Render's small instances.
+   */
+  private static readonly BCRYPT_ROUNDS = 10;
+
+  /** Hash a new/changed password with bcrypt — the at-rest format going forward. */
+  private hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, AuthService.BCRYPT_ROUNDS);
+  }
+
+  /**
+   * Verify a plaintext password against a stored hash. Transparently supports
+   * BOTH formats:
+   *   - bcrypt strings (start with "$2") — the current scheme.
+   *   - legacy "salt:sha256(password+salt)" — pre-bcrypt accounts, validated
+   *     here (constant-time) so existing logins keep working and can be
+   *     upgraded in place on next login.
+   */
+  private async verifyPassword(password: string, stored: string): Promise<boolean> {
+    if (!stored) return false;
+    if (stored.startsWith('$2')) return bcrypt.compare(password, stored);
+    const [salt, hash] = stored.split(':');
+    if (!salt || !hash) return false;
+    const attempt = createHash('sha256').update(password + salt).digest('hex');
+    const a = Buffer.from(attempt);
+    const b = Buffer.from(hash);
+    return a.length === b.length && timingSafeEqual(a, b);
+  }
+
+  /** True for the legacy salt:sha256 format → caller should re-hash with bcrypt. */
+  private isLegacyHash(stored: string): boolean {
+    return !!stored && !stored.startsWith('$2');
   }
 
   async register(
@@ -70,15 +104,14 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
 
-    const salt = randomBytes(16).toString('hex');
-    const hashed = this.hashPassword(password, salt);
+    const hashed = await this.hashPassword(password);
     // New coaches get an explicit level (default COACH); players carry none.
     const coachLevel = role === 'COACH' ? (newCoachLevel || 'COACH') : null;
 
     const user = await this.prisma.user.create({
       data: {
         email,
-        password: `${salt}:${hashed}`,
+        password: hashed,
         role,
         coachLevel,
         name: name?.trim() || null,
@@ -125,13 +158,12 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
 
-    const salt = randomBytes(16).toString('hex');
-    const hashed = this.hashPassword(payload.password, salt);
+    const hashed = await this.hashPassword(payload.password);
 
     const user = await this.prisma.user.create({
       data: {
         email,
-        password: `${salt}:${hashed}`,
+        password: hashed,
         role: 'PLAYER',
         status: 'PENDING',
         player: {
@@ -251,14 +283,12 @@ export class AuthService {
       throw new BadRequestException('New password must be at least 6 characters');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    const [salt, hash] = user.password.split(':');
-    if (this.hashPassword(currentPassword || '', salt) !== hash)
+    if (!(await this.verifyPassword(currentPassword || '', user.password)))
       throw new UnauthorizedException('Current password is incorrect');
-    const newSalt = randomBytes(16).toString('hex');
-    const newHash = this.hashPassword(newPassword, newSalt);
+    const newHash = await this.hashPassword(newPassword);
     await this.prisma.user.update({
       where: { id: userId },
-      data: { password: `${newSalt}:${newHash}` },
+      data: { password: newHash },
     });
     return { ok: true };
   }
@@ -292,9 +322,16 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
-    const [salt, hash] = user.password.split(':');
-    const attempt = this.hashPassword(password, salt);
-    if (attempt !== hash) throw new UnauthorizedException('Invalid credentials');
+    if (!(await this.verifyPassword(password, user.password)))
+      throw new UnauthorizedException('Invalid credentials');
+
+    // Transparent upgrade: an account still on the legacy SHA-256 hash is
+    // re-hashed with bcrypt now that we hold the plaintext. One-time per user,
+    // on their next successful login.
+    if (this.isLegacyHash(user.password)) {
+      const upgraded = await this.hashPassword(password);
+      await this.prisma.user.update({ where: { id: user.id }, data: { password: upgraded } });
+    }
 
     const token = signJwt({
       sub: user.id,
@@ -359,11 +396,10 @@ export class AuthService {
     }
     if (target.isPrimaryAdmin && actor.sub !== target.id)
       throw new ForbiddenException('Only the primary admin can change their own password');
-    const salt = randomBytes(16).toString('hex');
-    const hash = this.hashPassword(newPassword, salt);
+    const hash = await this.hashPassword(newPassword);
     await this.prisma.user.update({
       where: { id: targetUserId },
-      data: { password: `${salt}:${hash}` },
+      data: { password: hash },
     });
     return { ok: true };
   }
