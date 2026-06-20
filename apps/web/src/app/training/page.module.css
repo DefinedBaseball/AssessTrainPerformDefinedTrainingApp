@@ -522,6 +522,7 @@
 .dayColCardTop {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   margin-bottom: 3px;
 }
@@ -564,7 +565,11 @@
 .dayColCardItem {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Drill names centered in the column to match the Player Summary's
+   * Upcoming Drills panel. The coach delete (×) is taken out of flow
+   * (absolute, below) so it doesn't push the name off-center. */
+  justify-content: center;
+  position: relative;
   gap: 6px;
   padding: 5px 2px;
   /* Thin hairline divider between drills inside a category bubble —
@@ -577,12 +582,27 @@
 .dayColCardItem:last-child { border-bottom: none; }
 .dayColCardItem:hover { background: rgba(255, 255, 255, 0.08); }
 
+/* Coach delete (×) pulled out of flow so the drill name centers in the full
+ * column width. Scoped to day-column items so the week/focused-view delete
+ * buttons (different parents) are unaffected. */
+.dayColCardItem .dayEventDelete {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .dayColCardItemName {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.3;
   flex: 1;
+  text-align: center;
+  /* Symmetric horizontal gutters leave room for the absolutely-positioned
+   * coach delete (×) on the right so a long centered name never slides under
+   * it — and the matching left gutter keeps the text visually centered. */
+  padding: 0 18px;
   /* Wrap long drill names rather than truncating — coaches need to
    * read the full name in the daily schedule, not guess at it. */
   word-break: break-word;
