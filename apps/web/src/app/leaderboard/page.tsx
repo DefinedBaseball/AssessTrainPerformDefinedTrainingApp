@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import type { LeaderboardEntry, Player } from '@/lib/api';
+import type { LeaderboardEntry } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
@@ -31,7 +31,7 @@ export default function LeaderboardPage() {
   const { user, isLoading } = useAuth();
 
   // Data
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [gradYears, setGradYears] = useState<number[]>([]);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [recomputing, setRecomputing] = useState(false);
@@ -48,10 +48,12 @@ export default function LeaderboardPage() {
   // Track whether initial recompute has completed (coaches get fresh data on page load)
   const [recomputeDone, setRecomputeDone] = useState(false);
 
-  // Load players to derive grad years + auto-recompute for coaches
+  // Load available grad years (both roles) + auto-recompute for coaches.
   useEffect(() => {
     if (!user) return;
-    api.getPlayers().then(setPlayers).catch(() => setPlayers([]));
+    // Dedicated endpoint returns just the year numbers so PLAYERS can build the
+    // dropdown too — the coach-only player list left their board blank before.
+    api.getLeaderboardGradYears().then(setGradYears).catch(() => setGradYears([]));
 
     // Coaches: silently recompute leaderboards on page load so data is always fresh
     if (user.role === 'COACH') {
@@ -63,11 +65,10 @@ export default function LeaderboardPage() {
     }
   }, [user]);
 
-  // Derive available grad years from real player data
+  // Available grad years for the dropdown (from the grad-years endpoint).
   const availableGradYears = useMemo(() => {
-    const years = [...new Set(players.map(p => p.gradYear).filter((y): y is number => y !== null))];
-    return years.sort((a, b) => a - b);
-  }, [players]);
+    return [...new Set(gradYears)].sort((a, b) => a - b);
+  }, [gradYears]);
 
   // Auto-select the first available grad year when players load
   useEffect(() => {
@@ -76,16 +77,29 @@ export default function LeaderboardPage() {
     }
   }, [availableGradYears, gradYear]);
 
-  // Fetch leaderboard data (waits for initial recompute to finish first)
-  const fetchLeaderboard = useCallback(() => {
-    if (!user || gradYear === null || !recomputeDone) return;
-    setLoading(true);
+  // Fetch the leaderboard. NOTE: this no longer waits on the coach's
+  // recompute — it paints the already-precomputed rankings immediately (a
+  // fast indexed read) so the page loads in well under a second instead of
+  // blocking on the full recompute. `silent` skips the spinner so the
+  // background refresh (after the recompute finishes) updates the board in
+  // place rather than blanking it back to a spinner.
+  const fetchLeaderboard = useCallback((silent = false) => {
+    if (!user || gradYear === null) return;
+    if (!silent) setLoading(true);
     api.getLeaderboard(gradYear, metricType)
       .then(data => { setEntries(data); setLoading(false); })
       .catch(() => { setEntries([]); setLoading(false); });
-  }, [user, gradYear, metricType, recomputeDone]);
+  }, [user, gradYear, metricType]);
 
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
+
+  // When the coach's background recompute completes, silently refresh so any
+  // newly-computed ranks appear without a spinner flash. Intentionally keyed
+  // only on `recomputeDone` (view changes are handled by the effect above).
+  useEffect(() => {
+    if (recomputeDone) fetchLeaderboard(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recomputeDone]);
 
   // Recompute handler (coach only)
   const handleRecompute = async () => {

@@ -625,6 +625,13 @@ export async function recomputeLeaderboard(gradYear?: number) {
   return request<{ status: string }>(`/leaderboards/recompute${qs}`, { method: 'POST' });
 }
 
+/** Distinct grad years present, for the leaderboard filter dropdown. Returns
+ *  just the year numbers (no player data) so PLAYERS can build the dropdown
+ *  too — the coach-only player list otherwise left their leaderboard blank. */
+export async function getLeaderboardGradYears() {
+  return request<number[]>('/leaderboards/grad-years');
+}
+
 /** A single row of the per-player rank summary — the player's leaderboard
  *  position for one metric within their grad-year class. */
 export interface PlayerRank {

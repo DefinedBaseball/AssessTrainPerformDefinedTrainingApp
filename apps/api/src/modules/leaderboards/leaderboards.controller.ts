@@ -23,6 +23,17 @@ export class LeaderboardsController {
     );
   }
 
+  /**
+   * Distinct grad years present, for the filter dropdown. No `@Roles` → any
+   * authenticated user (coach OR player) may read it; it returns only year
+   * numbers (no player data), and the player list endpoint is coach-only.
+   */
+  @Get('grad-years')
+  @ApiOperation({ summary: 'Distinct grad years for the leaderboard filter' })
+  getGradYears() {
+    return this.leaderboardsService.getGradYears();
+  }
+
   @Post('recompute')
   @Roles('COACH')
   @ApiOperation({ summary: 'Recompute leaderboards (COACH only)' })

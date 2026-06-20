@@ -53,6 +53,22 @@ export class LeaderboardsService {
     return entries;
   }
 
+  /** Distinct grad years present across players (non-null), ascending — just
+   *  the year numbers (no player PII), so the leaderboard filter dropdown can
+   *  be built by PLAYERS too (the player-list endpoint is coach-only, which
+   *  otherwise left a player's leaderboard with no grad years and blank). */
+  async getGradYears(): Promise<number[]> {
+    const rows = await this.prisma.player.findMany({
+      where: { gradYear: { not: null } },
+      select: { gradYear: true },
+      distinct: ['gradYear'],
+      orderBy: { gradYear: 'asc' },
+    });
+    return rows
+      .map(r => r.gradYear)
+      .filter((y): y is number => y !== null);
+  }
+
   async recompute(gradYear?: number) {
     const gradYears = gradYear
       ? [gradYear]
