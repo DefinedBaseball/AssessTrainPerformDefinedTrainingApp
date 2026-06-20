@@ -951,6 +951,11 @@ function DayView({
   const focusedEvents = focusedTab ? (eventsByTab[focusedTab] || []) : [];
   const focusedColor = focusedTab ? (TAB_COLORS[focusedTab] || TAB_COLORS.hitting) : null;
 
+  /* Columns appear ONLY for areas that have at least one drill scheduled this
+   * day — an empty category no longer renders a blank column. Coaches add to a
+   * new area via Edit; its column appears once that area has a drill. */
+  const populatedTabs = visibleTabs.filter((t) => (eventsByTab[t.key] || []).length > 0);
+
   return (
     <div className={styles.dayView}>
       {/* Header with date + action buttons */}
@@ -1078,10 +1083,16 @@ function DayView({
             )}
           </div>
         </div>
+      ) : populatedTabs.length === 0 ? (
+        /* No area has a drill scheduled this day → show a note instead of a
+           row of empty columns. */
+        <div className={styles.dayFocusEmpty} style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
+          No workouts scheduled for this day.
+        </div>
       ) : (
-        /* ── Default multi-column grid ── */
-        <div className={styles.dayGrid} style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
-          {visibleTabs.map(tab => {
+        /* ── Default multi-column grid — only areas WITH drills get a column ── */
+        <div className={styles.dayGrid} style={{ gridTemplateColumns: `repeat(${populatedTabs.length}, 1fr)` }}>
+          {populatedTabs.map(tab => {
             const tabEvents = eventsByTab[tab.key] || [];
             const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
             return (
