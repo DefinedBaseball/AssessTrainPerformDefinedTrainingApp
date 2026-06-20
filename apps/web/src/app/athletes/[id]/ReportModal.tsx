@@ -8,6 +8,7 @@ import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import rs from '@/components/assessment/report-form.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { useTheme } from '@/lib/theme-context';
 import styles from './page.module.css';
@@ -1334,7 +1335,8 @@ function RichNotesEditor({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (el.innerHTML !== value) el.innerHTML = value || '';
+    const clean = sanitizeHtml(value);
+    if (document.activeElement !== el && el.innerHTML !== clean) el.innerHTML = clean;
   }, [value]);
 
   const exec = (cmd: 'bold' | 'italic' | 'underline') => {

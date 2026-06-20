@@ -1,6 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KpiCard, SectionHeader, Section,
@@ -1557,7 +1558,7 @@ export function NoteBlock({
           /* Render HTML so Bold / Italic / Underline applied in the report
              modal's notes editor render correctly here too. Plain-text
              notes (no tags) read through unchanged. */
-          dangerouslySetInnerHTML={{ __html: value || '<em style="color:var(--text-muted)">No notes yet.</em>' }}
+          dangerouslySetInnerHTML={{ __html: value ? sanitizeHtml(value) : '<em style="color:var(--text-muted)">No notes yet.</em>' }}
           style={{
             fontSize: rem(14), lineHeight: 1.55,
             color: 'var(--text)',
@@ -1603,7 +1604,8 @@ function RichEditableNote({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (el.innerHTML !== value) el.innerHTML = value || '';
+    const clean = sanitizeHtml(value);
+    if (document.activeElement !== el && el.innerHTML !== clean) el.innerHTML = clean;
   }, [value]);
 
   const exec = (cmd: 'bold' | 'italic' | 'underline') => {

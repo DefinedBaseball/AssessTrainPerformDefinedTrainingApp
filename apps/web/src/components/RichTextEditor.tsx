@@ -21,6 +21,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 const FONT_SIZES = [
@@ -55,8 +56,9 @@ export function RichTextEditor({
   useEffect(() => {
     const el = editorRef.current;
     if (!el) return;
-    if (document.activeElement !== el && el.innerHTML !== (value ?? '')) {
-      el.innerHTML = value ?? '';
+    const clean = sanitizeHtml(value);
+    if (document.activeElement !== el && el.innerHTML !== clean) {
+      el.innerHTML = clean;
     }
     setIsEmpty(!el.textContent || el.textContent.trim() === '');
   }, [value]);
@@ -273,7 +275,7 @@ export function RichTextView({
     <div
       className={className}
       style={{ whiteSpace: 'pre-wrap', ...style }}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
     />
   );
 }
