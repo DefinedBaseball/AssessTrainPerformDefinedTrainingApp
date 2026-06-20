@@ -102,25 +102,43 @@ async function bootstrap() {
   // and the URLs point at CloudFront. These routes only exist for local
   // file storage — they no-op when STORAGE_DRIVER=s3 because uploads
   // never land on disk in that mode.
-  if ((process.env.STORAGE_DRIVER || 'local') === 'local') {
+  const storageDriver = (process.env.STORAGE_DRIVER || 'local').toLowerCase();
+  // Fail-fast: in production the local-disk driver serves videos via the
+  // UNAUTHENTICATED express.static routes below — minors' footage would be
+  // readable by anyone with the URL. Refuse to boot rather than silently
+  // expose it; production MUST set STORAGE_DRIVER to a real object store.
+  if (process.env.NODE_ENV === 'production' && storageDriver === 'local') {
+    throw new Error(
+      'STORAGE_DRIVER is "local" in production — videos would be served off local disk WITHOUT authentication. ' +
+        'Set STORAGE_DRIVER=bunny (or s3) in the environment.',
+    );
+  }
+  if (storageDriver === 'local') {
     app.use('/api/videos/file', express.static(path.join(process.cwd(), 'uploads', 'videos')));
     app.use('/api/training/drills/video', express.static(path.join(process.cwd(), 'uploads', 'drills')));
   }
 
-  // ── Swagger API docs ────────────────────────────────────────────────
-  const config = new DocumentBuilder()
-    .setTitle('Player Development API')
-    .setDescription('Baseball player development platform API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // ── Swagger API docs (non-production only) ──────────────────────────
+  // The interactive docs at /api/docs enumerate every endpoint + DTO. Handy
+  // in dev, but in production they'd hand an attacker a full map of the API,
+  // so they're only mounted when NODE_ENV !== 'production'.
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Player Development API')
+      .setDescription('Baseball player development platform API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
   console.log(`API running on http://localhost:${port}`);
-  console.log(`Swagger docs at http://localhost:${port}/api/docs`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Swagger docs at http://localhost:${port}/api/docs`);
+  }
   console.log(`CORS origins: ${corsOrigins.join(', ')}`);
 }
 
