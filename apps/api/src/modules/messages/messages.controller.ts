@@ -45,6 +45,6 @@ export class MessagesController {
     @Request() req: AuthenticatedRequest,
     @Body() body: { recipientId?: string; body?: string; videoUrl?: string },
   ) {
-    return this.messagesService.send(req.user!.sub, body);
+    return this.messagesService.send(req.user!.sub, req.user!.role, body);
   }
 }

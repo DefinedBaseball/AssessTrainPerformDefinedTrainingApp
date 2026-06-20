@@ -237,9 +237,12 @@ export class TrainingController {
 
   @Get('programs/:id')
   @Roles('COACH', 'PLAYER')
-  @ApiOperation({ summary: 'Get a training program with all days and exercises' })
-  getProgram(@Param('id') id: string) {
-    return this.trainingService.getProgram(id);
+  @ApiOperation({ summary: 'Get a training program with all days and exercises (own program for players)' })
+  async getProgram(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    const program = await this.trainingService.getProgram(id);
+    // A player may only open their own program; coaches may open any.
+    assertPlayerOwnership(req, program.playerId);
+    return program;
   }
 
   @Get('player/:playerId')

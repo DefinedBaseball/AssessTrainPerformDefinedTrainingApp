@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Shape returned to the client for any "other user" in a conversation. */
@@ -151,7 +151,7 @@ export class MessagesService {
   }
 
   /** Send a message. Requires text and/or a video; recipient must exist. */
-  async send(meId: string, dto: { recipientId?: string; body?: string; videoUrl?: string }) {
+  async send(meId: string, meRole: string, dto: { recipientId?: string; body?: string; videoUrl?: string }) {
     const recipientId = dto.recipientId?.trim();
     const body = dto.body?.trim() || null;
     const videoUrl = dto.videoUrl?.trim() || null;
@@ -162,6 +162,14 @@ export class MessagesService {
 
     const recipient = await this.prisma.user.findUnique({ where: { id: recipientId } });
     if (!recipient) throw new NotFoundException('Recipient not found');
+
+    // Enforce the same who-can-message-whom policy as getContacts, server-side:
+    // the contact picker only HIDES disallowed users, so a crafted request could
+    // otherwise bypass it. Players may message coaches only; coaches may message
+    // anyone (player or coach).
+    if (meRole === 'PLAYER' && recipient.role !== 'COACH') {
+      throw new ForbiddenException('Players can only message coaches.');
+    }
 
     return this.prisma.message.create({
       data: { senderId: meId, recipientId, body, videoUrl },
