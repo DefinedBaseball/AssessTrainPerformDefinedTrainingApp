@@ -9,6 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { verifyJwt, JwtPayload, CoachLevel } from './jwt.util';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
@@ -60,9 +61,12 @@ export function assertPlayerOwnership(
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private prisma: PrismaService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -83,6 +87,31 @@ export class JwtAuthGuard implements CanActivate {
     if (!payload) {
       throw new UnauthorizedException('Invalid or expired token');
     }
+
+    // ── Live account re-check (revocation) ─────────────────────────────
+    // The token snapshots role/level/existence at login and its signature
+    // stays valid for 7 days. Re-read the account on every request so a
+    // demotion, a declined/pending status, or an account deletion takes
+    // effect immediately instead of lingering until the token expires.
+    // One indexed lookup per authenticated request (public routes returned
+    // above, so they never pay for it).
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { role: true, coachLevel: true, status: true },
+    });
+    if (!dbUser) {
+      // Account was deleted (declined registrations delete the row entirely).
+      throw new UnauthorizedException('Account no longer exists');
+    }
+    if (dbUser.status !== 'ACTIVE') {
+      // PENDING (awaiting coach approval) or DECLINED → no access.
+      throw new UnauthorizedException('Account is not active');
+    }
+    // Overwrite the stale token snapshot with the live role/level so every
+    // check below (role gate, admin-only, viewer read-only) uses current
+    // data — a coach just demoted to VIEWER is restricted on this request.
+    payload.role = dbUser.role as JwtPayload['role'];
+    payload.coachLevel = dbUser.coachLevel as CoachLevel | null;
 
     // Role check
     const requiredRoles = this.reflector.getAllAndOverride<('COACH' | 'PLAYER')[]>(ROLES_KEY, [
