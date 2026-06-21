@@ -1,4 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { createHash } from 'crypto';
 
 /**
  * Bunny Stream wrapper — the production video backend.
@@ -67,20 +68,19 @@ export class BunnyService {
    * row READY optimistically; a Bunny webhook can flip status more precisely
    * later if needed.
    */
-  async uploadBuffer(buffer: Buffer, title: string): Promise<{
-    guid: string;
-    mp4Url: string;
-    hlsUrl: string;
-    thumbnailUrl: string;
-  }> {
+  /**
+   * Create an empty Stream video object and return its guid. This is the
+   * step that needs the secret AccessKey, so it always runs server-side —
+   * both the buffered upload (below) and the browser-direct TUS upload
+   * (via makeTusUpload) start here.
+   */
+  async createVideoObject(title: string): Promise<string> {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException(
         'Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID, BUNNY_STREAM_API_KEY and BUNNY_STREAM_CDN_HOSTNAME.',
       );
     }
     const base = `https://video.bunnycdn.com/library/${this.libraryId}/videos`;
-
-    // 1. Create the video object (returns a guid we key everything off).
     const createRes = await fetch(base, {
       method: 'POST',
       headers: { AccessKey: this.apiKey!, 'Content-Type': 'application/json', accept: 'application/json' },
@@ -91,8 +91,49 @@ export class BunnyService {
       throw new ServiceUnavailableException(`Bunny create failed (${createRes.status}) ${detail}`.trim());
     }
     const created = (await createRes.json()) as { guid?: string };
-    const guid = created.guid;
-    if (!guid) throw new ServiceUnavailableException('Bunny create returned no guid');
+    if (!created.guid) throw new ServiceUnavailableException('Bunny create returned no guid');
+    return created.guid;
+  }
+
+  /**
+   * Authorize a browser-direct (TUS resumable) upload for an already-created
+   * video object. The signature lets the client push bytes straight to Bunny
+   * WITHOUT ever seeing the library AccessKey:
+   *   signature = sha256(libraryId + apiKey + expiration + guid)
+   * Expires in 2 hours — generous headroom for a slow mobile upload of a
+   * large clip. The client passes {endpoint, signature, expiration, libraryId,
+   * guid} to a TUS client (tus-js-client) which handles chunking + resume.
+   */
+  makeTusUpload(guid: string): {
+    endpoint: string;
+    signature: string;
+    expiration: number;
+    libraryId: string;
+  } {
+    if (!this.isConfigured()) {
+      throw new ServiceUnavailableException('Bunny Stream is not configured.');
+    }
+    const expiration = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
+    const signature = createHash('sha256')
+      .update(`${this.libraryId}${this.apiKey}${expiration}${guid}`)
+      .digest('hex');
+    return {
+      endpoint: 'https://video.bunnycdn.com/tusupload',
+      signature,
+      expiration,
+      libraryId: this.libraryId!,
+    };
+  }
+
+  async uploadBuffer(buffer: Buffer, title: string): Promise<{
+    guid: string;
+    mp4Url: string;
+    hlsUrl: string;
+    thumbnailUrl: string;
+  }> {
+    // 1. Create the video object (returns a guid we key everything off).
+    const guid = await this.createVideoObject(title);
+    const base = `https://video.bunnycdn.com/library/${this.libraryId}/videos`;
 
     // 2. Upload the raw bytes for that video.
     const putRes = await fetch(`${base}/${guid}`, {

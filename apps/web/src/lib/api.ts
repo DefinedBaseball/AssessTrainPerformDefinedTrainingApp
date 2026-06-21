@@ -688,7 +688,102 @@ export async function getVideo(id: string) {
   return request<Video>(`/videos/${id}`);
 }
 
+/** Bunny TUS presign bundle returned by POST /videos/bunny-presign. */
+interface BunnyPresign {
+  guid: string;
+  endpoint: string;
+  signature: string;
+  expiration: number;
+  libraryId: string;
+}
+
+/**
+ * Upload a video. In production this goes BROWSER-DIRECT to Bunny via the TUS
+ * resumable protocol — the file never lands in the API's memory (so there's no
+ * 500MB/RAM ceiling) and the upload resumes if a flaky mobile connection drops.
+ * If the direct path is unavailable (local dev: Bunny isn't configured and
+ * /bunny-presign returns 503) or errors for any reason, it transparently falls
+ * back to the buffered server-side POST /videos/upload — so uploads always
+ * succeed and the call sites never change.
+ *
+ * `onProgress` (0-100) is optional and only reported on the direct path.
+ */
 export async function uploadVideo(
+  file: File,
+  playerId: string,
+  title: string,
+  category: string,
+  uploadedById?: string,
+  onProgress?: (pct: number) => void,
+): Promise<Video> {
+  try {
+    return await uploadVideoDirectToBunny(file, playerId, title, category, uploadedById, onProgress);
+  } catch (err) {
+    // Bunny not configured (dev → 503) or the direct path errored — fall back
+    // to the buffered upload so the action still succeeds (small files / dev).
+    console.warn('[uploadVideo] direct Bunny upload unavailable, using buffered fallback:', err);
+    return uploadVideoBuffered(file, playerId, title, category, uploadedById);
+  }
+}
+
+async function uploadVideoDirectToBunny(
+  file: File,
+  playerId: string,
+  title: string,
+  category: string,
+  uploadedById: string | undefined,
+  onProgress?: (pct: number) => void,
+): Promise<Video> {
+  const token = getAuthToken();
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  // 1. Server creates the Bunny video object + signs a short-lived TUS token.
+  //    A 503 here (Bunny not configured, e.g. dev) bubbles up to the fallback.
+  const presignRes = await fetch('/api/videos/bunny-presign', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ title }),
+  });
+  if (!presignRes.ok) throw new Error(`bunny-presign ${presignRes.status}`);
+  const presign = (await presignRes.json()) as BunnyPresign;
+
+  // 2. Push the bytes STRAIGHT to Bunny (resumable; never touches our API).
+  //    Dynamic import keeps tus-js-client out of the SSR/server bundle.
+  const tus = await import('tus-js-client');
+  await new Promise<void>((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: presign.endpoint,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        AuthorizationSignature: presign.signature,
+        AuthorizationExpire: String(presign.expiration),
+        VideoId: presign.guid,
+        LibraryId: String(presign.libraryId),
+      },
+      metadata: { filetype: file.type || 'video/mp4', title },
+      onError: reject,
+      onProgress: (sent: number, total: number) => {
+        if (onProgress && total > 0) onProgress(Math.round((sent / total) * 100));
+      },
+      onSuccess: () => resolve(),
+    });
+    upload.start();
+  });
+
+  // 3. Finalize: server creates the READY Video row pointing at the guid.
+  const completeRes = await fetch('/api/videos/bunny-complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ guid: presign.guid, playerId, title, category, uploadedById }),
+  });
+  if (!completeRes.ok) {
+    const body = await completeRes.text();
+    throw new Error(`bunny-complete ${completeRes.status}: ${body}`);
+  }
+  return completeRes.json();
+}
+
+async function uploadVideoBuffered(
   file: File,
   playerId: string,
   title: string,

@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query,
-  UploadedFile, UseInterceptors, BadRequestException, Request,
+  UploadedFile, UseInterceptors, BadRequestException, ServiceUnavailableException, Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
@@ -143,6 +143,63 @@ export class VideosController {
     // it in PROCESSING for the transcoding job to flip later.
     const status = dto.hlsUrl ? 'READY' : 'PROCESSING';
     return this.videosService.updateStatus(id, status, dto.hlsUrl);
+  }
+
+  /**
+   * POST /api/videos/bunny-presign
+   *
+   * Browser-direct upload (Bunny TUS). Creates an empty Bunny video object
+   * server-side (needs the secret AccessKey) and returns a short-lived signed
+   * token the browser uses to push bytes STRAIGHT to Bunny — the file never
+   * touches this API's memory, so there's no 500MB/RAM ceiling and the upload
+   * is resumable. The client then calls /bunny-complete to create the DB row.
+   *
+   * Returns 503 when Bunny isn't configured (e.g. local dev) so the client can
+   * cleanly fall back to the buffered POST /upload path.
+   */
+  @Post('bunny-presign')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Create a Bunny video + signed TUS token for direct browser upload (COACH only)' })
+  async bunnyPresign(@Body() dto: { title?: string }) {
+    if (!this.bunny.isConfigured()) {
+      throw new ServiceUnavailableException(
+        'Bunny Stream not configured — use POST /api/videos/upload instead.',
+      );
+    }
+    const guid = await this.bunny.createVideoObject(dto.title || 'Untitled');
+    const tus = this.bunny.makeTusUpload(guid);
+    return { guid, ...tus };
+  }
+
+  /**
+   * POST /api/videos/bunny-complete
+   *
+   * Finalize a browser-direct Bunny upload: create the Video DB row pointing at
+   * the (now-uploaded) Bunny guid and mark it READY. Mirrors the finalize step
+   * of the buffered /upload path. No DB row is created until here, so a failed
+   * TUS upload never leaves an orphan row.
+   */
+  @Post('bunny-complete')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Finalize a direct Bunny upload into a READY Video row (COACH only)' })
+  async bunnyComplete(
+    @Body()
+    dto: { guid: string; playerId: string; title?: string; category?: string; uploadedById?: string },
+  ) {
+    if (!dto.guid) throw new BadRequestException('guid is required');
+    if (!dto.playerId) throw new BadRequestException('playerId is required');
+
+    const mp4Url = this.bunny.mp4Url(dto.guid);
+    const hlsUrl = this.bunny.hlsUrl(dto.guid);
+    const video = await this.videosService.create({
+      playerId: dto.playerId,
+      uploadedById: dto.uploadedById || undefined,
+      title: dto.title || 'Untitled',
+      category: dto.category || 'HITTING',
+      originalUrl: mp4Url,
+    });
+    await this.videosService.updateStatus(video.id, 'READY', hlsUrl);
+    return { ...video, status: 'READY', originalUrl: mp4Url, hlsUrl };
   }
 
   /**
