@@ -1452,6 +1452,60 @@ export function getPhysicalGrades(report: ReportSummary | null): PhysicalGrades 
   } catch { return empty; }
 }
 
+/* ── Hitting Snapshot composites (shared so the Player Summary Tool Grades
+   and the Hitting Snapshot NEVER drift) ──
+   These three lists + the calc below mirror HittingGradeStack in SwingTab.
+   The Hitting tab computes them and persists the result on the report
+   (content.hittingToolGrades); the Player Summary copies that value. */
+export const HIT_SWING_KEYS = ['max_bat_speed', 'avg_bat_speed', 'attack_angle', 'plane_angle', 'time_to_contact', 'power_output'] as const;
+export const HIT_QOC_KEYS = ['avg_exit_velo', 'max_exit_velo', 'squared_up_pct', 'smash_factor', 'launch_angle', 'distance'] as const;
+export const HIT_MANUAL_KEYS = ['stride', 'stretch', 'posture', 'connection', 'slot', 'core', 'direction', 'timing', 'stability'] as const;
+
+export interface HittingComposites { swing: number | null; qoc: number | null; mechanical: number | null; }
+
+/** The exact three grades the Hitting Snapshot shows (Swing / Quality of
+ *  Contact / Mechanical Grades). Swing reads the pre-computed `metricGrades`;
+ *  QoC grades the pooled HitTrax+Full Swing override merged over topMetrics;
+ *  Mechanical averages the 9 manual coach scores. Mirrors HittingGradeStack. */
+export function computeHittingComposites(args: {
+  topMetrics: Record<string, { value: number } | undefined>;
+  metricGrades: Record<string, number | null>;
+  qocOverride?: Record<string, { value: number }> | null;
+  manual: Record<string, number | null | undefined>;
+}): HittingComposites {
+  const { topMetrics, metricGrades, qocOverride, manual } = args;
+  const qocSource: Record<string, { value: number } | undefined> = qocOverride
+    ? { ...topMetrics, ...qocOverride }
+    : topMetrics;
+  const swing = averageGrades(HIT_SWING_KEYS.map((k) => metricGrades[k] ?? null));
+  const qoc = averageGrades(
+    HIT_QOC_KEYS.map((k) => {
+      const m = qocSource[k];
+      return m ? toScoutingGrade(m.value, k) : null;
+    }),
+  );
+  const mechanical = averageGrades(HIT_MANUAL_KEYS.map((k) => manual[k] ?? null));
+  return { swing, qoc, mechanical };
+}
+
+/** Read persisted Hitting Snapshot composites off a HITTING report's
+ *  content.hittingToolGrades (written by the Hitting tab). Returns null
+ *  when the report predates the feature / hasn't been synced yet. */
+export function getHittingToolGrades(report: ReportSummary | null): HittingComposites | null {
+  if (!report?.content) return null;
+  try {
+    const g = JSON.parse(report.content)?.hittingToolGrades;
+    if (g && typeof g === 'object') {
+      return {
+        swing: typeof g.swing === 'number' ? g.swing : null,
+        qoc: typeof g.qoc === 'number' ? g.qoc : null,
+        mechanical: typeof g.mechanical === 'number' ? g.mechanical : null,
+      };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 export function computeAggregateScores(
   player: { positions: string | null; firstName?: string | null; lastName?: string | null },
   _reports: ReportSummary[],
@@ -1462,6 +1516,11 @@ export function computeAggregateScores(
      legacy CSV-derived metrics. Optional so existing callers (and
      surfaces that don't need Swing Decision detail) can omit it. */
   _liveAtBats?: AtBatDetail[],
+  /* When provided, the Hitting section's three Tool Grades bars (Swing /
+     Quality of Contact / Mechanical Grades) use these persisted Snapshot
+     composites verbatim instead of recomputing — so the Player Summary
+     mirrors the Hitting Snapshot exactly. */
+  hittingToolGrades?: HittingComposites | null,
 ): AggregateScores {
   const positions = (player.positions || '')
     .split(',')
@@ -1587,15 +1646,15 @@ export function computeAggregateScores(
       label: 'Hitting',
       color: '#3B82F6',
       bars: [
-        { key: 'hit_swing',          label: 'Swing',              score: swingScore,    subMetrics: swingSubs },
-        { key: 'hit_qoc',            label: 'Quality of Contact', score: qocScore,      subMetrics: qocSubs },
+        { key: 'hit_swing',          label: 'Swing',              score: hittingToolGrades?.swing ?? swingScore,      subMetrics: swingSubs },
+        { key: 'hit_qoc',            label: 'Quality of Contact', score: hittingToolGrades?.qoc ?? qocScore,          subMetrics: qocSubs },
         /* 3rd bar = "Mechanical Grades" — sourced from the Hitting report's
            coach swing-mechanics grades (Forward Move / Posture / Slot /
            Direction). These are the same grades the Hitting Snapshot shows
            as "Mechanical Grades" and the profile shows lower as "Coach
            Grades", so we surface them as a single bar (replacing the old
            live-at-bat "Swing Decision" bar, which is often empty). */
-        { key: 'hit_coach',          label: 'Mechanical Grades',  score: coachScore,    subMetrics: coachSubs },
+        { key: 'hit_coach',          label: 'Mechanical Grades',  score: hittingToolGrades?.mechanical ?? coachScore, subMetrics: coachSubs },
       ],
     });
   }

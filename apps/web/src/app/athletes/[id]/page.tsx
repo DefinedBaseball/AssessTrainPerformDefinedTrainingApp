@@ -25,7 +25,7 @@ import { VideosTab } from './tabs/VideosTab';
 
 import { ReportModal } from './ReportModal';
 import { PdfBuilderModal, type PdfLayout } from './PdfBuilderModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs } from './helpers';
+import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs, getLatestReport, getHittingToolGrades } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
@@ -223,7 +223,10 @@ export default function PlayerProfilePage() {
   /* ── Aggregate score (hero "Player Score" bubble) ── */
   const aggregate = useMemo(() => {
     if (!player) return null;
-    return computeAggregateScores(player, reports, topMetrics, liveAtBats);
+    return computeAggregateScores(
+      player, reports, topMetrics, liveAtBats,
+      getHittingToolGrades(getLatestReport(reports, ['HITTING'])),
+    );
   }, [player, reports, topMetrics, liveAtBats]);
 
   /* Hidden-tab preference (per-player, persisted in localStorage). The
@@ -501,18 +504,6 @@ export default function PlayerProfilePage() {
 
       {/* ── COMMAND DECK HERO (ported from test-3) ── */}
       {(() => {
-        const overall = aggregate?.overall ?? null;
-        const pct = overall != null ? Math.max(0, Math.min(1, (overall - 20) / 60)) : 0;
-        /* SVG viewBox is 160×160, stroke-width is 6 (3px each side of
-           the path). For the visible ring's outer edge to sit at the
-           viewBox edge (so the rendered gauge fills the full 80×80
-           container and matches the Commitment circle's outer border),
-           the path radius needs to be 80 − 3 = 77 instead of the
-           previous 68. Combined with `overflow: visible` on the SVG
-           (already set in CSS) so the linecaps don't clip. */
-        const R = 77;                // gauge radius (ring outer edge at viewBox edge)
-        const C = 2 * Math.PI * R;   // gauge circumference
-
         // 5-axis radar values (20-80 scouting scale) — derived from the
         // aggregate sections when available; otherwise a neutral 50.
         const bySection = (key: string) => {
@@ -809,85 +800,8 @@ export default function PlayerProfilePage() {
                       Grade" caption can sit directly under the gauge,
                       mirroring the Commitment circle's college-name
                       caption. */}
-                  {(() => {
-                    const gaugeHi = overall != null ? scoreColor(overall) : '#c9ced6';
-                    const gaugeLo = overall != null ? scoreColor(Math.max(20, overall - 12)) : '#ffffff';
-                    return (
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 4,
-                        flex: '0 0 auto',
-                        /* Match the Commitment wrapper's `paddingTop:
-                           30` (was 25 → 30) so the gauge's TOP
-                           visually aligns with the college logo's top
-                           in the sibling cluster. Parent uses
-                           `alignItems: 'flex-start'`, so without this
-                           the gauge would sit at the parent's top edge
-                           while the logo sat 30 px below it. */
-                        paddingTop: 30,
-                      }}>
-                        <div className={styles.gaugeWrap} style={{ width: 72, height: 72, flex: '0 0 auto' }}>
-                          <svg viewBox="0 0 160 160" aria-hidden="true">
-                            <defs>
-                              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%"  stopColor={gaugeLo} />
-                                <stop offset="100%" stopColor={gaugeHi} />
-                              </linearGradient>
-                            </defs>
-                            <circle cx="80" cy="80" r={R} className={styles.gaugeTrack} />
-                            <circle
-                              cx="80" cy="80" r={R}
-                              className={styles.gaugeFill}
-                              strokeDasharray={C}
-                              strokeDashoffset={C - C * pct}
-                            />
-                          </svg>
-                          <div className={styles.gaugeInner}>
-                            <span
-                              className={styles.val}
-                              style={{
-                                /* Trimmed 25 → 20 (about 20% smaller) in
-                                   step with the gauge shrinking 100 → 80
-                                   to match the Commitment circle's size.
-                                   Keeps the grade number roughly the same
-                                   fraction of the circle's diameter. */
-                                fontSize: rem(20),
-                                ...(overall != null ? { color: gaugeHi, WebkitTextFillColor: gaugeHi, background: 'none' } : {}),
-                              }}
-                            >
-                              {overall ?? '—'}
-                            </span>
-                            <span className={styles.suffix} style={{ fontSize: rem(7) }}>/80</span>
-                          </div>
-                        </div>
-                        {/* "Player Grade" caption — same typography as the
-                            college-name caption under the Commitment circle
-                            so the two HUD circles read as a matched pair
-                            with parallel labels below them. Both captions
-                            are italic per the matched-pair spec. */}
-                        <span style={{
-                          /* Bumped 10.5 → 12.6 to match the
-                             "University of Minnesota" caption font
-                             size in the Commitment cluster, so the
-                             two HUD-circle labels read as a true
-                             matched pair (same italic, same size,
-                             same weight, same letter-spacing). */
-                          fontSize: rem(12.6),
-                          fontWeight: 700,
-                          fontStyle: 'italic',
-                          color: 'var(--text-bright)',
-                          letterSpacing: '0.04em',
-                          textAlign: 'center',
-                          maxWidth: 140,
-                          lineHeight: 1.1,
-                        }}>
-                          Player Grade
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {/* Overall "Player Grade" gauge removed per request — the
+                      detailed Tool Grades below remain the source of grades. */}
                   </div>{/* /right-side cluster */}
                 </div>
 

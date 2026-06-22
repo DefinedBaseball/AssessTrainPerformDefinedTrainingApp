@@ -1,7 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, type SharedHittingState } from './SwingTab';
 import { TabBar, TabBarActions, EditProfileButton, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideosIconButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
@@ -16,7 +16,7 @@ import {
   getManualSwingScores, getManualSwingOptions,
   getManualSwingMetrics, getManualBattedBall,
   getReportVideoIds, getReportContentVideos,
-  metricToGrade,
+  metricToGrade, computeHittingComposites,
   type ManualSwingScores,
   type ManualSwingOptions,
   type ReportSummary,
@@ -797,6 +797,48 @@ export function HittingTab(props: TabProps) {
     return out;
   }, [hittraxVelos, hittraxLAs, hittraxDists, fullswingVelos, fullswingLAs, fullswingDists]);
 
+  /* The three Hitting Snapshot composites (Swing / Quality of Contact /
+     Mechanical Grades), computed via the SAME shared helper the Snapshot's
+     HittingGradeStack uses — so this is exactly what's on screen. Persisted
+     onto the report (below) so the Player Summary Tool Grades copy these
+     verbatim instead of recomputing. */
+  const snapshotComposites = useMemo(
+    () => computeHittingComposites({
+      topMetrics: topMetricsWithMiss,
+      metricGrades,
+      qocOverride,
+      manual: manual as unknown as Record<string, number | null | undefined>,
+    }),
+    [topMetricsWithMiss, metricGrades, qocOverride, manual],
+  );
+
+  /* Self-healing persistence (coach only). When the on-screen composites
+     differ from what's stored on the active HITTING report, patch them in so
+     the Player Summary mirror updates — including for reports created before
+     this feature existed. A ref guards against re-writing the same value
+     (no render loop); explicit grade saves also bake them in via saveManual. */
+  const persistedCompositesRef = useRef<string>('');
+  useEffect(() => {
+    if (!isCoach || !activeHittingReport) return;
+    const c = snapshotComposites;
+    // Skip until the report's metric data has actually loaded.
+    if (c.swing == null && c.qoc == null && c.mechanical == null) return;
+    let prevContent: Record<string, any> = {};
+    let stored: any = null;
+    try {
+      prevContent = JSON.parse(activeHittingReport.content || '{}') || {};
+      stored = prevContent.hittingToolGrades;
+    } catch { /* ignore malformed content */ }
+    const same = stored && stored.swing === c.swing && stored.qoc === c.qoc && stored.mechanical === c.mechanical;
+    if (same) return;
+    const sig = `${activeHittingReport.id}:${c.swing},${c.qoc},${c.mechanical}`;
+    if (persistedCompositesRef.current === sig) return;
+    persistedCompositesRef.current = sig;
+    api.updateReport(activeHittingReport.id, {
+      content: JSON.stringify({ ...prevContent, hittingToolGrades: c }),
+    }).then(() => onRefresh?.()).catch(() => { /* best-effort backfill */ });
+  }, [isCoach, activeHittingReport, snapshotComposites, onRefresh]);
+
   // Save flow (Coach Grades + Diagnosis Notes)
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -848,6 +890,9 @@ export function HittingTab(props: TabProps) {
            NoteBlock that lives at the bottom of the snapshot bubble
            when the Swing Decision sub-tab is active. */
         swingDecisionNotes,
+        /* Persist the three Snapshot composites so the Player Summary Tool
+           Grades copy them verbatim (kept in sync on every grade save). */
+        hittingToolGrades: snapshotComposites,
       };
       await api.createReport({
         playerId: player.id,

@@ -11,7 +11,7 @@ import aStyles from '@/components/assessment/assessment.module.css';
 import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
-  toScoutingGrade, GRADE_RANGES,
+  toScoutingGrade, GRADE_RANGES, computeHittingComposites,
   getLatestReport, getManualSwingScores, getManualSwingOptions, averageGrades,
   metricToGrade, scoreColor,
   getReportUploadIds,
@@ -1310,7 +1310,18 @@ export function HittingGradeStack({
       display: m ? formatRawChip(k, m.value) : undefined,
     };
   });
-  const swingComposite = averageGrades(swingChips.map(c => c.grade));
+  /* The three composites come from the SHARED helper so the Player Summary
+     Tool Grades (which persists + copies this exact value) can never drift
+     from the Snapshot. The chip strips above keep their own per-metric grades
+     for display; only the headline composite numbers route through the helper
+     (identical math, single source of truth). */
+  const _composites = computeHittingComposites({
+    topMetrics,
+    metricGrades,
+    qocOverride,
+    manual: manual as unknown as Record<string, number | null | undefined>,
+  });
+  const swingComposite = _composites.swing;
 
   // Quality of Contact row — show raw metric values
   // Source-aware: an override map (HitTrax-first, then Full Swing) replaces
@@ -1340,7 +1351,7 @@ export function HittingGradeStack({
       display: m ? formatRawChip(k, m.value) : undefined,
     };
   });
-  const qocComposite = averageGrades(qocChips.map(c => c.grade));
+  const qocComposite = _composites.qoc;
 
   // Decision-view grade groups — one composite + chip strip per group
   const buildGroup = (keys: readonly string[]) => {
@@ -1394,7 +1405,7 @@ export function HittingGradeStack({
     { key: 'manual_timing',      label: 'Timing',     grade: manual.timing },
     { key: 'manual_stability',   label: 'Adjust', grade: manual.stability },
   ];
-  const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
+  const diagnosisComposite = _composites.mechanical;
 
   return (
     <div
