@@ -5,9 +5,10 @@
    --------------------------------------------------------------------------
    In-facility display board for coaches running a program session. The coach
    picks a single training category (Hitting / Pitching / Catching / Infield
-   / Outfield / S&C) and 2–8 athletes, and the page renders each athlete's
+   / Outfield / S&C) and 1–8 athletes, and the page renders each athlete's
    workout for the selected day side-by-side as readable cards so kids can
-   walk up and follow their plan.
+   walk up and follow their plan. A single athlete renders as one full
+   column; 2–8 fill the board side-by-side.
    ───────────────────────────────────────────────────────────────────────── */
 
 import { rem } from '@/lib/rem';
@@ -832,7 +833,7 @@ export default function ProgramPage() {
   }, [selectedIds.join(','), schedule]);
   useEffect(() => {
     if (didAutoJump) return;
-    if (selectedIds.length < 2) return;
+    if (selectedIds.length < 1) return;
     /* Wait for all columns to finish their initial load before deciding. */
     const allLoaded = selectedIds.every(id => loadingByPlayer[id] === false);
     if (!allLoaded) return;
@@ -880,7 +881,7 @@ export default function ProgramPage() {
   const selectedPlayers: Player[] = selectedIds
     .map(id => players.find(p => p.id === id))
     .filter((p): p is Player => !!p);
-  const canFullscreen = selectedPlayers.length >= 2;
+  const canFullscreen = selectedPlayers.length >= 1;
 
   return (
     <div className={styles.pageWrap}>
@@ -907,7 +908,7 @@ export default function ProgramPage() {
         </div>
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>
-            Athletes <span className={styles.filterHint}>(2–8)</span>
+            Athletes <span className={styles.filterHint}>(1–8)</span>
           </label>
           {playersLoading ? (
             <div className={styles.pickerLoading}>Loading roster…</div>
@@ -950,24 +951,15 @@ export default function ProgramPage() {
           <span className={styles.boardEmptyIcon}>📋</span>
           <p className={styles.boardEmptyTitle}>Pick athletes to start the board</p>
           <p className={styles.boardEmptyHint}>
-            Choose between 2 and 8 athletes from the dropdown above. Each athlete&apos;s
+            Choose 1 to 8 athletes from the dropdown above. Each athlete&apos;s
             scheduled {SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label} workout
             for the session date will appear side-by-side here.
-          </p>
-        </div>
-      ) : selectedIds.length < 2 ? (
-        <div className={styles.boardEmpty}>
-          <span className={styles.boardEmptyIcon}>👥</span>
-          <p className={styles.boardEmptyTitle}>Add at least one more athlete</p>
-          <p className={styles.boardEmptyHint}>
-            The Program board displays at least two athletes side-by-side. Pick another
-            from the dropdown to populate the board.
           </p>
         </div>
       ) : (
         <div
           ref={boardRef}
-          className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : ''}`}
+          className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : ''} ${selectedPlayers.length === 1 && !isFullscreen ? styles.boardSingle : ''}`}
           style={{ '--board-cols': selectedPlayers.length } as React.CSSProperties}
         >
           {/* Exit-fullscreen X — only visible while in native fullscreen */}
