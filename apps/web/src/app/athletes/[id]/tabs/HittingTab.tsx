@@ -1,7 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, type SharedHittingState } from './SwingTab';
 import { TabBar, TabBarActions, EditProfileButton, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideosIconButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
@@ -812,32 +812,14 @@ export function HittingTab(props: TabProps) {
     [topMetricsWithMiss, metricGrades, qocOverride, manual],
   );
 
-  /* Self-healing persistence (coach only). When the on-screen composites
-     differ from what's stored on the active HITTING report, patch them in so
-     the Player Summary mirror updates — including for reports created before
-     this feature existed. A ref guards against re-writing the same value
-     (no render loop); explicit grade saves also bake them in via saveManual. */
-  const persistedCompositesRef = useRef<string>('');
-  useEffect(() => {
-    if (!isCoach || !activeHittingReport) return;
-    const c = snapshotComposites;
-    // Skip until the report's metric data has actually loaded.
-    if (c.swing == null && c.qoc == null && c.mechanical == null) return;
-    let prevContent: Record<string, any> = {};
-    let stored: any = null;
-    try {
-      prevContent = JSON.parse(activeHittingReport.content || '{}') || {};
-      stored = prevContent.hittingToolGrades;
-    } catch { /* ignore malformed content */ }
-    const same = stored && stored.swing === c.swing && stored.qoc === c.qoc && stored.mechanical === c.mechanical;
-    if (same) return;
-    const sig = `${activeHittingReport.id}:${c.swing},${c.qoc},${c.mechanical}`;
-    if (persistedCompositesRef.current === sig) return;
-    persistedCompositesRef.current = sig;
-    api.updateReport(activeHittingReport.id, {
-      content: JSON.stringify({ ...prevContent, hittingToolGrades: c }),
-    }).then(() => onRefresh?.()).catch(() => { /* best-effort backfill */ });
-  }, [isCoach, activeHittingReport, snapshotComposites, onRefresh]);
+  /* NOTE: composites are persisted to content.hittingToolGrades ONLY in the
+     explicit save flow (saveManual, below) — NOT on view. An earlier
+     auto-persist-on-view effect here caused a refresh loop (it called
+     onRefresh after writing, which refetched and re-triggered the write while
+     the pooled QoC data was momentarily resetting). The Player Summary reads
+     whatever the last save stored and falls back to the live computed score
+     when absent, so existing reports migrate the next time their grades are
+     saved — no background writes on view. */
 
   // Save flow (Coach Grades + Diagnosis Notes)
   const [saving, setSaving] = useState(false);
