@@ -17,9 +17,11 @@ import {
   TabProps,
   scoreColor,
   computeAggregateScores,
+  getLatestReport,
   type AggregateSection,
   type AggregateBar,
 } from '../helpers';
+import { useHittingComposites } from '../useHittingComposites';
 /* Shared tab/category color system — used by both this tab's
    Upcoming Drills panel and the Training (`/training`) page so the
    two surfaces render scheduled drills with identical color cues. */
@@ -2049,9 +2051,15 @@ export function PlayerSummaryTab({
       .catch(() => { if (!cancelled) setLiveAtBats([]); });
     return () => { cancelled = true; };
   }, [player?.id]);
+  /* Hitting Tool Grades (Swing / Quality of Contact / Mechanical) are computed
+     LIVE with the exact same pipeline the Hitting Snapshot uses (shared hook,
+     keyed off the latest HITTING report — same one the Snapshot defaults to),
+     so the two surfaces show identical numbers. No persistence → no loop. */
+  const latestHittingReport = useMemo(() => getLatestReport(reports, ['HITTING']), [reports]);
+  const hittingComposites = useHittingComposites(player?.id, latestHittingReport);
   const aggregate = useMemo(
-    () => computeAggregateScores(player, reports, topMetrics, liveAtBats),
-    [player, reports, topMetrics, liveAtBats],
+    () => computeAggregateScores(player, reports, topMetrics, liveAtBats, hittingComposites),
+    [player, reports, topMetrics, liveAtBats, hittingComposites],
   );
 
   /* ── Trackman pitch history for the Metric Trend per-pitch-type
