@@ -1149,34 +1149,23 @@ export function HittingTab(props: TabProps) {
               toggle still sits next to the date chip in this same
               header row. */}
         </div>
-        <div style={{
+        <div className={styles.snapshotSplit} style={{
           display: 'grid',
-          /* Reverted to the original single-row 2-col grid with
-             `alignItems: stretch`. The earlier "row-spanning" trick
-             (where the spray chart spanned rows 1+2 and the right
-             column was split into row 1 = HittingGradeStack /
-             row 2 = Coach Reviews) was designed to auto-match the
-             chart's height to the right column's content. It worked
-             in principle but the spray chart's natural rendering
-             height in compact swing mode is set by its own internal
-             content (color bar + chart SVG + filter card) and
-             doesn't actually shrink to fit a smaller grid row,
-             which left a stubborn 4-px gap between the chart's
-             visible bottom edge and the Coach Reviews bottom edge.
+          /* Two-column split on desktop: Spray Chart (left) + Grade
+             Stack / Coach Reviews (right). `alignItems: stretch`
+             forces both columns to the same height (= max natural);
+             the Coach Reviews bubble's `flex: 1, minHeight: 0` then
+             grows to land its bottom edge flush with the spray
+             chart's bottom.
 
-             Going back to plain stretch: both columns are forced
-             to the same height (= max natural). Coach Reviews
-             bubble keeps `flex: 1, minHeight: 0` (no maxHeight cap
-             on the bubble itself) so it grows to fill whatever
-             vertical space is left after HittingGradeStack —
-             that lands its bottom edge exactly on the spray
-             chart's bottom via the stretch mechanism. To keep the
-             VISIBLE video content "small" per the previous
-             coach-spec, the inner video grid has its own
-             `maxHeight: 200; overflow-y: auto` cap further down,
-             so the bubble's chrome can fill the column while the
-             tile area itself stays compact. */
-          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+             The column template lives in `styles.snapshotSplit` (NOT
+             inline) so a `@media (max-width: 768px)` rule can collapse
+             it to a SINGLE column on phones — that drops the Grade
+             Stack (Swing / Quality of Contact / Mechanical Grades)
+             directly UNDER the spray chart instead of squeezing it
+             into a ~170 px right rail (which pinched the grade chips
+             unreadably narrow). Inline `gap` / `alignItems` / `display`
+             stay here so desktop rendering is pixel-identical. */
           gap: 18,
           alignItems: 'stretch',
         }}>

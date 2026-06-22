@@ -758,10 +758,19 @@
   .fieldRow { grid-template-columns: minmax(0, 1fr) !important; }
 }
 
+/* Hitting Snapshot split — Spray Chart (left) + Grade Stack (right).
+   Column template lives here (not inline in HittingTab) so the phone
+   rule below can collapse it to one column, stacking the Swing /
+   Quality of Contact / Mechanical grade bubbles UNDER the spray chart. */
+.snapshotSplit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
 /* Responsive */
 @media (max-width: 768px) {
   .chartsGrid { grid-template-columns: 1fr; }
   .gradeRow { grid-template-columns: 1fr 60px 60px 90px; gap: 8px; font-size: 13px; }
+  /* Phone: stack the grade stack under the spray chart with clean
+     spacing (the 18 px grid gap becomes the vertical rhythm). */
+  .snapshotSplit { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {

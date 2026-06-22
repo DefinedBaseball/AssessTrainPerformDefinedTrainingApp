@@ -23,6 +23,27 @@ import { SprayChartView } from '../components/SprayChartView';
 
 const HITTING_REPORT_TYPES = ['HITTING'];
 
+/** Tracks whether the viewport is at phone width (≤ breakpoint px).
+ *  Used by the GradeRow chip strips to relax their hardcoded
+ *  `singleRow` layout on phones — 6–8 chips jammed in one row overflow
+ *  their ~22 px cells (labels collide), so on phones the strip falls
+ *  back to the table's built-in 2-row auto-split (3+3 / 4+4) where each
+ *  label sits above its own value with room to breathe. Desktop is
+ *  unaffected (stays single-row). Initialises to `false` so SSR and the
+ *  first client render agree, then corrects in the effect — the profile
+ *  tabs are client-rendered, so the one-frame settle is invisible. */
+function useIsMobile(breakpoint = 768): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 /* ── Shared Fastball-bubble surface style ──
    Matches the Pitching Fastball / Arsenal Card (`pitchReportBubbleStyle`)
    exactly: triple-layer gradient + soft white-rim border + 12px
@@ -1811,6 +1832,9 @@ function GradeRow({
    *  short enough (≤ 8 chars) that a one-liner reads cleaner. */
   singleLineLabels?: boolean;
 }) {
+  /* Phones relax the forced single-row chip strip → the table's built-in
+     2-row split (3+3 / 4+4) so 6–8 chips don't collide in ~22 px cells. */
+  const isMobile = useIsMobile();
   const tone = grade !== null ? scoreColor(grade) : '#475569';
   // Piecewise bar-fill: 20 → 0% empty, 40 → 50% halfway, 80 → 100% full.
   // The 20-point span 20-40 maps to the first half of the bar (more sensitive
@@ -2082,7 +2106,10 @@ function GradeRow({
           The 1fr columns auto-rebalance the middle spacing. */}
       <div style={{ marginLeft: -12, marginRight: -12 }}>
       <HittingMetricTable
-        singleRow
+        /* Single row on desktop (≤5-chip strips stay one row regardless);
+           on phones, let >5-chip strips wrap to the built-in 2-row split
+           so labels don't collide in ultra-narrow cells. */
+        singleRow={!isMobile}
         hideLabelDivider
         flushEdges
         singleLineLabels={singleLineLabels}
