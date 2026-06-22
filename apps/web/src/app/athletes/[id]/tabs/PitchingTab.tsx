@@ -1100,12 +1100,11 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
               {r.tilt}
             </span>
             <span style={cellStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)' }}>
-                  <div style={{ width: `${r.spinEff}%`, height: '100%', borderRadius: 3, background: getPitchColor(r.pitchType) }} />
-                </div>
-                <span style={{ fontSize: rem(9.35) }}>{r.spinEff}%</span>
-              </div>
+              {/* Spin-efficiency bar retired per coach-spec — the column
+                  now reads as a plain percent value (e.g. 79%, 100%) in
+                  the same style as the other Break & Spin cells. '--' when
+                  there's no spin data, matching the Avg Velo guard above. */}
+              {r.spinEff > 0 ? `${r.spinEff}%` : '--'}
             </span>
           </div>
         ))}
@@ -2054,15 +2053,18 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
           (s) => PITCHING_MECHANICS_SECTION_KEYS.includes(s.key)
         );
         return (
-      <div style={{
+      <div
+        className={styles.pitchMechGradesGrid}
+        style={{
         display: 'grid',
-        /* Dynamic column count — one cell per delivery-mechanics
-           section, now back to the 7-section row width since
-           Movement + Execution were removed from this display.
-           `minmax(0, 1fr)` lets each cell shrink below its content
-           width so the row never wraps; titles wrap internally on
-           narrow viewports instead. */
-        gridTemplateColumns: `repeat(${coachGradeSections.length}, minmax(0, 1fr))`,
+        /* Column count is driven by the `--pmg-cols` CSS var (one cell per
+           delivery-mechanics section on desktop) so a `@media (max-width:
+           768px)` rule in page.module.css can drop it to 4-per-line on
+           phones — all 7 sections jammed into one row read at ~45px each,
+           unreadably tight. `minmax(0, 1fr)` lets each cell shrink below
+           its content width so titles wrap internally instead of forcing
+           the row wider. */
+        '--pmg-cols': coachGradeSections.length,
         gap: 4,
         padding: '6px 0',
         /* Bottom accent hairline — closes the section row, matching
@@ -2070,7 +2072,7 @@ function MechanicalSummaryStrip({ grades }: { grades: PitchingGrades }) {
            (line 6 in the spec, supplied by the table's data-row
            `border-bottom` over there). */
         borderBottom: '1px solid var(--border)',
-      }}>
+      } as React.CSSProperties}>
         {coachGradeSections.map((section) => {
           const sectionScores = section.items
             .map((it) => grades[pitchingGradeKey(section.key, it.key)]?.score)

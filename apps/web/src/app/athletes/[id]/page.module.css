@@ -764,6 +764,12 @@
    Quality of Contact / Mechanical grade bubbles UNDER the spray chart. */
 .snapshotSplit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+/* Pitching "Mechanical Grades" summary — the 7 delivery-mechanics sections
+   render one-cell-per-section on desktop (count supplied inline via the
+   `--pmg-cols` CSS var). The phone rule below drops it to 4 per line so the
+   row (7 sections at ~45px each) reads with room to breathe (7 -> 4+3). */
+.pitchMechGradesGrid { grid-template-columns: repeat(var(--pmg-cols, 7), minmax(0, 1fr)); }
+
 /* Responsive */
 @media (max-width: 768px) {
   .chartsGrid { grid-template-columns: 1fr; }
@@ -771,6 +777,8 @@
   /* Phone: stack the grade stack under the spray chart with clean
      spacing (the 18 px grid gap becomes the vertical rhythm). */
   .snapshotSplit { grid-template-columns: 1fr; }
+  /* Phone: Pitching Mechanical Grades wrap to 4 per line (7 -> 4+3). */
+  .pitchMechGradesGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
