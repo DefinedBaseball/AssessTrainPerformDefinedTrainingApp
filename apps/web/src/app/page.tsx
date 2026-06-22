@@ -9,7 +9,7 @@ import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
 import { MOCK_PLAYERS } from '@/lib/mock-data';
 import { PageHeader } from '@/components/PageHeader';
 import { MessagesLauncher } from '@/components/MessagesLauncher';
-import { RichTextEditor } from '@/components/RichTextEditor';
+import { RichTextEditor, RichTextView } from '@/components/RichTextEditor';
 import styles from './page.module.css';
 
 /* ─── File → data URL helper ─────────────────────────────────────────────
@@ -504,7 +504,7 @@ function AnnouncementFeed({
               </div>
 
               <div className={styles.postTitle}>{post.title}</div>
-              {post.body && <div className={styles.postBody}>{post.body}</div>}
+              {post.body && <RichTextView html={post.body} className={styles.postBody} />}
 
               {/* Uploaded media — image and/or video — shown under the text as
                   small squares in a 3-up grid. */}
