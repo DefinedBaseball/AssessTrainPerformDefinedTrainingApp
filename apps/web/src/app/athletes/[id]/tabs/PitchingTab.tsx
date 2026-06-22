@@ -26,6 +26,25 @@ import { CustomCharts } from '@/components/CustomCharts';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
 import { TabBarActions } from '@/components/assessment';
 
+/** Tracks whether the viewport is at phone width (≤ breakpoint px).
+ *  Mirrors the same hook in SwingTab — used here so the Break & Spin
+ *  table can equalise its columns on phones (the desktop 70px fixed
+ *  Pitch column leaves a big gap before Avg Velo on a narrow screen).
+ *  Inits `false` so SSR and the first client render agree, then
+ *  corrects in the effect (the profile tabs are client-rendered, so
+ *  the one-frame settle is invisible). */
+function useIsMobile(breakpoint = 768): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 /* ── Shared Pitch-Report-bubble surface style ──
    Mirrors the outer .hudConsole gradient so every chart / bubble
    in the Pitching tab (ArsenalCards, plot canvases, readout bar,
@@ -1049,11 +1068,18 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Break & Spin Table ── */
 function BreakTable({ rows }: { rows: ArsenalRow[] }) {
+  const isMobile = useIsMobile();
   /* Column track widened from 6 → 7 fr-columns to insert a new
      "Avg Velo" cell between the Pitch label and H-Break. The
      average velocity (avgVelo) is already computed per row inside
-     `computeArsenal`, so this is purely a UI addition. */
-  const cols = '70px 1fr 1fr 1fr 1fr 1fr 1fr';
+     `computeArsenal`, so this is purely a UI addition.
+     On phones the 70px fixed Pitch column leaves a wide gap before
+     Avg Velo (the pitch labels are only ~20px), so every column —
+     including Pitch — shares the width evenly. Desktop keeps the
+     fixed 70px label column. */
+  const cols = isMobile
+    ? 'repeat(7, minmax(0, 1fr))'
+    : '70px 1fr 1fr 1fr 1fr 1fr 1fr';
   const headerStyle: React.CSSProperties = { fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
   const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: rem(12.75), color: 'var(--text)' };
 
