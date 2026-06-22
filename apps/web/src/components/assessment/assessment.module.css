@@ -635,23 +635,6 @@
   min-width: 320px;
 }
 
-/* ── Mobile: stack the tab bar ──
-   On phones the fixed 320px report-selector block + the tab buttons can't
-   share one row (forces a ~544px overflow). Wrap the actions below the
-   scrollable tab strip and let the selector go full-width + fluid. */
-@media (max-width: 768px) {
-  .tabBarInner { flex-wrap: wrap; gap: 8px; min-height: 0; padding: 8px 0; }
-  .tabBar { flex: 1 1 100%; width: 100%; }
-  .tabBarActions { width: 100%; margin-left: 0; flex-wrap: wrap; }
-  .tabBarActions .reportSelector {
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-    flex: 1 1 100%;
-  }
-  .tabBarActions .reportSelectorDropdown { min-width: 0; width: 100%; }
-}
-
 .tabBtn {
   position: relative;
   display: inline-flex;

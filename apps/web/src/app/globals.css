@@ -514,18 +514,6 @@ html { scroll-behavior: smooth; }
    rem here would resolve against the browser's 16px initial size. */
 html { font-size: clamp(9px, 0.4vw + 8.2px, 15px); }
 
-/* ── Mobile root font override ──
-   The desktop curve above eases the root DOWN as the window narrows so a
-   minimized desktop window stays dense. On an actual phone (~375px) that
-   collapses the whole UI to ~9.7px base — text + tap targets become tiny.
-   On phones we instead want a READABLE base (~13px), letting the rem-based
-   type scale up; the per-page `max-width: 768px` rules stack the layouts so
-   the larger type still fits. Kept on `html` in literal px (pxtorem
-   blacklists html). */
-@media (max-width: 768px) {
-  html { font-size: clamp(12px, 3.2vw, 14px); }
-}
-
 html, body {
   height: 100%;
   background: var(--bg);
@@ -821,17 +809,6 @@ tr:hover td { background: rgba(255,255,255,0.015); }
   .app-main {
     padding: 12px 8px;
   }
-}
-
-/* ── Mobile safety net ──
-   Keep wide media inside the viewport, let long unbroken strings (emails,
-   upload IDs) wrap instead of forcing a horizontal scroll, and give real
-   <table>s their own horizontal scroll rather than stretching the page.
-   Scoped to phones so desktop is untouched. */
-@media (max-width: 768px) {
-  img, video, canvas { max-width: 100%; height: auto; }
-  body { overflow-wrap: anywhere; }
-  .app-main table { display: block; max-width: 100%; overflow-x: auto; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
