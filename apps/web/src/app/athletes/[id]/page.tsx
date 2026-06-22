@@ -25,7 +25,7 @@ import { VideosTab } from './tabs/VideosTab';
 
 import { ReportModal } from './ReportModal';
 import { PdfBuilderModal, type PdfLayout } from './PdfBuilderModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs, getLatestReport, getHittingToolGrades } from './helpers';
+import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
@@ -223,10 +223,7 @@ export default function PlayerProfilePage() {
   /* ── Aggregate score (hero "Player Score" bubble) ── */
   const aggregate = useMemo(() => {
     if (!player) return null;
-    return computeAggregateScores(
-      player, reports, topMetrics, liveAtBats,
-      getHittingToolGrades(getLatestReport(reports, ['HITTING'])),
-    );
+    return computeAggregateScores(player, reports, topMetrics, liveAtBats);
   }, [player, reports, topMetrics, liveAtBats]);
 
   /* Hidden-tab preference (per-player, persisted in localStorage). The

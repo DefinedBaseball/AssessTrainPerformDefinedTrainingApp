@@ -17,8 +17,6 @@ import {
   TabProps,
   scoreColor,
   computeAggregateScores,
-  getLatestReport,
-  getHittingToolGrades,
   type AggregateSection,
   type AggregateBar,
 } from '../helpers';
@@ -2051,14 +2049,8 @@ export function PlayerSummaryTab({
       .catch(() => { if (!cancelled) setLiveAtBats([]); });
     return () => { cancelled = true; };
   }, [player?.id]);
-  /* Hitting Tool Grades (Swing / Quality of Contact / Mechanical Grades) are
-     copied verbatim from the Hitting Snapshot's persisted composites on the
-     latest HITTING report, so the two surfaces always agree. */
   const aggregate = useMemo(
-    () => computeAggregateScores(
-      player, reports, topMetrics, liveAtBats,
-      getHittingToolGrades(getLatestReport(reports, ['HITTING'])),
-    ),
+    () => computeAggregateScores(player, reports, topMetrics, liveAtBats),
     [player, reports, topMetrics, liveAtBats],
   );
 
