@@ -408,7 +408,7 @@ function splitLabelBalanced(label: string): string[] {
   ];
 }
 
-function HittingMetricTable({ items, singleRow = false, compact = false, hideLabelDivider = false, singleLineLabels = false, flushEdges = false, rows: explicitRows }: { items: HittingMetricCell[]; singleRow?: boolean; compact?: boolean; hideLabelDivider?: boolean;
+function HittingMetricTable({ items, singleRow = false, compact = false, hideLabelDivider = false, singleLineLabels = false, flushEdges = false, mobileColumns, rows: explicitRows }: { items: HittingMetricCell[]; singleRow?: boolean; compact?: boolean; hideLabelDivider?: boolean;
   /** Pre-split rows of items — when provided, the component renders
    *  exactly these rows instead of auto-splitting `items` based on
    *  the >5 heuristic. Used by the Blast Motion section to pin
@@ -434,8 +434,22 @@ function HittingMetricTable({ items, singleRow = false, compact = false, hideLab
    *  strips so Max Bat Speed / Power sit close to the bubble's
    *  outer edges. */
   flushEdges?: boolean;
+  /** Phone-only: chunk `items` into fixed rows of N columns (e.g. 4) so a
+   *  wide single-row input strip (Coach Grades / Full Swing / Blast — 8-14
+   *  metrics) reads as tidy N-per-line blocks on a narrow screen instead of
+   *  jamming everything onto one line. Overrides `singleRow` AND
+   *  `explicitRows` on mobile only; desktop layout is unchanged. The grid
+   *  uses a FIXED N columns on every row, so a short final row left-aligns
+   *  under the columns above (empty trailing cells) rather than stretching
+   *  one tile full-width. */
+  mobileColumns?: number;
 }) {
+  const isMobile = useIsMobile();
   if (items.length === 0) return null;
+  /* When `mobileColumns` is active on a phone, every row uses this fixed
+     column count (so partial final rows stay grid-aligned); otherwise each
+     row sizes to its own item count as before. */
+  const mobileChunk = isMobile && !!mobileColumns && mobileColumns > 0 ? mobileColumns : 0;
   /* `compact` shrinks both the header and value text to the original
      Break & Spin Pitch-Report sizes (9 px header / 15 px value / 9 px
      unit). The default expanded sizes (11.88 / 19.8 / 11.88) — i.e.
@@ -507,19 +521,31 @@ function HittingMetricTable({ items, singleRow = false, compact = false, hideLab
      by passing `singleRow={true}` — used by the Hitting Inputs
      sections (Coach Grades / Full Swing / Blast Motion / HitTrax)
      so up to 8 metrics populate one line before wrapping. */
-  /* `explicitRows` overrides the auto-split heuristic entirely —
-     the caller pre-computed exactly which cells land on each row. */
-  const rows: HittingMetricCell[][] = explicitRows
-    ? explicitRows.filter(r => r.length > 0)
-    : !singleRow && items.length > 5
-      ? (() => {
-          const half = Math.ceil(items.length / 2);
-          return [items.slice(0, half), items.slice(half)];
-        })()
-      : [items];
+  /* Mobile `mobileColumns` wins over everything: chunk into consecutive
+     rows of N. Else `explicitRows` overrides the auto-split heuristic
+     entirely (caller pre-computed each row). Else items > 5 auto-split
+     into two balanced rows; ≤ 5 render as a single row. */
+  const rows: HittingMetricCell[][] = mobileChunk
+    ? (() => {
+        const out: HittingMetricCell[][] = [];
+        for (let i = 0; i < items.length; i += mobileChunk) out.push(items.slice(i, i + mobileChunk));
+        return out;
+      })()
+    : explicitRows
+      ? explicitRows.filter(r => r.length > 0)
+      : !singleRow && items.length > 5
+        ? (() => {
+            const half = Math.ceil(items.length / 2);
+            return [items.slice(0, half), items.slice(half)];
+          })()
+        : [items];
 
   const renderRow = (rowItems: HittingMetricCell[], rowKey: string | number) => {
-    const cols = `repeat(${rowItems.length}, minmax(0, 1fr))`;
+    /* On mobile with `mobileColumns`, lock EVERY row to the same N columns
+       so a short final row (e.g. 1 leftover of 9) left-aligns under the
+       grid above instead of stretching one tile full-width. */
+    const colCount = mobileChunk || rowItems.length;
+    const cols = `repeat(${colCount}, minmax(0, 1fr))`;
     /* Horizontal row padding — 10 px by default; 0 when `flushEdges`
        is on so the leftmost / rightmost grid columns sit hard against
        the table's outer left/right edges (the GradeRow chip strips
@@ -882,6 +908,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           singleRow
           hideLabelDivider
           singleLineLabels
+          mobileColumns={4}
           items={MANUAL_KEYS.map(({ key, label }) => {
             const value = manual[key];
             return {
@@ -944,6 +971,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             <HittingMetricTable
               singleRow
               hideLabelDivider
+              mobileColumns={4}
               items={QOC_KEYS.map(k => {
                 const m = fsResolve(k);
                 /* Prefer SHORT_LABELS so the Full Swing column
@@ -1034,6 +1062,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             <HittingMetricTable
               singleRow={row2Items.length === 0}
               hideLabelDivider
+              mobileColumns={4}
               items={combinedItems}
               rows={row2Items.length > 0 ? [row1Items, row2Items] : undefined}
             />
