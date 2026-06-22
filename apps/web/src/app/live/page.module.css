@@ -18,6 +18,11 @@
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 18px;
 }
+/* Phones: a 320px column min can't fit a ~290px content area, so the cards
+   clip past the right edge. Stack them one-per-row instead. */
+@media (max-width: 768px) {
+  .modeGrid { grid-template-columns: 1fr; }
+}
 
 .modeCard {
   position: relative;
