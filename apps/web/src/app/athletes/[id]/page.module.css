@@ -936,3 +936,10 @@
 @media (max-width: 1250px) {
   .nameRow { margin-top: 0; }
 }
+/* Phones: the ≤1250 rule drops the pull to 0, leaving a large gap between
+   the telemetry strip (player info) and the player name. Re-tighten ~65%
+   of the desktop pull (-19 → -12) so the name sits close to the info row.
+   Comes after the ≤1250 rule so it wins at phone widths. */
+@media (max-width: 768px) {
+  .nameRow { margin-top: -12px; }
+}

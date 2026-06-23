@@ -253,8 +253,18 @@
 /* ── Responsive collapse ── */
 @media (max-width: 720px) {
   .pageHeader { padding: 14px 18px 14px; border-radius: 18px; }
-  .pageHeader.hero { padding: 20px 20px 18px; border-radius: 22px; }
+  /* Hero (dashboard "Assess, Train, Perform"): trimmed padding so the
+     bubble is shorter on phones. */
+  .pageHeader.hero { padding: 14px 18px 12px; border-radius: 22px; }
   .headerRow { flex-direction: column; align-items: flex-start; gap: 14px; }
   .sideStack { align-items: flex-start; width: 100%; }
   .actions { width: 100%; }
+
+  /* Hero override: keep the title + actions on ONE row instead of stacking,
+     so the Messages / Notifications bubbles ride at the top-right beside the
+     title (smaller + moved up, per coach-spec) and the hero stays short
+     rather than growing a tall second row for the actions. */
+  .pageHeader.hero .headerRow { flex-direction: row; align-items: flex-start; gap: 12px; }
+  .pageHeader.hero .sideStack { align-items: flex-end; width: auto; }
+  .pageHeader.hero .actions { width: auto; }
 }

@@ -82,6 +82,14 @@
   box-shadow: 0 0 0 2px var(--bg);
 }
 
+/* Phones: shrink the dashboard hero bubbles (40 → 32) so they sit compact
+   at the top-right of the shortened "Assess, Train, Perform" hero. */
+@media (max-width: 720px) {
+  .iconBtn { width: 32px; height: 32px; }
+  .icon { width: 16px; height: 16px; }
+  .badge { min-width: 16px; height: 16px; font-size: 9px; top: -3px; right: -3px; }
+}
+
 /* ── Shared overlay chrome ── */
 .backdrop {
   position: fixed;
