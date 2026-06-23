@@ -324,7 +324,7 @@ function AthletePicker({
                     {isSelected ? '✓' : '+'}
                   </span>
                   <span className={styles.pickerItemName}>
-                    {p.lastName}, {p.firstName}
+                    {p.firstName} {p.lastName}
                   </span>
                   <span className={styles.pickerItemMeta}>
                     {p.positions || '—'}
@@ -353,6 +353,7 @@ function AthleteColumn({
   onDragStartDrill,
   onDropOnAthlete,
   onClickDrill,
+  onPlayDrill,
 }: {
   player: Player;
   drills: ScheduledDrill[];
@@ -368,8 +369,10 @@ function AthleteColumn({
   /** Coach dropped a drill onto this athlete's column.
    *  Swallow the event in the parent — the parent has the source info. */
   onDropOnAthlete: (toPlayerId: string) => void;
-  /** Coach clicked a scheduled drill — opens the inline edit popover. */
+  /** Coach clicked the ✎ on a scheduled drill — opens the inline edit popover. */
   onClickDrill: (drill: ScheduledDrill) => void;
+  /** Clicked a scheduled drill name — opens its video (mirrors Training). */
+  onPlayDrill: (drill: ScheduledDrill) => void;
 }) {
   /* Group drills by category so the card reads as
        Movement Prep
@@ -491,11 +494,27 @@ function AthleteColumn({
                         e.dataTransfer.effectAllowed = 'move';
                         e.dataTransfer.setData('text/plain', d.id);
                       }}
-                      onClick={() => { if (isCoach) onClickDrill(d); }}
-                      title={isCoach ? 'Click to edit · drag to reassign' : undefined}
-                      style={isCoach ? { cursor: 'grab' } : undefined}
+                      /* Click the row → play the drill's video (mirrors the
+                         Training calendar). Editing moved to the ✎ button. */
+                      onClick={() => onPlayDrill(d)}
+                      title={isCoach ? 'Click to watch · drag to reassign' : 'Click to watch'}
+                      style={{ cursor: 'pointer' }}
                     >
+                      {/* Invisible spacer mirrors the ✎ button's width so the
+                          drill name stays centered between them. */}
+                      {isCoach && <span aria-hidden="true" style={{ flex: '0 0 auto', width: 22 }} />}
                       <span className={styles.athleteBubbleItemName}>{d.name}</span>
+                      {isCoach && (
+                        <button
+                          type="button"
+                          className={styles.drillEditBtn}
+                          onClick={(e) => { e.stopPropagation(); onClickDrill(d); }}
+                          title="Edit drill"
+                          aria-label="Edit drill"
+                        >
+                          ✎
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -665,6 +684,89 @@ function DrillEditor({
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Drill video viewer — opens when a coach clicks a scheduled drill on the
+   board. Mirrors the Training calendar's drill→video flow: each scheduled
+   drill carries its library `Drill` (`ScheduledDrill.drill`), so we play
+   that drill's `videoUrl`. Falls back to a "no video" note when the drill
+   has no linked library entry or no clip uploaded.
+   ───────────────────────────────────────────────────────────────────────── */
+function DrillVideoModal({ drill, onClose }: { drill: ScheduledDrill; onClose: () => void }) {
+  const lib = drill.drill;
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'min(720px, 94vw)',
+          background: 'var(--surface, #1a1f25)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: '0 18px 60px rgba(0,0,0,0.55)',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 18px', borderBottom: '1px solid var(--border)',
+        }}>
+          <span style={{ fontSize: rem(15), fontWeight: 700, color: 'var(--text-bright)' }}>
+            {drill.name}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', color: 'var(--text-muted)',
+              fontSize: rem(22), lineHeight: 1, cursor: 'pointer', padding: 0,
+            }}
+            aria-label="Close"
+          >×</button>
+        </div>
+        <div style={{
+          background: '#000', aspectRatio: '16 / 9',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {lib?.videoUrl ? (
+            <video
+              src={lib.videoUrl}
+              controls
+              autoPlay
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          ) : (
+            <div style={{ color: 'var(--text-muted)', fontSize: rem(13), fontStyle: 'italic' }}>
+              No video uploaded for this drill
+            </div>
+          )}
+        </div>
+        {lib?.description && (
+          <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)' }}>
+            <div style={{
+              fontSize: rem(9.5), fontWeight: 700, letterSpacing: '0.16em',
+              textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4,
+            }}>
+              Description
+            </div>
+            <div style={{ fontSize: rem(13), color: 'var(--text)', lineHeight: 1.45 }}>
+              {lib.description}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <div style={{
     fontSize: rem(9.5), fontWeight: 700, letterSpacing: '0.16em',
@@ -820,6 +922,8 @@ export default function ProgramPage() {
   /* Inline-edit popover — set when coach clicks a drill, cleared on save
      / cancel / delete. Render is a small modal anchored center-screen. */
   const [editingDrill, setEditingDrill] = useState<ScheduledDrill | null>(null);
+  /* Drill clicked for video playback (mirrors the Training calendar). */
+  const [viewingDrill, setViewingDrill] = useState<ScheduledDrill | null>(null);
   const closeEditor = () => setEditingDrill(null);
   const saveEditor = async (patch: { name: string; time: string; duration: number; notes: string | null }) => {
     if (!editingDrill) return;
@@ -1079,6 +1183,7 @@ export default function ProgramPage() {
               onDragStartDrill={onDragStartDrill}
               onDropOnAthlete={onDropOnAthlete}
               onClickDrill={(d) => setEditingDrill(d)}
+              onPlayDrill={(d) => setViewingDrill(d)}
             />
           ))}
         </div>
@@ -1113,6 +1218,14 @@ export default function ProgramPage() {
           onClose={closeEditor}
           onSave={saveEditor}
           onDelete={deleteEditor}
+        />
+      )}
+
+      {/* Drill video viewer — opens when a coach clicks a drill name. */}
+      {viewingDrill && (
+        <DrillVideoModal
+          drill={viewingDrill}
+          onClose={() => setViewingDrill(null)}
         />
       )}
     </div>
