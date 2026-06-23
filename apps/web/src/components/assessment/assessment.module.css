@@ -1778,6 +1778,34 @@
   .reportSelectorRow .reportSelector {
     width: 100%;
   }
+
+  /* Profile tab bar — phone portrait. The fixed-320px Report dropdown
+     plus the Edit / Download / Videos icon buttons in .tabBarActions
+     overflow the row and squeeze the Summary / Hitting / Pitching tabs
+     down to zero width (so in portrait you only see the controls, and
+     the tabs only reappear in landscape where the row finally fits).
+     Wrap the bar: the tabs take a full-width first row, and the controls
+     — including the Report dropdown — drop to a full-width second row
+     underneath them. The 14px row-gap on .tabBarInner becomes the
+     vertical spacing. Landscape phones (≥667px) are above this 640px
+     breakpoint, so they keep the single-row layout that already fits. */
+  .tabBarInner { flex-wrap: wrap; }
+  .tabBar { flex: 1 1 100%; }
+  .tabBarActions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  /* Report dropdown: drop the fixed 320px so it shares the second row
+     with the icon buttons instead of forcing an overflow. */
+  .tabBarActions .reportSelector {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+  .tabBarActions .reportSelectorDropdown { min-width: 0; }
 }
 
 /* ════════════════════════════════════════════════════════════════════
