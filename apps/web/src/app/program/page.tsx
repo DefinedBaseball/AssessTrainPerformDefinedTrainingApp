@@ -42,6 +42,60 @@ const SCHEDULE_OPTIONS: { key: ScheduleKey; label: string; color: string }[] = [
   { key: 'strength', label: 'S&C',      color: '#EF4444' },
 ];
 
+/** Maps a Program schedule key → the Player Summary "Tool Grades" notes
+ *  section key (stored in `player.developmentNotes`). The defense schedules
+ *  use the `defense_*` aggregate-section keys, while hitting / pitching /
+ *  strength match 1:1. Keep in sync with the aggregate section keys in
+ *  athletes/[id]/helpers.ts (computeAggregateScores). */
+const SCHEDULE_TO_NOTES_KEY: Record<ScheduleKey, string> = {
+  hitting:  'hitting',
+  pitching: 'pitching',
+  catching: 'defense_catching',
+  infield:  'defense_infield',
+  outfield: 'defense_outfield',
+  strength: 'strength',
+};
+
+/** Parse `player.developmentNotes` (a JSON string keyed by section) into a
+ *  plain map. Mirrors the helper in PlayerSummaryTab so the Program board
+ *  can surface the same per-section notes read-only. Always returns an
+ *  object so callers can index without null guards. */
+function parseDevelopmentNotes(raw: string | null | undefined): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj)) if (typeof v === 'string') out[k] = v;
+    return out;
+  } catch { return {}; }
+}
+
+/* ── Session persistence ──
+   The coach's Program selection (schedule + athletes + date) is mirrored
+   to sessionStorage so it survives navigating away and back while the
+   browser tab stays open, and is cleared when the tab closes — exactly
+   "persist as long as the webpage is open". SSR-safe (returns the
+   fallback on the server; writes are no-ops there). */
+const PROGRAM_STORE = {
+  schedule: 'program.schedule',
+  selectedIds: 'program.selectedIds',
+  sessionDate: 'program.sessionDate',
+} as const;
+
+function loadStored<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw != null ? (JSON.parse(raw) as T) : fallback;
+  } catch { return fallback; }
+}
+
+function saveStored(key: string, value: unknown): void {
+  if (typeof window === 'undefined') return;
+  try { window.sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* quota / private mode */ }
+}
+
 /** Decide whether a player carries the position(s) the chosen schedule
  *  category requires. S&C is open to every athlete; everything else
  *  filters by the player's `positions` string. */
@@ -339,6 +393,17 @@ function AthleteColumn({
      drill will land on this athlete. Coach-only — players never drag. */
   const [dragOver, setDragOver] = useState(false);
 
+  /* Coach's "Next Steps" note for the section matching the active
+     schedule — a read-only copy of the Player Summary → Tool Grades note
+     for this player, surfaced at the bottom of the column so the day's
+     drills sit above the focus note that drives them. Empty notes render
+     nothing. */
+  const sectionNote = useMemo(() => {
+    const key = SCHEDULE_TO_NOTES_KEY[schedule];
+    return (parseDevelopmentNotes(player.developmentNotes)[key] ?? '').trim();
+  }, [player.developmentNotes, schedule]);
+  const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
+
   return (
     <div className={styles.athleteCard}>
       <div className={styles.athleteCardHead} style={{ borderTopColor: scheduleColor }}>
@@ -371,7 +436,9 @@ function AthleteColumn({
       >
         {loading ? (
           <div className={styles.athleteEmpty}>Loading…</div>
-        ) : drills.length === 0 ? (
+        ) : (
+          <>
+          {drills.length === 0 ? (
           <div className={styles.athleteEmpty}>
             {isCoach ? 'No drills scheduled for today. Drag drills here from another athlete.' : 'No drills scheduled for today.'}
           </div>
@@ -435,6 +502,17 @@ function AthleteColumn({
               </div>
             );
           })
+        )}
+          {/* Coach's Next-Steps note for the active section — a read-only
+              copy of the Player Summary → Tool Grades note, pinned under
+              the day's drills. */}
+          {sectionNote && (
+            <div className={styles.athleteNotes}>
+              <div className={styles.athleteNotesHead}>{scheduleLabel} Notes</div>
+              <div className={styles.athleteNotesBody}>{sectionNote}</div>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>
@@ -659,10 +737,18 @@ export default function ProgramPage() {
       .catch(() => { setPlayers([]); setPlayersLoading(false); });
   }, [user, isCoach]);
 
-  /* Top-row state */
-  const [schedule, setSchedule] = useState<ScheduleKey>('hitting');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [sessionDate, setSessionDate] = useState<string>(() => todayIso());
+  /* Top-row state — restored from sessionStorage so the coach's selection
+     survives navigating away and back while the tab is open. */
+  const [schedule, setSchedule] = useState<ScheduleKey>(() => loadStored(PROGRAM_STORE.schedule, 'hitting' as ScheduleKey));
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => loadStored(PROGRAM_STORE.selectedIds, [] as string[]));
+  const [sessionDate, setSessionDate] = useState<string>(() => loadStored(PROGRAM_STORE.sessionDate, todayIso()));
+
+  /* Mirror each selection back to sessionStorage on change. The sidebar
+     "reset" hook above sets these back to their defaults, which this
+     persists too — so an explicit reset truly clears the saved state. */
+  useEffect(() => { saveStored(PROGRAM_STORE.schedule, schedule); }, [schedule]);
+  useEffect(() => { saveStored(PROGRAM_STORE.selectedIds, selectedIds); }, [selectedIds]);
+  useEffect(() => { saveStored(PROGRAM_STORE.sessionDate, sessionDate); }, [sessionDate]);
 
   /* Reset selected athletes whenever the schedule changes — the new
      category may filter some of them out. */
