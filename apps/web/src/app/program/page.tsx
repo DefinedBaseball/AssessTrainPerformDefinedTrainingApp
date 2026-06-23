@@ -751,8 +751,15 @@ export default function ProgramPage() {
   useEffect(() => { saveStored(PROGRAM_STORE.sessionDate, sessionDate); }, [sessionDate]);
 
   /* Reset selected athletes whenever the schedule changes — the new
-     category may filter some of them out. */
+     category may filter some of them out.
+     IMPORTANT: skip while the roster is still loading (`players` === []).
+     This effect also runs on first mount, and a sessionStorage-restored
+     selection would otherwise be wiped instantly because every restored id
+     fails the `players.find` lookup against the empty list — which then
+     persists the now-empty list back, defeating the whole feature. Once
+     the roster loads the effect re-runs and filters against real data. */
   useEffect(() => {
+    if (players.length === 0) return;
     setSelectedIds(prev =>
       prev.filter(id => {
         const p = players.find(x => x.id === id);
