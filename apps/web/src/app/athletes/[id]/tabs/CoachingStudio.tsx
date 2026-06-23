@@ -1881,7 +1881,7 @@ function OtherAthleteBrowserModal({
       .filter((p) => !q
         || `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
         || (p.positions || '').toLowerCase().includes(q))
-      .sort((a, b) => a.lastName.localeCompare(b.lastName));
+      .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
   }, [players, playerQuery]);
 
   const playableVideos = useMemo(

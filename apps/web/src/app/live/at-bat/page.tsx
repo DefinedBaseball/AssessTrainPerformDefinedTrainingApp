@@ -326,11 +326,11 @@ export default function LiveAtBatPage() {
   }, [isCoach]);
 
   const pitchersAll = useMemo(
-    () => allPlayers.filter(isPitcher).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)),
+    () => allPlayers.filter(isPitcher).sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
     [allPlayers],
   );
   const hittersAll = useMemo(
-    () => allPlayers.filter(isHitter).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)),
+    () => allPlayers.filter(isHitter).sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
     [allPlayers],
   );
 

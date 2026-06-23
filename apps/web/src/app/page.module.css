@@ -780,6 +780,57 @@
 }
 
 /* ══════════════════════════════════════════════
+   LIGHT THEME — Create Post modal
+   The modal hardcodes a dark gradient surface plus white-on-dark washes
+   that don't flip with the theme tokens, so it stayed dark on light. Flip
+   the surface to white and the washes to dark-on-light. Text / labels use
+   theme tokens (--text, --text-muted, --text-secondary, --border) and
+   invert automatically. */
+[data-theme="light"] .modal {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 32px 80px rgba(15, 20, 30, 0.18);
+}
+[data-theme="light"] .modalClose {
+  background: rgba(0, 0, 0, 0.03);
+}
+[data-theme="light"] .modalClose:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+[data-theme="light"] .typeBtn {
+  background: rgba(0, 0, 0, 0.02);
+}
+[data-theme="light"] .typeBtn:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .typeBtnActive {
+  border-color: rgba(0, 0, 0, 0.22) !important;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.025)) !important;
+}
+[data-theme="light"] .fieldInput {
+  background: var(--panel-bg-light);
+}
+[data-theme="light"] .fieldInput:focus {
+  border-color: rgba(0, 0, 0, 0.28);
+}
+[data-theme="light"] .fileInput {
+  background: rgba(0, 0, 0, 0.02);
+}
+[data-theme="light"] .fileInput::file-selector-button {
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .fileInput::file-selector-button:hover {
+  background: rgba(0, 0, 0, 0.09);
+}
+/* Submit button: the dark-theme near-white fill would disappear on the
+   white modal — use the accent fill + white text as the primary action. */
+[data-theme="light"] .submitBtn {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+/* ══════════════════════════════════════════════
    LEGACY SECTIONS (Athletes table, uploads, quick access)
    ══════════════════════════════════════════════ */
 

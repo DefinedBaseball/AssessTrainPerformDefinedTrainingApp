@@ -965,3 +965,18 @@
 [data-theme="light"] .athleteDropdownBtnOpen {
   border-color: rgba(0, 0, 0, 0.22);
 }
+
+/* The open panel hardcodes a solid dark base (#0d1218) so it stays dark in
+   light theme while everything inside it flips — flip the panel + search
+   input to a white surface here. The list items / names / meta already use
+   theme tokens (--text, --text-muted, --accent, --border), so they invert
+   automatically once the panel is light. */
+[data-theme="light"] .athleteDropdownPanel {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 12px 40px rgba(15, 20, 30, 0.12);
+}
+[data-theme="light"] .athleteDropdownInput {
+  background: var(--panel-bg-light);
+  border-color: rgba(0, 0, 0, 0.10);
+}

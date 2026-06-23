@@ -245,7 +245,7 @@ function AthletePicker({
 
   const sorted = useMemo(
     () => [...candidates].sort(
-      (a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`),
+      (a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
     ),
     [candidates],
   );

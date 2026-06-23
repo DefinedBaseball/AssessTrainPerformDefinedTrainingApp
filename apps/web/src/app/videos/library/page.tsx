@@ -148,7 +148,7 @@ function AthleteDropdown({
   }, [open]);
 
   const sorted = useMemo(
-    () => [...players].sort((a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`)),
+    () => [...players].sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)),
     [players],
   );
 
@@ -217,7 +217,7 @@ function AthleteDropdown({
                   ) : '⚾'}
                 </span>
                 <div className={styles.athleteDropdownItemInfo}>
-                  <span className={styles.athleteDropdownItemName}>{p.lastName}, {p.firstName}</span>
+                  <span className={styles.athleteDropdownItemName}>{p.firstName} {p.lastName}</span>
                   <span className={styles.athleteDropdownItemMeta}>
                     {p.positions || '—'} · Class of {p.gradYear || '—'}
                   </span>

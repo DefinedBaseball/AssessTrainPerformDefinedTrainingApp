@@ -24,7 +24,7 @@ export class PlayersService {
 
     return this.prisma.player.findMany({
       where,
-      orderBy: { lastName: 'asc' },
+      orderBy: { firstName: 'asc' },
       include: { user: { select: { email: true, role: true } } },
     });
   }
