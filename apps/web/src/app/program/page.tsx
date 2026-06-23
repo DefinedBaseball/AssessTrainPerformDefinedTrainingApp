@@ -1057,6 +1057,52 @@ export default function ProgramPage() {
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  /* ── Fullscreen fit-to-screen scaler ──
+     The TV board is hard-clamped to 100vh with no scroll, so a heavy
+     session (a player with lots of drills) used to clip silently. While
+     fullscreen, shrink the board's typography + spacing (via the
+     `--prog-scale` CSS var the fullscreen rules read) one step at a time
+     until the tallest column's content fits — down to a legibility floor.
+     If it STILL overflows at the floor (a session too big for any one
+     screen), flip `data-fit="scroll"` so the columns scroll instead of
+     hiding drills. Off-fullscreen the var is cleared (normal view scrolls
+     the page as usual). Re-runs on content + viewport changes. */
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    if (!isFullscreen) {
+      board.style.removeProperty('--prog-scale');
+      board.removeAttribute('data-fit');
+      return;
+    }
+    const FLOOR = 0.5;
+    const STEP = 0.05;
+    const fit = () => {
+      const el = boardRef.current;
+      if (!el) return;
+      const bodies = () =>
+        Array.from(el.querySelectorAll<HTMLElement>('[class*="athleteCardBody"]'));
+      const overflowing = () => bodies().some((b) => b.scrollHeight - b.clientHeight > 1);
+      let scale = 1;
+      el.style.setProperty('--prog-scale', '1');
+      el.removeAttribute('data-fit');
+      let guard = 0;
+      while (overflowing() && scale > FLOOR && guard < 24) {
+        scale = Math.max(FLOOR, Math.round((scale - STEP) * 100) / 100);
+        el.style.setProperty('--prog-scale', String(scale));
+        guard += 1;
+      }
+      if (overflowing()) el.setAttribute('data-fit', 'scroll');
+    };
+    const raf = requestAnimationFrame(fit);
+    window.addEventListener('resize', fit);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', fit);
+    };
+  }, [isFullscreen, selectedIds, drillsByPlayer, schedule, sessionDate]);
+
   const enterFullscreen = () => {
     if (!boardRef.current) return;
     const el = boardRef.current;

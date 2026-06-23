@@ -609,13 +609,15 @@
 .board:fullscreen .athleteCardBody {
   flex: 1;
   min-height: 0;
-  /* Hide anything that would otherwise spill below the card —
-     a single-athlete board that ran way over the viewport used
-     to scroll silently; now any rare overflow is clipped flush. */
+  /* Hide anything that would otherwise spill below the card. The
+     fit-to-screen scaler (page.tsx) shrinks --prog-scale until content
+     fits; only if it STILL overflows at the floor does it flip the board
+     to data-fit="scroll" (rule below) so nothing is silently clipped. */
   overflow: hidden;
-  /* The default 220px floor forces the body to stay tall even when
-     it has no drills — drop it so flex sizing rules everything. */
-  padding: 10px 12px 12px;
+  /* Vertical padding + the inter-category gap scale with --prog-scale so
+     a heavy session (many drills) compresses to fit the fixed viewport. */
+  padding: calc(10px * var(--prog-scale, 1)) 12px calc(12px * var(--prog-scale, 1));
+  gap: calc(14px * var(--prog-scale, 1));
 }
 .board:fullscreen .athleteCardHead {
   /* Trim the header padding a touch so the body gets more of the
@@ -624,23 +626,27 @@
   padding: 12px 14px 10px;
 }
 .board:fullscreen .athleteBubble {
-  /* Compact category bubbles so a column with 4 categories +
-     ~5 drills each fits the body without overflowing. */
-  padding: 8px 10px 10px;
+  /* Compact category bubbles; vertical padding scales with the fit factor. */
+  padding: calc(8px * var(--prog-scale, 1)) 10px calc(10px * var(--prog-scale, 1));
 }
 .board:fullscreen .athleteBubbleItem {
-  /* Drop drill-row padding 7 → 5 so 4–5 drills + their dividers
-     occupy ~30% less vertical space inside each bubble. */
-  padding: 5px 2px;
+  /* Drill-row vertical padding scales with the fit factor so more drills
+     fit before the scaler has to drop the font size. */
+  padding: calc(5px * var(--prog-scale, 1)) 2px;
+}
+/* Last resort: a session too large to fit even at the minimum scale flips
+   data-fit="scroll" so each column scrolls instead of hiding drills. */
+.board:fullscreen[data-fit="scroll"] .athleteCardBody {
+  overflow-y: auto;
 }
 
 /* Presentation-mode typography. Sized for legibility from across
    the cage / bullpen while still leaving room for typical session
    loads. */
-.board:fullscreen .athleteName            { font-size: 26px; }
-.board:fullscreen .athletePositions       { font-size: 12px; }
-.board:fullscreen .athleteBubbleHead      { font-size: 13px; }
-.board:fullscreen .athleteBubbleItemName  { font-size: 16px; }
+.board:fullscreen .athleteName            { font-size: calc(26px * var(--prog-scale, 1)); }
+.board:fullscreen .athletePositions       { font-size: calc(12px * var(--prog-scale, 1)); }
+.board:fullscreen .athleteBubbleHead      { font-size: calc(13px * var(--prog-scale, 1)); }
+.board:fullscreen .athleteBubbleItemName  { font-size: calc(16px * var(--prog-scale, 1)); }
 
 /* Exit button — top-right of the fullscreen board. Hidden by default
    so the presentation reads clean; reveals when the cursor moves over
