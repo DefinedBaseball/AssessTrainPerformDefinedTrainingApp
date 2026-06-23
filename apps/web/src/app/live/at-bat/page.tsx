@@ -478,15 +478,31 @@ export default function LiveAtBatPage() {
         if (cancelled) return;
         if (streamsRef.current.has(id)) continue;
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: { exact: id },
-              width:     { ideal: 3840 },
-              height:    { ideal: 2160 },
-              frameRate: { ideal: 240 },
-            },
-            audio: streamsRef.current.size === 0,
-          });
+          /* Cap capture at 1080p (NOT 4K — 4K traps most webcams into a
+             ~5 fps stills mode). Prefer slow-mo: require ≥120 fps so
+             high-speed cameras lock to 1080p 120/240; fall back to a
+             no-floor request when the camera can't sustain 120 (a typical
+             30/60 fps webcam would otherwise throw OverconstrainedError
+             and fail the session). */
+          const baseVideo: MediaTrackConstraints = {
+            deviceId: { exact: id },
+            width:  { ideal: 1920 },
+            height: { ideal: 1080 },
+          };
+          const wantAudio = streamsRef.current.size === 0;
+          let stream: MediaStream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { ...baseVideo, frameRate: { min: 120, ideal: 240 } },
+              audio: wantAudio,
+            });
+          } catch (constraintErr: any) {
+            if (constraintErr?.name !== 'OverconstrainedError') throw constraintErr;
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { ...baseVideo, frameRate: { ideal: 240 } },
+              audio: wantAudio,
+            });
+          }
           if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
           streamsRef.current.set(id, stream);
           const el = videoElsRef.current.get(id);

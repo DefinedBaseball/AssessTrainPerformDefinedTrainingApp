@@ -293,6 +293,22 @@ export default function LiveTrainingPage() {
   const isMountedRef = useRef(true);
   useEffect(() => { isMountedRef.current = true; return () => { isMountedRef.current = false; }; }, []);
 
+  /* Touch / mobile detection (coarse pointer). On phones + tablets we SKIP
+     the delayed-mirror frame buffer (see startDelayLoop): buffering ~4s of
+     full-resolution ImageBitmaps is hundreds of MB to multiple GB, which
+     crashes iOS Safari (hard ~200-400 MB per-tab memory ceiling) the instant
+     recording starts. The recording itself reads the live stream, not the
+     buffer, so the saved clip is unaffected — mobile just shows the live
+     preview instead of the 4-second-delayed mirror. Desktops keep the mirror. */
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  useEffect(() => {
+    setIsCoarsePointer(
+      typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches,
+    );
+  }, []);
+
   /* Warn before tab-close/refresh while any clip is still undecided or
      mid-upload — recordings live only in memory (object URLs) and are
      lost with the page. In-app navigation can't be guarded by the App
@@ -437,38 +453,41 @@ export default function LiveTrainingPage() {
         if (cancelled) return;
         if (streamsRef.current.has(id)) continue;
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              deviceId: { exact: id },
-              /* Request the camera's native SOURCE up to 4K @ 240 fps.
-                 Every constraint uses ONLY `ideal` (no `min`) so the
-                 stream still opens when the camera tops out lower —
-                 `min` is spec-enforced and would throw
-                 `OverconstrainedError` on a typical 30 fps webcam,
-                 blocking the whole session. With `ideal` alone, each
-                 camera negotiates its highest supported rung under
-                 the cap:
-                   • 4K @ 60/120 action cams + capture cards → 4K at
-                     their native fps
-                   • 1080p @ 120/240 high-speed capture cards → 1080p
-                     at their full slo-mo rate
-                   • 1080p @ 60 webcams → 1080p @ 60
-                   • Basic 720p @ 30 devices → 720p @ 30
-                 The `videoBitsPerSecond` calculation below reads the
-                 actually-negotiated width × height × fps off the
-                 track settings so the encoded clip preserves the
-                 per-frame quality of whatever resolution + frame
-                 rate the camera ended up at. */
-              width:     { ideal: 3840 },
-              height:    { ideal: 2160 },
-              frameRate: { ideal: 240 },
-            },
-            /* Audio captured only on the FIRST selected camera so the
-               combined session has exactly one audio track — most
-               coaches narrate over a single mic, and multi-track
-               audio on the same recorder confuses some browsers. */
-            audio: streamsRef.current.size === 0,
-          });
+          /* Capture is capped at 1080p (NOT 4K) and prefers slow-mo fps.
+             4K was the wrong target: most webcams only expose 4K as a
+             low-bandwidth ~5 fps stills mode, so a 4K `ideal` traps the
+             stream at ~5 fps; on iOS it also blows past Safari's memory
+             ceiling. At 1080p the camera runs its smooth high-fps modes.
+
+             Frame rate: ask for `min: 120, ideal: 240` so high-speed
+             cameras / capture cards LOCK to 1080p 120/240 (true slow-mo)
+             instead of the fitness algorithm settling at 60. A `min` is
+             spec-enforced, so a camera that can't sustain 120 anywhere
+             (a typical 30/60 fps laptop webcam) throws OverconstrainedError
+             — we catch that and retry with no floor so the session still
+             records at the camera's best rate rather than failing.
+
+             Audio is captured only on the FIRST selected camera so the
+             combined session has exactly one audio track. */
+          const baseVideo: MediaTrackConstraints = {
+            deviceId: { exact: id },
+            width:  { ideal: 1920 },
+            height: { ideal: 1080 },
+          };
+          const wantAudio = streamsRef.current.size === 0;
+          let stream: MediaStream;
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { ...baseVideo, frameRate: { min: 120, ideal: 240 } },
+              audio: wantAudio,
+            });
+          } catch (constraintErr: any) {
+            if (constraintErr?.name !== 'OverconstrainedError') throw constraintErr;
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { ...baseVideo, frameRate: { ideal: 240 } },
+              audio: wantAudio,
+            });
+          }
           if (cancelled) {
             stream.getTracks().forEach((t) => t.stop());
             return;
@@ -808,8 +827,10 @@ export default function LiveTrainingPage() {
       /* Kick off the 4-second display delay for this camera. The
          capture loop reads frames from the same `<video>` element
          the MediaRecorder is sourcing from, so the recording is
-         unaffected — only the on-screen preview lags. */
-      startDelayLoop(deviceId);
+         unaffected — only the on-screen preview lags.
+         Skipped on touch devices: the full-res ImageBitmap buffer is a
+         multi-GB memory bomb that crashes iOS Safari on record start. */
+      if (!isCoarsePointer) startDelayLoop(deviceId);
     }
 
     setRecordStartedAt(Date.now());
@@ -1286,7 +1307,10 @@ export default function LiveTrainingPage() {
                          4-second-old footage instead of the live
                          feed. The MediaRecorder still reads the
                          live <video> for the actual save. */
-                      data-recording={recording ? '1' : undefined}
+                      /* On touch devices the delayed-mirror buffer is
+                         skipped (memory), so keep showing the live feed
+                         instead of switching to the never-painted canvas. */
+                      data-recording={recording && !isCoarsePointer ? '1' : undefined}
                     >
                       <video
                         ref={(el) => {
