@@ -688,6 +688,11 @@ export async function getVideo(id: string) {
   return request<Video>(`/videos/${id}`);
 }
 
+/** Delete a video (COACH only). Annotations + voice-overs cascade server-side. */
+export async function deleteVideo(id: string): Promise<void> {
+  await request(`/videos/${id}`, { method: 'DELETE' });
+}
+
 /** Bunny TUS presign bundle returned by POST /videos/bunny-presign. */
 interface BunnyPresign {
   guid: string;

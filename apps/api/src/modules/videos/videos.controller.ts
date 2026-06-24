@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Query,
+  Controller, Get, Post, Patch, Delete, Param, Body, Query,
   UploadedFile, UseInterceptors, BadRequestException, ServiceUnavailableException, Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -443,6 +443,13 @@ export class VideosController {
     // A player may only open their own video; coaches may open any.
     assertPlayerOwnership(req, video.playerId);
     return video;
+  }
+
+  @Delete(':id')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Delete a video (COACH only) — annotations + voice-overs cascade' })
+  remove(@Param('id') id: string) {
+    return this.videosService.remove(id);
   }
 
   @Patch(':id/status')

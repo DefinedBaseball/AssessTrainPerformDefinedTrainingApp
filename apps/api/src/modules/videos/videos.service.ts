@@ -130,6 +130,20 @@ export class VideosService {
     return video;
   }
 
+  /**
+   * Delete a video record. Annotations + voice-overs cascade off the Video
+   * relation (schema `onDelete: Cascade`), and any AtBat / TrainingClip that
+   * referenced this clip is `SetNull`, so the row deletes cleanly without FK
+   * blocks. The underlying Bunny/S3/disk asset is intentionally left in place
+   * (orphaned) — removing the DB row is what drops it from every gallery.
+   */
+  async remove(id: string) {
+    const existing = await this.prisma.video.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('Video not found');
+    await this.prisma.video.delete({ where: { id } });
+    return { id, deleted: true };
+  }
+
   async updateStatus(id: string, status: 'PROCESSING' | 'READY' | 'FAILED', hlsUrl?: string) {
     return this.prisma.video.update({
       where: { id },

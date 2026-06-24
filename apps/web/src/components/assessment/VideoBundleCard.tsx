@@ -18,6 +18,15 @@ import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from
 import { VideoBundleModal, type AttachableReport } from './VideoBundleModal';
 import { getVideoCategoryColors } from '@/lib/training-colors';
 import { formatBubbleLabel, normalizeVideoTitle } from '@/lib/video-titles';
+import { useAuth } from '@/lib/auth-context';
+import * as api from '@/lib/api';
+
+/* Session-scoped tombstone of deleted video ids. The card hides itself the
+   instant a delete succeeds, but local state resets if the gallery remounts
+   (e.g. a profile tab switch) while the parent still holds the now-stale
+   list — so a remounted card checks this set and stays hidden until a real
+   refetch/reload (the server delete is the source of truth). */
+const deletedVideoIds = new Set<string>();
 
 export interface BundleVideo {
   id: string;
@@ -46,6 +55,10 @@ interface VideoBundleCardProps {
   subtitle?: string;
   /** When true, the top label bar is suppressed. */
   hideLabel?: boolean;
+  /** Fires after this bubble's video(s) are deleted, so a parent can resync
+   *  its own list/counts. Deletion already works without it (the card hides
+   *  itself + tombstones the ids), so it's optional. */
+  onDeleted?: () => void;
 }
 
 export function VideoBundleCard({
@@ -58,10 +71,17 @@ export function VideoBundleCard({
   reports,
   subtitle,
   hideLabel = false,
+  onDeleted,
 }: VideoBundleCardProps) {
   const [open, setOpen] = useState(false);
+  const { isCoach } = useAuth();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
 
   if (videos.length === 0) return null;
+  // Hidden once deleted (this mount) or tombstoned (a prior delete this session).
+  if (deleted || videos.every((v) => deletedVideoIds.has(v.id))) return null;
 
   const first = videos[0];
   const displayLabel = label || formatBubbleLabel({ title: first.title || '', category: first.category });
@@ -126,6 +146,23 @@ export function VideoBundleCard({
       document.body.appendChild(a);
       a.click();
       a.remove();
+    }
+  };
+
+  /* Delete this bubble's video(s). A bundle (multi-angle) deletes every angle
+     since the bubble is the unit. Tombstone the ids + hide immediately; the
+     server delete makes it permanent. */
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await Promise.all(videos.map((v) => api.deleteVideo(v.id)));
+      videos.forEach((v) => deletedVideoIds.add(v.id));
+      setDeleted(true);
+      onDeleted?.();
+    } catch {
+      window.alert('Could not delete the video. Please try again.');
+      setDeleting(false);
+      setConfirming(false);
     }
   };
 
@@ -197,6 +234,40 @@ export function VideoBundleCard({
           </button>
         )}
 
+        {/* Delete ✕ — very top-right (above the download button). COACH only.
+            Opens the inline confirm overlay below. stopPropagation so the
+            click doesn't open the playback modal. */}
+        {isCoach && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+            onKeyDown={(e) => e.stopPropagation()}
+            title="Delete video"
+            aria-label="Delete video"
+            style={{
+              position: 'absolute',
+              top: 5,
+              right: 5,
+              width: 22,
+              height: 22,
+              borderRadius: 7,
+              background: 'rgba(0,0,0,0.6)',
+              border: '1px solid rgba(255,255,255,0.5)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 4,
+              padding: 0,
+              fontSize: rem(13),
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        )}
+
         {/* Top black bar — video label (white). */}
         {!hideLabel && (
           <div
@@ -264,6 +335,67 @@ export function VideoBundleCard({
           </span>
           <span style={{ flexShrink: 0 }}>{count} {count === 1 ? 'video' : 'videos'}</span>
         </div>
+
+        {/* Inline delete confirmation — covers the bubble. stopPropagation on
+            the overlay + buttons so nothing reaches the card's open-modal click. */}
+        {confirming && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 5,
+              background: 'rgba(0,0,0,0.80)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: rem(10),
+              padding: rem(12),
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ color: '#ffffff', fontSize: rem(12 * s), fontWeight: 600, lineHeight: 1.3 }}>
+              Would you like to delete this video?
+            </span>
+            <div style={{ display: 'flex', gap: rem(8) }}>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={(e) => { e.stopPropagation(); void handleDelete(); }}
+                style={{
+                  padding: `${rem(5)} ${rem(16)}`,
+                  borderRadius: 6,
+                  border: '1px solid #dc2626',
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: rem(11 * s),
+                  cursor: deleting ? 'wait' : 'pointer',
+                }}
+              >
+                {deleting ? '…' : 'Yes'}
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
+                style={{
+                  padding: `${rem(5)} ${rem(16)}`,
+                  borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: rem(11 * s),
+                  cursor: 'pointer',
+                }}
+              >
+                No
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {open && (
