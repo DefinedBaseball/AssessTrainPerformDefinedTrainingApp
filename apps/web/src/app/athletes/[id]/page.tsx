@@ -605,7 +605,6 @@ export default function PlayerProfilePage() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 24,
                     flexWrap: 'wrap',
                   }}>
                   <h1 className={styles.megaName} style={{ margin: 0 }}>
@@ -659,27 +658,19 @@ export default function PlayerProfilePage() {
                       italic caption simply sit on the dark
                       command-deck surface behind, no surrounding
                       bubble. */}
-                  <div style={{
+                  <div className={styles.commitCol} style={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: 6,
                     flex: '0 0 auto',
                     opacity: committed ? 1 : 0.9,
-                    /* Padding tuned so the LOGO sits at the cluster's
-                       exact vertical center, which makes the player-
-                       name h1 to the LEFT (parent row uses
-                       `alignItems: 'center'`) line up perfectly with
-                       the logo's midline rather than with the cluster
-                       midpoint that previously sat above the logo
-                       because the caption skewed the average down.
-                       Math: paddingTop 30 + (logo 72)/2 = 66 from
-                       cluster top to logo center. To put the logo
-                       at cluster mid-height, paddingBottom must
-                       satisfy paddingTop = paddingBottom + gap +
-                       caption_height ⇒ 10 = 30 − 6 − 14. */
-                    paddingTop: 30,
-                    paddingBottom: 10,
+                    /* Vertical padding moved to `.commitCol` so a phone media
+                       query can collapse the big top inset — on desktop the
+                       commitment sits to the RIGHT of the name and the 30px
+                       top centers the logo on the name; on mobile the row
+                       wraps and that inset became dead space UNDER the name.
+                       Desktop keeps 30/10 (logo center = 30 + 72/2 = 66). */
                   }}>
                     <span style={{
                       display: 'inline-flex',

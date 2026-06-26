@@ -932,14 +932,27 @@
    the strip once it wraps to two lines on narrow windows — drop it there. */
 .nameRow {
   margin-top: -19px;
+  /* Gap between the name (left) and the commitment cluster (right) on
+     desktop; becomes the wrap row-gap once they stack on mobile. Moved off
+     the inline style so the phone rule below can tighten it. */
+  gap: 24px;
 }
 @media (max-width: 1250px) {
   .nameRow { margin-top: 0; }
+}
+/* College-commitment cluster vertical padding. Desktop 30/10 centers the
+   logo circle on the player name (it sits to the name's RIGHT). */
+.commitCol {
+  padding: 30px 0 10px;
 }
 /* Phones: the ≤1250 rule drops the pull to 0, leaving a large gap between
    the telemetry strip (player info) and the player name. Re-tighten ~65%
    of the desktop pull (-19 → -12) so the name sits close to the info row.
    Comes after the ≤1250 rule so it wins at phone widths. */
 @media (max-width: 768px) {
-  .nameRow { margin-top: -12px; }
+  .nameRow { margin-top: -12px; gap: 8px; }
+  /* On mobile the commitment cluster WRAPS below the name, so its 30px
+     desktop-centering top inset becomes dead space — collapse it (and the
+     8px wrap-gap above) so the commitment sits snug under the name. */
+  .commitCol { padding: 0 0 4px; }
 }
