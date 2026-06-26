@@ -672,22 +672,21 @@ export default function PlayerProfilePage() {
                        wraps and that inset became dead space UNDER the name.
                        Desktop keeps 30/10 (logo center = 30 + 72/2 = 66). */
                   }}>
-                    <span style={{
+                    <span
+                      className={`${styles.commitCircle}${commitLogoUrl ? ' ' + styles.commitCircleLogo : ''}`}
+                      style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      /* Logo holder — no longer carries the bubble
-                         chrome (background/border/shadow lifted up
-                         to the outer rectangle). Keeps `border-radius:
-                         50%` + `overflow: hidden` so the rendered
-                         image is still clipped to a circle inside
-                         the surrounding rectangle. */
-                      width: 72,
-                      height: 72,
+                      /* Size (72px) + padding moved to `.commitCircle` so the
+                         phone media query can shrink the badge to 40px — that
+                         halves the height it adds under the player name once
+                         the commitment wraps below the name on mobile. Keeps
+                         `border-radius:50%` + `overflow:hidden` so the logo
+                         image is still clipped to a circle. */
                       borderRadius: '50%',
                       color: committed ? '#0E1116' : 'var(--text-muted)',
                       flex: '0 0 auto',
-                      padding: commitLogoUrl ? 0 : 6,
                       textAlign: 'center',
                       overflow: 'hidden',
                     }} aria-hidden="true">
@@ -717,7 +716,7 @@ export default function PlayerProfilePage() {
                            <img> branch above. Glyph trimmed 47 → 38 →
                            34 (another 10 % smaller) in step with the
                            circle. */
-                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none"
+                        <svg className={styles.commitGlyph} width="34" height="34" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" strokeWidth="2"
                              strokeLinecap="round" strokeLinejoin="round">
                           <path d="M22 10L12 5 2 10l10 5 10-5z" />
@@ -729,7 +728,7 @@ export default function PlayerProfilePage() {
                            commitment on file. Rendered small + muted
                            grey so the badge stays visually subdued
                            (a player with no commit shouldn't shout). */
-                        <span style={{
+                        <span className={styles.uncommittedLabel} style={{
                           fontSize: rem(7),
                           fontWeight: 600,
                           letterSpacing: '0.06em',

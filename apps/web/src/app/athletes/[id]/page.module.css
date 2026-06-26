@@ -945,6 +945,15 @@
 .commitCol {
   padding: 30px 0 10px;
 }
+/* Commitment badge (logo / glyph / "Uncommitted") circle. Size + padding
+   live here so the phone media query can shrink it. */
+.commitCircle {
+  width: 72px;
+  height: 72px;
+  padding: 6px;
+}
+.commitCircleLogo { padding: 0; } /* uploaded logos sit flush to the edge */
+.uncommittedLabel { max-width: 100%; }
 /* Phones: the ≤1250 rule drops the pull to 0, leaving a large gap between
    the telemetry strip (player info) and the player name. Re-tighten ~65%
    of the desktop pull (-19 → -12) so the name sits close to the info row.
@@ -955,4 +964,14 @@
      desktop-centering top inset becomes dead space — collapse it (and the
      8px wrap-gap above) so the commitment sits snug under the name. */
   .commitCol { padding: 0 0 4px; }
+  /* Halve the badge on phones (72 → 40) so it stops adding so much height
+     under the name. Logos auto-fit (img is 100%); the cap glyph + the
+     "Uncommitted" label shrink/wrap to suit below. */
+  .commitCircle { width: 40px; height: 40px; padding: 3px; }
+  .commitCircleLogo { padding: 0; }
+  /* "Uncommitted" sits INSIDE the badge — let it break mid-word so it
+     re-flows to fit the smaller circle instead of being clipped. */
+  .uncommittedLabel { overflow-wrap: anywhere; word-break: break-word; }
+  /* Shrink the placeholder graduation-cap glyph in step with the badge. */
+  .commitGlyph { width: 22px; height: 22px; }
 }
