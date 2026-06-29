@@ -78,6 +78,41 @@ async function main() {
     console.log(`[seed.prod] drill library already populated (${drillCount} rows) — skipped`);
   }
 
+  // 3. Give Pitching / Catching / Infield / Outfield the same "Movement Prep"
+  //    warm-up library that Hitting has. Copies each Hitting Movement Prep
+  //    drill (name + demo video + description) into those tabs. Guarded PER
+  //    TAB: only runs while a tab has ZERO Movement Prep drills, so it
+  //    populates them once and then leaves coach customisations alone on later
+  //    deploys (no zombie re-adds of anything a coach deletes).
+  const MP_CATEGORY = 'Movement Prep';
+  const MIRROR_TABS = ['pitching', 'catching', 'infield', 'outfield'];
+  const hittingMovementPrep = await prisma.drill.findMany({
+    where: { tab: 'hitting', category: MP_CATEGORY },
+  });
+  if (hittingMovementPrep.length > 0) {
+    for (const tab of MIRROR_TABS) {
+      const have = await prisma.drill.count({ where: { tab, category: MP_CATEGORY } });
+      if (have > 0) {
+        console.log(`[seed.prod] ${tab} Movement Prep already has ${have} drills — skipped`);
+        continue;
+      }
+      await prisma.drill.createMany({
+        data: hittingMovementPrep.map((d) => ({
+          name: d.name,
+          tab,
+          category: MP_CATEGORY,
+          description: d.description ?? null,
+          videoUrl: d.videoUrl ?? null,
+          duration: d.duration ?? null,
+          tags: d.tags ?? null,
+        })),
+      });
+      console.log(`[seed.prod] backfilled ${hittingMovementPrep.length} Movement Prep drills into ${tab}`);
+    }
+  } else {
+    console.log('[seed.prod] no Hitting Movement Prep drills found — Movement Prep mirror skipped');
+  }
+
   console.log('[seed.prod] done.');
 }
 
