@@ -592,6 +592,77 @@
   transform: translateY(-50%);
 }
 
+/* ── Coach drag-to-reorder grips (calendar) ──
+   Both handles are taken out of flow (absolute) so the centered drill names
+   and section labels stay centered, mirroring the absolute delete button.
+   Section grip → card top-left; drill grip → row left. Coach-only. */
+.dayFocusCardItem { position: relative; }
+.calSecHandle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.5;
+  border-radius: 4px;
+  transition: opacity 0.12s, background 0.12s;
+}
+.calSecHandle:hover { opacity: 1; background: rgba(255, 255, 255, 0.10); }
+[data-theme="light"] .calSecHandle:hover { background: rgba(0, 0, 0, 0.07); }
+.calSecHandle:active { cursor: grabbing; }
+
+.calRowHandle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.45;
+  border-radius: 4px;
+  transition: opacity 0.12s, background 0.12s;
+}
+.calRowHandle:hover { opacity: 1; background: rgba(255, 255, 255, 0.10); }
+[data-theme="light"] .calRowHandle:hover { background: rgba(0, 0, 0, 0.07); }
+.calRowHandle:active { cursor: grabbing; }
+
+/* Drag ghost (DragOverlay) — floats unclipped with the cursor. */
+.calGhostDrill,
+.calGhostSection {
+  display: inline-flex;
+  align-items: center;
+  max-width: 240px;
+  padding: 7px 12px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border-light, var(--border));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  color: var(--text-bright, var(--text));
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grabbing;
+  pointer-events: none;
+}
+.calGhostSection { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; font-weight: 800; }
+
 .dayColCardItemName {
   font-size: 11.5px;
   font-weight: 600;

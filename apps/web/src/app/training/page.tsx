@@ -17,6 +17,159 @@ import {
   LEGEND_CATEGORIES, getTabCatStyle,
 } from '@/lib/training-colors';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+  type CollisionDetection,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { moveDrillWithinSection, moveSection } from '@/lib/scheduleReorder';
+
+/* Grip glyph for the coach drag handles (matches the Program board). */
+const CalGrip = ({ size = 13 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <circle cx="5.5" cy="3.5" r="1.4" /><circle cx="10.5" cy="3.5" r="1.4" />
+    <circle cx="5.5" cy="8" r="1.4" /><circle cx="10.5" cy="8" r="1.4" />
+    <circle cx="5.5" cy="12.5" r="1.4" /><circle cx="10.5" cy="12.5" r="1.4" />
+  </svg>
+);
+
+/* Type-scoped collision (same fix proven on the Program board): while
+   dragging a drill, only match other drills (fall back to sections only for
+   empty-section drops); while dragging a section, only match sections. Stops
+   the big section card from stealing the drop and snapping drills to an edge. */
+const calReorderCollision: CollisionDetection = (args) => {
+  const t = args.active.data.current?.type;
+  const byType = (...types: string[]) =>
+    args.droppableContainers.filter((d) => types.includes(d.data.current?.type as string));
+  if (t === 'section') {
+    return closestCenter({ ...args, droppableContainers: byType('section') });
+  }
+  const drillHits = closestCenter({ ...args, droppableContainers: byType('drill') });
+  if (drillHits.length > 0) return drillHits;
+  return closestCenter({ ...args, droppableContainers: byType('section') });
+};
+
+/* One draggable SECTION card. Renders the card chrome + a grip; the caller
+   supplies the header/list markup via children-as-function so the focused and
+   multi-column views can keep their own classes. Drag disabled for players. */
+function CalSortableSection({
+  id, tab, category, disabled, cardClass, bgStyle, children,
+}: {
+  id: string;
+  tab: string;
+  category: string;
+  disabled: boolean;
+  cardClass: string;
+  bgStyle: React.CSSProperties;
+  children: (grip: React.ReactNode) => React.ReactNode;
+}) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
+  } = useSortable({ id, data: { type: 'section', tab, category }, disabled });
+  const grip = disabled ? null : (
+    <button
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      type="button"
+      className={styles.calSecHandle}
+      onClick={(e) => e.stopPropagation()}
+      title="Drag to reorder this section"
+      aria-label="Drag to reorder this section"
+      style={{ touchAction: 'none', cursor: 'grab' }}
+    >
+      <CalGrip />
+    </button>
+  );
+  return (
+    <div
+      ref={setNodeRef}
+      className={cardClass}
+      style={{
+        ...bgStyle,
+        position: 'relative',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.55 : undefined,
+        zIndex: isDragging ? 6 : undefined,
+      }}
+    >
+      {children(grip)}
+    </div>
+  );
+}
+
+/* One draggable DRILL row (grip + name + delete). Tap still opens the drill
+   video. Drag disabled for players. */
+function CalSortableDrill({
+  id, tab, category, disabled, rowClass, nameClass, name, onRowClick, onDelete, isCoach,
+}: {
+  id: string;
+  tab: string;
+  category: string;
+  disabled: boolean;
+  rowClass: string;
+  nameClass: string;
+  name: string;
+  onRowClick?: () => void;
+  onDelete: () => void;
+  isCoach: boolean;
+}) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
+  } = useSortable({ id, data: { type: 'drill', tab, category }, disabled });
+  return (
+    <div
+      ref={setNodeRef}
+      className={rowClass}
+      onClick={onRowClick}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.55 : undefined,
+        zIndex: isDragging ? 6 : undefined,
+      }}
+    >
+      {isCoach && (
+        <button
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          type="button"
+          className={styles.calRowHandle}
+          onClick={(e) => e.stopPropagation()}
+          title="Drag to reorder"
+          aria-label="Drag to reorder"
+          style={{ touchAction: 'none', cursor: 'grab' }}
+        >
+          <CalGrip size={12} />
+        </button>
+      )}
+      <span className={nameClass}>{name}</span>
+      {isCoach && (
+        <button
+          className={styles.dayEventDelete}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          title="Delete"
+        >×</button>
+      )}
+    </div>
+  );
+}
 
 /* ── Constants ──
    The full tab catalog. Visibility on the calendar is filtered per-athlete
@@ -314,6 +467,19 @@ export default function TrainingPage() {
       setEvents(prev => prev.filter(e => e.id !== id));
     } catch { /* ignore */ }
   }, []);
+
+  /* Coach drag-reorder: optimistically merge the updated rows into `events`
+     (board reflects the new order instantly), then persist the position
+     payload; resync from the server on failure. */
+  const applyReorder = useCallback(async (
+    updatedRows: ScheduledDrill[],
+    payload: { id: string; order?: number; sectionOrder?: number }[],
+  ) => {
+    const map = new Map(updatedRows.map(r => [r.id, r]));
+    setEvents(prev => prev.map(e => map.get(e.id) ?? e));
+    try { await api.reorderScheduledDrills(payload); }
+    catch (err) { console.error('Calendar reorder failed', err); refreshEvents(); }
+  }, [refreshEvents]);
 
   // Open add modal (fresh)
   const openAddModal = (date?: string) => {
@@ -644,6 +810,7 @@ export default function TrainingPage() {
           copiedFromDate={copiedDate}
           onDrillClick={(drill) => setViewingDrill(drill)}
           visibleTabs={visibleTabs}
+          onReorder={applyReorder}
         />
       )}
 
@@ -884,6 +1051,7 @@ function DayView({
   copiedFromDate,
   onDrillClick,
   visibleTabs,
+  onReorder,
 }: {
   currentDate: Date;
   allDayEvents: ScheduledDrill[];
@@ -902,6 +1070,8 @@ function DayView({
   onDrillClick: (drill: Drill) => void;
   /** Position-aware tabs from the parent — drives the day grid columns. */
   visibleTabs: typeof TABS;
+  /** Coach drag-reorder: optimistically apply updated rows, then persist. */
+  onReorder: (updatedRows: ScheduledDrill[], payload: { id: string; order?: number; sectionOrder?: number }[]) => void;
 }) {
   const dateLabel = currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -936,7 +1106,17 @@ function DayView({
       arr.push(ev);
       buckets.set(key, arr);
     }
-    return Array.from(buckets.entries()).sort(([a], [b]) => {
+    // Drill order within a section: coach `order`, then time (all-0 = time).
+    for (const arr of buckets.values()) {
+      arr.sort((a, b) => a.order - b.order || parseTime(a.time) - parseTime(b.time));
+    }
+    // Section order: coach `sectionOrder` first (shared by a section's drills),
+    // then the canonical Movement Prep→…→Live order as the tiebreak — so an
+    // un-reordered day (all 0) reads exactly as it did before.
+    return Array.from(buckets.entries()).sort(([a, aItems], [b, bItems]) => {
+      const aso = aItems[0]?.sectionOrder ?? 0;
+      const bso = bItems[0]?.sectionOrder ?? 0;
+      if (aso !== bso) return aso - bso;
       const ai = canonical.indexOf(a);
       const bi = canonical.indexOf(b);
       if (ai === -1 && bi === -1) return a.localeCompare(b);
@@ -956,8 +1136,55 @@ function DayView({
    * new area via Edit; its column appears once that area has a drill. */
   const populatedTabs = visibleTabs.filter((t) => (eventsByTab[t.key] || []).length > 0);
 
+  /* ── Coach drag-to-reorder (dnd-kit) — same engine as the Program board.
+     Reorder is constrained to within a single sport/tab: drills move within
+     their section, sections move within their tab. No cross-tab moves. */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const [dragLabel, setDragLabel] = useState<{ type: 'drill' | 'section'; label: string } | null>(null);
+
+  const handleDragStart = (e: DragStartEvent) => {
+    const d = e.active.data.current as { type?: string; tab?: string; category?: string } | undefined;
+    if (d?.type === 'drill') {
+      const name = (eventsByTab[d.tab || ''] || []).find((x) => x.id === e.active.id)?.name || 'Drill';
+      setDragLabel({ type: 'drill', label: name });
+    } else if (d?.type === 'section') {
+      setDragLabel({ type: 'section', label: d.category || 'Section' });
+    }
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    setDragLabel(null);
+    const { active, over } = e;
+    if (!over) return;
+    const a = active.data.current as { type?: string; tab?: string; category?: string } | undefined;
+    const o = over.data.current as { type?: string; tab?: string; category?: string } | undefined;
+    if (!a?.type || !a.tab || !o?.tab || o.tab !== a.tab) return; // same sport only
+
+    if (a.type === 'section') {
+      if (!o.category || o.category === a.category) return;
+      const { rows, payload } = moveSection(eventsByTab[a.tab] || [], a.category!, o.category);
+      if (payload.length) onReorder(rows, payload);
+      return;
+    }
+    // drill — reorder within its own section only
+    if (o.category !== a.category || active.id === over.id) return;
+    const overDrillId = o.type === 'drill' ? String(over.id) : null;
+    const { rows, payload } = moveDrillWithinSection(eventsByTab[a.tab] || [], a.category!, String(active.id), overDrillId);
+    if (payload.length) onReorder(rows, payload);
+  };
+
   return (
     <div className={styles.dayView}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={calReorderCollision}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setDragLabel(null)}
+      >
       {/* Header with date + action buttons */}
       <div className={styles.dayViewHeader}>
         <div className={styles.dayViewHeadLeft}>
@@ -1043,43 +1270,58 @@ function DayView({
                  Live / etc.) — same grouping logic as the multi-column
                  view. Inside each bubble: list of drill names, each
                  individually clickable + deletable. */
-              groupByCategory(focusedEvents, focusedTabMeta.key).map(([category, items]) => {
+              <SortableContext
+                items={groupByCategory(focusedEvents, focusedTabMeta.key).map(([c]) => `sec:${focusedTabMeta.key}:${c}`)}
+                strategy={verticalListSortingStrategy}
+              >
+              {groupByCategory(focusedEvents, focusedTabMeta.key).map(([category, items]) => {
                 const catStyle = getTabCatStyle(focusedTabMeta.key, category);
                 return (
-                  <div
+                  <CalSortableSection
                     key={category}
-                    className={styles.dayFocusCard}
-                    style={catStyle.bgStyle}
+                    id={`sec:${focusedTabMeta.key}:${category}`}
+                    tab={focusedTabMeta.key}
+                    category={category}
+                    disabled={!isCoach}
+                    cardClass={styles.dayFocusCard}
+                    bgStyle={catStyle.bgStyle}
                   >
-                    <div className={styles.dayFocusCardTop}>
-                      <span className={styles.dayColCardCat} style={catStyle.textStyle}>
-                        {category}
-                      </span>
-                      <span className={styles.dayFocusBubbleCount} style={catStyle.textStyle}>
-                        {items.length}
-                      </span>
-                    </div>
-                    <div className={styles.dayFocusCardList}>
-                      {items.map((ev) => (
-                        <div
-                          key={ev.id}
-                          className={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
-                          onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
-                        >
-                          <span className={styles.dayFocusCardItemName}>{ev.name}</span>
-                          {isCoach && (
-                            <button
-                              className={styles.dayEventDelete}
-                              onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
-                              title="Delete"
-                            >×</button>
-                          )}
+                    {(grip) => (
+                      <>
+                        <div className={styles.dayFocusCardTop}>
+                          {grip}
+                          <span className={styles.dayColCardCat} style={catStyle.textStyle}>
+                            {category}
+                          </span>
+                          <span className={styles.dayFocusBubbleCount} style={catStyle.textStyle}>
+                            {items.length}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div className={styles.dayFocusCardList}>
+                          <SortableContext items={items.map((ev) => ev.id)} strategy={verticalListSortingStrategy}>
+                            {items.map((ev) => (
+                              <CalSortableDrill
+                                key={ev.id}
+                                id={ev.id}
+                                tab={focusedTabMeta.key}
+                                category={category}
+                                disabled={!isCoach}
+                                rowClass={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                nameClass={styles.dayFocusCardItemName}
+                                name={ev.name}
+                                onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                onDelete={() => onDelete(ev.id)}
+                                isCoach={isCoach}
+                              />
+                            ))}
+                          </SortableContext>
+                        </div>
+                      </>
+                    )}
+                  </CalSortableSection>
                 );
-              })
+              })}
+              </SortableContext>
             )}
           </div>
         </div>
@@ -1177,44 +1419,67 @@ function DayView({
                       (Movement Prep / Drills / Bullpen / Live / ...). Drill
                       names list inside the bubble; click any name to open
                       the per-drill modal, × to delete that one entry. */}
+                  <SortableContext
+                    items={groupByCategory(tabEvents, tab.key).map(([c]) => `sec:${tab.key}:${c}`)}
+                    strategy={verticalListSortingStrategy}
+                  >
                   {groupByCategory(tabEvents, tab.key).map(([category, items]) => {
                     const catStyle = getTabCatStyle(tab.key, category);
                     return (
-                      <div
+                      <CalSortableSection
                         key={category}
-                        className={styles.dayColCard}
-                        style={catStyle.bgStyle}
+                        id={`sec:${tab.key}:${category}`}
+                        tab={tab.key}
+                        category={category}
+                        disabled={!isCoach}
+                        cardClass={styles.dayColCard}
+                        bgStyle={catStyle.bgStyle}
                       >
-                        <div className={styles.dayColCardTop}>
-                          <span className={styles.dayColCardCat} style={catStyle.textStyle}>{category}</span>
-                        </div>
-                        <div className={styles.dayColCardList}>
-                          {items.map((ev) => (
-                            <div
-                              key={ev.id}
-                              className={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
-                              onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
-                            >
-                              <span className={styles.dayColCardItemName}>{ev.name}</span>
-                              {isCoach && (
-                                <button
-                                  className={styles.dayEventDelete}
-                                  onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
-                                  title="Delete"
-                                >×</button>
-                              )}
+                        {(grip) => (
+                          <>
+                            <div className={styles.dayColCardTop}>
+                              {grip}
+                              <span className={styles.dayColCardCat} style={catStyle.textStyle}>{category}</span>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                            <div className={styles.dayColCardList}>
+                              <SortableContext items={items.map((ev) => ev.id)} strategy={verticalListSortingStrategy}>
+                                {items.map((ev) => (
+                                  <CalSortableDrill
+                                    key={ev.id}
+                                    id={ev.id}
+                                    tab={tab.key}
+                                    category={category}
+                                    disabled={!isCoach}
+                                    rowClass={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                    nameClass={styles.dayColCardItemName}
+                                    name={ev.name}
+                                    onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                    onDelete={() => onDelete(ev.id)}
+                                    isCoach={isCoach}
+                                  />
+                                ))}
+                              </SortableContext>
+                            </div>
+                          </>
+                        )}
+                      </CalSortableSection>
                     );
                   })}
+                  </SortableContext>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+      <DragOverlay>
+        {dragLabel ? (
+          <div className={dragLabel.type === 'section' ? styles.calGhostSection : styles.calGhostDrill}>
+            {dragLabel.label}
+          </div>
+        ) : null}
+      </DragOverlay>
+      </DndContext>
     </div>
   );
 }
