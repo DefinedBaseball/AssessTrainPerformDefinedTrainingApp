@@ -981,6 +981,13 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
           {filtered.map((p: MlbPlayer) => {
             const mainPos = p.positions.split(',')[0];
             const posColor = mainPos === 'Pitcher' ? 'var(--red)' : mainPos === 'Catcher' ? 'var(--gold)' : 'var(--accent)';
+            /* No cover photo yet → fall back to the first playable video's
+               first frame as the placeholder (the videos list is ordered
+               newest-first, so this matches the first clip the user sees in
+               that player's videos section). Replaced once a coach uploads. */
+            const fallbackVideoUrl = !p.coverImageUrl
+              ? (p.videos || []).find((v: MlbVideo) => v.url)?.url
+              : undefined;
             return (
               <div key={p.id} className={styles.playerCard} onClick={() => goToPlayer(p.id)} style={{ cursor: 'pointer', position: 'relative' }}>
                 <div
@@ -999,6 +1006,15 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                   title={isCoach ? (p.coverImageUrl ? 'Click to replace cover photo' : 'Click to upload cover photo') : undefined}
                   onClick={isCoach ? (e) => { e.stopPropagation(); handleThumbClick(p.id); } : undefined}
                 >
+                  {fallbackVideoUrl && (
+                    <video
+                      src={`${fallbackVideoUrl}#t=0.1`}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                    />
+                  )}
                   <span className={styles.playerPosBadge} style={{ background: `${posColor}22`, color: posColor, border: `1px solid ${posColor}44` }}>{mainPos}</span>
                 </div>
                 <div className={styles.playerInfo}>
@@ -1282,6 +1298,13 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
     return (player.videos || []).filter((v: MlbVideo) => filter === 'all' || v.category === filter);
   }, [player, filter]);
 
+  /* Same cover-photo fallback as the grid card: until a real photo is
+     uploaded, use the first playable video's first frame (videos are
+     createdAt-desc, so this is the first clip in the videos section). */
+  const fallbackVideoUrl = !player.coverImageUrl
+    ? (player.videos || []).find((v: MlbVideo) => v.url)?.url
+    : undefined;
+
   const handleDeleteVideo = async (id: string) => {
     if (!window.confirm('Delete this video?')) return;
     await api.deleteMlbVideo(id);
@@ -1310,10 +1333,20 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
              handler. */
           style={player.coverImageUrl
             ? { backgroundImage: `url(${player.coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', cursor: isCoach ? 'pointer' : 'default' }
-            : { cursor: isCoach ? 'pointer' : 'default' }}
+            : { cursor: isCoach ? 'pointer' : 'default', overflow: 'hidden' }}
           title={isCoach ? (player.coverImageUrl ? 'Click to replace cover photo' : 'Click to upload cover photo') : undefined}
           onClick={isCoach ? handleAvatarClick : undefined}
-        />
+        >
+          {fallbackVideoUrl && (
+            <video
+              src={`${fallbackVideoUrl}#t=0.1`}
+              preload="metadata"
+              muted
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', pointerEvents: 'none' }}
+            />
+          )}
+        </div>
         {/* Hidden file input mirrors the grid-card upload flow but
             only ever targets THIS player. */}
         <input

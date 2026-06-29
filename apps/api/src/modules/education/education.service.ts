@@ -41,7 +41,10 @@ export class EducationService {
     const players = await this.prisma.mlbPlayer.findMany({
       // title + url included so the Compare picker (Video Bundle modal)
       // can browse & play MLB clips straight from the players list.
-      include: { videos: { select: { id: true, title: true, category: true, url: true } } },
+      // Ordered newest-first to match the player detail page (getMlbPlayer
+      // uses createdAt desc), so the card's cover-photo fallback shows the
+      // SAME "first video" the user sees in that player's videos section.
+      include: { videos: { select: { id: true, title: true, category: true, url: true }, orderBy: { createdAt: 'desc' } } },
       orderBy: { name: 'asc' },
     });
     return players.filter(p => {
