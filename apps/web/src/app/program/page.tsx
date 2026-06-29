@@ -31,6 +31,7 @@ import {
   closestCenter,
   type DragEndEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -51,6 +52,27 @@ const GripIcon = ({ size = 14 }: { size?: number }) => (
     <circle cx="5.5" cy="12.5" r="1.4" /><circle cx="10.5" cy="12.5" r="1.4" />
   </svg>
 );
+
+/* Custom collision detection for the nested board. With plain closestCenter,
+   a dragged DRILL competes against the big section + column droppables, so the
+   "over" target keeps snapping to a section edge (drill jumps to top/bottom)
+   instead of the neighbour drill. Fix: while dragging a drill, only consider
+   OTHER DRILLS; fall back to sections/columns only when no drill is under the
+   pointer (empty section, or dropping onto another athlete's column). While
+   dragging a section, only consider sections. */
+const reorderCollision: CollisionDetection = (args) => {
+  const activeType = args.active.data.current?.type;
+  const byType = (...types: string[]) =>
+    args.droppableContainers.filter((d) => types.includes(d.data.current?.type as string));
+
+  if (activeType === 'section') {
+    return closestCenter({ ...args, droppableContainers: byType('section') });
+  }
+  // drill
+  const drillHits = closestCenter({ ...args, droppableContainers: byType('drill') });
+  if (drillHits.length > 0) return drillHits;
+  return closestCenter({ ...args, droppableContainers: byType('section', 'column') });
+};
 
 /* ── Position groups (mirrors the Training calendar's helper) ── */
 const HITTER_POSITIONS  = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'INF', 'UTIL'];
@@ -1403,7 +1425,7 @@ export default function ProgramPage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={reorderCollision}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveOverlay(null)}
