@@ -1648,10 +1648,27 @@ function DrillDashboardModal({
   const drillsByDropdown = useMemo(() => {
     const map: Record<string, Drill[]> = {};
     for (const dd of modalCategories) {
-      map[dd.key] = tabDrills.filter(d => d.category === dd.dbCategory);
+      if (dd.dbCategory === 'Movement Prep') {
+        // Movement Prep is a SHARED warm-up library across every sport: each
+        // tab's Movement Prep picker shows ALL Movement Prep drills (deduped
+        // by name) regardless of which tab they were created under. So the
+        // drills built under Hitting's Movement Prep are also selectable for
+        // Pitching / Infield / Outfield / Catching — videos included, no
+        // duplicated rows. Other categories stay tab-specific.
+        const seen = new Set<string>();
+        map[dd.key] = allDrills.filter(d => {
+          if (d.category !== 'Movement Prep') return false;
+          const key = d.name.trim().toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      } else {
+        map[dd.key] = tabDrills.filter(d => d.category === dd.dbCategory);
+      }
     }
     return map;
-  }, [tabDrills, modalCategories]);
+  }, [tabDrills, allDrills, modalCategories]);
 
   // Per-tab badge counts = sum of that tab's dropdown-section selections.
   const countsPerTab = useMemo(() => {
