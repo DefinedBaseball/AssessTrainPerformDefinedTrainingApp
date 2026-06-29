@@ -470,6 +470,15 @@ model ScheduledDrill {
   time      String   // "HH:MM"
   duration  Int      // minutes
   notes     String?
+  // Coach drag-to-reorder positions. Both default 0 so existing rows and
+  // newly-created drills render exactly as before (the surfaces' time /
+  // canonical-category sorts act as the tiebreak) — explicit values only
+  // take over once a coach drags. `order` = this drill's rank WITHIN its
+  // section (player+date+tab+category). `sectionOrder` = the rank of this
+  // drill's SECTION among the day's sections (shared by every drill in the
+  // same section). See training.service.reorderScheduledDrills.
+  order        Int   @default(0)
+  sectionOrder Int   @default(0)
   createdAt DateTime @default(now())
 
   @@index([playerId, tab, date])

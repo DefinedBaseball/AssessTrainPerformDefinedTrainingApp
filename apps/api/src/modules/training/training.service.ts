@@ -113,7 +113,9 @@ export class TrainingService {
     return this.prisma.scheduledDrill.findMany({
       where,
       include: { drill: true },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      // sectionOrder + order carry coach drag-reorder; both default 0 so an
+      // un-reordered day still falls back to time order (matches old output).
+      orderBy: [{ date: 'asc' }, { sectionOrder: 'asc' }, { order: 'asc' }, { time: 'asc' }],
     });
   }
 
@@ -127,7 +129,7 @@ export class TrainingService {
     return this.prisma.scheduledDrill.findMany({
       where,
       include: { drill: true },
-      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      orderBy: [{ date: 'asc' }, { sectionOrder: 'asc' }, { order: 'asc' }, { time: 'asc' }],
     });
   }
 
@@ -204,12 +206,45 @@ export class TrainingService {
     time?: string;
     duration?: number;
     notes?: string | null;
+    order?: number;
+    sectionOrder?: number;
   }) {
     return this.prisma.scheduledDrill.update({
       where: { id },
       data,
       include: { drill: true },
     });
+  }
+
+  /**
+   * Coach drag-to-reorder. Persists new `order` (drill rank within its
+   * section) and `sectionOrder` (the section's rank) for a set of drills in
+   * one transaction. May also carry `playerId` / `category` so the same call
+   * covers a cross-athlete reassign on the /program board (drop a drill onto
+   * another athlete's column). Each item only writes the fields it provides.
+   */
+  async reorderScheduledDrills(items: {
+    id: string;
+    order?: number;
+    sectionOrder?: number;
+    playerId?: string;
+    category?: string;
+  }[]) {
+    if (!items?.length) return { updated: 0 };
+    await this.prisma.$transaction(
+      items.map((it) =>
+        this.prisma.scheduledDrill.update({
+          where: { id: it.id },
+          data: {
+            ...(it.order !== undefined ? { order: it.order } : {}),
+            ...(it.sectionOrder !== undefined ? { sectionOrder: it.sectionOrder } : {}),
+            ...(it.playerId !== undefined ? { playerId: it.playerId } : {}),
+            ...(it.category !== undefined ? { category: it.category } : {}),
+          },
+        }),
+      ),
+    );
+    return { updated: items.length };
   }
 
   async deleteScheduledDrill(id: string) {

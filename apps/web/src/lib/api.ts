@@ -958,6 +958,9 @@ export interface ScheduledDrill {
   time: string;
   duration: number;
   notes: string | null;
+  // Coach drag-reorder positions (default 0 = fall back to time/canonical order).
+  order: number;
+  sectionOrder: number;
   createdAt: string;
   drill: Drill | null;
 }
@@ -1002,6 +1005,21 @@ export async function createScheduledDrillsBatch(items: {
 
 export async function updateScheduledDrill(id: string, data: Partial<ScheduledDrill>) {
   return request<ScheduledDrill>(`/training/schedule/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+/** Coach drag-reorder: persist new section/drill positions (and optional
+ *  cross-athlete reassign) for many drills in one PATCH. */
+export async function reorderScheduledDrills(items: {
+  id: string;
+  order?: number;
+  sectionOrder?: number;
+  playerId?: string;
+  category?: string;
+}[]) {
+  return request<{ updated: number }>('/training/schedule/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  });
 }
 
 export async function deleteScheduledDrill(id: string) {

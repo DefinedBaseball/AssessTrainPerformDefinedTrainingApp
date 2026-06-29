@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrainingService } from './training.service';
@@ -51,6 +51,20 @@ class UpdateScheduledDrillDto {
   time?: string;
   duration?: number;
   notes?: string | null;
+  order?: number;
+  sectionOrder?: number;
+}
+
+// Coach drag-to-reorder payload. One PATCH carries new positions (and an
+// optional reassign) for many drills at once. See reorderScheduledDrills.
+class ReorderScheduledDrillsDto {
+  items!: {
+    id: string;
+    order?: number;
+    sectionOrder?: number;
+    playerId?: string;
+    category?: string;
+  }[];
 }
 
 // Legacy DTOs
@@ -206,6 +220,14 @@ export class TrainingController {
   @ApiOperation({ summary: 'Schedule multiple drills at once (COACH only)' })
   createScheduledDrillsBatch(@Body() dto: { items: CreateScheduledDrillDto[] }) {
     return this.trainingService.createScheduledDrillsBatch(dto.items);
+  }
+
+  // PATCH (not /:id) so it never collides with the PUT schedule/:id route.
+  @Patch('schedule/reorder')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Drag-reorder scheduled drills / sections (COACH only)' })
+  reorderScheduledDrills(@Body() dto: ReorderScheduledDrillsDto) {
+    return this.trainingService.reorderScheduledDrills(dto.items);
   }
 
   @Put('schedule/:id')
