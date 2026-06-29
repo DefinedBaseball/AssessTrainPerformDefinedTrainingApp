@@ -494,6 +494,80 @@
   background: rgba(0, 0, 0, 0.07);
 }
 
+/* ── Coach drag-to-reorder grips ──
+   Section grip is absolutely positioned at the bubble's top-left so it never
+   pushes the centered category label off-center. Drill grip sits in-flow on
+   the row's left, mirroring the ✎ width so the name stays centered. Both stay
+   subtle until hover. */
+.sectionDragHandle {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.45;
+  border-radius: 5px;
+  z-index: 2;
+  transition: opacity 0.12s, background 0.12s;
+}
+.sectionDragHandle:hover { opacity: 1; background: rgba(255, 255, 255, 0.10); }
+[data-theme="light"] .sectionDragHandle:hover { background: rgba(0, 0, 0, 0.07); }
+.sectionDragHandle:active { cursor: grabbing; }
+
+.drillDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.4;
+  border-radius: 5px;
+  transition: opacity 0.12s, background 0.12s;
+}
+.drillDragHandle:hover { opacity: 1; background: rgba(255, 255, 255, 0.10); }
+[data-theme="light"] .drillDragHandle:hover { background: rgba(0, 0, 0, 0.07); }
+.drillDragHandle:active { cursor: grabbing; }
+
+/* ── Drag ghost (DragOverlay) ──
+   A floating label that follows the cursor while dragging, rendered in a
+   portal so `.athleteCard { overflow: hidden }` can't clip it when moving a
+   drill across columns. Just a clean chip — not a pixel clone of the row. */
+.dragGhostDrill,
+.dragGhostSection {
+  display: inline-flex;
+  align-items: center;
+  max-width: 240px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  color: var(--text-bright);
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grabbing;
+  pointer-events: none;
+}
+.dragGhostSection {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 /* ── Coach "Next Steps" note ──
    Read-only copy of the player's Player Summary → Tool Grades note for the
    active section, pinned at the bottom of the column under the day's drills. */

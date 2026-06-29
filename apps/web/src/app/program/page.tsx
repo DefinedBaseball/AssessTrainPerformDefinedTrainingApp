@@ -20,6 +20,37 @@ import type { Player, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { sortScheduled, moveDrillWithinSection, moveSection } from '@/lib/scheduleReorder';
+
+/* A small grip glyph used as the drag handle for coach reorder. The handle —
+   not the whole row — carries the dnd-kit listeners so a tap/click on the row
+   still plays the video and touch-scroll elsewhere still scrolls the page. */
+const GripIcon = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <circle cx="5.5" cy="3.5" r="1.4" /><circle cx="10.5" cy="3.5" r="1.4" />
+    <circle cx="5.5" cy="8" r="1.4" /><circle cx="10.5" cy="8" r="1.4" />
+    <circle cx="5.5" cy="12.5" r="1.4" /><circle cx="10.5" cy="12.5" r="1.4" />
+  </svg>
+);
 
 /* ── Position groups (mirrors the Training calendar's helper) ── */
 const HITTER_POSITIONS  = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'INF', 'UTIL'];
@@ -343,6 +374,120 @@ function AthletePicker({
    Per-athlete column — renders the day's drills for the selected schedule
    ───────────────────────────────────────────────────────────────────────── */
 
+/* One draggable SECTION bubble (a category). The grip in the header carries
+   the dnd-kit listeners; the bubble chrome + children (the drill list) are
+   otherwise unchanged. Drag disabled for non-coaches. */
+function SortableSection({
+  id, playerId, category, count, bgStyle, headStyle, isCoach, children,
+}: {
+  id: string;
+  playerId: string;
+  category: string;
+  count: number;
+  bgStyle: React.CSSProperties;
+  headStyle: React.CSSProperties;
+  isCoach: boolean;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
+  } = useSortable({ id, data: { type: 'section', playerId, category }, disabled: !isCoach });
+  const style: React.CSSProperties = {
+    ...bgStyle,
+    position: 'relative',
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : undefined,
+    zIndex: isDragging ? 6 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} className={styles.athleteBubble} style={style}>
+      <div className={styles.athleteBubbleHead} style={headStyle}>
+        {isCoach && (
+          <button
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            type="button"
+            className={styles.sectionDragHandle}
+            title="Drag to reorder this section"
+            aria-label="Drag to reorder this section"
+            onClick={(e) => e.stopPropagation()}
+            style={{ touchAction: 'none', cursor: 'grab' }}
+          >
+            <GripIcon />
+          </button>
+        )}
+        <span>{category}</span>
+        <span className={styles.athleteBubbleCount}>{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* One draggable DRILL row. The left grip carries the dnd-kit listeners (and
+   doubles as the centering counterweight to the ✎ on the right); the row body
+   still plays the video on click. Drag disabled for non-coaches. */
+function SortableDrill({
+  drill, playerId, category, isCoach, onPlay, onEdit,
+}: {
+  drill: ScheduledDrill;
+  playerId: string;
+  category: string;
+  isCoach: boolean;
+  onPlay: (d: ScheduledDrill) => void;
+  onEdit: (d: ScheduledDrill) => void;
+}) {
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: drill.id, data: { type: 'drill', playerId, category }, disabled: !isCoach });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    cursor: 'pointer',
+    opacity: isDragging ? 0.55 : undefined,
+    zIndex: isDragging ? 6 : undefined,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      className={styles.athleteBubbleItem}
+      style={style}
+      onClick={() => onPlay(drill)}
+      title={isCoach ? 'Click to watch · drag the grip to reorder' : 'Click to watch'}
+    >
+      {isCoach ? (
+        <button
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          type="button"
+          className={styles.drillDragHandle}
+          title="Drag to reorder"
+          aria-label="Drag to reorder"
+          onClick={(e) => e.stopPropagation()}
+          style={{ flex: '0 0 auto', width: 22, touchAction: 'none', cursor: 'grab' }}
+        >
+          <GripIcon size={13} />
+        </button>
+      ) : null}
+      <span className={styles.athleteBubbleItemName}>{drill.name}</span>
+      {isCoach && (
+        <button
+          type="button"
+          className={styles.drillEditBtn}
+          onClick={(e) => { e.stopPropagation(); onEdit(drill); }}
+          title="Edit drill"
+          aria-label="Edit drill"
+        >
+          ✎
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AthleteColumn({
   player,
   drills,
@@ -350,8 +495,6 @@ function AthleteColumn({
   scheduleColor,
   loading,
   isCoach,
-  onDragStartDrill,
-  onDropOnAthlete,
   onClickDrill,
   onPlayDrill,
 }: {
@@ -364,11 +507,6 @@ function AthleteColumn({
   scheduleColor: string;
   loading: boolean;
   isCoach: boolean;
-  /** Coach started dragging this drill from this athlete's column. */
-  onDragStartDrill: (drillId: string, fromPlayerId: string) => void;
-  /** Coach dropped a drill onto this athlete's column.
-   *  Swallow the event in the parent — the parent has the source info. */
-  onDropOnAthlete: (toPlayerId: string) => void;
   /** Coach clicked the ✎ on a scheduled drill — opens the inline edit popover. */
   onClickDrill: (drill: ScheduledDrill) => void;
   /** Clicked a scheduled drill name — opens its video (mirrors Training). */
@@ -392,9 +530,14 @@ function AthleteColumn({
     return [...map.entries()].map(([category, items]) => ({ category, items }));
   }, [drills]);
 
-  /* Drag-over highlight for the column body. Visual cue that a dropped
-     drill will land on this athlete. Coach-only — players never drag. */
-  const [dragOver, setDragOver] = useState(false);
+  /* dnd-kit: the whole column body is a drop target so a coach can drag a
+     drill from another athlete and drop it anywhere in this column (even an
+     empty one). Section/drill reorder is handled by the nested sortables;
+     this is the cross-athlete fallback. */
+  const { setNodeRef: setColumnRef, isOver: colIsOver } = useDroppable({
+    id: `col:${player.id}`,
+    data: { type: 'column', playerId: player.id },
+  });
 
   /* Coach's "Next Steps" note for the section matching the active
      schedule — a read-only copy of the Player Summary → Tool Grades note
@@ -416,22 +559,10 @@ function AthleteColumn({
         <div className={styles.athletePositions}>{player.positions || '—'}</div>
       </div>
       <div
+        ref={setColumnRef}
         className={styles.athleteCardBody}
-        onDragOver={(e) => {
-          if (!isCoach) return;
-          e.preventDefault(); // required for onDrop to fire
-          if (!dragOver) setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          if (!isCoach) return;
-          e.preventDefault();
-          setDragOver(false);
-          onDropOnAthlete(player.id);
-        }}
-        style={dragOver ? {
-          // Soft highlight for drop target — kept inline so we don't have
-          // to add a new CSS class to the existing module.
+        style={colIsOver && isCoach ? {
+          // Soft highlight when a coach drags a drill over this column.
           outline: `2px dashed ${scheduleColor}`,
           outlineOffset: -2,
           background: 'rgba(126, 182, 255, 0.04)',
@@ -446,81 +577,56 @@ function AthleteColumn({
             {isCoach ? 'No drills scheduled for today. Drag drills here from another athlete.' : 'No drills scheduled for today.'}
           </div>
         ) : (
-          /* Category bubble layout — matches the training calendar's
-             DayView. One tinted bubble per category, drill names listed
-             inside separated by hairline dividers. Notes/time/duration
-             drop out of the row to mirror the training-cal treatment;
-             coaches still see and edit those by clicking a name (opens
-             DrillEditor with the full record). Click + drag handlers
-             attach to each name row, so reassign-by-drag still works. */
-          grouped.map(({ category, items }) => {
-            /* Per-category shading from the same matrix the training
-             * calendar uses, so a Movement Prep bubble in /program
-             * looks identical to a Movement Prep bubble in /training.
-             * Categories within a schedule still graduate from
-             * lightest (Movement Prep) → darkest (Live / Post-Throw). */
+          /* Category-bubble layout, now drag-sortable for coaches. Outer
+             SortableContext = the sections (drag a section header's grip to
+             reorder Movement Prep / Vision / Drills …); each section holds an
+             inner SortableContext = its drills (drag a row's grip to reorder
+             within the section). Click a row to watch, ✎ to edit — unchanged.
+             Players (non-coaches) get the same markup with drag disabled. */
+          <SortableContext
+            items={grouped.map((g) => `sec:${player.id}:${g.category}`)}
+            strategy={verticalListSortingStrategy}
+          >
+          {grouped.map(({ category, items }) => {
             const catStyle = getTabCatStyle(schedule, category);
-            /* Per-sport label anchor — every category label in this
-               column flips to the SAME `TAB_LABEL_ANCHOR[schedule]`
-               shade (Hitting → Batting Practice blue, Pitching →
-               Bullpen orange, etc.) regardless of which category the
-               card represents. The card background + left border still
-               graduate per-category via `catStyle.bgStyle` so the
-               gradient cue lives on the card chrome instead of the
-               label text. Falls back to `catStyle.textStyle` if the
-               schedule key isn't in the anchor map (e.g. a future
-               sport that hasn't been wired up yet). */
+            /* Per-sport label anchor — every category label in this column
+               flips to the SAME TAB_LABEL_ANCHOR[schedule] shade; the card
+               background still graduates per-category via catStyle.bgStyle. */
             const labelAnchor = TAB_LABEL_ANCHOR[schedule];
             const headStyle = labelAnchor ? { color: labelAnchor } : catStyle.textStyle;
             return (
-              <div
+              <SortableSection
                 key={category}
-                className={styles.athleteBubble}
-                style={catStyle.bgStyle}
+                id={`sec:${player.id}:${category}`}
+                playerId={player.id}
+                category={category}
+                count={items.length}
+                bgStyle={catStyle.bgStyle}
+                headStyle={headStyle}
+                isCoach={isCoach}
               >
-                <div className={styles.athleteBubbleHead} style={headStyle}>
-                  <span>{category}</span>
-                  <span className={styles.athleteBubbleCount}>{items.length}</span>
-                </div>
-                <div className={styles.athleteBubbleList}>
-                  {items.map((d) => (
-                    <div
-                      key={d.id}
-                      className={styles.athleteBubbleItem}
-                      draggable={isCoach}
-                      onDragStart={(e) => {
-                        if (!isCoach) return;
-                        onDragStartDrill(d.id, player.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', d.id);
-                      }}
-                      /* Click the row → play the drill's video (mirrors the
-                         Training calendar). Editing moved to the ✎ button. */
-                      onClick={() => onPlayDrill(d)}
-                      title={isCoach ? 'Click to watch · drag to reassign' : 'Click to watch'}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {/* Invisible spacer mirrors the ✎ button's width so the
-                          drill name stays centered between them. */}
-                      {isCoach && <span aria-hidden="true" style={{ flex: '0 0 auto', width: 22 }} />}
-                      <span className={styles.athleteBubbleItemName}>{d.name}</span>
-                      {isCoach && (
-                        <button
-                          type="button"
-                          className={styles.drillEditBtn}
-                          onClick={(e) => { e.stopPropagation(); onClickDrill(d); }}
-                          title="Edit drill"
-                          aria-label="Edit drill"
-                        >
-                          ✎
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+                <SortableContext
+                  items={items.map((d) => d.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className={styles.athleteBubbleList}>
+                    {items.map((d) => (
+                      <SortableDrill
+                        key={d.id}
+                        drill={d}
+                        playerId={player.id}
+                        category={category}
+                        isCoach={isCoach}
+                        onPlay={onPlayDrill}
+                        onEdit={onClickDrill}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </SortableSection>
             );
-          })
+          })}
+          </SortableContext>
         )}
           {/* Coach's Next-Steps note for the active section — a read-only
               copy of the Player Summary → Tool Grades note, pinned under
@@ -889,33 +995,129 @@ export default function ProgramPage() {
     await Promise.all(playerIds.map(async (id) => {
       try {
         const rows = await api.getScheduledDrills(id, { date: sessionDate, tab: schedule });
-        const sorted = [...rows].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-        setDrillsByPlayer(prev => ({ ...prev, [id]: sorted }));
+        setDrillsByPlayer(prev => ({ ...prev, [id]: sortScheduled(rows) }));
       } catch {
         setDrillsByPlayer(prev => ({ ...prev, [id]: prev[id] ?? [] }));
       }
     }));
   };
 
-  /* Active drag state — set when a coach starts dragging a drill, read
-     when they drop on a column. We keep both the drillId AND the source
-     playerId so we know whether to refetch one column or two on drop. */
-  const dragRef = useRef<{ drillId: string; fromPlayerId: string } | null>(null);
-  const onDragStartDrill = (drillId: string, fromPlayerId: string) => {
-    dragRef.current = { drillId, fromPlayerId };
+  /* ── Coach drag-to-reorder (dnd-kit, mouse + touch) ──────────────────
+     PointerSensor with a small activation distance so a tap/click still
+     plays the drill (and touch-scroll off the grip still scrolls the page);
+     KeyboardSensor for accessibility. handleDragEnd reads the active/over
+     item data (type: 'section' | 'drill' | 'column') and dispatches. */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  /* Reorder a drill within its own section. Optimistic; resync that column
+     on error. */
+  const reorderWithinSection = async (playerId: string, category: string, activeId: string, overId: string | null) => {
+    const { rows, payload } = moveDrillWithinSection(drillsByPlayer[playerId] || [], category, activeId, overId);
+    if (!payload.length) return;
+    setDrillsByPlayer(prev => ({ ...prev, [playerId]: rows }));
+    try { await api.reorderScheduledDrills(payload); }
+    catch (e) { console.error('Reorder drill failed', e); refetchAthletes([playerId]); }
   };
-  const onDropOnAthlete = async (toPlayerId: string) => {
-    const drag = dragRef.current;
-    dragRef.current = null;
-    if (!drag) return;
-    if (drag.fromPlayerId === toPlayerId) return; // dropped on self — no-op
+
+  /* Reorder whole sections within a column. */
+  const reorderSectionsHandler = async (playerId: string, fromCat: string, toCat: string) => {
+    const { rows, payload } = moveSection(drillsByPlayer[playerId] || [], fromCat, toCat);
+    if (!payload.length) return;
+    setDrillsByPlayer(prev => ({ ...prev, [playerId]: rows }));
+    try { await api.reorderScheduledDrills(payload); }
+    catch (e) { console.error('Reorder sections failed', e); refetchAthletes([playerId]); }
+  };
+
+  /* Cross-athlete reassign: drop a drill onto another athlete's column /
+     section. Moves it (playerId + category + section/drill order) and then
+     re-syncs both columns from the server. */
+  const moveDrillAcross = async (drillId: string, fromPlayerId: string, toPlayerId: string, toCategory: string, overId: string | null) => {
+    const source = drillsByPlayer[fromPlayerId] || [];
+    const target = drillsByPlayer[toPlayerId] || [];
+    const moved = source.find(d => d.id === drillId);
+    if (!moved) return;
+    const targetSecRows = target.filter(d => (d.category || 'Drills') === toCategory);
+    const targetSectionOrder = targetSecRows.length
+      ? targetSecRows[0].sectionOrder
+      : target.reduce((m, d) => Math.max(m, d.sectionOrder), -1) + 1;
+    const ids = targetSecRows.map(d => d.id);
+    let insertAt = overId ? ids.indexOf(overId) : ids.length;
+    if (insertAt === -1) insertAt = ids.length;
+    const newSecRows = [...targetSecRows];
+    newSecRows.splice(insertAt, 0, { ...moved, playerId: toPlayerId, category: toCategory, sectionOrder: targetSectionOrder });
+    const orderById = new Map(newSecRows.map((d, i) => [d.id, i]));
+    const newSource = source.filter(d => d.id !== drillId);
+    const newTarget = [
+      ...target.filter(d => (d.category || 'Drills') !== toCategory),
+      ...newSecRows.map(d => ({ ...d, order: orderById.get(d.id) ?? 0 })),
+    ];
+    setDrillsByPlayer(prev => ({
+      ...prev,
+      [fromPlayerId]: sortScheduled(newSource),
+      [toPlayerId]: sortScheduled(newTarget),
+    }));
     try {
-      await api.updateScheduledDrill(drag.drillId, { playerId: toPlayerId } as any);
-      // Refetch both columns so the moved drill disappears from source
-      // and appears in target without a full page reload.
-      await refetchAthletes([drag.fromPlayerId, toPlayerId]);
+      await api.reorderScheduledDrills([
+        { id: drillId, playerId: toPlayerId, category: toCategory, sectionOrder: targetSectionOrder, order: orderById.get(drillId) ?? 0 },
+        ...newSecRows.filter(d => d.id !== drillId).map(d => ({ id: d.id, order: orderById.get(d.id) ?? 0 })),
+      ]);
     } catch (e) {
-      console.error('Drag-drop reassign failed', e);
+      console.error('Cross-athlete move failed', e);
+    } finally {
+      refetchAthletes([fromPlayerId, toPlayerId]);
+    }
+  };
+
+  /* A floating ghost of the dragged item, rendered in a portal by
+     <DragOverlay> so it isn't clipped by `.athleteCard { overflow: hidden }`
+     when a coach drags a drill toward another athlete's column. */
+  const [activeOverlay, setActiveOverlay] = useState<{ type: 'drill' | 'section'; label: string } | null>(null);
+  const handleDragStart = (event: DragStartEvent) => {
+    const d = event.active.data.current as { type?: string; playerId?: string; category?: string } | undefined;
+    if (d?.type === 'drill') {
+      const name = (drillsByPlayer[d.playerId || ''] || []).find(x => x.id === event.active.id)?.name || 'Drill';
+      setActiveOverlay({ type: 'drill', label: name });
+    } else if (d?.type === 'section') {
+      setActiveOverlay({ type: 'section', label: d.category || 'Section' });
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveOverlay(null);
+    const { active, over } = event;
+    if (!over) return;
+    const a = active.data.current as { type?: string; playerId?: string; category?: string } | undefined;
+    const o = over.data.current as { type?: string; playerId?: string; category?: string } | undefined;
+    if (!a?.type || !a.playerId) return;
+
+    if (a.type === 'section') {
+      // Dropping a section may resolve (via nested contexts) onto another
+      // section's header OR a drill inside it — both carry `category`, so map
+      // either to the target section. Same column only; ignore self-drops.
+      if (!o || o.playerId !== a.playerId || !o.category || o.category === a.category) return;
+      reorderSectionsHandler(a.playerId, a.category!, o.category);
+      return;
+    }
+    if (a.type === 'drill') {
+      const toPlayer = o?.playerId;
+      if (!toPlayer) return;
+      // Only meaningful when dropped onto another drill of the same section.
+      const overDrillId = o?.type === 'drill' ? String(over.id) : null;
+      if (toPlayer === a.playerId) {
+        // Same athlete → reorder within the SAME section only. Drills don't
+        // hop sections (matches the "reorder within their section" ask); a
+        // drop onto a different section (or empty area) just snaps back.
+        if (o?.category !== a.category || active.id === over.id) return;
+        reorderWithinSection(a.playerId, a.category!, String(active.id), overDrillId);
+      } else {
+        // Different athlete → reassign, keeping the drill's own category
+        // (mirrors the previous reassign behaviour; the drill lands in the
+        // matching section of the target column, creating it if needed).
+        moveDrillAcross(String(active.id), a.playerId, toPlayer, a.category!, overDrillId);
+      }
     }
   };
 
@@ -968,9 +1170,8 @@ export default function ProgramPage() {
       api.getScheduledDrills(id, { date: sessionDate, tab: schedule })
         .then(rows => {
           if (cancelled) return;
-          /* Stable-sort by time so the column reads top → bottom in order. */
-          const sorted = [...rows].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-          setDrillsByPlayer(prev => ({ ...prev, [id]: sorted }));
+          /* Sort by coach section/drill order, falling back to time. */
+          setDrillsByPlayer(prev => ({ ...prev, [id]: sortScheduled(rows) }));
           setLoadingByPlayer(prev => ({ ...prev, [id]: false }));
         })
         .catch(() => {
@@ -1200,6 +1401,13 @@ export default function ProgramPage() {
           </p>
         </div>
       ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveOverlay(null)}
+        >
         <div
           ref={boardRef}
           className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : ''} ${selectedPlayers.length === 1 && !isFullscreen ? styles.boardSingle : ''}`}
@@ -1226,13 +1434,19 @@ export default function ProgramPage() {
               schedule={schedule}
               scheduleColor={scheduleColor}
               isCoach={isCoach}
-              onDragStartDrill={onDragStartDrill}
-              onDropOnAthlete={onDropOnAthlete}
               onClickDrill={(d) => setEditingDrill(d)}
               onPlayDrill={(d) => setViewingDrill(d)}
             />
           ))}
         </div>
+        <DragOverlay>
+          {activeOverlay ? (
+            <div className={activeOverlay.type === 'section' ? styles.dragGhostSection : styles.dragGhostDrill}>
+              {activeOverlay.label}
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
       )}
 
       {/* Floating "Full Screen" trigger — only when there's a board to show */}
