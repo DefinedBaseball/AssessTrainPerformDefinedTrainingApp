@@ -15,16 +15,32 @@ import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
-import { PlayerSummaryTab } from './tabs/PlayerSummaryTab';
-import { HittingTab } from './tabs/HittingTab';
-import { CatchingTab, InfieldTab, OutfieldTab } from './tabs/DefenseTab';
-import { PitchingTab } from './tabs/PitchingTab';
-import { VisionTab } from './tabs/VisionTab';
-import { StrengthConditioningTab } from './tabs/StrengthConditioningTab';
-import { VideosTab } from './tabs/VideosTab';
+/* Tabs + modals are code-split with next/dynamic so the profile's initial
+   bundle stops carrying every tab's code (recharts, the defense field SVGs,
+   the report editor, …) up front. TabPanel unmounts inactive tabs, so each
+   chunk only downloads the first time its tab/modal is actually opened —
+   this cut the route's First Load JS by hundreds of kB. All are named
+   exports, hence the .then(m => m.X) selectors. ssr:false is safe (and
+   right): this whole page is a client component behind auth. */
+import nextDynamic from 'next/dynamic';
 
-import { ReportModal } from './ReportModal';
-import { PdfBuilderModal, type PdfLayout } from './PdfBuilderModal';
+const tabLoading = () => (
+  <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+);
+
+const PlayerSummaryTab = nextDynamic(() => import('./tabs/PlayerSummaryTab').then(m => m.PlayerSummaryTab), { ssr: false, loading: tabLoading });
+const HittingTab = nextDynamic(() => import('./tabs/HittingTab').then(m => m.HittingTab), { ssr: false, loading: tabLoading });
+const CatchingTab = nextDynamic(() => import('./tabs/DefenseTab').then(m => m.CatchingTab), { ssr: false, loading: tabLoading });
+const InfieldTab = nextDynamic(() => import('./tabs/DefenseTab').then(m => m.InfieldTab), { ssr: false, loading: tabLoading });
+const OutfieldTab = nextDynamic(() => import('./tabs/DefenseTab').then(m => m.OutfieldTab), { ssr: false, loading: tabLoading });
+const PitchingTab = nextDynamic(() => import('./tabs/PitchingTab').then(m => m.PitchingTab), { ssr: false, loading: tabLoading });
+const VisionTab = nextDynamic(() => import('./tabs/VisionTab').then(m => m.VisionTab), { ssr: false, loading: tabLoading });
+const StrengthConditioningTab = nextDynamic(() => import('./tabs/StrengthConditioningTab').then(m => m.StrengthConditioningTab), { ssr: false, loading: tabLoading });
+const VideosTab = nextDynamic(() => import('./tabs/VideosTab').then(m => m.VideosTab), { ssr: false, loading: tabLoading });
+
+const ReportModal = nextDynamic(() => import('./ReportModal').then(m => m.ReportModal), { ssr: false });
+const PdfBuilderModal = nextDynamic(() => import('./PdfBuilderModal').then(m => m.PdfBuilderModal), { ssr: false });
+import type { PdfLayout } from './PdfBuilderModal';
 import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
 
@@ -851,13 +867,19 @@ export default function PlayerProfilePage() {
           sections to include, reorder them, position each section
           vertically on its page, and save / load presets. Calls
           handleBuildPdf with the chosen layout on Generate. */}
-      <PdfBuilderModal
-        open={pdfBuilderOpen}
-        playerName={`${player.firstName ?? ''} ${player.lastName ?? ''}`.trim()}
-        onClose={() => setPdfBuilderOpen(false)}
-        onCapture={captureAllSectionsForBuilder}
-        onGenerate={handleBuildPdf}
-      />
+      {/* Mount-gated (not just `open`-gated) so the dynamic chunk — and the
+          PDF machinery it pulls in — only downloads when the builder is
+          actually opened. The modal early-returns on !open anyway, so
+          mounting it fresh with open=true is equivalent. */}
+      {pdfBuilderOpen && (
+        <PdfBuilderModal
+          open={pdfBuilderOpen}
+          playerName={`${player.firstName ?? ''} ${player.lastName ?? ''}`.trim()}
+          onClose={() => setPdfBuilderOpen(false)}
+          onCapture={captureAllSectionsForBuilder}
+          onGenerate={handleBuildPdf}
+        />
+      )}
 
       {/* "Generating PDF…" fullscreen overlay — shown while the
           Summary PDF capture cycle is running, BUT only when the
