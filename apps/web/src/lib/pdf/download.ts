@@ -2,13 +2,17 @@
  * PDF Download Utility — Generates and triggers download
  */
 import { pdf } from '@react-pdf/renderer';
+import type { DocumentProps } from '@react-pdf/renderer';
 import React from 'react';
 
 /**
- * Generate a PDF from a React element and trigger browser download
+ * Generate a PDF from a React element and trigger browser download.
+ * The element must be a react-pdf `<Document>` — typed explicitly because
+ * React 19's `ReactElement` defaults its props to `unknown`, which no longer
+ * implicitly satisfies `pdf()`'s `ReactElement<DocumentProps>` parameter.
  */
 export async function downloadPdf(
-  element: React.ReactElement,
+  element: React.ReactElement<DocumentProps>,
   filename: string,
 ): Promise<void> {
   const blob = await pdf(element).toBlob();
