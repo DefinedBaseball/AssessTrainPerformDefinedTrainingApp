@@ -10,8 +10,12 @@ export class UploadsService {
     source: string;
     fileUrl: string;
   }) {
+    // Destructure named fields instead of spreading — POST /uploads passes
+    // the request body straight through, so a spread would let a crafted
+    // payload set any valid CsvUpload column (id, status, successRows, …).
+    const { uploadedById, source, fileUrl } = data;
     return this.prisma.csvUpload.create({
-      data: { ...data, status: 'PENDING' },
+      data: { uploadedById, source, fileUrl, status: 'PENDING' },
     });
   }
 

@@ -96,6 +96,49 @@ export class BunnyService {
   }
 
   /**
+   * Extract the Bunny video guid from one of OUR playback URLs
+   * (`https://{cdnHostname}/{guid}/play_720p.mp4` / `…/playlist.m3u8`).
+   * Returns null for non-Bunny URLs (S3/disk/legacy), foreign hostnames, or
+   * anything that doesn't look like a guid — callers treat null as "no Bunny
+   * asset to manage".
+   */
+  guidFromUrl(url: string | null | undefined): string | null {
+    if (!url || !this.cdnHostname) return null;
+    try {
+      const u = new URL(url);
+      if (u.hostname.toLowerCase() !== this.cdnHostname.toLowerCase()) return null;
+      const first = u.pathname.split('/').filter(Boolean)[0] || '';
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(first)
+        ? first
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Delete a Stream video object (the stored asset + all renditions).
+   * Best-effort semantics: true on success, an already-gone asset (404)
+   * counts as success, false when Bunny isn't configured or the delete
+   * fails — never throws, so callers can fire-and-forget.
+   */
+  async deleteVideoObject(guid: string): Promise<boolean> {
+    if (!this.isConfigured() || !guid) return false;
+    try {
+      const res = await fetch(
+        `https://video.bunnycdn.com/library/${this.libraryId}/videos/${guid}`,
+        { method: 'DELETE', headers: { AccessKey: this.apiKey!, accept: 'application/json' } },
+      );
+      if (res.ok || res.status === 404) return true;
+      this.logger.warn(`Bunny delete ${guid} failed (${res.status})`);
+      return false;
+    } catch (e: any) {
+      this.logger.warn(`Bunny delete ${guid} errored: ${e?.message || e}`);
+      return false;
+    }
+  }
+
+  /**
    * Authorize a browser-direct (TUS resumable) upload for an already-created
    * video object. The signature lets the client push bytes straight to Bunny
    * WITHOUT ever seeing the library AccessKey:
