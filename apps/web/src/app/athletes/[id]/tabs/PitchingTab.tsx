@@ -1,7 +1,8 @@
 'use client';
 
 import { rem } from '@/lib/rem';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { averagePitchesByType, zoneAggregate, type ZoneAggregate } from '@/lib/pitchAggregation';
 import {
   SectionHeader, Section,
   VideoPlaceholder, VideoBundleCard, ReportSelector, EditProfileButton, DownloadPdfButton, VideosIconButton,
@@ -697,21 +698,45 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
           const cy = sy(p.relHeight as number);
           const isSelected = !!selected && p.id === selected.id;
           const dim = !!selected && !isSelected;
+          /* Big One average mode: synthetic per-type pitches carry
+             `aggReleaseSpread` (RMS release scatter, ft). Render the spread
+             as the circle's RADIUS — a repeatable release draws a small
+             tight ring, a scattered one a big loose ring — with a solid
+             center dot at the mean release point. Real pitches (no spread
+             field) keep the classic fixed-size dot. */
+          const spreadFt = (p as any).aggReleaseSpread as number | null | undefined;
+          const pxPerFt = plotW / (xMax - xMin);
+          const spreadR = spreadFt != null ? Math.max(7, Math.min(56, spreadFt * pxPerFt)) : null;
           return (
             <g key={p.id ?? i}
               style={{ cursor: interactive ? 'pointer' : 'default' }}
               onClick={interactive ? ((e) => { e.stopPropagation(); onSelect(isSelected ? null : p); }) : undefined}>
               {/* Halo for selected pitch */}
               {isSelected && (
-                <circle cx={cx} cy={cy} r={11}
+                <circle cx={cx} cy={cy} r={spreadR != null ? spreadR + 5 : 11}
                   fill={getPitchColor(p.pitchType)} opacity={0.30} pointerEvents="none" />
               )}
-              <circle cx={cx} cy={cy}
-                r={isSelected ? 7 : 5}
-                fill={getPitchColor(p.pitchType)}
-                opacity={dim ? 0.25 : (isSelected ? 1 : 0.85)}
-                stroke={isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)'}
-                strokeWidth={isSelected ? 1.5 : 0.5} />
+              {spreadR != null ? (
+                <>
+                  <circle cx={cx} cy={cy} r={spreadR}
+                    fill={getPitchColor(p.pitchType)}
+                    opacity={dim ? 0.12 : 0.22}
+                    stroke={getPitchColor(p.pitchType)}
+                    strokeWidth={isSelected ? 2 : 1.25} />
+                  <circle cx={cx} cy={cy} r={isSelected ? 5 : 3.5}
+                    fill={getPitchColor(p.pitchType)}
+                    opacity={dim ? 0.35 : 1}
+                    stroke={isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)'}
+                    strokeWidth={isSelected ? 1.5 : 0.5} />
+                </>
+              ) : (
+                <circle cx={cx} cy={cy}
+                  r={isSelected ? 7 : 5}
+                  fill={getPitchColor(p.pitchType)}
+                  opacity={dim ? 0.25 : (isSelected ? 1 : 0.85)}
+                  stroke={isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)'}
+                  strokeWidth={isSelected ? 1.5 : 0.5} />
+              )}
             </g>
           );
         })}
@@ -737,12 +762,16 @@ function ReleasePointPlot({ pitches, selected, onSelect, width = 380, height = 3
 
 /* ── Pitch Location Plot (strike zone, interactive) ── */
 function PitchLocationPlot({
-  pitches, selected, onSelect, interactive = true,
+  pitches, selected, onSelect, interactive = true, zoneAgg = null,
 }: {
   pitches: TrackmanPitch[];
   selected: TrackmanPitch | null;
   onSelect: (p: TrackmanPitch | null) => void;
   interactive?: boolean;
+  /** Big One average mode: when provided, the plot hides individual pitch
+   *  dots and instead shades each strike-zone cell by the PERCENTAGE of
+   *  pitches thrown there (plus an out-of-zone readout). */
+  zoneAgg?: ZoneAggregate | null;
 }) {
   const W = 460;
   const H = 440;
@@ -755,7 +784,7 @@ function PitchLocationPlot({
     typeof p.plateLocSide === 'number' && typeof p.plateLocHeight === 'number'
   );
 
-  if (valid.length === 0) return null;
+  if (valid.length === 0 && !zoneAgg) return null;
 
   const xMin = -2.5, xMax = 2.5, yMin = 0, yMax = 5;
   const sx = (v: number) => pad.left + ((v - xMin) / (xMax - xMin)) * plotW;
@@ -852,6 +881,24 @@ function PitchLocationPlot({
         const h = sy(szBot) - sy(szTop);
         return (
           <g pointerEvents="none">
+            {/* Big One average mode — heat cells UNDER the zone gridlines:
+                each 3×3 cell shaded by its share of all located pitches.
+                Intensity is normalized to the hottest cell so the pattern
+                reads even when everything is single digits. */}
+            {zoneAgg && (() => {
+              const maxPct = Math.max(...zoneAgg.pcts, 1);
+              return zones.map((z, zi) => {
+                const cellX = sx(z.x);
+                const cellY = sy(z.y + szH / 3);
+                const cellW2 = sx(z.x + szW / 3) - sx(z.x);
+                const cellH2 = sy(z.y) - sy(z.y + szH / 3);
+                const pct = zoneAgg.pcts[zi] ?? 0;
+                return (
+                  <rect key={`hz${z.n}`} x={cellX} y={cellY} width={cellW2} height={cellH2}
+                    fill="rgba(126,182,255,1)" opacity={0.05 + 0.5 * (pct / maxPct)} />
+                );
+              });
+            })()}
             {/* Zone subdividers — gridlines inside the strike zone. Same
                 theme-aware spray-gridline color as the rest of the plot's
                 grid system. */}
@@ -868,16 +915,18 @@ function PitchLocationPlot({
                 where the old faint silver washed out on the light surface). */}
             <rect x={x} y={y} width={w} height={h}
               fill="none" stroke="var(--spray-gridline-color)" strokeWidth={1.5} />
-            {/* Zone numbers */}
-            {zones.map(z => (
+            {/* Zone numbers (single/combine) → zone PERCENTAGES (average) */}
+            {zones.map((z, zi) => (
               <text key={z.n}
                 x={sx(z.x + szW / 6)} y={sy(z.y + szH / 6) + 3.5}
-                fill="rgba(183,190,201,0.5)"
-                fontSize={10}
+                fill={zoneAgg ? 'rgba(235,240,248,0.95)' : 'rgba(183,190,201,0.5)'}
+                fontSize={zoneAgg ? 12 : 10}
                 fontFamily="'Satoshi', 'DM Sans', sans-serif"
-                fontWeight={600}
+                fontWeight={zoneAgg ? 700 : 600}
                 letterSpacing="0.08em"
-                textAnchor="middle">{z.n}</text>
+                textAnchor="middle">
+                {zoneAgg ? `${Math.round(zoneAgg.pcts[zi] ?? 0)}%` : z.n}
+              </text>
             ))}
           </g>
         );
@@ -892,7 +941,7 @@ function PitchLocationPlot({
       />
 
       {/* Selected → dashed vector from strike-zone center to the dot */}
-      {selected && (() => {
+      {!zoneAgg && selected && (() => {
         const sd = selected.plateLocSide;
         const ht = selected.plateLocHeight;
         if (sd == null || ht == null) return null;
@@ -905,8 +954,8 @@ function PitchLocationPlot({
         );
       })()}
 
-      {/* Pitch dots with glow halos */}
-      {valid.map((p, i) => {
+      {/* Pitch dots with glow halos — hidden in zone-percentage mode */}
+      {!zoneAgg && valid.map((p, i) => {
         const isSelected = selected && p.id === selected.id;
         const dim = selected && !isSelected;
         const px = sx(p.plateLocSide as number);
@@ -949,8 +998,25 @@ function PitchLocationPlot({
         fontWeight={600} letterSpacing="0.28em"
         textAnchor="end">OUTSIDE →</text>
 
+      {/* Zone-percentage mode: top-rim readout replaces the pitch-type
+          legend — total pitches in the window + share landing off the zone. */}
+      {zoneAgg && (
+        <g transform={`translate(${pad.left + plotW}, 18)`}>
+          <rect x={-208} y={-10} width={208} height={18} rx={9}
+            fill="rgba(10,12,18,0.72)"
+            stroke="rgba(183,190,201,0.18)" strokeWidth={0.6} />
+          <text x={-104} y={3.5}
+            fill="rgba(183,190,201,0.85)"
+            fontSize={9} fontFamily="'Satoshi', 'DM Sans', sans-serif"
+            fontWeight={600} letterSpacing="0.14em"
+            textAnchor="middle">
+            {zoneAgg.total} PITCHES · {Math.round(zoneAgg.outsidePct)}% OUT OF ZONE
+          </text>
+        </g>
+      )}
+
       {/* Pitch-type legend — mono chips along the top rim */}
-      {pitchTypes.map((t, i) => {
+      {!zoneAgg && pitchTypes.map((t, i) => {
         const chipW = 54;
         const gap = 8;
         const totalW = pitchTypes.length * chipW + (pitchTypes.length - 1) * gap;
@@ -1218,6 +1284,38 @@ export function PitchingTab({
     () => getReportUploadIds(selectedReport ?? latestPitching),
     [selectedReport, latestPitching],
   );
+
+  /* ── Big One: time-range aggregation state ──
+     The ReportSelector reports the active window via onRangeChange:
+       single  → classic one-report view (all pre-existing behavior)
+       combine → merge every window report's pitches into the charts
+       average → per-pitch-type means (movement/release) + zone percentages */
+  const [aggInfo, setAggInfo] = useState<{
+    mode: 'single' | 'combine' | 'average';
+    rangeLabel: string;
+    reports: ReportSummary[];
+  } | null>(null);
+  const handleRangeChange = useCallback(
+    (info: { mode: 'single' | 'combine' | 'average'; rangeLabel: string; reports: ReportSummary[] }) =>
+      setAggInfo(prev =>
+        prev &&
+        prev.mode === info.mode &&
+        prev.rangeLabel === info.rangeLabel &&
+        prev.reports.length === info.reports.length &&
+        prev.reports.every((r, i) => r.id === info.reports[i]?.id)
+          ? prev // identical → keep the old reference so effects don't re-fire
+          : info,
+      ),
+    [],
+  );
+  const aggregating = !!aggInfo && aggInfo.mode !== 'single';
+  /* Union of upload ids across every report in the window (deduped). */
+  const aggUploadIds = useMemo(() => {
+    if (!aggregating || !aggInfo) return [] as string[];
+    const set = new Set<string>();
+    for (const r of aggInfo.reports) for (const id of getReportUploadIds(r)) set.add(id);
+    return [...set];
+  }, [aggregating, aggInfo]);
   const persistedPitchingNotes = useMemo(() => {
     if (!latestPitching?.content) return '';
     try {
@@ -1288,6 +1386,22 @@ export function PitchingTab({
          • No pitching report at all → legacy behavior: return every
            pitch on the player so orphan / pre-report data still
            surfaces (matches how a brand-new player's data loads). */
+    /* Big One — window aggregation: when the selector is in combine/average
+       mode, fetch pitches for EVERY report in the window (union of their
+       upload ids, one call). Empty union → no pitches (mirrors the strict
+       report-scoped rule below). */
+    if (aggregating) {
+      if (aggUploadIds.length === 0) {
+        setPitches([]);
+        setLoading(false);
+        return;
+      }
+      api.getTrackmanPitches(player.id, { uploadIds: aggUploadIds })
+        .then(data => setPitches(data))
+        .catch(() => setPitches([]))
+        .finally(() => setLoading(false));
+      return;
+    }
     if (activePitchingReport && reportUploadIds.length === 0) {
       setPitches([]);
       setLoading(false);
@@ -1298,7 +1412,7 @@ export function PitchingTab({
       .then(data => setPitches(data))
       .catch(() => setPitches([]))
       .finally(() => setLoading(false));
-  }, [player?.id, refreshKey, reportUploadIds, activePitchingReport]);
+  }, [player?.id, refreshKey, reportUploadIds, activePitchingReport, aggregating, aggUploadIds]);
   // Read-only pitchingGrades — used by the inline Mechanical Summary
   // Strip inside the Pitch Report HUD. The standalone "Mechanical
   // Grades" sub-tab was retired; grades are edited via the report
@@ -1310,6 +1424,23 @@ export function PitchingTab({
   const pitchingGrades = persistedPitchingGrades;
 
   const hasPitchData = pitches.length > 0;
+
+  /* Big One — what the plots actually render:
+       average → Movement/Release get ONE synthetic pitch per pitch type
+                 (mean values; release dot sized by consistency), and the
+                 Location plot flips to zone-percentage mode via `zoneAgg`.
+       combine/single → the raw pitches, exactly as before. */
+  const displayPitches = useMemo(
+    () => (aggInfo?.mode === 'average' ? averagePitchesByType(pitches) : pitches),
+    [aggInfo?.mode, pitches],
+  );
+  const zoneAgg: ZoneAggregate | null = useMemo(
+    () => (aggInfo?.mode === 'average' ? zoneAggregate(pitches) : null),
+    [aggInfo?.mode, pitches],
+  );
+  /* Selection can't survive a mode flip — the selected pitch may not exist
+     in the new display set (raw ↔ synthetic ids differ). */
+  useEffect(() => { setSelectedPitch(null); }, [aggInfo?.mode]);
   // Pitches rebuilt from a Trackman PDF report are table-driven (not tracked
   // per pitch), so the plots render non-interactive — no click-to-inspect.
   const pdfOrigin = hasPitchData && pitches.every(p => p.pdfSource);
@@ -1361,6 +1492,7 @@ export function PitchingTab({
           onNewReport={onNewReport}
           onEdit={onEditReport}
           onDownload={(r) => generatePitchingPdf(player, [r])}
+          onRangeChange={handleRangeChange}
         />
       </TabBarActions>
 
@@ -1677,7 +1809,7 @@ export function PitchingTab({
                     <span className={hud.hudSubTitleDot} /> Movement &middot; Pitcher&rsquo;s View
                   </span>
                 </div>
-                <MovementPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
+                <MovementPlot pitches={displayPitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
               </div>
             </div>
             <div className={hud.hudPlotPane}>
@@ -1687,7 +1819,7 @@ export function PitchingTab({
                     <span className={hud.hudSubTitleDot} /> Location &middot; Catcher&rsquo;s View
                   </span>
                 </div>
-                <PitchLocationPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
+                <PitchLocationPlot pitches={pitches} zoneAgg={zoneAgg} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
               </div>
             </div>
             <div className={hud.hudPlotPane}>
@@ -1697,7 +1829,7 @@ export function PitchingTab({
                     <span className={hud.hudSubTitleDot} /> Release Point &middot; Pitcher&rsquo;s View
                   </span>
                 </div>
-                <ReleasePointPlot pitches={pitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
+                <ReleasePointPlot pitches={displayPitches} selected={selectedPitch} onSelect={setSelectedPitch} interactive={!pdfOrigin} />
               </div>
             </div>
           </div>

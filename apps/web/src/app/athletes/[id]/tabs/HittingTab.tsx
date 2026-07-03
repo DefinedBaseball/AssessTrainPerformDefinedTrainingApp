@@ -1,7 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, type SharedHittingState } from './SwingTab';
 import { TabBar, TabBarActions, EditProfileButton, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideosIconButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
@@ -287,6 +287,37 @@ export function HittingTab(props: TabProps) {
     () => getReportUploadIdsForKeys(activeHittingReport, ['blast', 'fullswing', 'hittrax']),
     [activeHittingReport],
   );
+
+  /* ── Big One: time-range aggregation (spray chart) ──
+     combine → the spray chart loads EVERY window report's swing uploads
+     average → same merged data, rendered as five-slice landing percentages */
+  const [aggInfo, setAggInfo] = useState<{
+    mode: 'single' | 'combine' | 'average';
+    rangeLabel: string;
+    reports: ReportSummary[];
+  } | null>(null);
+  const handleRangeChange = useCallback(
+    (info: { mode: 'single' | 'combine' | 'average'; rangeLabel: string; reports: ReportSummary[] }) =>
+      setAggInfo(prev =>
+        prev &&
+        prev.mode === info.mode &&
+        prev.rangeLabel === info.rangeLabel &&
+        prev.reports.length === info.reports.length &&
+        prev.reports.every((r, i) => r.id === info.reports[i]?.id)
+          ? prev
+          : info,
+      ),
+    [],
+  );
+  const aggregating = !!aggInfo && aggInfo.mode !== 'single';
+  const effectiveSwingUploadIds = useMemo(() => {
+    if (!aggregating || !aggInfo) return swingUploadIds;
+    const set = new Set<string>();
+    for (const r of aggInfo.reports) {
+      for (const id of getReportUploadIdsForKeys(r, ['blast', 'fullswing', 'hittrax'])) set.add(id);
+    }
+    return [...set];
+  }, [aggregating, aggInfo, swingUploadIds]);
   const decisionUploadIds = useMemo(
     /* Phase 6 — `atbat_fullswing` + `atbat_hittrax` CSV slots
        retired. At-bat batted-ball data is now captured live via
@@ -967,6 +998,7 @@ export function HittingTab(props: TabProps) {
           onNewReport={props.onNewReport}
           onEdit={props.onEditReport}
           onDownload={(r) => generateHittingPdf(player, [r], topMetricsWithMiss, qocOverride)}
+          onRangeChange={handleRangeChange}
         />
       </TabBarActions>
 
@@ -1259,9 +1291,10 @@ export function HittingTab(props: TabProps) {
               <SprayChartView
                 playerId={player.id}
                 refreshKey={refreshKey}
-                reportUploadIds={swingUploadIds}
+                reportUploadIds={effectiveSwingUploadIds}
                 compact
                 onDataRangeChange={setSprayDateLabel}
+                sliceAggregate={aggInfo?.mode === 'average'}
               />
             )}
           </div>

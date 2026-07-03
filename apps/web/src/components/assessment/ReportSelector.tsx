@@ -55,6 +55,22 @@ interface ReportSelectorProps {
    *  player who carries both types lands on their latest Hitting
    *  report first, and a pitcher-only player lands on Pitching. */
   preferredTypes?: string[];
+  /** Time-range aggregation ("the Big One"). When provided, the selector
+   *  reports how the surrounding tab should source its chart data every
+   *  time the range preset / report set changes:
+   *    - mode 'single'  — show ONE report's data (Last Report, or the user
+   *                       clicked a specific report row; `reports` = [that]).
+   *    - mode 'combine' — merge every report in the window into one view
+   *                       (Last Week / Last Month).
+   *    - mode 'average' — average across the window (3mo / 6mo / Year /
+   *                       All Time); charts switch to mean/percentage forms.
+   *  `reports` is the newest-first report set for the window. Call sites
+   *  that don't pass this keep the exact pre-Big-One behavior. */
+  onRangeChange?: (info: {
+    mode: 'single' | 'combine' | 'average';
+    rangeLabel: string;
+    reports: ReportSummary[];
+  }) => void;
 }
 
 export function ReportSelector({
@@ -71,6 +87,7 @@ export function ReportSelector({
   rangeOnly = false,
   lockLabel = false,
   preferredTypes,
+  onRangeChange,
 }: ReportSelectorProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -103,6 +120,10 @@ export function ReportSelector({
   const [dateRange, setDateRange] = useState<RangeKey>(
     preferredTypes && preferredTypes.length > 0 ? 'all' : 'lastReport',
   );
+  /* True after the user clicks a SPECIFIC report row — overrides the range
+     preset back to single-report mode until they pick a range again. Lets
+     the always-shown report list coexist with window aggregation. */
+  const [manualPick, setManualPick] = useState(false);
 
   // Filter by report type first, then sort newest-first.
   const typeFilteredReports = useMemo(() => {
@@ -149,6 +170,13 @@ export function ReportSelector({
   // Skipped in rangeOnly mode — that mode doesn't track an active report.
   useEffect(() => {
     if (rangeOnly) return;
+    /* A manual row pick may target a report OUTSIDE the current window
+       (the list always shows every report) — don't clamp it away. */
+    if (manualPick) {
+      const stillExists = selectedId ? typeFilteredReports.some(r => r.id === selectedId) : false;
+      if (stillExists) return;
+      setManualPick(false); // picked report was deleted/filtered — fall through
+    }
     if (matchingReports.length === 0) {
       if (selectedId !== null) onSelect(null);
       return;
@@ -157,7 +185,33 @@ export function ReportSelector({
     if (!current && pickDefaultReport) {
       onSelect(pickDefaultReport);
     }
-  }, [matchingReports, selectedId, rangeOnly, pickDefaultReport]);
+  }, [matchingReports, typeFilteredReports, selectedId, rangeOnly, pickDefaultReport, manualPick]);
+
+  /* ── Big One: report the aggregation window to the surrounding tab ──
+     mode: 'single'  → Last Report or a manual row pick (reports = [selected])
+           'combine' → Last Week / Last Month  (merge window's reports)
+           'average' → 3mo / 6mo / Year / All Time (average across window)
+     Only fires when the tab opted in via onRangeChange. Call sites should
+     memoize the callback (useCallback) — it's an effect dependency. */
+  const aggregateMode: 'single' | 'combine' | 'average' =
+    manualPick || dateRange === 'lastReport'
+      ? 'single'
+      : dateRange === 'week' || dateRange === 'month'
+        ? 'combine'
+        : 'average';
+  const selectedForRange = selectedId
+    ? typeFilteredReports.find(r => r.id === selectedId) ?? null
+    : null;
+  useEffect(() => {
+    if (!onRangeChange) return;
+    const label = RANGE_OPTIONS.find(o => o.key === dateRange)?.label ?? 'All Time';
+    const reports =
+      aggregateMode === 'single'
+        ? (selectedForRange ? [selectedForRange] : [])
+        : matchingReports;
+    onRangeChange({ mode: aggregateMode, rangeLabel: label, reports });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aggregateMode, dateRange, matchingReports, selectedForRange?.id, onRangeChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -201,7 +255,9 @@ export function ReportSelector({
      fires (or in the brief render where `selectedId` is still null).
      Prefers the same priority pick as the auto-select so the bar
      never momentarily shows a non-preferred report on first paint. */
-  const selected = selectedId ? matchingReports.find(r => r.id === selectedId) : (pickDefaultReport ?? matchingReports[0]);
+  /* Search the FULL type-filtered list (not just the window) — a manual row
+     pick can legitimately live outside the current date range. */
+  const selected = selectedId ? typeFilteredReports.find(r => r.id === selectedId) : (pickDefaultReport ?? matchingReports[0]);
 
   if (typeFilteredReports.length === 0 && !rangeOnly) {
     // Truly empty — no reports of this type exist for the player at all.
@@ -316,8 +372,17 @@ export function ReportSelector({
                       : (selected?.title || selected?.reportType?.replace(/_/g, ' ') || label)}
                   </span>
                   <span className={styles.reportSelectorMeta}>
-                    {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
-                    {selected?.createdBy && ` · ${getEmailName(selected.createdBy.email)}`}
+                    {/* Aggregating? The bar meta names the window instead of a
+                        single report's timestamp — the charts are showing the
+                        whole window, so a lone date would be misleading. */}
+                    {onRangeChange && aggregateMode !== 'single'
+                      ? `${activeRangeLabel} · ${matchingReports.length} report${matchingReports.length !== 1 ? 's' : ''} ${aggregateMode === 'combine' ? 'combined' : 'averaged'}`
+                      : (
+                        <>
+                          {selected ? `${formatDate(selected.createdAt)} at ${formatTime(selected.createdAt)}` : ''}
+                          {selected?.createdBy && ` · ${getEmailName(selected.createdBy.email)}`}
+                        </>
+                      )}
                   </span>
                 </div>
               </div>
@@ -390,6 +455,9 @@ export function ReportSelector({
                   onClick={(e) => {
                     e.stopPropagation();
                     setDateRange(opt.key);
+                    // Picking a range preset re-enters window mode — a prior
+                    // manual row pick no longer pins single-report view.
+                    setManualPick(false);
                     setConfirmId(null);
                     // Close after selecting in rangeOnly mode (it's the only thing in the dropdown).
                     if (rangeOnly) setOpen(false);
@@ -409,12 +477,15 @@ export function ReportSelector({
               timestamp, creator, optional notes preview, and per-row
               Download (anyone) + Delete (coach) actions. Clicking a
               row activates that report on the surrounding tab. */}
+          {/* Window-empty note — informational only; the full report list
+              below stays visible/clickable regardless of the range filter
+              ("always-shown report list", Big One req #1). */}
           {matchingReports.length === 0 && !rangeOnly && (
             <div className={styles.reportSelectorRangeEmpty}>
               No reports in this date range.
             </div>
           )}
-          {!rangeOnly && matchingReports.map(r => {
+          {!rangeOnly && typeFilteredReports.map(r => {
             const isActive = r.id === selected?.id;
             return (
               <div
@@ -425,6 +496,9 @@ export function ReportSelector({
                   type="button"
                   className={styles.reportSelectorItemBtn}
                   onClick={() => {
+                    // Manual pick pins single-report mode (even for a report
+                    // outside the current window) until a range is chosen.
+                    setManualPick(true);
                     onSelect(r);
                     setOpen(false);
                     setConfirmId(null);

@@ -4,6 +4,7 @@ import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import * as api from '@/lib/api';
 import aStyles from '@/components/assessment/assessment.module.css';
+import { spraySliceAggregate, type SprayAggregate } from '@/lib/pitchAggregation';
 
 /* Single source of truth for the surface color of the two horizontal
  * bars (Ball Readout + Filter Bar) under the spray chart. Pinned as
@@ -91,11 +92,15 @@ function rampStroke(t: number) {
 /* ─────────────────────────────────────────────────────────────────────────────
    SprayChart — pure SVG, ported from SwingBattedBallTab
    ─────────────────────────────────────────────────────────────────────────── */
-function SprayChart({ dots, selected, onSelect, axis }: {
+function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
   dots: SprayDot[];
   selected: number | null;
   onSelect: (idx: number | null) => void;
   axis: ColorAxisDef;
+  /** Big One average mode: five 18° field slices (LF/LC/CF/RC/RF) shaded +
+   *  labeled with the PERCENTAGE of batted balls landing in each — replaces
+   *  the individual dots. */
+  sliceAgg?: SprayAggregate | null;
 }) {
   const W = 520, H = 460;
   const cx = W / 2, cy = H - 24;
@@ -290,8 +295,49 @@ function SprayChart({ dots, selected, onSelect, axis }: {
         points={`${cx},${cy - 5.5} ${cx + 5.5},${cy - 2} ${cx + 4.5},${cy + 3.5} ${cx - 4.5},${cy + 3.5} ${cx - 5.5},${cy - 2}`}
         fill="rgba(223,227,232,0.92)" stroke="rgba(255,255,255,0.5)" strokeWidth={0.75} />
 
+      {/* ── Big One average mode: five 18° slice wedges with landing %s.
+          Slice boundaries −45°…+45° in 18° steps (LF, LC, CF, RC, RF —
+          matches spraySliceAggregate). Fill intensity is normalized to
+          the hottest slice; labels sit at ~2/3 field depth. */}
+      {sliceAgg && (() => {
+        const r = maxDist * scale;
+        const maxPct = Math.max(...sliceAgg.pcts, 1);
+        const names = ['LF', 'LC', 'CF', 'RC', 'RF'];
+        const pt = (a: number, rr: number): [number, number] => {
+          const rad = ((90 - a) * Math.PI) / 180;
+          return [cx + rr * Math.cos(rad), cy - rr * Math.sin(rad)];
+        };
+        return names.map((nm, i) => {
+          const a0 = -45 + i * 18;
+          const a1 = a0 + 18;
+          const [x0, y0] = pt(a0, r);
+          const [x1, y1] = pt(a1, r);
+          const pct = sliceAgg.pcts[i] ?? 0;
+          const [lx, ly] = pt(a0 + 9, r * 0.66);
+          const [nx, ny] = pt(a0 + 9, r * 0.5);
+          return (
+            <g key={nm} pointerEvents="none">
+              <path d={`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1} Z`}
+                fill="rgba(96,165,250,1)" opacity={0.07 + 0.4 * (pct / maxPct)}
+                stroke="var(--spray-gridline-color)" strokeWidth={0.8} />
+              <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.96)" fontSize={16} fontWeight={700}
+                fontFamily="'Satoshi', 'DM Sans', sans-serif" letterSpacing="0.04em">
+                {Math.round(pct)}%
+              </text>
+              <text x={nx} y={ny} textAnchor="middle" dominantBaseline="central"
+                style={{ fill: 'var(--spray-label-color)' }}
+                fontSize={9} fontWeight={600} letterSpacing="0.2em"
+                fontFamily="'DM Mono', ui-monospace, monospace">
+                {nm}
+              </text>
+            </g>
+          );
+        });
+      })()}
+
       {/* Selection vector */}
-      {selected !== null && dots[selected] && (() => {
+      {!sliceAgg && selected !== null && dots[selected] && (() => {
         const dot = dots[selected];
         const [sx, sy] = toXY(dot.angle, dot.distance);
         return (
@@ -301,8 +347,8 @@ function SprayChart({ dots, selected, onSelect, axis }: {
         );
       })()}
 
-      {/* Dots */}
-      {dots.map((dot, i) => {
+      {/* Dots — hidden in slice-percentage mode */}
+      {!sliceAgg && dots.map((dot, i) => {
         const [x, y] = toXY(dot.angle, dot.distance);
         if (x < 0 || x > W || y < 0 || y > H) return null;
         const isSelected = selected === i;
@@ -364,7 +410,7 @@ function SprayChart({ dots, selected, onSelect, axis }: {
 export function SprayChartView({
   playerId, refreshKey, reportUploadIds, maxWidth, compact = false,
   onDataRangeChange, hideReadout = false, hideFilters = false,
-  hideColorBar = false, noOuterChrome = false,
+  hideColorBar = false, noOuterChrome = false, sliceAggregate = false,
 }: {
   playerId: string;
   refreshKey?: number;
@@ -402,6 +448,10 @@ export function SprayChartView({
    *  surface stays transparent and the two regions read as ONE
    *  combined bubble. */
   noOuterChrome?: boolean;
+  /** Big One average mode: render the five-slice landing-percentage view
+   *  (LF/LC/CF/RC/RF) instead of individual dots. The min-threshold
+   *  filters still apply — percentages recompute over the filtered set. */
+  sliceAggregate?: boolean;
 }) {
   const [sprayDots, setSprayDots] = useState<SprayDot[]>([]);
   const [dataRange, setDataRange] = useState<{ start: string; end: string } | null>(null);
@@ -1052,6 +1102,7 @@ export function SprayChartView({
             selected={selectedDot}
             onSelect={setSelectedDot}
             axis={COLOR_AXES[colorBy]}
+            sliceAgg={sliceAggregate ? spraySliceAggregate(filteredDots.map(d => d.angle)) : null}
           />
         ) : sprayDots.length > 0 ? (
           <SprayEmpty icon="🎯" title="No batted balls match the current filters" hint="Adjust or reset filters below" />
