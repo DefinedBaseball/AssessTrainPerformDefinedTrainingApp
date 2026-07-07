@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as fs from 'fs';
@@ -143,6 +143,8 @@ export class TrainingService {
     time: string;
     duration: number;
     notes?: string;
+    order?: number;
+    sectionOrder?: number;
   }) {
     return this.prisma.scheduledDrill.create({
       data,
@@ -160,6 +162,8 @@ export class TrainingService {
     time: string;
     duration: number;
     notes?: string;
+    order?: number;
+    sectionOrder?: number;
   }[]) {
     // Create all in a transaction and return with drill data
     const results: any[] = [];
@@ -249,6 +253,61 @@ export class TrainingService {
 
   async deleteScheduledDrill(id: string) {
     return this.prisma.scheduledDrill.delete({ where: { id } });
+  }
+
+  // ─── Schedule Templates (named, reusable day plans) ───────────
+  // Items are stored as a JSON string snapshot; the service validates it
+  // parses to an array before writing so a bad client can't store junk
+  // that later breaks every picker render. Applying a template happens
+  // client-side via the existing createScheduledDrillsBatch.
+
+  private assertTemplateItems(items: string) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(items);
+    } catch {
+      throw new BadRequestException('items must be a JSON array');
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new BadRequestException('items must be a non-empty JSON array');
+    }
+  }
+
+  async listScheduleTemplates(tab?: string) {
+    return this.prisma.scheduleTemplate.findMany({
+      where: tab ? { tab } : undefined,
+      orderBy: [{ tab: 'asc' }, { name: 'asc' }],
+      include: { createdBy: { select: { id: true, name: true, email: true } } },
+    });
+  }
+
+  async createScheduleTemplate(data: { name: string; tab: string; items: string; createdById?: string }) {
+    const { name, tab, items, createdById } = data;
+    if (!name?.trim()) throw new BadRequestException('name is required');
+    if (!tab?.trim()) throw new BadRequestException('tab is required');
+    this.assertTemplateItems(items);
+    return this.prisma.scheduleTemplate.create({
+      data: { name: name.trim(), tab, items, createdById },
+    });
+  }
+
+  async updateScheduleTemplate(id: string, data: { name?: string; items?: string }) {
+    const existing = await this.prisma.scheduleTemplate.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('Template not found');
+    if (data.items !== undefined) this.assertTemplateItems(data.items);
+    return this.prisma.scheduleTemplate.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+        ...(data.items !== undefined ? { items: data.items } : {}),
+      },
+    });
+  }
+
+  async deleteScheduleTemplate(id: string) {
+    const existing = await this.prisma.scheduleTemplate.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('Template not found');
+    return this.prisma.scheduleTemplate.delete({ where: { id } });
   }
 
   // ─── Legacy Training Programs (kept for backward compat) ──────

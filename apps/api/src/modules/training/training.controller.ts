@@ -36,6 +36,10 @@ class CreateScheduledDrillDto {
   time!: string;
   duration!: number;
   notes?: string;
+  // Optional drag-reorder positions — used when applying a saved template so
+  // the created day reproduces the template's curated ordering. Default 0.
+  order?: number;
+  sectionOrder?: number;
 }
 
 class UpdateScheduledDrillDto {
@@ -228,6 +232,46 @@ export class TrainingController {
   @ApiOperation({ summary: 'Drag-reorder scheduled drills / sections (COACH only)' })
   reorderScheduledDrills(@Body() dto: ReorderScheduledDrillsDto) {
     return this.trainingService.reorderScheduledDrills(dto.items);
+  }
+
+  // ─── Schedule Templates (named, reusable day plans) ────────────
+  // Facility-wide: any coach can list/apply/delete any template. Applying
+  // a template reuses POST schedule/batch — no dedicated apply endpoint.
+
+  @Get('templates')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'List schedule templates, optionally by sport tab (COACH only)' })
+  listScheduleTemplates(@Query('tab') tab?: string) {
+    return this.trainingService.listScheduleTemplates(tab);
+  }
+
+  @Post('templates')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Save a day plan as a named template (COACH only)' })
+  createScheduleTemplate(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { name: string; tab: string; items: string },
+  ) {
+    return this.trainingService.createScheduleTemplate({
+      name: dto.name,
+      tab: dto.tab,
+      items: dto.items,
+      createdById: req.user?.sub,
+    });
+  }
+
+  @Put('templates/:id')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Rename / overwrite a schedule template (COACH only)' })
+  updateScheduleTemplate(@Param('id') id: string, @Body() dto: { name?: string; items?: string }) {
+    return this.trainingService.updateScheduleTemplate(id, dto);
+  }
+
+  @Delete('templates/:id')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Delete a schedule template (COACH only)' })
+  deleteScheduleTemplate(@Param('id') id: string) {
+    return this.trainingService.deleteScheduleTemplate(id);
   }
 
   @Put('schedule/:id')

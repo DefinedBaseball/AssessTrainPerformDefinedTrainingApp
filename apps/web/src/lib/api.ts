@@ -999,6 +999,10 @@ export async function createScheduledDrillsBatch(items: {
   time: string;
   duration: number;
   notes?: string;
+  /** Optional — set when applying a saved template so the day reproduces
+   *  the template's curated drill/section ordering. */
+  order?: number;
+  sectionOrder?: number;
 }[]) {
   return request<ScheduledDrill[]>('/training/schedule/batch', { method: 'POST', body: JSON.stringify({ items }) });
 }
@@ -1020,6 +1024,60 @@ export async function reorderScheduledDrills(items: {
     method: 'PATCH',
     body: JSON.stringify({ items }),
   });
+}
+
+// ---- Schedule Templates (named, reusable day plans) ----
+
+/** One drill slot inside a saved template — a denormalised snapshot of a
+ *  ScheduledDrill minus player/date, plus the drag-reorder positions so an
+ *  applied template reproduces the coach's curated ordering. */
+export interface ScheduleTemplateItem {
+  drillId?: string | null;
+  category: string;
+  name: string;
+  time: string;
+  duration: number;
+  notes?: string | null;
+  order: number;
+  sectionOrder: number;
+}
+
+export interface ScheduleTemplate {
+  id: string;
+  name: string;
+  tab: string;
+  /** JSON string of ScheduleTemplateItem[] — parse with parseTemplateItems. */
+  items: string;
+  createdById: string | null;
+  createdBy: { id: string; name: string | null; email: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Safe parse for ScheduleTemplate.items — bad JSON yields []. */
+export function parseTemplateItems(t: ScheduleTemplate): ScheduleTemplateItem[] {
+  try {
+    const parsed = JSON.parse(t.items);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getScheduleTemplates(tab?: string) {
+  const qs = tab ? `?tab=${encodeURIComponent(tab)}` : '';
+  return request<ScheduleTemplate[]>(`/training/templates${qs}`);
+}
+
+export async function createScheduleTemplate(data: { name: string; tab: string; items: ScheduleTemplateItem[] }) {
+  return request<ScheduleTemplate>('/training/templates', {
+    method: 'POST',
+    body: JSON.stringify({ name: data.name, tab: data.tab, items: JSON.stringify(data.items) }),
+  });
+}
+
+export async function deleteScheduleTemplate(id: string) {
+  return request<void>(`/training/templates/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteScheduledDrill(id: string) {

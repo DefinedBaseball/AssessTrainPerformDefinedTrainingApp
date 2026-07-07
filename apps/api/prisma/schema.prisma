@@ -44,6 +44,7 @@ model User {
   player Player?
   createdReports Report[] @relation("ReportCreatedBy")
   posts          Post[]   @relation("PostAuthor")
+  scheduleTemplates ScheduleTemplate[] @relation("ScheduleTemplateCreatedBy")
   liveSessionsCreated LiveSession[] @relation("LiveSessionCreatedBy")
   messagesSent     Message[] @relation("MessagesSent")
   messagesReceived Message[] @relation("MessagesReceived")
@@ -483,6 +484,29 @@ model ScheduledDrill {
 
   @@index([playerId, tab, date])
   @@index([playerId, date])
+}
+
+// ─── Schedule Templates (named, reusable day plans per sport) ───
+// A coach saves a training day's drill list as a template ("Pitching Day A")
+// and applies it to any athlete on any date. Items are a denormalised JSON
+// snapshot — same philosophy as ScheduledDrill's name/tab/category copy — so
+// a template keeps rendering even if a library Drill is later deleted:
+//   [{ drillId?, category, name, time, duration, notes?, order, sectionOrder }]
+// Applying a template goes through the existing POST /training/schedule/batch;
+// there is no separate "apply" endpoint. Templates are facility-wide (any
+// coach can use/delete any template) to match the single-facility model.
+model ScheduleTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  tab         String   // "hitting" | "pitching" | "catching" | "infield" | "outfield" | "strength"
+  items       String   // JSON snapshot (see above)
+  createdById String?
+  // SetNull on creator: staff churn shouldn't delete the facility's plans.
+  createdBy   User?    @relation("ScheduleTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tab, name])
 }
 
 // ─── Training Programs (legacy — kept for backward compat) ──────

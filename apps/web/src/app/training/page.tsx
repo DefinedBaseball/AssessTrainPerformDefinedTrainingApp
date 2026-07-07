@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { ScheduleDownloadModal } from './ScheduleDownloadModal';
+import { TemplatePicker } from '@/components/TemplatePicker';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -468,6 +469,54 @@ export default function TrainingPage() {
     } catch { /* ignore */ }
   }, []);
 
+  /* ── Schedule templates ──
+     Save: name prompt → snapshot persists facility-wide. Apply: picker modal
+     → recreate the template's drills on the CURRENT day for the selected
+     player via the existing batch endpoint (order/sectionOrder carried so
+     the applied day matches the template's curated layout). */
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const handleSaveTemplate = useCallback(async (tabKey: string, items: api.ScheduleTemplateItem[]) => {
+    if (items.length === 0) return;
+    const name = window.prompt('Template name (e.g. "Pitching Day A"):');
+    if (!name || !name.trim()) return;
+    try {
+      await api.createScheduleTemplate({ name: name.trim(), tab: tabKey, items });
+      window.alert(`Template "${name.trim()}" saved.`);
+    } catch (e: any) {
+      window.alert(e?.message || 'Failed to save template');
+    }
+  }, []);
+  const handleApplyTemplate = useCallback(async (t: api.ScheduleTemplate, items: api.ScheduleTemplateItem[]) => {
+    if (!selectedPlayerId || items.length === 0) return;
+    // Computed inline (not the later-declared todayDateStr const) so this
+    // callback's dep array never touches a binding above its declaration.
+    const dateStr = toDateStr(currentDate);
+    setApplyingTemplate(true);
+    try {
+      await api.createScheduledDrillsBatch(items.map(it => ({
+        playerId: selectedPlayerId,
+        drillId: it.drillId ?? undefined,
+        tab: t.tab,
+        category: it.category,
+        name: it.name,
+        date: dateStr,
+        time: it.time,
+        duration: it.duration,
+        notes: it.notes ?? undefined,
+        order: it.order,
+        sectionOrder: it.sectionOrder,
+      })));
+      refreshEvents();
+      setShowTemplates(false);
+    } catch (e) {
+      console.error('Apply template failed', e);
+      window.alert('Failed to apply template');
+    } finally {
+      setApplyingTemplate(false);
+    }
+  }, [selectedPlayerId, currentDate, refreshEvents]);
+
   /* Coach drag-reorder: optimistically merge the updated rows into `events`
      (board reflects the new order instantly), then persist the position
      payload; resync from the server on failure. */
@@ -811,8 +860,21 @@ export default function TrainingPage() {
           onDrillClick={(drill) => setViewingDrill(drill)}
           visibleTabs={visibleTabs}
           onReorder={applyReorder}
+          onSaveTemplate={handleSaveTemplate}
+          onOpenTemplates={() => setShowTemplates(true)}
         />
       )}
+
+      {/* ── Apply-Template picker — applies to the selected player + the
+          day currently shown in Day view. Lists every sport's templates
+          (the coach may be filling multiple areas of the same day). */}
+      <TemplatePicker
+        open={showTemplates}
+        title={`Apply to ${selectedPlayer ? `${selectedPlayer.firstName} ${selectedPlayer.lastName}` : 'selected player'} — ${todayDateStr}`}
+        onClose={() => setShowTemplates(false)}
+        onApply={handleApplyTemplate}
+        applying={applyingTemplate}
+      />
 
       </div>{/* /calendar shell (.profilePanel) */}
 
@@ -1052,6 +1114,8 @@ function DayView({
   onDrillClick,
   visibleTabs,
   onReorder,
+  onSaveTemplate,
+  onOpenTemplates,
 }: {
   currentDate: Date;
   allDayEvents: ScheduledDrill[];
@@ -1072,6 +1136,10 @@ function DayView({
   visibleTabs: typeof TABS;
   /** Coach drag-reorder: optimistically apply updated rows, then persist. */
   onReorder: (updatedRows: ScheduledDrill[], payload: { id: string; order?: number; sectionOrder?: number }[]) => void;
+  /** Save one sport's day plan as a named reusable template. */
+  onSaveTemplate: (tabKey: string, items: api.ScheduleTemplateItem[]) => void;
+  /** Open the Apply-Template picker for this day. */
+  onOpenTemplates: () => void;
 }) {
   const dateLabel = currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -1125,6 +1193,24 @@ function DayView({
       return ai - bi;
     });
   };
+
+  /* Snapshot one sport's day into template items — section/drill order
+     comes from the SAME groupByCategory ordering the coach sees on screen
+     (honouring any drag-reorder), so an applied template reproduces the
+     day exactly. */
+  const buildTemplateItems = (tabKey: string): api.ScheduleTemplateItem[] =>
+    groupByCategory(eventsByTab[tabKey] || [], tabKey).flatMap(([category, evs], gi) =>
+      evs.map((ev, i) => ({
+        drillId: ev.drillId,
+        category,
+        name: ev.name,
+        time: ev.time,
+        duration: ev.duration,
+        notes: ev.notes,
+        order: i,
+        sectionOrder: gi,
+      })),
+    );
 
   // When entering focus mode, look up the tab's metadata once.
   const focusedTabMeta = focusedTab ? visibleTabs.find((t) => t.key === focusedTab) ?? null : null;
@@ -1209,6 +1295,18 @@ function DayView({
               ← All areas
             </button>
           )}
+          {/* Apply a saved template to this day (coach). Works in both the
+              multi-column and focused views — the picker lists every sport's
+              templates and the apply targets the selected player + this day. */}
+          {isCoach && (
+            <button
+              className={styles.dayActionBtn}
+              onClick={onOpenTemplates}
+              title="Apply a saved schedule template to this day"
+            >
+              Templates
+            </button>
+          )}
           {/* While focused on a single tab the coach can still copy
               just THAT tab's drills via this button (mirrors the
               column-header Copy in the multi-column view). Hidden
@@ -1220,6 +1318,16 @@ function DayView({
               title={`Copy ${focusedTabMeta.label} drills only`}
             >
               Copy {focusedTabMeta.label}
+            </button>
+          )}
+          {/* Save the focused sport's day as a named reusable template. */}
+          {isCoach && focusedTabMeta && focusedEvents.length > 0 && (
+            <button
+              className={styles.dayActionBtn}
+              onClick={() => onSaveTemplate(focusedTabMeta.key, buildTemplateItems(focusedTabMeta.key))}
+              title={`Save this ${focusedTabMeta.label} day as a reusable template`}
+            >
+              Save as template
             </button>
           )}
           {/* Day-level Edit / Copy / Paste / Copy Week now live in the
@@ -1408,6 +1516,35 @@ function DayView({
                       }}
                     >
                       Copy
+                    </button>
+                  )}
+                  {/* Save this sport's day as a named reusable template —
+                      sits beside Copy with the same chip treatment. Only
+                      shown when there ARE drills to snapshot. */}
+                  {isCoach && tabEvents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSaveTemplate(tab.key, buildTemplateItems(tab.key));
+                      }}
+                      title={`Save this ${tab.label} day as a reusable template`}
+                      style={{
+                        background: 'transparent',
+                        border: `1px solid ${tabColor.text}`,
+                        color: tabColor.text,
+                        padding: '2px 8px',
+                        borderRadius: 5,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        marginLeft: 6,
+                        flexShrink: 0,
+                      }}
+                    >
+                      Save
                     </button>
                   )}
                 </div>

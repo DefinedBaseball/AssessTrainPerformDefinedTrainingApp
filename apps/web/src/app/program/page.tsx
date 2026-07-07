@@ -20,6 +20,7 @@ import type { Player, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
+import { TemplatePicker } from '@/components/TemplatePicker';
 import {
   DndContext,
   DragOverlay,
@@ -519,6 +520,7 @@ function AthleteColumn({
   isCoach,
   onClickDrill,
   onPlayDrill,
+  onOpenTemplates,
 }: {
   player: Player;
   drills: ScheduledDrill[];
@@ -533,6 +535,8 @@ function AthleteColumn({
   onClickDrill: (drill: ScheduledDrill) => void;
   /** Clicked a scheduled drill name — opens its video (mirrors Training). */
   onPlayDrill: (drill: ScheduledDrill) => void;
+  /** Coach clicked "+ Template" — apply a saved day plan to this athlete. */
+  onOpenTemplates: () => void;
 }) {
   /* Group drills by category so the card reads as
        Movement Prep
@@ -574,11 +578,29 @@ function AthleteColumn({
 
   return (
     <div className={styles.athleteCard}>
-      <div className={styles.athleteCardHead} style={{ borderTopColor: scheduleColor }}>
+      <div className={styles.athleteCardHead} style={{ borderTopColor: scheduleColor, position: 'relative' }}>
         <div className={styles.athleteName}>
           {player.firstName} <span className={styles.athleteLast}>{player.lastName}</span>
         </div>
         <div className={styles.athletePositions}>{player.positions || '—'}</div>
+        {/* Apply a saved schedule template to this athlete for the session
+            date — top-right chip so it doesn't disturb the centered name. */}
+        {isCoach && (
+          <button
+            type="button"
+            onClick={onOpenTemplates}
+            title="Apply a schedule template to this athlete"
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              border: `1px solid ${scheduleColor}`, color: scheduleColor,
+              background: 'transparent', borderRadius: 6, padding: '2px 7px',
+              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em',
+              textTransform: 'uppercase', cursor: 'pointer', opacity: 0.85,
+            }}
+          >
+            + Tmpl
+          </button>
+        )}
       </div>
       <div
         ref={setColumnRef}
@@ -1143,6 +1165,39 @@ export default function ProgramPage() {
     }
   };
 
+  /* ── Apply-Template picker (per athlete) ──
+     Set when a coach clicks "+ Tmpl" on an athlete's column; applying
+     recreates the template's drills for that athlete on the session date
+     (order/sectionOrder carried), then refetches just that column. */
+  const [tplPlayer, setTplPlayer] = useState<Player | null>(null);
+  const [applyingTpl, setApplyingTpl] = useState(false);
+  const applyTemplate = async (t: api.ScheduleTemplate, items: api.ScheduleTemplateItem[]) => {
+    if (!tplPlayer || items.length === 0) return;
+    setApplyingTpl(true);
+    try {
+      await api.createScheduledDrillsBatch(items.map(it => ({
+        playerId: tplPlayer.id,
+        drillId: it.drillId ?? undefined,
+        tab: t.tab,
+        category: it.category,
+        name: it.name,
+        date: sessionDate,
+        time: it.time,
+        duration: it.duration,
+        notes: it.notes ?? undefined,
+        order: it.order,
+        sectionOrder: it.sectionOrder,
+      })));
+      await refetchAthletes([tplPlayer.id]);
+      setTplPlayer(null);
+    } catch (e) {
+      console.error('Apply template failed', e);
+      window.alert('Failed to apply template');
+    } finally {
+      setApplyingTpl(false);
+    }
+  };
+
   /* Inline-edit popover — set when coach clicks a drill, cleared on save
      / cancel / delete. Render is a small modal anchored center-screen. */
   const [editingDrill, setEditingDrill] = useState<ScheduledDrill | null>(null);
@@ -1458,6 +1513,7 @@ export default function ProgramPage() {
               isCoach={isCoach}
               onClickDrill={(d) => setEditingDrill(d)}
               onPlayDrill={(d) => setViewingDrill(d)}
+              onOpenTemplates={() => setTplPlayer(p)}
             />
           ))}
         </div>
@@ -1500,6 +1556,19 @@ export default function ProgramPage() {
           onClose={closeEditor}
           onSave={saveEditor}
           onDelete={deleteEditor}
+        />
+      )}
+
+      {/* Apply-Template picker — scoped to the board's active schedule so a
+          Pitching board only offers Pitching templates. */}
+      {tplPlayer && (
+        <TemplatePicker
+          open
+          tab={schedule}
+          title={`Apply to ${tplPlayer.firstName} ${tplPlayer.lastName} — ${sessionDate}`}
+          onClose={() => setTplPlayer(null)}
+          onApply={applyTemplate}
+          applying={applyingTpl}
         />
       )}
 
