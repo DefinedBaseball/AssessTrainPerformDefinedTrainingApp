@@ -6,7 +6,16 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
-import { ScheduleDownloadModal } from './ScheduleDownloadModal';
+import nextDynamic from 'next/dynamic';
+/* Code-split: ScheduleDownloadModal drags the whole @react-pdf/renderer
+   engine with it (~the majority of this route's old 625kB First Load).
+   Its render site is already mount-gated behind the Download button, so a
+   dynamic import means the PDF machinery only downloads when a coach
+   actually opens the download dialog. */
+const ScheduleDownloadModal = nextDynamic(
+  () => import('./ScheduleDownloadModal').then(m => m.ScheduleDownloadModal),
+  { ssr: false },
+);
 import { TemplatePicker, SaveTemplateModal } from '@/components/TemplatePicker';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
