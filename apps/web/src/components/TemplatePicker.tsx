@@ -19,6 +19,130 @@ const TAB_LABELS: Record<string, string> = {
   infield: 'Infield', outfield: 'Outfield', strength: 'S&C',
 };
 
+/* ── SaveTemplateModal ──
+   Styled replacement for the v1 window.prompt flow: names the template,
+   shows what's being snapshotted, and confirms the save inline ("✓ Saved")
+   before auto-closing. The caller owns the actual API write via onSave so
+   this stays a dumb, reusable shell. */
+export function SaveTemplateModal({
+  open, sportLabel, itemCount, sectionCount, onClose, onSave,
+}: {
+  open: boolean;
+  sportLabel: string;
+  itemCount: number;
+  sectionCount: number;
+  onClose: () => void;
+  /** Persist the template; throw to surface an inline error. */
+  onSave: (name: string) => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fresh state every time the modal opens.
+  useEffect(() => {
+    if (open) { setName(''); setSaving(false); setSaved(false); setError(null); }
+  }, [open]);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || saving || saved) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(trimmed);
+      setSaved(true);
+      setTimeout(onClose, 1100);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save template');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        background: 'rgba(6, 8, 14, 0.62)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={saved ? undefined : onClose}
+    >
+      <div
+        style={{
+          width: 'min(380px, 94vw)',
+          background: 'var(--surface-bright, var(--surface))',
+          border: '1px solid var(--border-bright, var(--border))',
+          borderRadius: 14, padding: '16px 16px 14px',
+          boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-bright, var(--text))' }}>
+            Save as Template
+          </div>
+          {!saved && (
+            <button type="button" onClick={onClose}
+              style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
+              aria-label="Close">×</button>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+          {sportLabel} · {itemCount} drill{itemCount !== 1 ? 's' : ''} · {sectionCount} section{sectionCount !== 1 ? 's' : ''}
+        </div>
+
+        {saved ? (
+          <div style={{ padding: '18px 0 10px', textAlign: 'center', color: 'var(--green, #22c55e)', fontSize: 14, fontWeight: 700 }}>
+            ✓ Template “{name.trim()}” saved
+          </div>
+        ) : (
+          <>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+              placeholder='e.g. "Pitching Day A"'
+              maxLength={60}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '9px 11px', borderRadius: 9,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)', color: 'var(--text-bright, var(--text))',
+                fontSize: 13.5, outline: 'none', marginBottom: 10,
+              }}
+            />
+            {error && (
+              <div style={{ fontSize: 11.5, color: 'var(--red, #ef4444)', marginBottom: 8 }}>{error}</div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={onClose}
+                style={{ border: '1px solid var(--border)', color: 'var(--text-muted)', background: 'transparent', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button type="button" onClick={submit} disabled={!name.trim() || saving}
+                style={{
+                  border: '1px solid var(--accent, #3d8bfd)',
+                  color: '#fff', background: 'var(--accent, #3d8bfd)',
+                  borderRadius: 8, padding: '6px 16px', fontSize: 12, fontWeight: 700,
+                  cursor: !name.trim() || saving ? 'default' : 'pointer',
+                  opacity: !name.trim() || saving ? 0.55 : 1,
+                }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TemplatePicker({
   open, tab, title, onClose, onApply, applying = false,
 }: {

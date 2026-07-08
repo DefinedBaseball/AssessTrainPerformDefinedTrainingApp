@@ -7,7 +7,7 @@ import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { ScheduleDownloadModal } from './ScheduleDownloadModal';
-import { TemplatePicker } from '@/components/TemplatePicker';
+import { TemplatePicker, SaveTemplateModal } from '@/components/TemplatePicker';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -476,16 +476,14 @@ export default function TrainingPage() {
      the applied day matches the template's curated layout). */
   const [showTemplates, setShowTemplates] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
-  const handleSaveTemplate = useCallback(async (tabKey: string, items: api.ScheduleTemplateItem[]) => {
+  /* "Save as template" opens the styled name modal (SaveTemplateModal); the
+     modal owns the input + inline "✓ Saved" confirmation, this page owns the
+     API write. Replaces the v1 window.prompt/alert flow. */
+  const [saveTpl, setSaveTpl] = useState<{ tabKey: string; label: string; items: api.ScheduleTemplateItem[] } | null>(null);
+  const handleSaveTemplate = useCallback((tabKey: string, items: api.ScheduleTemplateItem[]) => {
     if (items.length === 0) return;
-    const name = window.prompt('Template name (e.g. "Pitching Day A"):');
-    if (!name || !name.trim()) return;
-    try {
-      await api.createScheduleTemplate({ name: name.trim(), tab: tabKey, items });
-      window.alert(`Template "${name.trim()}" saved.`);
-    } catch (e: any) {
-      window.alert(e?.message || 'Failed to save template');
-    }
+    const label = TABS.find(t => t.key === tabKey)?.label ?? tabKey;
+    setSaveTpl({ tabKey, label, items });
   }, []);
   const handleApplyTemplate = useCallback(async (t: api.ScheduleTemplate, items: api.ScheduleTemplateItem[]) => {
     if (!selectedPlayerId || items.length === 0) return;
@@ -874,6 +872,19 @@ export default function TrainingPage() {
         onClose={() => setShowTemplates(false)}
         onApply={handleApplyTemplate}
         applying={applyingTemplate}
+      />
+
+      {/* Styled name-and-confirm modal for "Save as template". */}
+      <SaveTemplateModal
+        open={!!saveTpl}
+        sportLabel={saveTpl?.label ?? ''}
+        itemCount={saveTpl?.items.length ?? 0}
+        sectionCount={saveTpl ? new Set(saveTpl.items.map(i => i.category)).size : 0}
+        onClose={() => setSaveTpl(null)}
+        onSave={async (nm) => {
+          if (!saveTpl) return;
+          await api.createScheduleTemplate({ name: nm, tab: saveTpl.tabKey, items: saveTpl.items });
+        }}
       />
 
       </div>{/* /calendar shell (.profilePanel) */}
