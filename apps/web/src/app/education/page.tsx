@@ -869,11 +869,6 @@ async function fileToCoverDataUrl(file: File, maxWidth = 800, quality = 0.85): P
 
 function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, setThrows, search, setSearch, isCoach, goToPlayer, showModal, setShowModal }: any) {
   const [editingPlayer, setEditingPlayer] = useState<MlbPlayer | null>(null);
-  // Per-card hidden file inputs are too noisy to render; instead we
-  // keep ONE shared input + remember which player it's for.
-  const coverInputRef = useRef<HTMLInputElement>(null);
-  const [coverTargetId, setCoverTargetId] = useState<string | null>(null);
-
   const handleDeletePlayer = async (id: string) => {
     if (!window.confirm('Delete this MLB player AND all of their videos? This cannot be undone.')) return;
     await api.deleteMlbPlayer(id);
@@ -890,36 +885,10 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
     setEditingPlayer(null);
   };
 
-  /* Click handler installed on each player thumb (coach only). Opens
-     the shared hidden `<input type="file">` and remembers which player
-     the picked file should be assigned to. */
-  const handleThumbClick = (playerId: string) => {
-    setCoverTargetId(playerId);
-    coverInputRef.current?.click();
-  };
-
-  /* File picker → resize + base64 → PATCH /mlb/players/:id with the
-     `coverImageUrl`. Updates the local roster state so the new cover
-     photo appears immediately without a full refetch. Errors surface
-     to the coach via window.alert so a too-large or corrupt image
-     doesn't fail silently. */
-  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const id = coverTargetId;
-    e.target.value = ''; // allow re-uploading the same file later
-    if (!file || !id) return;
-    try {
-      const dataUrl = await fileToCoverDataUrl(file);
-      const updated = await api.updateMlbPlayer(id, { coverImageUrl: dataUrl } as any);
-      setPlayers((prev: MlbPlayer[]) => prev.map((p) =>
-        p.id === id ? { ...updated, videos: p.videos } : p,
-      ));
-    } catch (err: any) {
-      window.alert(`Could not upload cover photo: ${err?.message || err}`);
-    } finally {
-      setCoverTargetId(null);
-    }
-  };
+  /* Cover-photo uploads moved OFF the grid cards (2026-07 request):
+     clicking a card image now just opens the player's profile like the
+     rest of the card. Uploading/replacing a cover lives solely on the
+     detail page's avatar (PlayerDetail below). */
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -996,15 +965,13 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                      `background-image`. Without a cover photo we render
                      a clean position-tinted fill — NO emoji placeholder.
                      The position badge stays anchored bottom-right in
-                     both states. Coach-only click handler opens the
-                     shared file picker (see `coverInputRef` below); the
-                     parent card's `goToPlayer` click is stopped so the
-                     upload doesn't navigate away. */
+                     both states. No click handler of its own: clicks
+                     bubble to the card's goToPlayer, so the image opens
+                     the profile like the rest of the card. Cover uploads
+                     live on the detail page's avatar only. */
                   style={p.coverImageUrl
-                    ? { backgroundImage: `url(${p.coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', cursor: isCoach ? 'pointer' : 'pointer' }
-                    : { background: `${posColor}15`, cursor: isCoach ? 'pointer' : 'pointer' }}
-                  title={isCoach ? (p.coverImageUrl ? 'Click to replace cover photo' : 'Click to upload cover photo') : undefined}
-                  onClick={isCoach ? (e) => { e.stopPropagation(); handleThumbClick(p.id); } : undefined}
+                    ? { backgroundImage: `url(${p.coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer' }
+                    : { background: `${posColor}15`, cursor: 'pointer' }}
                 >
                   {fallbackVideoUrl && (
                     <video
@@ -1058,19 +1025,6 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
         </div>
       )}
       </div>{/* /profilePanel */}
-      {/* Shared hidden file input for cover-photo uploads. One input
-          per page (not per card) so the DOM stays small even at the
-          projected 300-player roster. `coverTargetId` remembers which
-          player the picked file is for. Player app users (no coach
-          role) never trigger this because the thumb click handler is
-          coach-gated above. */}
-      <input
-        ref={coverInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleCoverFile}
-      />
       {showModal && <PlayerModal onClose={() => setShowModal(false)} onSaved={(p: MlbPlayer) => { setPlayers((prev: MlbPlayer[]) => [...prev, p]); setShowModal(false); }} />}
       {editingPlayer && <EditPlayerModal player={editingPlayer} onClose={() => setEditingPlayer(null)} onSaved={handlePlayerUpdated} />}
     </>
