@@ -95,6 +95,13 @@ export class VideosService {
     return this.prisma.video.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      // Browse is a GRID feed — cap at the newest 200 so the payload can't
+      // grow unbounded with the library (the page's date/player/category
+      // filters narrow within that window). Annotations + voice-overs were
+      // dropped from this response: no browse consumer reads them (verified;
+      // CoachingLibrary guards with Array.isArray) — playback surfaces that
+      // need them fetch full detail via findOne/findByPlayer.
+      take: 200,
       include: {
         player: {
           select: {
@@ -106,8 +113,6 @@ export class VideosService {
             profilePhoto: true,
           },
         },
-        annotations: { orderBy: { frameTimestamp: 'asc' } },
-        voiceOvers: { orderBy: { startTimestamp: 'asc' } },
       },
     });
   }

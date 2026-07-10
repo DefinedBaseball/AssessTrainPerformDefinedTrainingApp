@@ -165,15 +165,17 @@ export class TrainingService {
     order?: number;
     sectionOrder?: number;
   }[]) {
-    // Create all in a transaction and return with drill data
-    const results: any[] = [];
-    for (const item of items) {
-      const created = await this.prisma.scheduledDrill.create({
-        data: item,
-        include: { drill: true },
-      });
-      results.push(created);
-    }
+    // One real transaction (single batched round-trip) instead of the old
+    // sequential per-item awaits — template applies create dozens of rows,
+    // and all-or-nothing semantics beat a half-created day on failure.
+    const results = await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.scheduledDrill.create({
+          data: item,
+          include: { drill: true },
+        }),
+      ),
+    );
     // One "new training scheduled" notification per unique player in the
     // batch (a schedule upload) — not one per drill, which would spam.
     void this.notifyScheduledPlayers([...new Set(items.map((i) => i.playerId))]);
