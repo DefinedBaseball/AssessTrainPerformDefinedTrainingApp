@@ -49,6 +49,25 @@ model User {
   messagesSent     Message[] @relation("MessagesSent")
   messagesReceived Message[] @relation("MessagesReceived")
   notifications    Notification[] @relation("NotificationsReceived")
+  passwordResetTokens PasswordResetToken[] @relation("PasswordResetTokens")
+}
+
+// ─── Password Reset Tokens ───────────────────────────────────────
+// Backs the "forgot password" flow. We store only a SHA-256 HASH of the
+// token, never the raw value — a DB leak can't be turned into working reset
+// links. The raw token rides in the emailed link; on reset we hash the
+// incoming value and match. Rows are single-use (usedAt) and short-lived
+// (expiresAt, ~1h); cascade-deleted with the user.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation("PasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // ─── Player Profile ──────────────────────────────────────────────

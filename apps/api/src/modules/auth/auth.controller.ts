@@ -99,6 +99,25 @@ export class AuthController {
     return this.authService.login(dto.email, dto.password);
   }
 
+  @Public()
+  @Post('forgot-password')
+  /* Request a reset email. Always returns { ok: true } regardless of whether
+     the email exists (no account enumeration). Throttled 5 / 10 min. */
+  @Throttle({ short: { limit: 5, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Request a password-reset email' })
+  forgotPassword(@Body() dto: { email: string }) {
+    return this.authService.requestPasswordReset(dto?.email);
+  }
+
+  @Public()
+  @Post('reset-password')
+  /* Complete a reset with an emailed token + new password. Throttled. */
+  @Throttle({ short: { limit: 5, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Complete a password reset using an emailed token' })
+  resetPassword(@Body() dto: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(dto?.token, dto?.newPassword);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

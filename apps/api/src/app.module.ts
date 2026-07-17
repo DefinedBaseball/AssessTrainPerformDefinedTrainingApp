@@ -21,6 +21,7 @@ import { ClubTeamsModule } from './modules/club-teams/club-teams.module';
 import { CollegesModule } from './modules/colleges/colleges.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       { name: 'long', ttl: 60_000, limit: 600 },
     ]),
     PrismaModule,
+    MailModule,
     HealthModule,
     AuthModule,
     PlayersModule,

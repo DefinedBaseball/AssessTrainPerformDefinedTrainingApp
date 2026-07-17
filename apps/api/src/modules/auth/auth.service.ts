@@ -7,10 +7,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash, timingSafeEqual, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { passwordResetEmail, welcomeEmail } from '../mail/mail.templates';
 
 /** Full payload from the public /register form: profile + credentials. */
 export interface SignupPlayerPayload {
@@ -39,6 +41,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private mail: MailService,
   ) {}
 
   /**
@@ -293,6 +296,65 @@ export class AuthService {
     return { ok: true };
   }
 
+  /** SHA-256 of a reset token. Only the hash is persisted — the raw token
+   *  lives only in the emailed link, so a DB leak yields no usable links. */
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  /**
+   * Begin the forgot-password flow. ALWAYS returns { ok: true } and swallows
+   * every error, so the response is identical whether or not the email maps to
+   * an account — no user enumeration. On a real ACTIVE match we mint a
+   * single-use token (raw value emailed, hash stored, 1-hour expiry) and send
+   * the reset link. Pending/declined players can't log in, so they don't reset.
+   */
+  async requestPasswordReset(rawEmail: string): Promise<{ ok: true }> {
+    const email = rawEmail?.trim().toLowerCase();
+    if (!email) return { ok: true };
+    try {
+      const user = await this.prisma.user.findUnique({ where: { email } });
+      if (user && user.status === 'ACTIVE') {
+        // Drop any prior outstanding tokens so only the newest link works.
+        await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+        const token = randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        await this.prisma.passwordResetToken.create({
+          data: { userId: user.id, tokenHash: this.hashToken(token), expiresAt },
+        });
+        const resetUrl = `${this.mail.webAppUrl}/reset-password?token=${token}`;
+        const { subject, html, text } = passwordResetEmail(resetUrl, user.name);
+        await this.mail.send({ to: user.email, subject, html, text });
+      }
+    } catch {
+      // Deliberately swallowed — the caller's response must not reveal outcome.
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Complete the flow: validate the token, set the new password, and burn
+   * every reset token for that user. Any invalid / expired / already-used
+   * token yields the same generic error (no leak about which condition failed).
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ ok: true }> {
+    if (!newPassword || newPassword.length < 6)
+      throw new BadRequestException('New password must be at least 6 characters');
+    if (!token) throw new BadRequestException('This reset link is invalid or has expired.');
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.hashToken(token) },
+    });
+    if (!row || row.usedAt || row.expiresAt.getTime() < Date.now())
+      throw new BadRequestException('This reset link is invalid or has expired.');
+    const hash = await this.hashPassword(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: row.userId }, data: { password: hash } }),
+      // Burn all of this user's tokens (the one just used + any stragglers).
+      this.prisma.passwordResetToken.deleteMany({ where: { userId: row.userId } }),
+    ]);
+    return { ok: true };
+  }
+
   /** Raw per-subject notification channel matrix (defaults applied client-side). */
   async getNotificationPrefs(userId: string): Promise<Record<string, unknown>> {
     const u = await this.prisma.user.findUnique({
@@ -473,12 +535,19 @@ export class AuthService {
 
   /** Accept a pending player → ACTIVE (idempotent). */
   async approvePlayer(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { player: true },
+    });
     if (!user) throw new NotFoundException('User not found');
     if (user.status !== 'PENDING') return { ok: true, status: user.status };
     await this.prisma.user.update({ where: { id: userId }, data: { status: 'ACTIVE' } });
     // Resolve the request → drop it from every coach's bell.
     await this.notifications.clearAccountRequest(userId);
+    // Welcome email — best-effort, non-blocking (no-ops if Resend unconfigured).
+    const displayName = user.name || user.player?.firstName || null;
+    const { subject, html, text } = welcomeEmail(`${this.mail.webAppUrl}/login`, displayName);
+    void this.mail.send({ to: user.email, subject, html, text });
     return { ok: true, status: 'ACTIVE' };
   }
 

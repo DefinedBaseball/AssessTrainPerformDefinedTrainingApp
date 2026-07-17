@@ -139,6 +139,23 @@ export async function login(email: string, password: string) {
   );
 }
 
+/** Request a password-reset email. Always resolves { ok: true } — the API
+ *  never reveals whether the email maps to an account. */
+export async function requestPasswordReset(email: string) {
+  return request<{ ok: boolean }>(
+    '/auth/forgot-password',
+    { method: 'POST', body: JSON.stringify({ email }) },
+  );
+}
+
+/** Complete a password reset with the emailed token + a new password. */
+export async function resetPassword(token: string, newPassword: string) {
+  return request<{ ok: boolean }>(
+    '/auth/reset-password',
+    { method: 'POST', body: JSON.stringify({ token, newPassword }) },
+  );
+}
+
 export interface AccountProfile {
   id: string;
   email: string;

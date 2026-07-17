@@ -90,6 +90,12 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <Link href="/forgot-password" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none' }}>
+            Forgot password?
+          </Link>
+        </div>
+
         {showDemoLogin && (
           <>
             <div className={styles.divider}>
