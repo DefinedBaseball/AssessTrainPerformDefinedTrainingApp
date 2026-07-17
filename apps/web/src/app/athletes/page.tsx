@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
-import { MOCK_PLAYERS } from '@/lib/mock-data';
 import { PageHeader } from '@/components/PageHeader';
 import { getAgeFromBirthDate } from './[id]/helpers';
 import styles from './page.module.css';
@@ -21,6 +20,7 @@ export default function AthletesPage() {
   const [posFilter, setPosFilter] = useState('All');
   const [sortDir, setSortDir] = useState<'az' | 'za'>('az'); // default alphabetical
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -34,14 +34,31 @@ export default function AthletesPage() {
     }
   }, [isLoading, user, isCoach, router]);
 
+  /* Load the roster. One silent retry absorbs the Render cold-start (the
+     first request after the API idles can time out); a genuine failure then
+     surfaces an honest error + Retry state instead of substituting demo
+     players — a transient blip must never look like "the roster vanished". */
+  const loadPlayers = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const p = await api.getPlayers();
+        setPlayers(p.filter(x => x.positions !== 'COACH'));
+        setLoading(false);
+        return;
+      } catch {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1200)); continue; }
+        setLoadError(true);
+        setLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!user || !isCoach) return;
-    api.getPlayers().then(p => {
-      const athletes = p.filter(x => x.positions !== 'COACH');
-      setPlayers(athletes.length > 0 ? athletes : MOCK_PLAYERS);
-      setLoading(false);
-    }).catch(() => { setPlayers(MOCK_PLAYERS); setLoading(false); });
-  }, [user, isCoach]);
+    loadPlayers();
+  }, [user, isCoach, loadPlayers]);
 
   const filtered = players.filter(p => {
     const name = `${p.firstName} ${p.lastName}`.toLowerCase();
@@ -106,9 +123,21 @@ export default function AthletesPage() {
 
       {loading ? (
         <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Loading athletes...</p>
+      ) : loadError ? (
+        <div className={styles.empty}>
+          <p>Couldn&apos;t load the roster.</p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ marginTop: 14 }}
+            onClick={loadPlayers}
+          >
+            Retry
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className={styles.empty}>
-          <p>No athletes found</p>
+          <p>{players.length === 0 ? 'No athletes yet' : 'No athletes found'}</p>
         </div>
       ) : (
         <div className={styles.listWrap}>

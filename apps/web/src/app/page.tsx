@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
-import { MOCK_PLAYERS } from '@/lib/mock-data';
 import { PageHeader } from '@/components/PageHeader';
 import { MessagesLauncher } from '@/components/MessagesLauncher';
 import { RichTextEditor, RichTextView } from '@/components/RichTextEditor';
@@ -103,9 +102,29 @@ export default function DashboardPage() {
   const { user, isCoach, isLoading } = useAuth();
 
   const [players, setPlayers] = useState<Player[]>([]);
+  const [playersError, setPlayersError] = useState(false);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [weekDrills, setWeekDrills] = useState<ScheduledDrill[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* Load the coach roster (drives the stat cards + post-tagging pickers).
+     One silent retry absorbs the Render cold-start; on genuine failure we
+     flag playersError so the stats show "—" + a Retry, never demo athletes
+     masquerading as the real roster. */
+  const loadRoster = useCallback(async () => {
+    setPlayersError(false);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const p = await api.getPlayers();
+        setPlayers(p.filter((x: Player) => x.positions !== 'COACH'));
+        return;
+      } catch {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1200)); continue; }
+        setPlayers([]);
+        setPlayersError(true);
+      }
+    }
+  }, []);
 
   /* ── Modal state ── */
   const [showModal, setShowModal] = useState(false);
@@ -153,20 +172,15 @@ export default function DashboardPage() {
       return;
     }
 
-    const promises: Promise<any>[] = [
-      api.getPlayers().then(p => {
-        const athletes = p.filter((x: Player) => x.positions !== 'COACH');
-        return athletes.length > 0 ? athletes : MOCK_PLAYERS;
-      }).catch(() => MOCK_PLAYERS),
-      api.getPosts().catch(() => []),
-    ];
-
-    Promise.all(promises).then(([p, postsData]) => {
-      setPlayers(p);
+    // Roster loads (with its own retry) independently of the feed, so the
+    // dashboard paints as soon as posts arrive; the stat cards fill in when
+    // the roster resolves. Posts failing just yields an empty feed.
+    loadRoster();
+    api.getPosts().catch(() => []).then(postsData => {
       setPosts(postsData);
       setLoading(false);
     });
-  }, [user, isCoach]);
+  }, [user, isCoach, loadRoster]);
 
   /* ── Week data ── */
   const weekDays = useMemo(() => getCurrentWeekDays(), []);
@@ -301,18 +315,19 @@ export default function DashboardPage() {
 
       {/* ── Content ── */}
       <div className={styles.content}>
-        {/* Stat KPIs */}
+        {/* Stat KPIs — the three roster-derived cards show "—" (not a scary 0)
+            if the roster couldn't load; Pro Signings is posts-derived. */}
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{players.length}</div>
+            <div className={styles.statValue}>{playersError ? '—' : players.length}</div>
             <div className={styles.statLabel}>Total Athletes</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{gradYears.size}</div>
+            <div className={styles.statValue}>{playersError ? '—' : gradYears.size}</div>
             <div className={styles.statLabel}>Grad Years</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{committed}</div>
+            <div className={styles.statValue}>{playersError ? '—' : committed}</div>
             <div className={styles.statLabel}>Committed</div>
           </div>
           <div className={styles.statCard}>
@@ -320,6 +335,18 @@ export default function DashboardPage() {
             <div className={styles.statLabel}>Pro Signings</div>
           </div>
         </div>
+        {playersError && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>
+            <span>Couldn&apos;t load the roster.</span>
+            <button
+              type="button"
+              onClick={loadRoster}
+              style={{ border: '1px solid var(--accent, #3d8bfd)', color: 'var(--accent, #3d8bfd)', background: 'transparent', borderRadius: 8, padding: '3px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* ── Announcement & Spotlight Feed ── */}
         <AnnouncementFeed
