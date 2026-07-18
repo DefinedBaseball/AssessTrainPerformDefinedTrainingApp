@@ -779,7 +779,7 @@ function StaffTab() {
    delivered yet (no provider until go-live). */
 const NOTIF_CHANNELS: { key: keyof api.NotifChannelPrefs; label: string; sub: string }[] = [
   { key: 'app', label: 'App', sub: 'In-app bell notifications' },
-  { key: 'email', label: 'Email', sub: 'Your login email \u00b7 delivery coming soon' },
+  { key: 'email', label: 'Email', sub: 'Your login email' },
   { key: 'phone', label: 'Phone', sub: 'Text messages \u00b7 delivery coming soon' },
 ];
 const NOTIF_CHANNEL_DEFAULTS: api.NotifChannelPrefs = { app: true, email: true, phone: false };
@@ -795,6 +795,10 @@ const NOTIF_SUBJECTS_COACH = [
   { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests' },
   { key: 'COMMITMENT', label: 'College Commitments' },
 ];
+/* Subjects with LIVE email delivery (must match the API's
+   EMAIL_DELIVERED_SUBJECTS). Every other subject's Email toggle renders as a
+   muted "Soon" so we don't imply delivery that isn't wired yet. */
+const EMAIL_DELIVERED_SUBJECTS = new Set(['COACH_REVIEW']);
 
 function NotificationsTab({ isCoach }: { isCoach: boolean }) {
   const subjects = isCoach ? NOTIF_SUBJECTS_COACH : NOTIF_SUBJECTS_PLAYER;
@@ -862,6 +866,9 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
               /* Account requests are mandatory in-app so a coach can never
                  miss a pending player \u2014 lock that one toggle on. */
               const locked = ch.key === 'app' && s.key === 'ACCOUNT_REQUEST';
+              /* Email delivery is wired for Coach Reviews only right now \u2014 every
+                 other subject's Email toggle shows "Soon" instead of a switch. */
+              const emailNotWired = ch.key === 'email' && !EMAIL_DELIVERED_SUBJECTS.has(s.key);
               const on = locked || isOn(s.key, ch.key);
               return (
                 <div key={s.key} className={styles.row}>
@@ -869,15 +876,25 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
                     <span className={styles.rowTitle}>{s.label}</span>
                     {locked && <span className={styles.rowSub}>Always on \u00b7 required</span>}
                   </div>
-                  <button
-                    type="button"
-                    disabled={locked}
-                    aria-label={`${ch.label} \u2014 ${s.label}${locked ? ' (required)' : ''}`}
-                    title={locked ? 'Account requests are always on so you never miss one' : undefined}
-                    className={`${styles.toggle} ${on ? styles.toggleOn : ''}`}
-                    style={locked ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}
-                    onClick={() => { if (!locked) toggle(s.key, ch.key); }}
-                  />
+                  {emailNotWired ? (
+                    <span
+                      className={styles.rowSub}
+                      title="Email delivery for this notification is coming soon"
+                      style={{ opacity: 0.7 }}
+                    >
+                      Soon
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={locked}
+                      aria-label={`${ch.label} \u2014 ${s.label}${locked ? ' (required)' : ''}`}
+                      title={locked ? 'Account requests are always on so you never miss one' : undefined}
+                      className={`${styles.toggle} ${on ? styles.toggleOn : ''}`}
+                      style={locked ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}
+                      onClick={() => { if (!locked) toggle(s.key, ch.key); }}
+                    />
+                  )}
                 </div>
               );
             })}

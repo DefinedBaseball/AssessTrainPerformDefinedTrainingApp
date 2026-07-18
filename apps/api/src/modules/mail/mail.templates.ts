@@ -78,6 +78,25 @@ export function welcomeEmail(loginUrl: string, name?: string | null): { subject:
   return { subject: 'Your Defined Baseball account is approved', html, text };
 }
 
+/** Coach-review email — sent to a player when a coach completes a review
+ *  video on their profile. `reviewUrl` deep-links to their profile. */
+export function coachReviewEmail(reviewUrl: string, name?: string | null): { subject: string; html: string; text: string } {
+  const hi = name?.trim() ? `Hi ${escapeHtml(name.trim())},` : 'Hi,';
+  const html = shell(`
+    <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">New coach review</h1>
+    <p style="margin:0 0 8px;font-size:14px;color:${TEXT};line-height:1.6;">${hi}</p>
+    <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
+      One of your coaches just completed a video review on your profile. Open the app to watch their breakdown and notes.
+    </p>
+    <p style="margin:0 0 22px;">${button(reviewUrl, 'View Coach Review')}</p>
+    <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
+      You can turn these emails off anytime under Settings → Notifications.
+    </p>
+  `);
+  const text = `${hi}\n\nOne of your coaches just completed a video review on your profile. Watch it here:\n\n${reviewUrl}\n\nTurn these emails off anytime under Settings → Notifications.`;
+  return { subject: 'A coach reviewed your video', html, text };
+}
+
 /** Minimal HTML-escape for interpolated user-provided names. */
 function escapeHtml(s: string): string {
   return s

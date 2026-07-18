@@ -1,5 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { coachReviewEmail } from '../mail/mail.templates';
+
+/**
+ * Notification subjects wired for EMAIL delivery. Everything else stays
+ * in-app only (the Settings matrix shows those email toggles as "Soon").
+ * Kept deliberately small — email is opt-out per subject and we don't want to
+ * flood inboxes on high-frequency events. Extend this as more emails are wired.
+ */
+const EMAIL_DELIVERED_SUBJECTS: ReadonlySet<string> = new Set(['COACH_REVIEW']);
 
 export type NotificationType =
   | 'ACCOUNT_REQUEST'
@@ -23,7 +33,10 @@ export interface NotificationPayload {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+  ) {}
 
   /**
    * Does this user want IN-APP notifications for `subject` (= payload type)?
@@ -46,6 +59,22 @@ export class NotificationsService {
   }
 
   /**
+   * Does this user want EMAIL for `subject`? Defaults to ON (matches the
+   * Settings matrix default), so a player is emailed about coach reviews
+   * unless they explicitly turn the Email toggle off. Independent of the app
+   * channel — turning the bell off must not silence the email and vice versa.
+   */
+  private emailEnabled(prefsJson: string | null | undefined, subject: string): boolean {
+    if (!prefsJson) return true;
+    try {
+      const prefs = JSON.parse(prefsJson);
+      return prefs?.[subject]?.email !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
    * Create a single notification. Never throws — a notification failure must
    * not break the action that triggered it (post save, report upload, …).
    * Respects the recipient's APP channel preference for this subject.
@@ -54,8 +83,25 @@ export class NotificationsService {
     try {
       const u = await this.prisma.user.findUnique({
         where: { id: recipientId },
-        select: { notificationPrefs: true },
+        select: {
+          notificationPrefs: true,
+          email: true,
+          name: true,
+          player: { select: { firstName: true } },
+        },
       });
+
+      // Email + app channels are independent — a player can want the email but
+      // not the bell, or vice versa. Fire the email (best-effort) before the
+      // app-channel early-return so muting the bell doesn't mute the email.
+      if (
+        EMAIL_DELIVERED_SUBJECTS.has(payload.type) &&
+        u?.email &&
+        this.emailEnabled(u.notificationPrefs, payload.type)
+      ) {
+        this.sendNotificationEmail(payload, u.email, u.name || u.player?.firstName || null);
+      }
+
       if (!this.appEnabled(u?.notificationPrefs, payload.type)) return null;
       return await this.prisma.notification.create({
         data: {
@@ -71,6 +117,19 @@ export class NotificationsService {
     } catch (err) {
       this.logger.error(`Failed to create notification for ${recipientId}`, err as Error);
       return null;
+    }
+  }
+
+  /**
+   * Fire the email for a notification whose subject is email-delivered.
+   * Fire-and-forget: MailService.send never throws and no-ops when Resend is
+   * unconfigured, so this can't affect the in-app notification path.
+   */
+  private sendNotificationEmail(payload: NotificationPayload, to: string, name: string | null): void {
+    const link = `${this.mail.webAppUrl}${payload.linkUrl || '/'}`;
+    if (payload.type === 'COACH_REVIEW') {
+      const { subject, html, text } = coachReviewEmail(link, name);
+      void this.mail.send({ to, subject, html, text });
     }
   }
 
