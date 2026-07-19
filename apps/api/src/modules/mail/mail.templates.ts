@@ -10,6 +10,14 @@ const TEXT = '#1a1f2b';
 const MUTED = '#6b7280';
 const BG = '#f4f6fa';
 
+// The email header logo must be an ABSOLUTE, publicly-reachable URL (email
+// clients can't load attached/relative images). Served from the web app's
+// /public folder; WEB_APP_URL overrides the origin when the custom domain
+// goes live. File: apps/web/public/email-logo.png (the BLACK logo — the
+// existing logo.png is the white-on-transparent variant, invisible here).
+const WEB_ORIGIN = (process.env.WEB_APP_URL || 'https://pdev-web.onrender.com').replace(/\/$/, '');
+const LOGO_URL = `${WEB_ORIGIN}/email-logo.png`;
+
 /** Shared shell: logo-less wordmark header + white card + footer. */
 function shell(bodyHtml: string): string {
   return `
@@ -17,8 +25,9 @@ function shell(bodyHtml: string): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG};padding:28px 12px;">
       <tr><td align="center">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
-          <tr><td style="padding:4px 4px 18px;">
-            <span style="font-size:15px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${NAVY};">Defined Baseball</span>
+          <tr><td align="center" style="padding:4px 4px 20px;text-align:center;">
+            <img src="${LOGO_URL}" alt="Defined Baseball Academy" width="160"
+              style="display:block;width:160px;max-width:62%;height:auto;margin:0 auto;" />
           </td></tr>
           <tr><td style="background:#ffffff;border:1px solid #e4e8f0;border-radius:14px;padding:28px 26px;">
             ${bodyHtml}
@@ -41,12 +50,10 @@ function button(href: string, label: string): string {
 
 /** Password-reset email. `resetUrl` already carries the token query param. */
 export function passwordResetEmail(resetUrl: string, name?: string | null): { subject: string; html: string; text: string } {
-  const hi = name?.trim() ? `Hi ${escapeHtml(name.trim())},` : 'Hi,';
   const html = shell(`
     <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">Reset your password</h1>
-    <p style="margin:0 0 8px;font-size:14px;color:${TEXT};line-height:1.6;">${hi}</p>
     <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
-      We got a request to reset the password on your Defined Baseball account. Click below to choose a new one — the link is good for <strong>1 hour</strong>.
+      We received your request to reset your Defined Baseball Account password. Click below to reset your password. This link is active for <strong>1 hour</strong>.
     </p>
     <p style="margin:0 0 22px;">${button(resetUrl, 'Reset Password')}</p>
     <p style="margin:0 0 6px;font-size:12px;color:${MUTED};line-height:1.6;">
@@ -57,7 +64,7 @@ export function passwordResetEmail(resetUrl: string, name?: string | null): { su
       Didn't request this? You can safely ignore this email — your password won't change.
     </p>
   `);
-  const text = `${hi}\n\nWe got a request to reset your Defined Baseball password. Open this link within 1 hour to choose a new one:\n\n${resetUrl}\n\nDidn't request this? Ignore this email — your password won't change.`;
+  const text = `We received your request to reset your Defined Baseball Account password. Open this link within 1 hour to reset your password:\n\n${resetUrl}\n\nDidn't request this? Ignore this email — your password won't change.`;
   return { subject: 'Reset your Defined Baseball password', html, text };
 }
 
