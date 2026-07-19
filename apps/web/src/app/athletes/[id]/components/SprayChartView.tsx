@@ -14,6 +14,21 @@ import { spraySliceAggregate, type SprayAggregate } from '@/lib/pitchAggregation
 const SPRAY_BAR_BG = 'rgba(20, 24, 32, 0.92)';
 const SPRAY_BAR_BORDER = '1px solid rgba(255, 255, 255, 0.10)';
 
+/* SSR-safe mobile flag (matches the local hook in SwingTab/PitchingTab):
+ * defaults false so server + first client render agree, then corrects in
+ * the effect. Used to halve the Metric Readout bubble height on phones. */
+function useIsMobile(breakpoint = 768): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    SPRAY CHART VIEW — self-contained
    - Loads Full Swing session data and pairs spray angle / distance / EV / LA / etc.
@@ -459,6 +474,7 @@ export function SprayChartView({
   const [filters, setFilters] = useState<Record<FilterKey, number>>(DEFAULT_FILTERS);
   const [colorBy, setColorBy] = useState<FilterKey>('exitVelo');
   const [loading, setLoading] = useState(true);
+  const isMobile = useIsMobile();
 
   const filtersActive = useMemo(
     () => (Object.keys(DEFAULT_FILTERS) as FilterKey[]).some(k => filters[k] !== DEFAULT_FILTERS[k]),
@@ -848,16 +864,20 @@ export function SprayChartView({
             gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
             gap: 12,
             alignItems: 'center',
-            /* Height locked to 96px so this Ball Readout (the Metric
-               Readout sibling at the top of the Spray Chart column)
-               sits the EXACT same height as the Results bubble at
-               the top of the Grade Stack column on the Swing
-               Decision view (which has wrapping chip labels like
-               "Groundball %" / "Fly Ball %" pushing its natural
-               content height to ~90+px). A fixed `height` (not
-               `minHeight`) on both sides guarantees an exact pixel
-               match. */
-            height: 96,
+            /* Height locked to 96px on DESKTOP so this Ball Readout (the
+               Metric Readout sibling at the top of the Spray Chart column)
+               sits the EXACT same height as the Results bubble at the top
+               of the Grade Stack column on the Swing Decision view (which
+               has wrapping chip labels like "Groundball %" / "Fly Ball %"
+               pushing its natural content height to ~90+px). A fixed
+               `height` (not `minHeight`) on both sides guarantees an exact
+               pixel match.
+               On MOBILE the columns stack (no side-by-side Results bubble
+               to match) and the rem-scaled text is much smaller, so 96px
+               left the bubble ~2× taller than its content — halved to 48px.
+               `alignItems:'center'` keeps the metric grid vertically
+               centered in either height. */
+            height: isMobile ? 48 : 96,
           }}
         >
           {[
