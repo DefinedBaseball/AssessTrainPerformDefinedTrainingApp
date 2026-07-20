@@ -25,6 +25,7 @@ import { VideoControlBar } from '../PlaybackSpeedControl';
 import { VideoStopwatch } from '../VideoStopwatch';
 import { VideoDrawingOverlay } from '../VideoDrawingOverlay';
 import { useTheme } from '@/lib/theme-context';
+import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Video, MlbPlayer } from '@/lib/api';
 
@@ -77,6 +78,39 @@ type RecordState = 'idle' | 'starting' | 'recording' | 'uploading' | 'saved' | '
 export function VideoBundleModal({
   videos, label, onClose, playerId, recordingCategory, onUploaded, reports,
 }: VideoBundleModalProps) {
+  /* Coaches get the annotation (drawing) tools; players get playback only.
+     Gating the modal's Draw toolbar is sufficient because the per-pane
+     VideoDrawingOverlay is fully controlled by `drawingTool` (externalTool +
+     hideToolbar), and it's inert (pointerEvents:none) whenever no tool is
+     selected — which is always the case for players once the picker is gone. */
+  const { isCoach } = useAuth();
+
+  /* Download the primary (first) angle. Blob-fetch forces a Save (works
+     cross-origin when Bunny sends CORS); falls back to a direct anchor.
+     This is the download entry point inside the open player — the only one
+     on mobile, where the per-thumbnail button is hidden. Both roles. */
+  const handleDownloadPrimary = useCallback(async () => {
+    const primary = videos[0];
+    const url = primary?.originalUrl;
+    if (!url) return;
+    const ext = (url.split('?')[0].split('.').pop() || 'mp4').slice(0, 5);
+    const safe = (primary.title || 'video').replace(/[^\w.-]+/g, '_') || 'video';
+    const filename = `${safe}.${ext}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      const obj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = obj; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(obj), 1000);
+    } catch {
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+  }, [videos]);
   /* Theme-aware chrome for the modal — the major surfaces flip
      between the dark playback palette (default) and a light-theme
      palette matching the rest of the app when `[data-theme="light"]`
@@ -1036,6 +1070,35 @@ export function VideoBundleModal({
           {synced ? '⇄ Synced' : '⇆ Unsynced'}
         </button>
 
+        {/* Download — the in-player download entry point (the ONLY one on
+            phones, where the per-thumbnail button is hidden). Available to
+            coaches AND players; downloads the primary angle. Matches the
+            translucent-black-on-white chrome of the Close/Sync chips. */}
+        {videos[0]?.originalUrl && (
+          <button
+            type="button"
+            onClick={handleDownloadPrimary}
+            aria-label="Download video"
+            title="Download video"
+            style={{
+              width: 36, height: 36,
+              borderRadius: 10,
+              border: '1px solid rgba(0, 0, 0, 0.14)',
+              background: 'rgba(0, 0, 0, 0.04)',
+              color: '#0a0d12',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2.5v7" />
+              <path d="M4.5 6.5 8 10l3.5-3.5" />
+              <path d="M3 13.5h10" />
+            </svg>
+          </button>
+        )}
+
         {/* Close affordance — also lives inside the bubble now so the
             three header elements (title / sync / close) read as one
             row. Same translucent-black-on-white chrome as the
@@ -1583,8 +1646,10 @@ export function VideoBundleModal({
           {/* Section separator — tall vertical rule between Playback
               and Draw groups. Only renders when the playback bar is
               visible (synced mode) so unsynced view doesn't show a
-              dangling divider. */}
-          {synced && videoRefs.current[0] && (
+              dangling divider. Also coach-only: for players the Draw /
+              Record / Compare groups are gone, so this would otherwise
+              dangle after the playback bar. */}
+          {synced && videoRefs.current[0] && isCoach && (
             <span style={{
               width: 1,
               alignSelf: 'stretch',
@@ -1592,6 +1657,12 @@ export function VideoBundleModal({
             }} />
           )}
 
+          {/* COACH-ONLY: the annotation (drawing) tools. Players get
+              playback (incl. speed) but no drawing — gating this toolbar
+              is sufficient since the per-pane overlay is fully controlled
+              by `drawingTool` and stays inert while it's null. The trailing
+              separator is gated with it to avoid a doubled divider. */}
+          {isCoach && (<>
           {/* Drawing toolbar — global tool + color picker. Sits
               between the playback bar and Record per coach spec so
               annotation controls land in the natural visual path
@@ -1704,7 +1775,12 @@ export function VideoBundleModal({
             alignSelf: 'stretch',
             background: 'var(--border-strong)',
           }} />
+          </>)}
 
+          {/* COACH-ONLY: Record (narration → Coach Review) + Compare
+              (browse other athletes'/MLB video). Players get playback only,
+              so this whole group is gated too. */}
+          {isCoach && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {/* Record button — composite recording of the grid. */}
             {playerId && (
@@ -1820,6 +1896,7 @@ export function VideoBundleModal({
               {compareOn ? '✓ Compare' : 'Compare'}
             </button>
           </div>
+          )}
         </div>
       </div>
       </div>{/* /outer white bubble — contains header + error + grid + playback toolbar */}

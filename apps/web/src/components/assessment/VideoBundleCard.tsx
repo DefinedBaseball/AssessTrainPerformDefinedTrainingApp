@@ -14,12 +14,27 @@
  * bundles.
  */
 
-import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { VideoBundleModal, type AttachableReport } from './VideoBundleModal';
 import { getVideoCategoryColors } from '@/lib/training-colors';
 import { formatBubbleLabel, normalizeVideoTitle } from '@/lib/video-titles';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
+
+/* SSR-safe mobile flag (same pattern as the profile tabs). On phones the
+ * per-thumbnail download button is hidden — download lives inside the open
+ * player instead (VideoBundleModal header). */
+function useIsMobile(breakpoint = 768): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 /* Session-scoped tombstone of deleted video ids. The card hides itself the
    instant a delete succeeds, but local state resets if the gallery remounts
@@ -75,6 +90,7 @@ export function VideoBundleCard({
 }: VideoBundleCardProps) {
   const [open, setOpen] = useState(false);
   const { isCoach } = useAuth();
+  const isMobile = useIsMobile();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -200,8 +216,11 @@ export function VideoBundleCard({
           />
         ) : null}
 
-        {/* Download button — top-right corner, downloads this clip. */}
-        {first.originalUrl && (
+        {/* Download button — top-right corner, downloads this clip.
+            Hidden on mobile: on phones the download lives inside the open
+            player (VideoBundleModal header) instead of on every thumbnail.
+            Desktop keeps the per-thumbnail button. */}
+        {first.originalUrl && !isMobile && (
           <button
             type="button"
             onClick={handleDownload}
