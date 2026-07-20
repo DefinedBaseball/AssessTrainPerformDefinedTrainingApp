@@ -583,14 +583,10 @@ export default function PlayerProfilePage() {
             <div className={styles.commandDeck}>
               {/* LEFT: identity block */}
               <div className={styles.identityBlock}>
-                {/* Top telemetry strip — POS, HT, WT, B/T, GRAD, AGE,
-                    HS, Club. The leading pulsing-dot <i> bullet that
-                    previously sat before POS has been retired so the
-                    strip reads as a clean monospaced row. HS + Club
-                    used to render as their own row below the player
-                    name; they now join the end of this single strip
-                    so the entire identity block reads as one line
-                    above the player name. */}
+                {/* Top telemetry strip — the physical / measurable fields
+                    ONLY: POS, HT, WT, B/T, GRAD, AGE. HS + Club were moved
+                    out of this strip to their own row directly UNDER the
+                    player name (see the name column below) per request. */}
                 <div className={styles.telemetryStrip}>
                   <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
                   <span>HT <b>{formatHeight(player.heightInches)}</b></span>
@@ -598,8 +594,6 @@ export default function PlayerProfilePage() {
                   <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
                   <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>
                   <span>AGE <b>{getAge(player.birthDate)}</b></span>
-                  <span>HS <b>{player.highSchool || '—'}</b></span>
-                  <span>Club <b>{player.clubTeam || '—'}</b></span>
                 </div>
 
                 {/* Player name + Player Score + Commitment row — name
@@ -623,10 +617,24 @@ export default function PlayerProfilePage() {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                   }}>
-                  <h1 className={styles.megaName} style={{ margin: 0 }}>
-                    {player.firstName}{' '}
-                    <span className={styles.lastName}>{player.lastName}</span>
-                  </h1>
+                  {/* Name + HS/Club stacked as the nameRow's LEFT column so
+                      HS + Club sit directly UNDER the name (moved here from
+                      the top telemetry strip). The commitment / gauge cluster
+                      stays the RIGHT column. `minWidth:0` lets the name shrink/
+                      wrap cleanly inside the flex row. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                    <h1 className={styles.megaName} style={{ margin: 0 }}>
+                      {player.firstName}{' '}
+                      <span className={styles.lastName}>{player.lastName}</span>
+                    </h1>
+                    {/* HS + Club — reuse the telemetry typography, minus the
+                        strip's dashed underline (that hairline belongs to the
+                        top strip only). */}
+                    <div className={styles.telemetryStrip} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                      <span>HS <b>{player.highSchool || '—'}</b></span>
+                      <span>Club <b>{player.clubTeam || '—'}</b></span>
+                    </div>
+                  </div>
 
                   {/* Right-side cluster — Commitment + Gauge grouped
                       together. Order is Commitment (left) → Gauge
