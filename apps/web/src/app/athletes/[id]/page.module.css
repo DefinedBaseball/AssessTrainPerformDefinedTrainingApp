@@ -928,17 +928,21 @@
 
 
 /* ── Hero name row ──
-   The -19px pull (tuned for a single-line telemetry strip) collides with
-   the strip once it wraps to two lines on narrow windows — drop it there. */
+   `margin-top` is the gap from the top telemetry strip (POS/HT/WT/B/T) down
+   to the player name — tuned so the name sits with symmetric breathing room
+   between the strip above and the HS/GRAD grid below it. The strip is now a
+   single short row, so the old ≤1250 two-line-wrap compensation is gone: one
+   value covers every width where the commitment cluster sits BESIDE the name
+   (>768px). NOTE: a committed player's cluster is a touch taller (it adds a
+   school-name caption), so the vertical centering shifts the name a few px
+   vs an uncommitted player — a single fixed margin can't be pixel-identical
+   for both, but neither overlaps. */
 .nameRow {
-  margin-top: -19px;
+  margin-top: -6px;
   /* Gap between the name (left) and the commitment cluster (right) on
      desktop; becomes the wrap row-gap once they stack on mobile. Moved off
      the inline style so the phone rule below can tighten it. */
   gap: 24px;
-}
-@media (max-width: 1250px) {
-  .nameRow { margin-top: 0; }
 }
 /* College-commitment cluster vertical padding. Desktop 30/10 centers the
    logo circle on the player name (it sits to the name's RIGHT). */
@@ -954,12 +958,12 @@
 }
 .commitCircleLogo { padding: 0; } /* uploaded logos sit flush to the edge */
 .uncommittedLabel { max-width: 100%; }
-/* Phones: the ≤1250 rule drops the pull to 0, leaving a large gap between
-   the telemetry strip (player info) and the player name. Re-tighten ~65%
-   of the desktop pull (-19 → -12) so the name sits close to the info row.
-   Comes after the ≤1250 rule so it wins at phone widths. */
+/* Phones: the commitment cluster WRAPS below the name (no side-by-side
+   centering), so the strip→name gap is set DIRECTLY by this margin — a small
+   POSITIVE value gives the same symmetric breathing room the desktop
+   centering produces (the old negative pull now overlaps the strip). */
 @media (max-width: 768px) {
-  .nameRow { margin-top: -12px; gap: 8px; }
+  .nameRow { margin-top: 2px; gap: 8px; }
   /* On mobile the commitment cluster WRAPS below the name, so its 30px
      desktop-centering top inset becomes dead space — collapse it (and the
      8px wrap-gap above) so the commitment sits snug under the name. */
