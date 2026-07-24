@@ -142,3 +142,51 @@
      the slate card instead of disappearing. */
   background: rgba(0, 0, 0, 0.10);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PHONE SIGN-IN SIZING — fixes the focus-zoom trap
+   ------------------------------------------------------------------
+   Two linked problems this solves:
+
+   1. iOS Safari force-zooms into any input whose text computes under
+      16px, and it never zooms back out — so tapping Email zoomed the
+      page in and the app STAYED zoomed after sign-in.
+   2. The page rendered small on phones generally.
+
+   Both trace to the same cause: the build's px→rem pass
+   (postcss-pxtorem) rewrites px font sizes so they scale off the
+   fluid root in globals.css, which lands at ~9.8px on a phone. A
+   14px input therefore rendered ~9px — well under Safari's trigger.
+
+   Sizes below are in `pt` DELIBERATELY: pxtorem only converts `px`,
+   so pt passes through untouched and stays absolute. 12pt === 16px,
+   so the inputs clear the zoom threshold at every viewport width
+   rather than depending on how the root clamp resolves.
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .card {
+    padding: 24pt 18pt;
+  }
+
+  .title { font-size: 19pt; }
+  .subtitle { font-size: 11pt; }
+  .error { font-size: 10pt; }
+  .divider { font-size: 9pt; }
+  .signupPrompt { font-size: 10.5pt; }
+
+  /* 12pt === 16px — the iOS focus-zoom threshold. DO NOT LOWER: any
+     smaller and the zoom-and-stay-zoomed behaviour comes back. The
+     attribute selectors keep these above the global input rule. */
+  .card input[type='email'],
+  .card input[type='password'],
+  .card input[type='text'] {
+    font-size: 12pt;
+    padding: 9pt 10pt;
+  }
+
+  /* Sign In + quick-login buttons match the new input scale. */
+  .card :global(.btn) {
+    font-size: 12pt;
+    padding: 10pt 16pt;
+  }
+}
