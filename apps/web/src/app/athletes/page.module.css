@@ -35,6 +35,23 @@
   cursor: pointer;
 }
 
+/* Header controls row (search + type dropdown + "+ Add Athlete").
+   Wraps by default (safe for narrow/tablet), but on the web app forces ONE
+   row so the search bar sits inline to the LEFT of the dropdown instead of
+   dropping to its own level. no-wrap lets the search box shrink to fit if the
+   header is tight rather than overflow. ≤768px the controls go full-width and
+   stack — mobile layout unchanged. */
+.hubActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+@media (min-width: 1000px) {
+  .hubActions { flex-wrap: nowrap; }
+}
+
 /* ── Filter Chips ── */
 
 .filterRow {

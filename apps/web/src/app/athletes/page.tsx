@@ -90,12 +90,7 @@ export default function AthletesPage() {
         title="Athlete"
         titleAccent="Hub"
         actions={
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}>
+          <div className={styles.hubActions}>
             <input
               type="text"
               placeholder="Search athletes..."
