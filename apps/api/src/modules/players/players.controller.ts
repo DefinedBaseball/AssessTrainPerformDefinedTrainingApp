@@ -17,6 +17,7 @@ class UpdatePlayerDto {
   firstName?: string;
   lastName?: string;
   positions?: string;
+  athleteTypes?: string; // comma-separated: PROGRAM,LESSON,MEMBERSHIP,REMOTE
   profilePhoto?: string;
   heightInches?: number | null;
   weightLbs?: number | null;

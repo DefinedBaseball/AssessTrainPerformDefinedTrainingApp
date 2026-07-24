@@ -8,6 +8,7 @@ import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { getAgeFromBirthDate } from './[id]/helpers';
+import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
 import styles from './page.module.css';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
@@ -18,6 +19,7 @@ export default function AthletesPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('ALL'); // Athlete Hub type dropdown
   const [sortDir, setSortDir] = useState<'az' | 'za'>('az'); // default alphabetical
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -64,7 +66,9 @@ export default function AthletesPage() {
     const name = `${p.firstName} ${p.lastName}`.toLowerCase();
     const matchesSearch = !search || name.includes(search.toLowerCase());
     const matchesPos = posFilter === 'All' || p.positions.includes(posFilter);
-    return matchesSearch && matchesPos;
+    // Athlete-type dropdown — Membership implies Program (see lib/athlete-types).
+    const matchesType = matchesAthleteTypeFilter(p.athleteTypes, typeFilter);
+    return matchesSearch && matchesPos && matchesType;
   });
 
   // Alphabetical by displayed name ("First Last"); toggle flips A–Z / Z–A.
@@ -90,7 +94,7 @@ export default function AthletesPage() {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 10,
-            flexWrap: 'nowrap',
+            flexWrap: 'wrap',
           }}>
             <input
               type="text"
@@ -99,6 +103,21 @@ export default function AthletesPage() {
               onChange={e => setSearch(e.target.value)}
               className={styles.searchInput}
             />
+            {/* Athlete-type filter — All / Program / Lesson / Membership /
+                Remote. Membership athletes also surface under Program (the
+                implication lives in lib/athlete-types). */}
+            <select
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+              className={styles.searchInput}
+              style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}
+              title="Filter by athlete type"
+              aria-label="Filter by athlete type"
+            >
+              {ATHLETE_TYPE_FILTERS.map(f => (
+                <option key={f.key} value={f.key}>{f.label}</option>
+              ))}
+            </select>
             {isCoach && (
               <Link href="/players/new" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
                 + Add Athlete

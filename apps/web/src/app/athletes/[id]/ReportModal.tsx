@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
+import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import rs from '@/components/assessment/report-form.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml } from '@/lib/sanitize';
@@ -723,7 +724,7 @@ function VideoSection({ videos, setVideos, existingVideos, setExistingVideos, re
 }
 
 interface SummaryData {
-  firstName: string; lastName: string; positions: string[]; bats: string; throws: string;
+  firstName: string; lastName: string; positions: string[]; athleteTypes: string[]; bats: string; throws: string;
   height: string; weight: string; gradYear: string; birthDate: string; highSchool: string;
   clubTeam: string; pbrNational: string; pbrState: string; pbrPosition: string; pgScore: string;
   collegeCommit: string; logoFile: File | null;
@@ -736,6 +737,10 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
   const togglePosition = (pos: string) => {
     const next = data.positions.includes(pos) ? data.positions.filter(p => p !== pos) : [...data.positions, pos];
     update({ positions: next });
+  };
+  const toggleAthleteType = (key: string) => {
+    const next = data.athleteTypes.includes(key) ? data.athleteTypes.filter(t => t !== key) : [...data.athleteTypes, key];
+    update({ athleteTypes: next });
   };
 
   // Club Teams + Colleges sourced from the coach Settings page.
@@ -834,6 +839,21 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             {Array.from(new Set([...POSITIONS, ...data.positions])).map(pos => (
               <button key={pos} type="button" className={`${rs.posChip} ${data.positions.includes(pos) ? rs.posChipActive : ''}`}
                 onClick={() => togglePosition(pos)}>{pos}</button>
+            ))}
+          </div>
+        </div>
+        {/* Athlete Type — multiselect (same chip pattern as Position(s)).
+            Drives the Athlete Hub filter dropdown. Any combination allowed;
+            a Membership athlete also surfaces under the Program filter (that
+            implication lives in the filter, not here — the chips store exactly
+            what's picked). */}
+        <div className={rs.summaryField}>
+          <label className={rs.summaryLabel}>Athlete Type</label>
+          <div className={rs.posChipRow}>
+            {ATHLETE_TYPES.map(t => (
+              <button key={t.key} type="button"
+                className={`${rs.posChip} ${data.athleteTypes.includes(t.key) ? rs.posChipActive : ''}`}
+                onClick={() => toggleAthleteType(t.key)}>{t.label}</button>
             ))}
           </div>
         </div>
@@ -3281,7 +3301,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     : [];
 
   const emptySummary: SummaryData = {
-    firstName: '', lastName: '', positions: [], bats: '', throws: '',
+    firstName: '', lastName: '', positions: [], athleteTypes: [], bats: '', throws: '',
     height: '', weight: '', gradYear: '', birthDate: '', highSchool: '',
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
     collegeCommit: '', logoFile: null,
@@ -3450,6 +3470,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     setSummaryData({
       firstName: player.firstName || '', lastName: player.lastName || '',
       positions: player.positions ? player.positions.split(',').map(s => s.trim()) : [],
+      athleteTypes: player.athleteTypes ? player.athleteTypes.split(',').map(s => s.trim()).filter(Boolean) : [],
       bats: player.bats || '', throws: player.throws || '',
       height: inchesToHeight(player.heightInches), weight: player.weightLbs ? String(player.weightLbs) : '',
       gradYear: player.gradYear ? String(player.gradYear) : '',
@@ -3571,6 +3592,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         await api.updatePlayer(player.id, {
           firstName: summaryData.firstName || undefined, lastName: summaryData.lastName || undefined,
           positions: normalizedPositions.join(',') || undefined,
+          /* Always send the current selection (empty string clears all tags). */
+          athleteTypes: summaryData.athleteTypes.join(','),
           bats: summaryData.bats || null, throws: summaryData.throws || null,
           heightInches: heightToInches(summaryData.height), weightLbs: summaryData.weight ? parseInt(summaryData.weight) : null,
           gradYear: summaryData.gradYear ? parseInt(summaryData.gradYear) : null,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { DobPicker } from '@/components/DobPicker';
+import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import styles from './page.module.css';
 
 const POSITION_OPTIONS = ['C', 'INF', 'OF', 'P', 'UTIL'];
@@ -20,6 +21,7 @@ export default function NewPlayerPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [positions, setPositions] = useState<string[]>([]);
+  const [athleteTypes, setAthleteTypes] = useState<string[]>([]);
   const [bats, setBats] = useState('');
   const [throws_, setThrows] = useState('');
   const [gradYear, setGradYear] = useState('');
@@ -44,6 +46,11 @@ export default function NewPlayerPage() {
   const togglePosition = (pos: string) => {
     setPositions(prev =>
       prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]
+    );
+  };
+  const toggleAthleteType = (key: string) => {
+    setAthleteTypes(prev =>
+      prev.includes(key) ? prev.filter(t => t !== key) : [...prev, key]
     );
   };
 
@@ -96,6 +103,7 @@ export default function NewPlayerPage() {
       if (pbrPosition) updates.pbrPosition = parseInt(pbrPosition);
       if (pgScore) updates.pgScore = parseFloat(pgScore);
       if (collegeCommit.trim()) updates.collegeCommit = collegeCommit.trim();
+      if (athleteTypes.length > 0) updates.athleteTypes = athleteTypes.join(',');
 
       if (Object.keys(updates).length > 0) {
         await api.updatePlayer(player.id, updates);
@@ -165,6 +173,24 @@ export default function NewPlayerPage() {
                 onClick={() => togglePosition(pos)}
               >
                 {pos}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Section: Athlete Type ── (multiselect; drives the Athlete Hub
+            filter. Optional — untagged athletes still appear under "All".) */}
+        <div className={styles.fieldGroup}>
+          <label className={styles.label}>Athlete Type</label>
+          <div className={styles.chipRow}>
+            {ATHLETE_TYPES.map(t => (
+              <button
+                key={t.key}
+                type="button"
+                className={`${styles.chip} ${athleteTypes.includes(t.key) ? styles.chipActive : ''}`}
+                onClick={() => toggleAthleteType(t.key)}
+              >
+                {t.label}
               </button>
             ))}
           </div>

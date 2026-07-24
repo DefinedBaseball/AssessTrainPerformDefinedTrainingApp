@@ -80,6 +80,11 @@ model Player {
   lastName      String
   profilePhoto  String?  // S3 URL
   positions     String   // comma-separated: "INF,OF"
+  // Coach roster categories (comma-separated codes): PROGRAM, LESSON,
+  // MEMBERSHIP, REMOTE. Drives the Athlete Hub type filter. Additive with a
+  // "" default so existing rows are simply untagged. A MEMBERSHIP athlete is
+  // treated as also PROGRAM by the filter logic (see lib/athlete-types.ts).
+  athleteTypes  String   @default("")
   heightInches  Int?
   weightLbs     Int?
   gradYear      Int?

@@ -51,6 +51,7 @@ export class PlayersService {
     firstName?: string;
     lastName?: string;
     positions?: string;
+    athleteTypes?: string;
     profilePhoto?: string;
     heightInches?: number | null;
     weightLbs?: number | null;
