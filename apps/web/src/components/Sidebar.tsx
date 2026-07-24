@@ -171,6 +171,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, isCoach, logout } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
+  /* "More" sheet (phone bottom-bar only) — see the data-nav note below. */
+  const [moreOpen, setMoreOpen] = React.useState(false);
 
   if (!user && pathname !== '/login') return null;
   if (pathname === '/login') return null;
@@ -230,7 +232,18 @@ export function Sidebar() {
   }
 
   return (
-    <aside className={styles.sidebar} data-theme="dark">
+    /* `data-nav` drives the phone layout (see the bottom-bar block in
+       Sidebar.module.css). PLAYERS get a fixed BOTTOM BAR on phones — their
+       nav is exactly 5 items (Dashboard / Profile / Training / Education /
+       Leaderboards), which fits a thumb-reachable bar. COACHES keep the left
+       icon rail: their nav runs 7+ entries (Athletes, Videos, Data, Program…)
+       and would not fit. Above the phone breakpoint BOTH roles render the
+       normal sidebar — the attribute only matters inside the media query. */
+    <aside
+      className={styles.sidebar}
+      data-theme="dark"
+      data-nav={isCoach ? 'rail' : 'bottom'}
+    >
       {/* ── Brand (logo only in compact rail) ── */}
       <div className={styles.brand}>
         <div className={styles.logoIcon}>
@@ -246,6 +259,68 @@ export function Sidebar() {
           rows. The same `sidebar-nav-home` event fires for both. */}
       <nav className={styles.nav}>
         {visibleItems.map(item => renderNavItem(item, false))}
+
+        {/* ── "More" — PHONE BOTTOM-BAR ONLY (hidden everywhere else via
+            CSS). The bar has no room for the identity chip + theme /
+            settings / sign-out stack that sits at the bottom of the
+            sidebar, so those controls live in this sheet. Without it a
+            player on a phone would lose access to Settings and Sign Out
+            entirely. ── */}
+        {user && (
+          <div className={styles.moreWrap}>
+            <button
+              type="button"
+              className={`${styles.navItem} ${styles.moreBtn}`}
+              onClick={() => setMoreOpen(v => !v)}
+              aria-label="More"
+              aria-expanded={moreOpen}
+              title="More"
+            >
+              <span className={styles.iconBox} aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                  <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                  <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                </svg>
+              </span>
+            </button>
+
+            {moreOpen && (
+              <>
+                {/* Tap-outside-to-close scrim. */}
+                <button
+                  type="button"
+                  className={styles.moreScrim}
+                  aria-label="Close menu"
+                  onClick={() => setMoreOpen(false)}
+                />
+                <div className={styles.morePanel}>
+                  <button
+                    type="button"
+                    className={styles.moreRow}
+                    onClick={() => { toggleTheme(); setMoreOpen(false); }}
+                  >
+                    {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                  </button>
+                  <Link
+                    href="/settings"
+                    className={styles.moreRow}
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    Settings
+                  </Link>
+                  <button
+                    type="button"
+                    className={styles.moreRow}
+                    onClick={() => { setMoreOpen(false); logout(); }}
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* ── Identity chip — display name (Settings → Account) or the

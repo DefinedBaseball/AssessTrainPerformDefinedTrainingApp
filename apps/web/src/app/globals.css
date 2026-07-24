@@ -810,6 +810,15 @@ tr:hover td { background: rgba(255,255,255,0.015); }
     padding: 12px 8px;
   }
 }
+/* Players run a FIXED bottom nav bar on phones (Sidebar.module.css,
+   `data-nav="bottom"`). It's out of flow, so pad the scroll container to
+   clear it — bar is ~56px + the iPhone home-indicator inset. The compound
+   selector beats the `.app-main` padding rules above regardless of order. */
+@media (max-width: 768px) {
+  .app-main.app-main-bottom-nav {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    TEST-3 PORT — keyframes used by the athlete profile command deck

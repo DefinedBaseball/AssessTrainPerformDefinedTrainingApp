@@ -16,14 +16,23 @@ import { Sidebar } from './Sidebar';
 import { PendingApproval } from './PendingApproval';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, isPending } = useAuth();
+  const { user, isPending, isCoach } = useAuth();
 
   if (user && isPending) return <PendingApproval />;
+
+  /* Players get a FIXED bottom nav bar on phones (see the bottom-bar block
+     in Sidebar.module.css). Because it's fixed it no longer occupies flex
+     space, so the scroll container needs bottom padding or the last row of
+     content sits underneath it. Coaches keep the left rail — no padding. */
+  const bottomNav = !!user && !isCoach;
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
-      <main className="app-main" style={{ flex: 1, overflowY: 'auto' }}>
+      <main
+        className={`app-main${bottomNav ? ' app-main-bottom-nav' : ''}`}
+        style={{ flex: 1, overflowY: 'auto' }}
+      >
         {children}
       </main>
     </div>
