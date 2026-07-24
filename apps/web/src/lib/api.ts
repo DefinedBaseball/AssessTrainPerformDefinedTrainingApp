@@ -346,7 +346,8 @@ export type NotificationType =
   | 'COACH_REVIEW'
   | 'REPORT'
   | 'VIDEO'
-  | 'SCHEDULE';
+  | 'SCHEDULE'
+  | 'INQUIRY';
 
 export interface AppNotification {
   id: string;
@@ -435,6 +436,73 @@ export async function getTopMetrics(playerId: string) {
   return request<Record<string, { value: number; unit: string; recordedAt: string }>>(
     `/players/${playerId}/top-metrics`,
   );
+}
+
+// ---- Inquiries (prospective athletes from the public inquiry form) ----
+
+export interface Inquiry {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  school: string | null;
+  gradYear: number | null;
+  clubTeam: string | null;
+  positions: string | null;
+  birthDate: string | null;
+  otherSports: string | null;
+  injuryHistory: string | null;
+  otherHobbies: string | null;
+  goalLevel: string | null; // High School | College | Professional
+  goals: string | null;
+  message: string | null;
+  /** JSON blob of any extra form fields (future-proof). */
+  formData: string | null;
+  status: string; // NEW | REVIEWED | ARCHIVED
+  createdAt: string;
+}
+
+/** Coach roster of inquiry-form submissions, newest first. */
+export async function getInquiries() {
+  return request<Inquiry[]>('/inquiries');
+}
+
+export async function getInquiry(id: string) {
+  return request<Inquiry>(`/inquiries/${id}`);
+}
+
+/** Public — the /inquiry form submits here. */
+export async function createInquiry(input: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  school?: string | null;
+  gradYear?: number | null;
+  clubTeam?: string | null;
+  positions?: string | null;
+  birthDate?: string | null;
+  otherSports?: string | null;
+  injuryHistory?: string | null;
+  otherHobbies?: string | null;
+  goalLevel?: string | null;
+  goals?: string | null;
+  message?: string | null;
+  formData?: string | null;
+}) {
+  return request<Inquiry>('/inquiries', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function updateInquiryStatus(id: string, status: string) {
+  return request<Inquiry>(`/inquiries/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function deleteInquiry(id: string) {
+  return request<{ id: string; deleted: boolean }>(`/inquiries/${id}`, { method: 'DELETE' });
 }
 
 // ---- Metrics ----

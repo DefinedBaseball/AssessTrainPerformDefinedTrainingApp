@@ -18,7 +18,8 @@ export type NotificationType =
   | 'COACH_REVIEW'
   | 'REPORT'
   | 'VIDEO'
-  | 'SCHEDULE';
+  | 'SCHEDULE'
+  | 'INQUIRY';
 
 export interface NotificationPayload {
   type: NotificationType;

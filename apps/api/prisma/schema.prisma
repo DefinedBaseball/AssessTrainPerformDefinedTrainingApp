@@ -730,3 +730,34 @@ model Notification {
   @@index([recipientId])
   @@index([createdAt])
 }
+
+// ─── Inquiries ───────────────────────────────────────────────────
+// Prospective athletes who submitted the public inquiry form (NOT training
+// athletes — those are `Player`). Populated by the future public inquiry
+// form; surfaced to coaches as a separate roster in the Athlete Hub. The
+// structured columns back the roster list + detail; `formData` carries any
+// additional form fields as JSON so the form can evolve without a schema
+// change. `status` lets a coach mark an inquiry NEW → REVIEWED → ARCHIVED.
+model Inquiry {
+  id         String   @id @default(uuid())
+  firstName  String
+  lastName   String
+  email      String
+  phone      String?
+  school     String?  // high school
+  gradYear   Int?
+  clubTeam   String?
+  positions  String?  // comma-separated, e.g. "INF,OF"
+  birthDate  String?  // ISO date string (calendar field)
+  otherSports   String?
+  injuryHistory String?
+  otherHobbies  String?
+  goalLevel  String?  // Goals → target level: High School | College | Professional
+  goals      String?  // Goals → free-text (longer answer)
+  message    String?  // free-text note (optional / legacy)
+  formData   String?  // JSON blob of any extra form fields (future-proof)
+  status     String   @default("NEW") // NEW | REVIEWED | ARCHIVED
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

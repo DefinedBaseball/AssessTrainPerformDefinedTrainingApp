@@ -78,6 +78,48 @@ async function main() {
     console.log(`[seed.prod] drill library already populated (${drillCount} rows) — skipped`);
   }
 
+  // 3. Sample inquiries — seed a few the FIRST time only (skip if any exist) so
+  //    the coach's Inquiry roster has data to review before the public inquiry
+  //    form ships. These are clearly-fake demo rows (…@example.com) — delete
+  //    them from the roster once real inquiries start coming in.
+  const inquiryCount = await prisma.inquiry.count();
+  if (inquiryCount === 0) {
+    await prisma.inquiry.createMany({
+      data: [
+        {
+          firstName: 'Mason', lastName: 'Reed', email: 'mason.reed.demo@example.com',
+          phone: '(612) 555-0142', school: 'Wayzata High School', gradYear: 2027,
+          clubTeam: 'Minnesota Blizzard', positions: 'SS,2B', birthDate: '2009-04-18',
+          otherSports: 'Basketball', injuryHistory: 'Right elbow soreness, summer 2025 — fully cleared',
+          otherHobbies: 'Fishing, video editing',
+          goalLevel: 'College', goals: 'Play D1 middle infield. Want to add strength and get my exit velo up over the winter.',
+          status: 'NEW',
+        },
+        {
+          firstName: 'Ethan', lastName: 'Novak', email: 'ethan.novak.demo@example.com',
+          phone: '(651) 555-0197', school: 'Eastview High School', gradYear: 2026,
+          clubTeam: 'Gopher State Tide', positions: 'P,CF', birthDate: '2008-09-02',
+          otherSports: 'Cross country', injuryHistory: 'None',
+          otherHobbies: 'Golf',
+          goalLevel: 'Professional', goals: 'Out of state — looking for remote programming and video review to keep velo climbing.',
+          status: 'NEW',
+        },
+        {
+          firstName: 'Caleb', lastName: 'Turner', email: 'caleb.turner.demo@example.com',
+          phone: '(763) 555-0168', school: 'Maple Grove Senior High', gradYear: 2028,
+          clubTeam: 'Miller Baseball', positions: 'C', birthDate: '2010-01-27',
+          otherSports: 'Football (QB)', injuryHistory: 'Left knee sprain 2024 — no restrictions',
+          otherHobbies: 'Drums',
+          goalLevel: 'High School', goals: 'Make varsity as a sophomore. Want to cut down my pop time and get better at receiving.',
+          status: 'NEW',
+        },
+      ],
+    });
+    console.log('[seed.prod] seeded 3 sample inquiries (demo — delete once the real form is live)');
+  } else {
+    console.log(`[seed.prod] inquiries already present (${inquiryCount}) — skipped`);
+  }
+
   console.log('[seed.prod] done.');
 }
 

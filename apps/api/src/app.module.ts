@@ -22,6 +22,7 @@ import { CollegesModule } from './modules/colleges/colleges.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MailModule } from './modules/mail/mail.module';
+import { InquiriesModule } from './modules/inquiries/inquiries.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { MailModule } from './modules/mail/mail.module';
     CollegesModule,
     MessagesModule,
     NotificationsModule,
+    InquiriesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

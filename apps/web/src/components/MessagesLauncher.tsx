@@ -60,6 +60,7 @@ const NOTIF_GLYPH: Record<api.NotificationType, string> = {
   REPORT: '📋',
   VIDEO: '📹',
   SCHEDULE: '📅',
+  INQUIRY: '📩',
 };
 
 function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: number }) {

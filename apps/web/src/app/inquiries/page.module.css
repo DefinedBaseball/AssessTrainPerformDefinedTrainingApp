@@ -1,0 +1,154 @@
+/* ── Inquiry roster (prospective athletes from the public inquiry form) ──
+   Reuses the Athlete Hub's .pageRoot / .listWrap / .empty / .avatar /
+   .playerName (imported from ../athletes/page.module.css) so the two
+   rosters read as siblings; this module only adds the inquiry-specific
+   column grid + the detail modal. */
+
+.scrollX {
+  overflow-x: auto;
+}
+
+.head,
+.row {
+  display: grid;
+  grid-template-columns: 1.6fr 1.9fr 1fr 1.4fr 0.55fr 1.2fr;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 20px;
+}
+
+.head {
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid var(--border);
+}
+.head > span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+/* Each row is a button (keyboard-accessible) styled flat to match the
+   Athlete Hub list rows. */
+.row {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  width: 100%;
+  min-width: 720px;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.head {
+  min-width: 720px;
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-theme='light'] .row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  font-weight: 600;
+}
+.cell {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.muted {
+  color: var(--text-muted);
+}
+
+/* ── Detail modal ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(6, 8, 14, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal {
+  width: min(560px, 96vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--surface-bright, var(--surface));
+  border: 1px solid var(--border-bright, var(--border));
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+.modalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.modalName {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-bright, var(--text));
+  line-height: 1.1;
+}
+.modalSub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.field {
+  min-width: 0;
+}
+.fieldFull {
+  grid-column: 1 / -1;
+}
+.fieldLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.fieldValue {
+  font-size: 14px;
+  color: var(--text-bright, var(--text));
+  word-break: break-word;
+}
+.fieldValue a {
+  color: var(--accent, #3d8bfd);
+  text-decoration: none;
+}
+.modalActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
