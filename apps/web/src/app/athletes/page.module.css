@@ -24,6 +24,17 @@
   background: var(--surface) !important;
 }
 
+/* Athlete-type filter dropdown — narrower than the 260px search box so the
+   search bar + this dropdown + "+ Add Athlete" all sit on ONE row on the web
+   app (two 260px-wide controls were too wide, forcing the search bar to wrap
+   to its own level). Goes full-width on mobile so the header stacks exactly
+   as before. */
+.typeFilter {
+  width: 180px;
+  background: var(--surface) !important;
+  cursor: pointer;
+}
+
 /* ── Filter Chips ── */
 
 .filterRow {
@@ -289,5 +300,6 @@
   }
   .header { flex-direction: column; gap: 12px; align-items: flex-start; }
   .searchInput { width: 100%; }
+  .typeFilter { width: 100%; }
   .filterRow { flex-wrap: wrap; }
 }

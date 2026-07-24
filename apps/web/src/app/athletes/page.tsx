@@ -109,8 +109,8 @@ export default function AthletesPage() {
             <select
               value={typeFilter}
               onChange={e => setTypeFilter(e.target.value)}
-              className={styles.searchInput}
-              style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}
+              className={styles.typeFilter}
+              style={{ whiteSpace: 'nowrap' }}
               title="Filter by athlete type"
               aria-label="Filter by athlete type"
             >
