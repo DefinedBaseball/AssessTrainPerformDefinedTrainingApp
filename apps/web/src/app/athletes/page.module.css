@@ -35,6 +35,20 @@
   cursor: pointer;
 }
 
+/* Icon-only header button (the inquiry-form icon beside "+ Add Athlete").
+   Keeps `.btn`'s 11px VERTICAL padding so it stands exactly as tall as the
+   text buttons next to it — only the horizontal padding is tightened (22 →
+   14px) since there's no label to sit around. An earlier inline
+   `padding: 0 12px` override killed the vertical padding and left this
+   button visibly short. The 16px icon matches a 13px text line box, so the
+   two buttons resolve to the same height. */
+.iconBtn {
+  padding: 11px 14px;
+}
+.iconBtn svg {
+  display: block;
+}
+
 /* Header controls row (search + type dropdown + "+ Add Athlete").
    Wraps by default (safe for narrow/tablet), but on the web app forces ONE
    row so the search bar sits inline to the LEFT of the dropdown instead of

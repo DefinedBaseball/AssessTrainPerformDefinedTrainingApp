@@ -142,12 +142,11 @@ export default function AthletesPage() {
             {isCoach && (
               <Link
                 href="/inquiries"
-                className="btn btn-outline"
+                className={`btn btn-outline ${styles.iconBtn}`}
                 title="Athlete inquiries"
                 aria-label="Athlete inquiries"
-                style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px' }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
                   <path d="M14 3v4h4" />
                   <line x1="9" y1="12.5" x2="15" y2="12.5" />
