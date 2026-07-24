@@ -13,13 +13,29 @@ import styles from './page.module.css';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
 
+/* Persist the coach's last athlete-type filter across navigation (localStorage
+   so it also survives a full reload / new session). */
+const TYPE_FILTER_KEY = 'athleteHub.typeFilter';
+
 export default function AthletesPage() {
   const router = useRouter();
   const { user, isCoach, isLoading } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('All');
-  const [typeFilter, setTypeFilter] = useState('ALL'); // Athlete Hub type dropdown
+  // Athlete Hub type dropdown — lazy-init from the persisted choice (validated
+  // against the known filter keys so a stale value can't select a dead option).
+  // Safe with the auth gate below: the select isn't in the server HTML, so
+  // reading localStorage during init can't cause a hydration mismatch.
+  const [typeFilter, setTypeFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    try {
+      const saved = localStorage.getItem(TYPE_FILTER_KEY);
+      return saved && ATHLETE_TYPE_FILTERS.some(f => f.key === saved) ? saved : 'ALL';
+    } catch {
+      return 'ALL';
+    }
+  });
   const [sortDir, setSortDir] = useState<'az' | 'za'>('az'); // default alphabetical
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -103,7 +119,10 @@ export default function AthletesPage() {
                 implication lives in lib/athlete-types). */}
             <select
               value={typeFilter}
-              onChange={e => setTypeFilter(e.target.value)}
+              onChange={e => {
+                setTypeFilter(e.target.value);
+                try { localStorage.setItem(TYPE_FILTER_KEY, e.target.value); } catch { /* storage unavailable */ }
+              }}
               className={styles.typeFilter}
               style={{ whiteSpace: 'nowrap' }}
               title="Filter by athlete type"
