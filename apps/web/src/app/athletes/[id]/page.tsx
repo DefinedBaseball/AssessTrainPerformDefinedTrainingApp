@@ -583,31 +583,11 @@ export default function PlayerProfilePage() {
             <div className={styles.commandDeck}>
               {/* LEFT: identity block */}
               <div className={styles.identityBlock}>
-                {/* Top telemetry strip — the physical / measurable fields
-                    ONLY: POS, HT, WT, B/T. GRAD + AGE moved down into the
-                    2-col HS/GRAD · Club/AGE grid under the player name (see
-                    the name column below) per request. */}
-                <div className={styles.telemetryStrip}>
-                  <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
-                  <span>HT <b>{formatHeight(player.heightInches)}</b></span>
-                  <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
-                  <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
-                </div>
-
-                {/* Player name + Player Score + Commitment row — name
-                    pinned LEFT, gauge + commitment grouped together on
-                    the RIGHT (justify-content: space-between) so the
-                    Commitment circle's right edge aligns with the
-                    Tool Grades section's right edge that begins below.
-                    Both circles sized ~76px to sit in line with the
-                    name + telemetry strip without dwarfing them. */}
+                {/* TOP LINE = player name + College Commitment. Every readout
+                    now sits UNDER the name in two rows (see the name column
+                    below); the old top telemetry strip above the name is
+                    retired, so the identity block reads name-first. */}
                 <div
-                  /* .nameRow carries the -19px pull toward the telemetry
-                     strip (iterated -4 → … → -19) — moved to CSS so a
-                     media query can drop it to 0 on narrow windows where
-                     the strip wraps to two lines (the fixed pull was
-                     stacking the name on top of the wrapped HS/Club
-                     entries). */
                   className={styles.nameRow}
                   style={{
                     display: 'flex',
@@ -615,37 +595,38 @@ export default function PlayerProfilePage() {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                   }}>
-                  {/* Name + HS/Club stacked as the nameRow's LEFT column so
-                      HS + Club sit directly UNDER the name (moved here from
-                      the top telemetry strip). The commitment / gauge cluster
-                      stays the RIGHT column. `minWidth:0` lets the name shrink/
-                      wrap cleanly inside the flex row. */}
+                  {/* Name + the two readout rows stacked as the nameRow's LEFT
+                      column; the commitment / gauge cluster stays the RIGHT
+                      column so it rides alongside the name. `minWidth:0` lets
+                      the name shrink/wrap cleanly inside the flex row. */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                     <h1 className={styles.megaName} style={{ margin: 0 }}>
                       {player.firstName}{' '}
                       <span className={styles.lastName}>{player.lastName}</span>
                     </h1>
-                    {/* HS / GRAD then Club / AGE — a 2-col grid (auto flow
-                        by row) so Club sits directly under HS and AGE under
-                        GRAD. Reuses the telemetry typography via the class
-                        (span/b descendant styles still apply), with display
-                        overridden to grid and the strip's dashed underline
-                        suppressed (that hairline belongs to the top strip). */}
+                    {/* Row 1 under the name — the physical readouts. Reuses the
+                        telemetry typography via the class (its span/b
+                        descendant styles still apply); the dashed underline is
+                        suppressed since that hairline belonged to the retired
+                        top strip. */}
                     <div
                       className={styles.telemetryStrip}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'auto auto',
-                        justifyContent: 'start',
-                        gap: '4px 16px',
-                        borderBottom: 'none',
-                        paddingBottom: 0,
-                      }}
+                      style={{ borderBottom: 'none', paddingBottom: 0 }}
+                    >
+                      <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
+                      <span>HT <b>{formatHeight(player.heightInches)}</b></span>
+                      <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
+                      <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
+                      <span>AGE <b>{getAge(player.birthDate)}</b></span>
+                    </div>
+                    {/* Row 2 under the name — school / class / club. */}
+                    <div
+                      className={styles.telemetryStrip}
+                      style={{ borderBottom: 'none', paddingBottom: 0 }}
                     >
                       <span>HS <b>{player.highSchool || '—'}</b></span>
                       <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>
                       <span>Club <b>{player.clubTeam || '—'}</b></span>
-                      <span>AGE <b>{getAge(player.birthDate)}</b></span>
                     </div>
                   </div>
 

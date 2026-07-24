@@ -928,17 +928,14 @@
 
 
 /* ── Hero name row ──
-   `margin-top` is the gap from the top telemetry strip (POS/HT/WT/B/T) down
-   to the player name — tuned so the name sits with symmetric breathing room
-   between the strip above and the HS/GRAD grid below it. The strip is now a
-   single short row, so the old ≤1250 two-line-wrap compensation is gone: one
-   value covers every width where the commitment cluster sits BESIDE the name
-   (>768px). NOTE: a committed player's cluster is a touch taller (it adds a
-   school-name caption), so the vertical centering shifts the name a few px
-   vs an uncommitted player — a single fixed margin can't be pixel-identical
-   for both, but neither overlaps. */
+   The name is now the FIRST element in the identity block (the top telemetry
+   strip that used to sit above it was retired — POS/HT/WT/B/T/AGE and
+   HS/GRAD/Club both moved below the name). So there's nothing above to pull
+   toward: margin-top is 0 and the commandDeck's own top padding sets the
+   spacing. The earlier negative values existed only to close the gap to that
+   strip. */
 .nameRow {
-  margin-top: -6px;
+  margin-top: 0;
   /* Gap between the name (left) and the commitment cluster (right) on
      desktop; becomes the wrap row-gap once they stack on mobile. Moved off
      the inline style so the phone rule below can tighten it. */
@@ -963,7 +960,9 @@
    POSITIVE value gives the same symmetric breathing room the desktop
    centering produces (the old negative pull now overlaps the strip). */
 @media (max-width: 768px) {
-  .nameRow { margin-top: 2px; gap: 8px; }
+  /* margin-top stays 0 (nothing above the name anymore — see .nameRow);
+     only the wrap gap tightens on phones. */
+  .nameRow { margin-top: 0; gap: 8px; }
   /* On mobile the commitment cluster WRAPS below the name, so its 30px
      desktop-centering top inset becomes dead space — collapse it (and the
      8px wrap-gap above) so the commitment sits snug under the name. */
