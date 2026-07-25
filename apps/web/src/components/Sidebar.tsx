@@ -167,6 +167,14 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+/* Routes that RELOCATE into the "More" sheet on phones (coaches only).
+   A coach's nav runs 7 top-level entries + Program; moving Data + Program
+   into the sheet keeps the bottom bar down to 6 cells + More. These items
+   still render in the desktop rail — the bottom-bar CSS hides them there
+   (`[data-in-more='1']`) and the sheet carries them instead, so nothing is
+   duplicated on any one screen. */
+const MOVES_TO_MORE = new Set(['/analytics', '/program']);
+
 export function Sidebar() {
   const pathname = usePathname();
   const { user, isCoach, logout } = useAuth();
@@ -203,6 +211,9 @@ export function Sidebar() {
         <Link
           href={item.href}
           className={`${styles.navItem}${isChild ? ' ' + styles.navItemChild : ''}${isActive ? ' ' + styles.active : ''}`}
+          /* Phones: hidden from the bottom bar and carried by the More
+             sheet instead (see MOVES_TO_MORE). Desktop rail is unaffected. */
+          data-in-more={MOVES_TO_MORE.has(item.href) ? '1' : undefined}
           title={label}
           aria-label={label}
           onClick={() => {
@@ -232,17 +243,19 @@ export function Sidebar() {
   }
 
   return (
-    /* `data-nav` drives the phone layout (see the bottom-bar block in
-       Sidebar.module.css). PLAYERS get a fixed BOTTOM BAR on phones — their
-       nav is exactly 5 items (Dashboard / Profile / Training / Education /
-       Leaderboards), which fits a thumb-reachable bar. COACHES keep the left
-       icon rail: their nav runs 7+ entries (Athletes, Videos, Data, Program…)
-       and would not fit. Above the phone breakpoint BOTH roles render the
-       normal sidebar — the attribute only matters inside the media query. */
+    /* `data-nav="bottom"` drives the phone layout (see the bottom-bar block
+       in Sidebar.module.css). BOTH roles get a fixed bottom bar on phones:
+         • players  — 5 cells (Dashboard / Profile / Training / Education /
+                      Leaderboards) + More
+         • coaches  — 6 cells (Dashboard / Athletes / Training / Education /
+                      Leaderboards / Videos) + More, with Data + Program
+                      relocated into the More sheet (see MOVES_TO_MORE).
+       Above the phone breakpoint both roles render the normal left rail —
+       the attribute only takes effect inside the media query. */
     <aside
       className={styles.sidebar}
       data-theme="dark"
-      data-nav={isCoach ? 'rail' : 'bottom'}
+      data-nav="bottom"
     >
       {/* ── Brand (logo only in compact rail) ── */}
       <div className={styles.brand}>
@@ -295,6 +308,27 @@ export function Sidebar() {
                   onClick={() => setMoreOpen(false)}
                 />
                 <div className={styles.morePanel}>
+                  {/* Coaches: Data + Program live here rather than in the
+                      bar (see MOVES_TO_MORE) — their nav is too long to fit
+                      every entry as a cell. Players don't have these routes. */}
+                  {isCoach && (
+                    <>
+                      <Link
+                        href="/analytics"
+                        className={styles.moreRow}
+                        onClick={() => setMoreOpen(false)}
+                      >
+                        Data
+                      </Link>
+                      <Link
+                        href="/program"
+                        className={styles.moreRow}
+                        onClick={() => setMoreOpen(false)}
+                      >
+                        Program
+                      </Link>
+                    </>
+                  )}
                   <button
                     type="button"
                     className={styles.moreRow}

@@ -16,15 +16,16 @@ import { Sidebar } from './Sidebar';
 import { PendingApproval } from './PendingApproval';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, isPending, isCoach } = useAuth();
+  const { user, isPending } = useAuth();
 
   if (user && isPending) return <PendingApproval />;
 
-  /* Players get a FIXED bottom nav bar on phones (see the bottom-bar block
-     in Sidebar.module.css). Because it's fixed it no longer occupies flex
-     space, so the scroll container needs bottom padding or the last row of
-     content sits underneath it. Coaches keep the left rail — no padding. */
-  const bottomNav = !!user && !isCoach;
+  /* BOTH roles get a FIXED bottom nav bar on phones (see the bottom-bar
+     block in Sidebar.module.css). Because it's fixed it no longer occupies
+     flex space, so the scroll container needs bottom padding or the last row
+     of content sits underneath it. Above the phone breakpoint the class is
+     inert — the padding rule is inside a media query. */
+  const bottomNav = !!user;
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>

@@ -518,6 +518,12 @@
   }
   .sidebar[data-nav='bottom'] .labelWrap { display: none; }
 
+  /* Coach-only routes that relocate into the More sheet on phones (Data +
+     Program — see MOVES_TO_MORE in Sidebar.tsx). They still render here so
+     the DESKTOP rail keeps them; the bar just doesn't show them, which is
+     what keeps a coach's bar to 6 cells + More. */
+  .sidebar[data-nav='bottom'] .navItem[data-in-more='1'] { display: none; }
+
   .sidebar[data-nav='bottom'] .moreWrap {
     display: flex;
     position: relative;
