@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import type { Player, PostItem, ScheduledDrill } from '@/lib/api';
+import type { Player, PostItem } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { MessagesLauncher } from '@/components/MessagesLauncher';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -45,39 +45,9 @@ const PlayerSummaryTab = nextDynamic(
    images + short highlight clips it's fine. */
 
 
-/* ── Helper: get week days (Mon-Sun) ── */
-function getCurrentWeekDays(): { label: string; num: number; date: Date; isToday: boolean }[] {
-  const now = new Date();
-  const dayOfWeek = now.getDay(); // 0=Sun
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + mondayOffset);
-  monday.setHours(0, 0, 0, 0);
-
-  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return labels.map((label, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    const today = new Date();
-    const isToday = d.getDate() === today.getDate() &&
-      d.getMonth() === today.getMonth() &&
-      d.getFullYear() === today.getFullYear();
-    return { label, num: d.getDate(), date: d, isToday };
-  });
-}
-
-/* ── Helper: format date as YYYY-MM-DD ── */
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-
-const TAB_COLORS: Record<string, string> = {
-  HITTING: 'weekDotHitting',
-  PITCHING: 'weekDotPitching',
-  DEFENSIVE: 'weekDotDefensive',
-  WEIGHTROOM: 'weekDotWeightRoom',
-};
+/* The week-day / date helpers and the per-tab dot colors went away with the
+   weekly schedule strip — Upcoming Drills inside the Player Summary is the
+   Dashboard's only schedule surface now. */
 
 /* ══════════════════════════════════════════════
    DASHBOARD PAGE
@@ -89,7 +59,6 @@ export default function DashboardPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [playersError, setPlayersError] = useState(false);
   const [posts, setPosts] = useState<PostItem[]>([]);
-  const [weekDrills, setWeekDrills] = useState<ScheduledDrill[]>([]);
   const [loading, setLoading] = useState(true);
   /* Bumped by the Player Summary's own refresh callback (e.g. after a
      report is deleted from its selector) to refetch the summary bundle. */
@@ -142,19 +111,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
 
-    // Players with a linked playerId don't need coach dashboard data
+    // Players with a linked playerId don't need coach dashboard data.
+    // The week-of-drills fetch went away with the weekly schedule strip —
+    // Upcoming Drills inside the Player Summary covers that now.
     if (!isCoach && user.playerId) {
-      // Load posts + weekly schedule for player
-      const weekDays = getCurrentWeekDays();
-      const startDate = fmtDate(weekDays[0].date);
-      const endDate = fmtDate(weekDays[6].date);
-
-      Promise.all([
-        api.getPosts().catch(() => []),
-        api.getScheduledDrills(user.playerId, { startDate, endDate }).catch(() => []),
-      ]).then(([p, d]) => {
+      api.getPosts().catch(() => []).then((p) => {
         setPosts(p);
-        setWeekDrills(d);
         setLoading(false);
       });
       return;
@@ -170,19 +132,9 @@ export default function DashboardPage() {
     });
   }, [user, isCoach, loadRoster]);
 
-  /* ── Week data ── */
-  const weekDays = useMemo(() => getCurrentWeekDays(), []);
-
-  /* ── Map drills by date ── */
-  const drillsByDate = useMemo(() => {
-    const map: Record<string, ScheduledDrill[]> = {};
-    weekDrills.forEach(d => {
-      const key = d.date.slice(0, 10);
-      if (!map[key]) map[key] = [];
-      map[key].push(d);
-    });
-    return map;
-  }, [weekDrills]);
+  /* Week-day + drills-by-date derivations retired with the weekly schedule
+     strip — the Player Summary's Upcoming Drills bubble is the single
+     schedule surface on the Dashboard now. */
 
   /* ── Create post ── */
   const handleCreatePost = useCallback(async () => {
@@ -279,9 +231,6 @@ export default function DashboardPage() {
 
         {/* ── Content ── */}
         <div className={styles.content}>
-          {/* Weekly Schedule replaces stats grid */}
-          <WeeklyScheduleStrip weekDays={weekDays} drillsByDate={drillsByDate} />
-
           {/* ── Player Summary ──
               The four bubbles (Current Grades / Trends, Tool Grades,
               Upcoming Drills, Videos) that used to be a tab on the
@@ -424,44 +373,6 @@ export default function DashboardPage() {
 
 /* ══════════════════════════════════════════════
    WEEKLY SCHEDULE STRIP
-   ══════════════════════════════════════════════ */
-function WeeklyScheduleStrip({
-  weekDays,
-  drillsByDate,
-}: {
-  weekDays: { label: string; num: number; date: Date; isToday: boolean }[];
-  drillsByDate: Record<string, ScheduledDrill[]>;
-}) {
-  return (
-    <div className={styles.weekStrip}>
-      {weekDays.map(day => {
-        const dateKey = fmtDate(day.date);
-        const drills = drillsByDate[dateKey] || [];
-        // Get unique tabs for the dot indicators
-        const tabs = [...new Set(drills.map(d => d.tab.toUpperCase()))];
-
-        return (
-          <div
-            key={day.label}
-            className={`${styles.weekDay} ${day.isToday ? styles.weekDayToday : ''}`}
-          >
-            <span className={styles.weekDayLabel}>{day.label}</span>
-            <span className={styles.weekDayNum}>{day.num}</span>
-            <div className={styles.weekDayDots}>
-              {tabs.map(tab => (
-                <span
-                  key={tab}
-                  className={`${styles.weekDot} ${styles[TAB_COLORS[tab] || 'weekDotHitting']}`}
-                />
-              ))}
-            </div>
-            {day.isToday && <span className={styles.weekDayTodayLabel}>Today</span>}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 
 /* ══════════════════════════════════════════════
