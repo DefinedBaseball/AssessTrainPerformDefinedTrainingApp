@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import nextDynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -12,7 +13,23 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 /* The feed + edit modal now live in the bell's Announcements tab; the
    dashboard keeps only post CREATION, which still needs these two. */
 import { POST_TYPES, fileToDataUrl } from '@/components/announcements/AnnouncementFeed';
+import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
 import styles from './page.module.css';
+
+/* The Player Summary drags in recharts + the whole grades pipeline, and
+   only players render it — code-split so a coach's Dashboard never
+   downloads it. ssr:false is safe: this page is client-only behind auth. */
+const PlayerSummaryTab = nextDynamic(
+  () => import('./athletes/[id]/tabs/PlayerSummaryTab').then((m) => m.PlayerSummaryTab),
+  {
+    ssr: false,
+    loading: () => (
+      <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 32 }}>
+        Loading your summary…
+      </p>
+    ),
+  },
+);
 
 /* ─── File → data URL helper ─────────────────────────────────────────────
    Used by the Create / Edit Post file-upload inputs. Converts a picked
@@ -73,6 +90,9 @@ export default function DashboardPage() {
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [weekDrills, setWeekDrills] = useState<ScheduledDrill[]>([]);
   const [loading, setLoading] = useState(true);
+  /* Bumped by the Player Summary's own refresh callback (e.g. after a
+     report is deleted from its selector) to refetch the summary bundle. */
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
   /* Load the coach roster (drives the stat cards + post-tagging pickers).
      One silent retry absorbs the Render cold-start; on genuine failure we
@@ -208,6 +228,20 @@ export default function DashboardPage() {
      Announcements tab. `posts` is still fetched here because the
      "Pro Signings" stat card counts them. */
 
+  /* ── Player Summary data ──
+     A player's Dashboard IS their Player Summary now (Grades/Trends, Tool
+     Grades, Upcoming Drills, Videos), so it pulls the same bundle the
+     profile page does via the shared hook. Gated to players with a linked
+     profile, and `withColleges: false` skips the commitment-logo lookup
+     the Dashboard never renders. Hooks can't be called conditionally, so
+     this sits above the early returns and no-ops for coaches. */
+  const myPlayerId = (user as any)?.playerId as string | undefined;
+  const summary = usePlayerProfileData(myPlayerId, {
+    enabled: !!user && !isCoach && !!myPlayerId,
+    refreshKey: summaryRefreshKey,
+    withColleges: false,
+  });
+
   if (isLoading || !user) return null;
 
   /* ── Player Dashboard ── */
@@ -230,8 +264,30 @@ export default function DashboardPage() {
           {/* Weekly Schedule replaces stats grid */}
           <WeeklyScheduleStrip weekDays={weekDays} drillsByDate={drillsByDate} />
 
-          {/* The announcement feed moved to the notification bell's
-              Announcements tab — see components/announcements. */}
+          {/* ── Player Summary ──
+              The four bubbles (Current Grades / Trends, Tool Grades,
+              Upcoming Drills, Videos) that used to be a tab on the
+              player's profile now live here. `hideHeaderActions` drops
+              Edit Profile / Download PDF / the Videos jump — those stay
+              on the profile page, which has the modals to serve them.
+              The announcement feed moved to the bell's Announcements
+              tab (see components/announcements). */}
+          {summary.loading ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 32 }}>
+              Loading your summary…
+            </p>
+          ) : summary.player ? (
+            <PlayerSummaryTab
+              player={summary.player}
+              topMetrics={summary.topMetrics}
+              progressData={summary.progressData}
+              videos={summary.videos}
+              reports={summary.reports}
+              isCoach={false}
+              onRefresh={() => setSummaryRefreshKey((k) => k + 1)}
+              hideHeaderActions
+            />
+          ) : null}
         </div>
       </div>
     );

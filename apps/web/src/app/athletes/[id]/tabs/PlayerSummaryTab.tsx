@@ -2014,8 +2014,14 @@ function TrendMetricCard({
 
 export function PlayerSummaryTab({
   player, topMetrics, reports, progressData, isCoach, onNewReport, onEditReport, onEditProfile, onRefresh,
-  onCaptureSummaryPdf, onOpenVideos, visibleTabKeys,
+  onCaptureSummaryPdf, onOpenVideos, visibleTabKeys, hideHeaderActions = false,
 }: TabProps & {
+  /** Drop the Edit Profile / Download PDF / Videos-jump buttons from the
+   *  action bar, keeping only the report selector. Set by the player
+   *  Dashboard, which hosts this tab's content but has no profile tabs to
+   *  jump to and no ReportModal mounted — those actions live on the
+   *  player's own profile page instead. */
+  hideHeaderActions?: boolean;
   /** Provided by the parent profile page. Triggers the capture-based
    *  Player Summary PDF flow (Title Page + Tool Grades + Hitting /
    *  Infield / Catching / Outfield snapshots + Pitch Report,
@@ -2285,7 +2291,7 @@ export function PlayerSummaryTab({
             row inside the ReportSelector dropdown below. */}
         {/* Edit Profile is available to coaches AND players (was non-coach
             only) so coaches can edit player info from the reports tab. */}
-        <EditProfileButton onClick={onEditProfile} show />
+        <EditProfileButton onClick={onEditProfile} show={!hideHeaderActions} />
         {/* Top-level Download PDF — assembles the Player Summary PDF
             via DIRECT screenshots of the live in-app sections:
               1. Title Page (cover)
@@ -2299,12 +2305,16 @@ export function PlayerSummaryTab({
             page so it can switch `activeTab` between renders. Sections
             without a live DOM marker for this player are skipped
             silently. Disabled when the parent didn't pass a handler. */}
-        <DownloadPdfButton
-          onDownload={onCaptureSummaryPdf ?? (async () => { /* no-op */ })}
-          disabled={!onCaptureSummaryPdf}
-        />
-        {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <VideosIconButton onClick={onOpenVideos} />
+        {!hideHeaderActions && (
+          <DownloadPdfButton
+            onDownload={onCaptureSummaryPdf ?? (async () => { /* no-op */ })}
+            disabled={!onCaptureSummaryPdf}
+          />
+        )}
+        {/* Videos jump — next to Download PDF, replaces standalone tab.
+            Hidden on the Dashboard: there are no profile tabs to jump to
+            there, and the Videos bubble is already on the page. */}
+        {!hideHeaderActions && <VideosIconButton onClick={onOpenVideos} />}
         {/* Player Summary report selector now behaves identically to the
             per-position tabs (Hitting / Pitching / Defense / S&C):
             clicking the title text opens the selected report in the

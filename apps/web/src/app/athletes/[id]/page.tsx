@@ -43,6 +43,7 @@ const PdfBuilderModal = nextDynamic(() => import('./PdfBuilderModal').then(m => 
 import type { PdfLayout } from './PdfBuilderModal';
 import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs } from './helpers';
 import type { ReportSummary, TabProps } from './helpers';
+import { usePlayerProfileData } from './usePlayerProfileData';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
 const iconProps = {
@@ -103,24 +104,6 @@ const TABS: Tab[] = [
   { key: 'videos', label: 'Videos', icon: IconVideos },
 ];
 
-/* ── Progress metrics to fetch ── */
-const PROGRESS_METRICS = [
-  // Hitting
-  'max_exit_velo', 'max_bat_speed', 'avg_exit_velo', 'avg_bat_speed',
-  'bat_speed', 'smash_factor', 'launch_angle', 'attack_angle', 'distance',
-  'squared_up_pct', 'plane_angle',
-  // Defense
-  'infield_velo', 'outfield_velo', 'catcher_velo', 'pop_time', 'exchange_time',
-  // Pitching
-  'fb_max_velo', 'fb_avg_velo', 'spin_rate', 'h_break', 'v_break', 'sprint_60',
-  // Speed (Physical / defense sprint trends — 60-yd + 10-yd dash)
-  'sprint_10',
-  // Strength
-  'jump_height', 'broad_jump', 'squat_max', 'bench_max', 'deadlift_max',
-  // Vision
-  'vizual_edge_overall', 'vizual_edge_convergence', 'vizual_edge_divergence',
-  'vizual_edge_tracking', 'vizual_edge_recognition',
-];
 
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
@@ -130,17 +113,10 @@ export default function PlayerProfilePage() {
   // When rendered inline (e.g., player dashboard), use playerId from auth
   const id = params?.id || (user as any)?.playerId || '';
 
-  const [activeTab, setActiveTab] = useState('summary');
-  const [player, setPlayer] = useState<(Player & { metrics: Metric[] }) | null>(null);
-  const [topMetrics, setTopMetrics] = useState<Record<string, { value: number; unit: string; recordedAt: string }>>({});
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [progressData, setProgressData] = useState<Record<string, { value: number; recordedAt: string }[]>>({});
-  const [reports, setReports] = useState<ReportSummary[]>([]);
-  /* Colleges list — fetched so the Commitment circle can show the logo
-     associated with the player's committed school (via College.logoUrl
-     set in Settings → Teams & Colleges, or via the "+ Add new college"
-     form in the Report modal). */
-  const [colleges, setColleges] = useState<api.College[]>([]);
+  /* Players no longer have a Summary tab (its content moved to their
+     Dashboard), so they land on the first tab their positions surface.
+     Coaches still open on Summary. */
+  const [activeTab, setActiveTab] = useState(isCoach ? 'summary' : 'hitting');
   /* Set while the Summary PDF capture flow is running — pauses the
      active-tab auto-correction below so we can programmatically swap
      to Hitting / Catching / Infield / Outfield / Pitching tabs and
@@ -153,9 +129,14 @@ export default function PlayerProfilePage() {
      and optionally saves the whole layout as a named preset. Opens
      when the Player Summary tab's "Download PDF" button is clicked. */
   const [pdfBuilderOpen, setPdfBuilderOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  /* All profile data comes from the shared hook, which the player's
+     Dashboard also uses to render the Summary bubbles — one fetch
+     definition so the two surfaces can't drift. */
+  const {
+    player, topMetrics, progressData, videos, reports, colleges, loading, error,
+  } = usePlayerProfileData(id, { enabled: !!user, refreshKey });
   const [showReportModal, setShowReportModal] = useState(false);
   /** When set, ReportModal opens in edit mode for this existing report. */
   const [editingReport, setEditingReport] = useState<ReportSummary | null>(null);
@@ -180,46 +161,6 @@ export default function PlayerProfilePage() {
     }
   }, [authLoading, user, isCoach, id, router]);
 
-  /* ── Data loading ── */
-  useEffect(() => {
-    if (!user || !id) return;
-    setLoading(true);
-    setError(null);
-
-    // `'REPORT'` → only per-report aggregated points (one per report), so
-    // the trend charts never show seeded / raw-CSV multi-date demo data.
-    const progressPromises = PROGRESS_METRICS.map(mt =>
-      api.getMetricProgress(id, mt, 'REPORT')
-        .then(data => ({ mt, data }))
-        .catch(() => ({ mt, data: [] as { value: number; recordedAt: string }[] })),
-    );
-
-    Promise.all([
-      api.getPlayer(id),
-      api.getTopMetrics(id).catch(() => ({})),
-      api.getPlayerVideos(id).catch(() => []),
-      api.getPlayerReports(id).catch(() => []),
-      Promise.all(progressPromises),
-      /* Colleges list is non-critical for the page rendering, so swallow
-         errors and fall back to an empty list. The commitment circle
-         simply renders the graduation-cap glyph fallback if the lookup
-         comes up empty. */
-      api.getColleges().catch(() => [] as api.College[]),
-    ]).then(([p, top, vids, reps, progressResults, colls]) => {
-      setPlayer(p);
-      setTopMetrics(top);
-      setVideos(vids);
-      setReports(reps as ReportSummary[]);
-      setColleges(colls);
-      const pd: Record<string, { value: number; recordedAt: string }[]> = {};
-      progressResults.forEach(({ mt, data }) => { if (data.length > 0) pd[mt] = data; });
-      setProgressData(pd);
-      setLoading(false);
-    }).catch((err: Error) => {
-      setError(err.message || 'Failed to load player');
-      setLoading(false);
-    });
-  }, [user, id, refreshKey]);
 
   /* Live At-Bats for this athlete — feeds the Swing Decision bar in
      the Hitting Tool Grades card. Pulled separately from the metrics
@@ -298,7 +239,11 @@ export default function PlayerProfilePage() {
     const isOutfielder = positions.some((p) => OUTFIELD_CODES.includes(p));
 
     return TABS.filter((t) => {
-      if (t.key === 'summary') return true;
+      /* Summary is COACH-only now — its content (Grades/Trends, Tool
+         Grades, Upcoming Drills, Videos) moved to the player Dashboard,
+         so showing the tab too would duplicate it. `capturingPdf` keeps
+         it available to the capture walk regardless of role. */
+      if (t.key === 'summary') return isCoach || capturingPdf;
       // Per-player Eye-toggle override — short-circuit before the
       // position checks so a hidden tab disappears even when the player
       // carries a matching position. Summary is exempt above so coaches
@@ -332,7 +277,11 @@ export default function PlayerProfilePage() {
     if (capturingPdf) return;
     if (activeTab === 'videos') return;
     if (!visibleTabs.some((t) => t.key === activeTab)) {
-      setActiveTab('summary');
+      /* Fall back to the FIRST visible tab, not hard-coded 'summary' —
+         players no longer have a Summary tab, so hard-coding it would
+         strand them on a tab that isn't in their bar. Coaches still land
+         on Summary because it's first in their list. */
+      setActiveTab(visibleTabs[0]?.key ?? 'hitting');
     }
   }, [visibleTabs, activeTab, capturingPdf]);
 
