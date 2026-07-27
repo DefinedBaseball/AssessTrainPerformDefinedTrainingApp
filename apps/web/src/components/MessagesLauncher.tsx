@@ -27,10 +27,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { uploadVideoFile } from '@/lib/api';
+import { AnnouncementFeed, EditPostModal } from '@/components/announcements/AnnouncementFeed';
 import styles from './MessagesLauncher.module.css';
 
 type Panel = null | 'messages' | 'notifications';
 type View = 'list' | 'contacts' | 'thread';
+/* The two tabs inside the bell popover. 'notifications' is always the
+   landing tab — opening the bell never starts on Announcements. */
+type NotifTab = 'notifications' | 'announcements';
 
 function initials(name: string) {
   return name
@@ -94,6 +98,19 @@ export function MessagesLauncher() {
   const [notifList, setNotifList] = useState<api.AppNotification[]>([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifBusy, setNotifBusy] = useState<string | null>(null);
+
+  /* ── Announcements tab ──
+     The bell hosts two tabs: Notifications (default) and Announcements —
+     the feed that used to sit on the Dashboard. Posts load lazily the
+     first time the tab is opened, so a user who never leaves the default
+     tab pays nothing. `players` is only needed to populate the edit
+     modal's tagged-player dropdown, so it's coach-only and lazy too. */
+  const [notifTab, setNotifTab] = useState<NotifTab>('notifications');
+  const [posts, setPosts] = useState<api.PostItem[]>([]);
+  const [postsLoaded, setPostsLoaded] = useState(false);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [editingPost, setEditingPost] = useState<api.PostItem | null>(null);
+  const [postPlayers, setPostPlayers] = useState<api.Player[]>([]);
 
   const [view, setView] = useState<View>('list');
   const [conversations, setConversations] = useState<api.Conversation[]>([]);
@@ -169,12 +186,45 @@ export function MessagesLauncher() {
   /* ── Notifications ── */
   const openNotifications = useCallback(() => {
     setPanel('notifications');
+    // Always land on the Notifications tab, whatever was open last time.
+    setNotifTab('notifications');
     setNotifLoading(true);
     api
       .getNotifications()
       .then(setNotifList)
       .catch(() => setNotifList([]))
       .finally(() => setNotifLoading(false));
+  }, []);
+
+  /* Announcements tab — fetch once, on first open. Coaches additionally
+     pull the roster so the edit modal's tagged-player dropdown works
+     (getPlayers is coach-gated server-side, so players skip it). */
+  const openAnnouncements = useCallback(() => {
+    setNotifTab('announcements');
+    if (postsLoaded || postsLoading) return;
+    setPostsLoading(true);
+    api
+      .getPosts()
+      .then((p) => { setPosts(p); setPostsLoaded(true); })
+      .catch(() => setPosts([]))
+      .finally(() => setPostsLoading(false));
+    if (isCoach && postPlayers.length === 0) {
+      api.getPlayers()
+        .then((list) => setPostPlayers(list.filter((x) => x.positions !== 'COACH')))
+        .catch(() => { /* dropdown just stays empty */ });
+    }
+  }, [postsLoaded, postsLoading, isCoach, postPlayers.length]);
+
+  const handleDeletePost = useCallback(async (id: string) => {
+    try {
+      await api.deletePost(id);
+      setPosts((prev) => prev.filter((p) => p.id !== id));
+    } catch { /* silent — row stays, next open refetches */ }
+  }, []);
+
+  const handlePostUpdated = useCallback((updated: api.PostItem) => {
+    setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setEditingPost(null);
   }, []);
 
   const handleNotifClick = useCallback(
@@ -311,11 +361,39 @@ export function MessagesLauncher() {
     ? createPortal(
         <>
           <div className={styles.backdrop} onClick={closePanel} />
-          <div className={styles.notifCard} role="dialog" aria-label="Notifications">
+          <div
+            className={styles.notifCard}
+            /* Announcements carry images / video / rich text, so the card
+               widens on that tab; the notification list stays compact. */
+            data-tab={notifTab}
+            role="dialog"
+            aria-label={notifTab === 'announcements' ? 'Announcements' : 'Notifications'}
+          >
             <div className={styles.notifHead}>
-              <span>Notifications</span>
+              {/* Tab switcher replaces the old static "Notifications" label. */}
+              <div className={styles.notifTabs} role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={notifTab === 'notifications'}
+                  className={`${styles.notifTab} ${notifTab === 'notifications' ? styles.notifTabActive : ''}`}
+                  onClick={() => setNotifTab('notifications')}
+                >
+                  Notifications
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={notifTab === 'announcements'}
+                  className={`${styles.notifTab} ${notifTab === 'announcements' ? styles.notifTabActive : ''}`}
+                  onClick={openAnnouncements}
+                >
+                  Announcements
+                </button>
+              </div>
               <div className={styles.notifHeadActions}>
-                {notifList.some((n) => !n.readAt && n.type !== 'ACCOUNT_REQUEST') && (
+                {notifTab === 'notifications'
+                  && notifList.some((n) => !n.readAt && n.type !== 'ACCOUNT_REQUEST') && (
                   <button
                     type="button"
                     className={styles.markAllBtn}
@@ -329,6 +407,27 @@ export function MessagesLauncher() {
                 </button>
               </div>
             </div>
+
+            {/* ── Announcements tab ── the feed that used to live on the
+                Dashboard. Coaches get inline edit / delete here; creation
+                still happens from the Dashboard's "+" button. ── */}
+            {notifTab === 'announcements' ? (
+              postsLoading ? (
+                <div className={styles.notifLoadingState}>
+                  <span className={styles.spinner} />
+                </div>
+              ) : (
+                <div className={styles.announceScroll}>
+                  <AnnouncementFeed
+                    posts={posts}
+                    isCoach={isCoach}
+                    onDelete={handleDeletePost}
+                    onEdit={setEditingPost}
+                  />
+                </div>
+              )
+            ) : (
+            <>
 
             {notifLoading ? (
               <div className={styles.notifLoadingState}>
@@ -398,7 +497,21 @@ export function MessagesLauncher() {
                 })}
               </div>
             )}
+            </>
+            )}
           </div>
+
+          {/* Edit Post modal — lives here now that the bell owns the feed.
+              Rendered outside the card so the card's `overflow: hidden`
+              can't clip it. */}
+          {editingPost && (
+            <EditPostModal
+              post={editingPost}
+              players={postPlayers}
+              onClose={() => setEditingPost(null)}
+              onSaved={handlePostUpdated}
+            />
+          )}
         </>,
         document.body,
       )
