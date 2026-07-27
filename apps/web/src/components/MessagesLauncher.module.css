@@ -113,7 +113,11 @@
      root — 84px/24px at full scale, proportionally less when minimized. */
   top: 5.6rem;
   right: 1.6rem;
-  width: min(380px, calc(100vw - 32px));
+  /* One width for BOTH tabs so the popover doesn't resize when you switch
+     between Notifications and Announcements. Sized for announcements (they
+     carry images / video / rich text); the notification list simply runs
+     wider now. */
+  width: min(560px, calc(100vw - 32px));
   z-index: 1001;
   background: var(--surface-solid);
   border: 1px solid var(--border-light);
@@ -192,7 +196,10 @@
   padding: 36px;
 }
 .notifList {
-  max-height: min(60vh, 440px);
+  /* Matches .announceScroll so a full list caps at the same height as the
+     announcement feed — the two tabs then read as one consistently-sized
+     popover instead of one growing when you switch. */
+  max-height: min(70vh, 560px);
   overflow-y: auto;
 }
 .notifRow {
@@ -739,11 +746,9 @@
   background: rgba(0, 0, 0, 0.07);
 }
 
-/* Announcement posts carry images / video / rich text, so give that tab
-   a wider card than the compact notification list. */
-.notifCard[data-tab='announcements'] {
-  width: min(560px, calc(100vw - 32px));
-}
+/* Width is now set once on .notifCard for both tabs — see the note there.
+   The per-tab override that widened only Announcements is retired so the
+   popover no longer resizes when switching tabs. */
 
 /* The feed brings its own section chrome from the dashboard's CSS
    module; this just bounds its height inside the popover. */
