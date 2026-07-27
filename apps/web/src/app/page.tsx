@@ -14,6 +14,7 @@ import { RichTextEditor } from '@/components/RichTextEditor';
    dashboard keeps only post CREATION, which still needs these two. */
 import { POST_TYPES, fileToDataUrl } from '@/components/announcements/AnnouncementFeed';
 import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
+import { REPORT_TYPE_TO_TAB } from './athletes/[id]/helpers';
 import styles from './page.module.css';
 
 /* The Player Summary drags in recharts + the whole grades pipeline, and
@@ -242,6 +243,23 @@ export default function DashboardPage() {
     withColleges: false,
   });
 
+  /* Which Tool Grades cards to show. `computeAggregateScores` builds its
+     sections from the player's POSITIONS, so a two-way / utility athlete
+     gets a card for every position they list — including ones they have no
+     report for, which renders as an empty card. On the Dashboard we narrow
+     that to the sections the player actually has a report for, so Tool
+     Grades only shows sections with real data. (The profile's Summary tab
+     still follows the tab bar, which stays position-based so a coach can
+     open an empty tab to CREATE that first report.) */
+  const summaryTabKeys = useMemo(() => {
+    const keys = new Set<string>();
+    summary.reports.forEach((r) => {
+      const key = REPORT_TYPE_TO_TAB[r.reportType];
+      if (key) keys.add(key);
+    });
+    return Array.from(keys);
+  }, [summary.reports]);
+
   if (isLoading || !user) return null;
 
   /* ── Player Dashboard ── */
@@ -285,6 +303,7 @@ export default function DashboardPage() {
               reports={summary.reports}
               isCoach={false}
               onRefresh={() => setSummaryRefreshKey((k) => k + 1)}
+              visibleTabKeys={summaryTabKeys}
               hideHeaderActions
             />
           ) : null}
