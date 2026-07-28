@@ -550,10 +550,11 @@ export default function PlayerProfilePage() {
             <div className={styles.commandDeck}>
               {/* LEFT: identity block */}
               <div className={styles.identityBlock}>
-                {/* TOP LINE = player name + College Commitment. Every readout
-                    now sits UNDER the name in two rows (see the name column
-                    below); the old top telemetry strip above the name is
-                    retired, so the identity block reads name-first. */}
+                {/* TOP LINE = player name + College Commitment, side by side.
+                    The readout line lives BELOW this row as a sibling (not
+                    nested in a left column) — nesting it made the left column
+                    wide enough to push the commitment cluster onto its own
+                    line once GRAD joined the readouts. */}
                 <div
                   className={styles.nameRow}
                   style={{
@@ -562,37 +563,10 @@ export default function PlayerProfilePage() {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                   }}>
-                  {/* Name + the two readout rows stacked as the nameRow's LEFT
-                      column; the commitment / gauge cluster stays the RIGHT
-                      column so it rides alongside the name. `minWidth:0` lets
-                      the name shrink/wrap cleanly inside the flex row. */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-                    <h1 className={styles.megaName} style={{ margin: 0 }}>
-                      {player.firstName}{' '}
-                      <span className={styles.lastName}>{player.lastName}</span>
-                    </h1>
-                    {/* Row 1 under the name — the physical readouts. Reuses the
-                        telemetry typography via the class (its span/b
-                        descendant styles still apply); the dashed underline is
-                        suppressed since that hairline belonged to the retired
-                        top strip. */}
-                    <div
-                      className={styles.telemetryStrip}
-                      style={{ borderBottom: 'none', paddingBottom: 0 }}
-                    >
-                      <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
-                      <span>HT <b>{formatHeight(player.heightInches)}</b></span>
-                      <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
-                      <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
-                      <span>AGE <b>{getAge(player.birthDate)}</b></span>
-                      <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>
-                    </div>
-                    {/* HS + Club are intentionally NOT surfaced here — they're
-                        still stored on the profile and editable in the Summary
-                        form, just not part of the name bubble's single readout
-                        line (coach spec). */}
-                  </div>
-
+                  <h1 className={styles.megaName} style={{ margin: 0, minWidth: 0 }}>
+                    {player.firstName}{' '}
+                    <span className={styles.lastName}>{player.lastName}</span>
+                  </h1>
                   {/* Right-side cluster — Commitment + Gauge grouped
                       together. Order is Commitment (left) → Gauge
                       (right) so the Player Grade circle is the
@@ -771,6 +745,25 @@ export default function PlayerProfilePage() {
                   {/* Overall "Player Grade" gauge removed per request — the
                       detailed Tool Grades below remain the source of grades. */}
                   </div>{/* /right-side cluster */}
+                </div>
+
+                {/* Readout line — sits BELOW the name + commitment row and
+                    spans the deck's full width. Kept out of that flex row on
+                    purpose: nesting it beside the name widened the left
+                    column enough to bump the commitment cluster onto its own
+                    line. HS + Club are deliberately absent — still stored on
+                    the profile and editable in the Summary form, just not
+                    surfaced in the name bubble. */}
+                <div
+                  className={styles.telemetryStrip}
+                  style={{ borderBottom: 'none', paddingBottom: 0 }}
+                >
+                  <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
+                  <span>HT <b>{formatHeight(player.heightInches)}</b></span>
+                  <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
+                  <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
+                  <span>AGE <b>{getAge(player.birthDate)}</b></span>
+                  <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>
                 </div>
 
               </div>
