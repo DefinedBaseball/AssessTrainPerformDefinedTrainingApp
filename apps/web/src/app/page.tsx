@@ -217,20 +217,20 @@ export default function DashboardPage() {
   /* ── Player Dashboard ── */
   if (!isCoach && user.playerId) {
     return (
-      <div>
+      <div className={styles.playerDash}>
         {/* ── Hero ── */}
         <PageHeader
           size="hero"
           eyebrow="Player Dashboard"
           title="Train. Track."
           titleAccent="Improve."
-          subtitle="Your weekly schedule and the latest from your coaches."
+          subtitle="Your grades, training and video — all in one place."
           readout="Live"
           actions={<MessagesLauncher />}
         />
 
         {/* ── Content ── */}
-        <div className={styles.content}>
+        <div className={`${styles.content} ${styles.playerContent}`}>
           {/* ── Player Summary ──
               The four bubbles (Current Grades / Trends, Tool Grades,
               Upcoming Drills, Videos) that used to be a tab on the

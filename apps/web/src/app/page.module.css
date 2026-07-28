@@ -1052,3 +1052,19 @@
 [data-theme="light"] .postCard:hover {
   border-color: rgba(0, 0, 0, 0.18);
 }
+
+/* ── Player dashboard spacing ──
+   The hero sits directly above the Player Summary, whose sections are a
+   1.25rem grid gap apart (.root in PlayerSummaryTab.module.css). By default
+   the hero's own 28px margin-bottom PLUS .content's 24px padding-top stack
+   to roughly 3.4rem, so the gap under the hero read much larger than the
+   gaps between the bubbles below it. Collapse the padding and pin the hero
+   margin to the same 1.25rem so all three gaps match.
+   `> header` targets the PageHeader element by tag — its class is hashed by
+   CSS Modules, so a class selector wouldn't reach it. */
+.playerDash > header {
+  margin-bottom: 1.25rem;
+}
+.playerContent {
+  padding-top: 0;
+}
