@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, NotesBox, ReportSelector,
-  TabBarActions, EditProfileButton,
-} from '@/components/assessment';
+  TabBarActions, } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import {
@@ -100,7 +99,6 @@ export function VisionTab({
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}

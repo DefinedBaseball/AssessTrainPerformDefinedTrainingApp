@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Metric, Video } from '@/lib/api';
 
-import { TabBar, TabPanel } from '@/components/assessment';
+import { TabBar, TabPanel, VideosIconButton } from '@/components/assessment';
 import type { Tab } from '@/components/assessment';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
@@ -143,6 +143,24 @@ export default function PlayerProfilePage() {
   /** When true, ReportModal opens in profile-only mode (player edit view) —
    *  shows just the Summary form with no report-type chips. */
   const [profileEditOpen, setProfileEditOpen] = useState(false);
+
+  /* Open the profile-edit modal when routed here as /profile?edit=1 — the
+     entry point players now use (sidebar More sheet on phones, the rail's
+     Edit Profile button on desktop), since that button was removed from the
+     per-tab action bars. Read straight off window.location rather than
+     useSearchParams so this client page needs no Suspense boundary. The
+     param is stripped afterwards so a refresh doesn't reopen the modal. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('edit') !== '1') return;
+    setEditingReport(null);
+    setProfileEditOpen(true);
+    setShowReportModal(true);
+    params.delete('edit');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, []);
 
   /* ── Auth guard ── */
   useEffect(() => {
@@ -567,16 +585,12 @@ export default function PlayerProfilePage() {
                       <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
                       <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
                       <span>AGE <b>{getAge(player.birthDate)}</b></span>
-                    </div>
-                    {/* Row 2 under the name — school / class / club. */}
-                    <div
-                      className={styles.telemetryStrip}
-                      style={{ borderBottom: 'none', paddingBottom: 0 }}
-                    >
-                      <span>HS <b>{player.highSchool || '—'}</b></span>
                       <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>
-                      <span>Club <b>{player.clubTeam || '—'}</b></span>
                     </div>
+                    {/* HS + Club are intentionally NOT surfaced here — they're
+                        still stored on the profile and editable in the Summary
+                        form, just not part of the name bubble's single readout
+                        line (coach spec). */}
                   </div>
 
                   {/* Right-side cluster — Commitment + Gauge grouped
@@ -770,7 +784,15 @@ export default function PlayerProfilePage() {
       })()}
 
       {/* ── Tab Bar (now below the player name bubble) ── */}
-      <TabBar tabs={visibleTabs} activeKey={activeTab} onTabChange={setActiveTab} />
+      {/* Videos jump lives on the TAB line (far right) rather than in each
+          tab's action bar — it's a navigation control like the tabs, and on
+          phones the action bar wraps to its own line while this stays put. */}
+      <TabBar
+        tabs={visibleTabs}
+        activeKey={activeTab}
+        onTabChange={setActiveTab}
+        rightSlot={<VideosIconButton onClick={() => setActiveTab('videos')} />}
+      />
 
       {/* ── Content ── */}
       <div className={styles.contentWrap}>

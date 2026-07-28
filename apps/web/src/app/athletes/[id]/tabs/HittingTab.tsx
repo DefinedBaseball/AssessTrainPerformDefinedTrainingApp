@@ -3,7 +3,7 @@
 import { rem } from '@/lib/rem';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, type SharedHittingState } from './SwingTab';
-import { TabBar, TabBarActions, EditProfileButton, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideosIconButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
+import { TabBar, TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -967,7 +967,6 @@ export function HittingTab(props: TabProps) {
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={props.onEditProfile} show={!isCoach} />
         {/* Top-level Download PDF — generates a PDF for the currently
             selected HITTING report. Disabled when no report is selected. */}
         <DownloadPdfButton
@@ -986,7 +985,6 @@ export function HittingTab(props: TabProps) {
         />
         {/* Videos jump — sits next to the Download PDF icon and
             replaces the standalone Videos tab in the main nav. */}
-        <VideosIconButton onClick={props.onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={['HITTING']}

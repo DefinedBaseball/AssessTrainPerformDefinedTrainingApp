@@ -5,8 +5,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { averagePitchesByType, zoneAggregate, type ZoneAggregate } from '@/lib/pitchAggregation';
 import {
   SectionHeader, Section,
-  VideoPlaceholder, VideoBundleCard, ReportSelector, EditProfileButton, DownloadPdfButton, VideosIconButton,
-} from '@/components/assessment';
+  VideoPlaceholder, VideoBundleCard, ReportSelector, DownloadPdfButton, } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import hud from './PitchingTab.module.css';
@@ -1466,7 +1465,6 @@ export function PitchingTab({
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         {/* Top-level Download PDF — generates a PDF for the currently
             selected PITCHING report. Disabled when no report is on
             file. Mirrors the same icon-only square + per-row dropdown
@@ -1480,7 +1478,6 @@ export function PitchingTab({
         />
         {/* Videos jump — sits next to Download PDF, replaces the
             standalone Videos tab. */}
-        <VideosIconButton onClick={onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={['PITCHING']}

@@ -564,6 +564,26 @@
   min-height: 54px;
 }
 
+/* Row 1 of the tab bar — the scrollable tabs plus an optional right-pinned
+   slot (the Videos jump). Grouping them means the slot rides WITH the tabs
+   when .tabBarInner wraps at <=640px, instead of dropping to the actions
+   line below. */
+.tabBarRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tabBarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-top: 6px; /* matches .tabBar so the icon aligns with the tabs */
+}
+
 .tabBar {
   display: flex;
   gap: 2px;
@@ -1790,7 +1810,9 @@
      vertical spacing. Landscape phones (≥667px) are above this 640px
      breakpoint, so they keep the single-row layout that already fits. */
   .tabBarInner { flex-wrap: wrap; }
-  .tabBar { flex: 1 1 100%; }
+  /* The row (tabs + right slot) claims the whole first line; the
+     actions slot wraps beneath it. */
+  .tabBarRow { flex: 1 1 100%; }
   .tabBarActions {
     width: 100%;
     margin-left: 0;

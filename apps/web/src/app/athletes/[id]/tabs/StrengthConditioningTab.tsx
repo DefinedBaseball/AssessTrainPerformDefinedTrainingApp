@@ -37,9 +37,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   SectionHeader,
   TabBarActions,
-  EditProfileButton,
   DownloadPdfButton,
-  VideosIconButton,
   ReportSelector,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
@@ -1609,7 +1607,6 @@ export function StrengthConditioningTab({
   return (
     <>
       <TabBarActions>
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         <DownloadPdfButton
           onDownload={async () => {
             if (!activeReport) return;
@@ -1617,7 +1614,6 @@ export function StrengthConditioningTab({
           }}
           disabled={!activeReport}
         />
-        <VideosIconButton onClick={onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={REPORT_TYPES}

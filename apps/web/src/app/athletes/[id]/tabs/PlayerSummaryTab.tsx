@@ -9,8 +9,7 @@ import {
   AreaChart, Area,
 } from 'recharts';
 import {
-  TabBarActions, EditProfileButton, ReportSelector, DownloadPdfButton, VideosIconButton,
-  VideoPlayerModal, VideoBundleCard,
+  TabBarActions, EditProfileButton, ReportSelector, DownloadPdfButton, VideoPlayerModal, VideoBundleCard,
 } from '@/components/assessment';
 import { generateSummaryPdf } from '@/lib/pdf';
 import {
@@ -2314,7 +2313,6 @@ export function PlayerSummaryTab({
         {/* Videos jump — next to Download PDF, replaces standalone tab.
             Hidden on the Dashboard: there are no profile tabs to jump to
             there, and the Videos bubble is already on the page. */}
-        {!hideHeaderActions && <VideosIconButton onClick={onOpenVideos} />}
         {/* Player Summary report selector now behaves identically to the
             per-position tabs (Hitting / Pitching / Defense / S&C):
             clicking the title text opens the selected report in the

@@ -5,8 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, ScalePips, NotesBox, VideoPlaceholder, VideoBundleCard,
-  ReportSelector, TabBarActions, EditProfileButton, DownloadPdfButton, VideosIconButton,
-} from '@/components/assessment';
+  ReportSelector, TabBarActions, DownloadPdfButton, } from '@/components/assessment';
 import { NoteBlock } from './SwingTab';
 import { INFIELDER_SILHOUETTE, OUTFIELDER_SILHOUETTE } from './defense-silhouettes';
 import { generateDefensePdf } from '@/lib/pdf';
@@ -2626,7 +2625,6 @@ export function CatchingSubTab({
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         {/* Top-level Download PDF — generates a PDF for the currently
             selected CATCHING report. Same icon-only square pattern as
             the Hitting tab. */}
@@ -2638,7 +2636,6 @@ export function CatchingSubTab({
           disabled={!selectedReport}
         />
         {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <VideosIconButton onClick={onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={['CATCHING']}
@@ -3051,7 +3048,6 @@ export function InfieldSubTab({
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         {/* Top-level Download PDF — generates a PDF for the currently
             selected INFIELD report. Same icon-only square pattern as
             the Hitting tab. */}
@@ -3063,7 +3059,6 @@ export function InfieldSubTab({
           disabled={!selectedReport}
         />
         {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <VideosIconButton onClick={onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={['INFIELD']}
@@ -3415,7 +3410,6 @@ export function OutfieldSubTab({
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={onEditProfile} show={!isCoach} />
         {/* Top-level Download PDF — generates a PDF for the currently
             selected OUTFIELD report. Same icon-only square pattern as
             the Hitting tab. */}
@@ -3427,7 +3421,6 @@ export function OutfieldSubTab({
           disabled={!selectedReport}
         />
         {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <VideosIconButton onClick={onOpenVideos} />
         <ReportSelector
           reports={reports}
           reportTypes={['OUTFIELD']}

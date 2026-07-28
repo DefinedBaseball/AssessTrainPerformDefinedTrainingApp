@@ -238,6 +238,7 @@
 .metaName,
 .metaRole { display: none; }
 
+.editProfileBtn,
 .settingsBtn,
 .themeBtn {
   width: 40px;
@@ -345,6 +346,7 @@
 
   /* Bottom account controls (settings / theme / logout) scale down with
      the rail so they don't crowd its ~42px content width. */
+  .editProfileBtn,
   .settingsBtn,
   .themeBtn,
   .logoutBtn {
@@ -579,3 +581,15 @@
     z-index: 205;
   }
 }
+
+/* Edit Profile rail button (players) — inherits the .settingsBtn / .themeBtn
+   chrome above; this just centers its inline SVG the way the ::before /
+   ::after glyph buttons are centered. */
+.editProfileBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.62);
+  text-decoration: none;
+}
+.editProfileBtn:hover { color: #ffffff; }

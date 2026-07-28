@@ -308,6 +308,21 @@ export function Sidebar() {
                   onClick={() => setMoreOpen(false)}
                 />
                 <div className={styles.morePanel}>
+                  {/* Players edit their profile from here now — the button
+                      used to sit in every profile tab's action bar. Routes
+                      to /profile?edit=1, which the profile page picks up and
+                      opens the edit modal for (the modal lives there, not in
+                      this global chrome). Coaches edit an athlete from that
+                      athlete's Summary tab instead. */}
+                  {!isCoach && (
+                    <Link
+                      href="/profile?edit=1"
+                      className={styles.moreRow}
+                      onClick={() => setMoreOpen(false)}
+                    >
+                      Edit Profile
+                    </Link>
+                  )}
                   {/* Coaches: Data + Program live here rather than in the
                       bar (see MOVES_TO_MORE) — their nav is too long to fit
                       every entry as a cell. Players don't have these routes. */}
@@ -406,6 +421,23 @@ export function Sidebar() {
               </svg>
             )}
           </button>
+          {/* Edit Profile — players only. The More sheet carries this on
+              phones, but that sheet doesn't exist on desktop, so the rail
+              needs its own entry point or desktop players lose the button
+              that used to live in every profile tab. */}
+          {!isCoach && (
+            <Link
+              href="/profile?edit=1"
+              className={styles.editProfileBtn}
+              aria-label="Edit Profile"
+              title="Edit Profile"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+              </svg>
+            </Link>
+          )}
           <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
           <button
             className={styles.logoutBtn}

@@ -22,14 +22,24 @@ interface TabBarProps {
    * so longer labels (e.g. "Player Summary") get the room they need.
    */
   fullWidth?: boolean;
+  /**
+   * Pinned to the FAR RIGHT of the tabs row itself (not the actions slot).
+   * The actions slot wraps onto its own line below 640px; anything here
+   * stays on the tab line at every width. Used by the profile for the
+   * Videos jump button.
+   */
+  rightSlot?: ReactNode;
 }
 
 const TAB_BAR_ACTIONS_ID = 'pd-tab-bar-actions';
 
-export function TabBar({ tabs, activeKey, onTabChange, fullWidth }: TabBarProps) {
+export function TabBar({ tabs, activeKey, onTabChange, fullWidth, rightSlot }: TabBarProps) {
   return (
     <div className={styles.tabBarOuter}>
       <div className={styles.tabBarInner}>
+      {/* Row 1 — the tabs plus any rightSlot. Wrapping them together keeps
+          the slot glued to the tab line when .tabBarInner wraps on phones. */}
+      <div className={styles.tabBarRow}>
         <div
           className={styles.tabBar}
           /* Distribute tabs evenly when fullWidth is on. Inline-style
@@ -50,6 +60,8 @@ export function TabBar({ tabs, activeKey, onTabChange, fullWidth }: TabBarProps)
             </button>
           ))}
         </div>
+        {rightSlot && <div className={styles.tabBarRight}>{rightSlot}</div>}
+      </div>
         <div id={TAB_BAR_ACTIONS_ID} className={styles.tabBarActions} />
       </div>
     </div>

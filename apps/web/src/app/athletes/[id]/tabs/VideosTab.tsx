@@ -3,7 +3,7 @@
 import { rem } from '@/lib/rem';
 import { useState, useEffect } from 'react';
 import type { ReportSummary } from '../helpers';
-import { TabBarActions, EditProfileButton, ReportSelector, DownloadPdfButton, VideosIconButton } from '@/components/assessment';
+import { TabBarActions, ReportSelector, DownloadPdfButton } from '@/components/assessment';
 import type { TabProps } from '../helpers';
 import { CoachReviewLibrary } from './CoachReviewLibrary';
 import { AllVideosLibrary } from './AllVideosLibrary';
@@ -57,7 +57,6 @@ export function VideosTab(props: TabProps) {
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        <EditProfileButton onClick={props.onEditProfile} show={!props.isCoach} />
         {/* Top-level Download PDF — generates a player-summary-style
             PDF for the currently selected COACHING report. Coaching
             reports don't have a dedicated PDF generator, so the
@@ -73,7 +72,6 @@ export function VideosTab(props: TabProps) {
         {/* Videos jump — kept on this tab for visual consistency with
             the other tabs' action bars. On-click is a no-op effectively
             (we're already viewing the Videos tab). */}
-        <VideosIconButton onClick={props.onOpenVideos} />
         <ReportSelector
           reports={props.reports}
           reportTypes={['COACHING']}
