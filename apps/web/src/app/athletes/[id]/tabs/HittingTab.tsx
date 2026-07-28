@@ -1156,7 +1156,13 @@ export function HittingTab(props: TabProps) {
           {sprayDateLabel && (
             <span style={{
               alignSelf: 'flex-end',
-              marginBottom: 8,
+              /* 0, matching the Live Results chip in this same row. Both are
+                 flex-end anchored, so an 8px bottom margin here lifted the
+                 date visibly above that chip. Sharing the value puts the two
+                 on one line — and on the title's baseline, which is what the
+                 chip aligns to. Their vertical padding matches (3px), so
+                 equal margins mean equal heights too. */
+              marginBottom: 0,
               fontSize: rem(10),
               color: 'var(--text-muted)',
               letterSpacing: '0.10em',

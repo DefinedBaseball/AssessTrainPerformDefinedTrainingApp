@@ -1676,7 +1676,11 @@ export function PitchingTab({
             {activePitchingReport && (
               <span style={{
                 alignSelf: 'flex-end',
-                marginBottom: 8,
+                /* 0 to sit on the title's baseline, matching the Hitting
+                   Report's date chip (and the Live Results chip it aligns
+                   with over there). An 8px bottom margin lifted it above
+                   that line. */
+                marginBottom: 0,
                 fontSize: rem(8.5),
                 color: 'var(--text-muted)',
                 letterSpacing: '0.10em',
