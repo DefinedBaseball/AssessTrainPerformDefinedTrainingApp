@@ -983,21 +983,9 @@ export function HittingTab(props: TabProps) {
           }}
           disabled={!activeHittingReport}
         />
-        {/* Videos jump — sits next to the Download PDF icon and
-            replaces the standalone Videos tab in the main nav. */}
-        <ReportSelector
-          reports={reports}
-          reportTypes={['HITTING']}
-          label="Hitting"
-          isCoach={isCoach}
-          selectedId={activeHittingReport?.id ?? null}
-          onSelect={setSelectedHittingReport}
-          onDeleted={onRefresh}
-          onNewReport={props.onNewReport}
-          onEdit={props.onEditReport}
-          onDownload={(r) => generateHittingPdf(player, [r], topMetricsWithMiss, qocOverride)}
-          onRangeChange={handleRangeChange}
-        />
+        {/* The Assessment selector moved OUT of this actions slot and into
+            the Hitting Report header, where it now occupies the date chip's
+            spot as a compact dropdown. See the header row below. */}
       </TabBarActions>
 
       {/* ── Top row: Spray Chart (left) + shared big bubble (right) ── */}
@@ -1145,37 +1133,33 @@ export function HittingTab(props: TabProps) {
               marginBottom: 12,
             }}
           />
-          {/* Data-date-range chip — top-right of the Hitting Snapshot
-              header, on the side opposite the "Hitting Snapshot"
-              title. Sourced from the SprayChartView via the
-              `onDataRangeChange` callback so the chip stays in sync
-              with whatever date range the chart's resolved data
-              spans. Hidden when no data is loaded. Style matches the
-              chip that used to live inside the chart's legend strip
-              so the visual treatment carries over unchanged. */}
-          {sprayDateLabel && (
-            <span style={{
-              alignSelf: 'flex-end',
-              /* 0, matching the Live Results chip in this same row. Both are
-                 flex-end anchored, so an 8px bottom margin here lifted the
-                 date visibly above that chip. Sharing the value puts the two
-                 on one line — and on the title's baseline, which is what the
-                 chip aligns to. Their vertical padding matches (3px), so
-                 equal margins mean equal heights too. */
-              marginBottom: 0,
-              fontSize: rem(10),
-              color: 'var(--text-muted)',
-              letterSpacing: '0.10em',
-              padding: '3px 9px',
-              borderRadius: 6,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid var(--border)',
-              whiteSpace: 'nowrap',
-              fontFamily: "'DM Mono', ui-monospace, monospace",
-            }}>
-              {sprayDateLabel}
-            </span>
-          )}
+          {/* ── Assessment selector ──
+              Sits exactly where the read-only date chip used to, at the
+              top-right of the Hitting Report header: the date the coach was
+              already reading IS now the control that changes it. `compact`
+              renders it chip-sized (same 10px mono / 3px 9px padding /
+              6px radius as the old chip) and `alignSelf: flex-end` + zero
+              bottom margin keep it level with the Live Results button, so
+              the row reads: Hitting Report · Live Results · Assessment.
+              It carries the whole dropdown — report list, date-range
+              presets, edit / download / delete — so nothing was lost by
+              moving it out of the tab-bar actions slot. */}
+          <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
+            <ReportSelector
+              compact
+              reports={reports}
+              reportTypes={['HITTING']}
+              label="Hitting"
+              isCoach={isCoach}
+              selectedId={activeHittingReport?.id ?? null}
+              onSelect={setSelectedHittingReport}
+              onDeleted={onRefresh}
+              onNewReport={props.onNewReport}
+              onEdit={props.onEditReport}
+              onDownload={(r) => generateHittingPdf(player, [r], topMetricsWithMiss, qocOverride)}
+              onRangeChange={handleRangeChange}
+            />
+          </div>
           {/* Standalone Swing toggle retired per coach-spec — the
               "switch to Swing view" affordance now lives on the
               "Hitting Snapshot" title text itself (clickable via

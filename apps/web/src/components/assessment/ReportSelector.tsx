@@ -45,6 +45,12 @@ interface ReportSelectorProps {
    *  the Player Summary tab where the bar should always read
    *  "Player Summary" regardless of which report is currently picked. */
   lockLabel?: boolean;
+  /** Chip mode — renders the trigger as a small date-chip-sized control
+   *  (report date + caret) instead of the full 320px bubble, so it can sit
+   *  INSIDE a report header row rather than the tab-bar actions slot. The
+   *  dropdown is untouched, just right-aligned under the chip. Purely
+   *  additive — every existing caller renders exactly as before. */
+  compact?: boolean;
   /** Optional priority list of report types used by the auto-select
    *  logic. When provided, the selector picks the latest report whose
    *  `reportType` appears first in this list, falling through to the
@@ -86,6 +92,7 @@ export function ReportSelector({
   onEdit,
   rangeOnly = false,
   lockLabel = false,
+  compact = false,
   preferredTypes,
   onRangeChange,
 }: ReportSelectorProps) {
@@ -314,9 +321,32 @@ export function ReportSelector({
 
   const activeRangeLabel = RANGE_OPTIONS.find(o => o.key === dateRange)?.label ?? 'All Time';
 
+  /* Compact mode swaps ONLY the trigger — the dropdown below is shared, so
+     the chip and the full bar can never drift apart in behaviour. */
+  const compactChipText = onRangeChange && aggregateMode !== 'single'
+    ? `${activeRangeLabel} · ${matchingReports.length}`
+    : (selected ? formatDate(selected.createdAt) : (label || 'No reports'));
+
   return (
-    <div className={styles.reportSelector} ref={dropRef}>
-      {/* ── Selector Bar (split into two click targets) ── */}
+    <div
+      className={`${styles.reportSelector}${compact ? ' ' + styles.reportSelectorCompact : ''}`}
+      ref={dropRef}
+    >
+      {compact ? (
+        /* Chip trigger — lives where the report header's date chip used to
+           sit, so the date the coach was already reading IS the control. */
+        <button
+          type="button"
+          className={`${styles.reportSelectorChip} ${open ? styles.reportSelectorChipOpen : ''}`}
+          onClick={() => { setOpen(o => !o); setConfirmId(null); }}
+          title="Browse reports and date ranges"
+          aria-expanded={open}
+        >
+          <span className={styles.reportSelectorChipText}>{compactChipText}</span>
+          <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>▼</span>
+        </button>
+      ) : (
+      /* ── Selector Bar (split into two click targets) ── */
       <div className={`${styles.reportSelectorBar} ${open ? styles.reportSelectorBarOpen : ''}`}>
         {rangeOnly ? (
           // Range-only mode — single click target opens the date-range picker.
@@ -418,6 +448,7 @@ export function ReportSelector({
           </button>
         )}
       </div>
+      )}
 
       {/* ── Dropdown ── */}
       {open && (

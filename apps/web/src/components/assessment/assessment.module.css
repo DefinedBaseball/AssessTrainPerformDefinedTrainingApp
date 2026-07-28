@@ -1960,3 +1960,67 @@
 [data-theme="light"] .scoreBarHeader {
   color: var(--text);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   REPORT SELECTOR — COMPACT (CHIP) MODE
+   Used when the selector lives INSIDE a report header row (Hitting /
+   Pitching) instead of the tab-bar actions slot. The trigger is sized
+   like the date chip it replaced; the dropdown is the same panel the
+   full-size bar uses, just right-aligned beneath the chip.
+   ══════════════════════════════════════════════════════════════════ */
+.reportSelectorCompact {
+  /* The full-size bar reserves 20px below itself for the tab-bar layout;
+     inside a header row that would shove the row off-centre. */
+  margin-bottom: 0;
+  /* Sit above the report bubble's own stacking context so the dropdown
+     isn't painted underneath the chart/grid content below it. */
+  z-index: 60;
+  flex: 0 0 auto;
+}
+
+.reportSelectorChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  /* Mono + 10px mirrors the date chip this replaces, so the header row
+     reads exactly as it did before — only now it's interactive. */
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0.10em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.reportSelectorChip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-bright);
+  color: var(--text);
+}
+.reportSelectorChipOpen {
+  background: rgba(126, 182, 255, 0.16);
+  border-color: rgba(126, 182, 255, 0.55);
+  color: var(--text-bright);
+}
+.reportSelectorChipText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hang the shared dropdown under the chip, right-aligned (the chip sits at
+   the right edge of the header row, so a left-aligned panel would run off). */
+.reportSelectorCompact .reportSelectorDropdown {
+  top: calc(100% + 6px);
+  left: auto;
+  right: 0;
+  min-width: 300px;
+  max-width: min(420px, 88vw);
+  border-top: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+}

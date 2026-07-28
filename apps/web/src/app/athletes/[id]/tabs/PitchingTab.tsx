@@ -1476,21 +1476,9 @@ export function PitchingTab({
           }}
           disabled={!activePitchingReport}
         />
-        {/* Videos jump — sits next to Download PDF, replaces the
-            standalone Videos tab. */}
-        <ReportSelector
-          reports={reports}
-          reportTypes={['PITCHING']}
-          label="Pitching"
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-          onNewReport={onNewReport}
-          onEdit={onEditReport}
-          onDownload={(r) => generatePitchingPdf(player, [r])}
-          onRangeChange={handleRangeChange}
-        />
+        {/* The Assessment selector moved OUT of this actions slot and into
+            the Pitch Report header, where it now occupies the date chip's
+            spot as a compact dropdown. See the header row below. */}
       </TabBarActions>
 
       {/* Mechanical Grades sub-tab retired — grades are edited from
@@ -1666,47 +1654,30 @@ export function PitchingTab({
                  23 px italic title midline. */
               marginBottom: 12,
             }} />
-            {/* Date-range chip — top-right corner of the Pitch Report
-                header, on the side opposite the "Pitch Report" title.
-                Sourced from the active pitching report's `createdAt`
-                so the chip reflects when the report (and its
-                underlying pitch data) was captured. Style matches the
-                Hitting Snapshot's date chip so all snapshot headers
-                share one date-bubble treatment. */}
-            {activePitchingReport && (
-              <span style={{
-                alignSelf: 'flex-end',
-                /* 0 to sit on the title's baseline, matching the Hitting
-                   Report's date chip (and the Live Results chip it aligns
-                   with over there). An 8px bottom margin lifted it above
-                   that line. */
-                marginBottom: 0,
-                fontSize: rem(8.5),
-                color: 'var(--text-muted)',
-                letterSpacing: '0.10em',
-                padding: '3px 9px',
-                borderRadius: 6,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid var(--border)',
-                whiteSpace: 'nowrap',
-                /* Pinned to `var(--font-mono)` (DM Mono) to match the
-                   Hitting Snapshot's date chip exactly. Previously
-                   `fontFamily: 'inherit'` pulled the Syne italic
-                   display face from the parent `.hudHead`, which
-                   gave the chip a thicker, italic-leaning look that
-                   didn't match the Hitting tab's mono-stylized date
-                   chip. The `fontStyle: normal` + `textTransform:
-                   none` overrides keep the date readable as plain
-                   numerals against the uppercase italic title. */
-                fontFamily: 'var(--font-mono)',
-                fontStyle: 'normal',
-                textTransform: 'none',
-              }}>
-                {new Date(activePitchingReport.createdAt).toLocaleDateString(undefined, {
-                  month: 'short', day: 'numeric', year: 'numeric',
-                })}
-              </span>
-            )}
+            {/* ── Assessment selector ──
+                Takes the exact spot the read-only date chip held at the
+                top-right of the Pitch Report header, so the report date is
+                now the control that changes it. `compact` renders it
+                chip-sized; `alignSelf: flex-end` + zero bottom margin keep
+                it on the title's baseline. Carries the full dropdown —
+                report list, date-range presets, edit / download / delete —
+                so nothing was lost moving it out of the tab-bar actions. */}
+            <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
+              <ReportSelector
+                compact
+                reports={reports}
+                reportTypes={['PITCHING']}
+                label="Pitching"
+                isCoach={isCoach}
+                selectedId={selectedReport?.id ?? null}
+                onSelect={setSelectedReport}
+                onDeleted={onRefresh}
+                onNewReport={onNewReport}
+                onEdit={onEditReport}
+                onDownload={(r) => generatePitchingPdf(player, [r])}
+                onRangeChange={handleRangeChange}
+              />
+            </div>
           </div>
 
           {/* Arsenal strip — the "Pitch Info" row at the top of the HUD. */}
