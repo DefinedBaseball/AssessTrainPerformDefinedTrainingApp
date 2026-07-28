@@ -216,16 +216,22 @@ export default function DashboardPage() {
 
   /* ── Player Dashboard ── */
   if (!isCoach && user.playerId) {
+    /* Hero title is the player's own name, split first / last so the last
+       name picks up the accent treatment (same as the profile's megaName).
+       Falls back to the account name (then the email prefix) for the moment
+       before the summary bundle resolves, so the bar is never blank. */
+    const fallbackName = (user.name || user.email.split('@')[0] || '').trim();
+    const heroFirst = summary.player?.firstName || fallbackName.split(/\s+/)[0] || '';
+    const heroLast = summary.player?.lastName || fallbackName.split(/\s+/).slice(1).join(' ');
+
     return (
       <div className={styles.playerDash}>
         {/* ── Hero ── */}
         <PageHeader
           size="hero"
           eyebrow="Player Dashboard"
-          title="Train. Track."
-          titleAccent="Improve."
-          subtitle="Your grades, training and video — all in one place."
-          readout="Live"
+          title={heroFirst}
+          titleAccent={heroLast}
           actions={<MessagesLauncher />}
         />
 
@@ -254,6 +260,7 @@ export default function DashboardPage() {
               onRefresh={() => setSummaryRefreshKey((k) => k + 1)}
               visibleTabKeys={summaryTabKeys}
               hideHeaderActions
+              dense
             />
           ) : null}
         </div>

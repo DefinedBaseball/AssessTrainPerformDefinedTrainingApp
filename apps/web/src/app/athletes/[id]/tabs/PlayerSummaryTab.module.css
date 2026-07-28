@@ -1884,3 +1884,11 @@
 [data-theme="light"] .quadBad {
   background: linear-gradient(180deg, rgba(221, 105, 116, 0.10), rgba(0, 0, 0, 0.015));
 }
+
+/* Dense variant — used when the Summary renders as the player DASHBOARD.
+   Halves the inter-section gap (1.25rem -> 0.625rem) so the bubbles sit
+   tighter there. The profile's Summary tab (coaches) keeps the roomier
+   default, so this can't drift into their view. */
+.rootDense {
+  gap: 0.625rem;
+}

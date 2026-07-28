@@ -263,11 +263,11 @@ function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount
         readout={`${classCount + drillCount + playerCount} resources`}
       />
       <div className={styles.hubGrid}>
-        <div className={styles.hubCard} style={{ borderColor: 'rgba(232,175,52,.3)' }} onClick={() => goTo('classes')}>
-          <div className={styles.hubIcon} style={{ background: 'var(--gold-dim)' }}>🎓</div>
-          <div className={styles.hubCardTitle}>Classes</div>
-          <div className={styles.hubCardDesc}>Structured courses from Beginner to Expert across Hitting, Pitching, Defense, S&C, and Vision.</div>
-          <div className={styles.hubCardCount} style={{ color: 'var(--gold-readable)' }}>{classCount} classes <span className={styles.hubCardArrow}>→</span></div>
+        <div className={styles.hubCard} style={{ borderColor: 'rgba(221,105,116,.3)' }} onClick={() => goTo('mlb')}>
+          <div className={styles.hubIcon} style={{ background: 'var(--red-dim)' }}>🎬</div>
+          <div className={styles.hubCardTitle}>Major League Video</div>
+          <div className={styles.hubCardDesc}>MLB player video library organized by position. Filter by LHH / RHH / LHP / RHP for targeted study.</div>
+          <div className={styles.hubCardCount} style={{ color: 'var(--red)' }}>{playerCount} players <span className={styles.hubCardArrow}>→</span></div>
         </div>
         <div className={styles.hubCard} style={{ borderColor: 'rgba(32,128,141,.3)' }} onClick={() => goTo('drills')}>
           <div className={styles.hubIcon} style={{ background: 'var(--accent-dim)' }}>⚾</div>
@@ -275,11 +275,11 @@ function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount
           <div className={styles.hubCardDesc}>Complete drill database organized by sport and category. The same drills used in training calendars.</div>
           <div className={styles.hubCardCount} style={{ color: 'var(--accent-light)' }}>{drillCount} drills <span className={styles.hubCardArrow}>→</span></div>
         </div>
-        <div className={styles.hubCard} style={{ borderColor: 'rgba(221,105,116,.3)' }} onClick={() => goTo('mlb')}>
-          <div className={styles.hubIcon} style={{ background: 'var(--red-dim)' }}>🎬</div>
-          <div className={styles.hubCardTitle}>Major League Video</div>
-          <div className={styles.hubCardDesc}>MLB player video library organized by position. Filter by LHH / RHH / LHP / RHP for targeted study.</div>
-          <div className={styles.hubCardCount} style={{ color: 'var(--red)' }}>{playerCount} players <span className={styles.hubCardArrow}>→</span></div>
+        <div className={styles.hubCard} style={{ borderColor: 'rgba(232,175,52,.3)' }} onClick={() => goTo('classes')}>
+          <div className={styles.hubIcon} style={{ background: 'var(--gold-dim)' }}>🎓</div>
+          <div className={styles.hubCardTitle}>Classes</div>
+          <div className={styles.hubCardDesc}>Structured courses from Beginner to Expert across Hitting, Pitching, Defense, S&C, and Vision.</div>
+          <div className={styles.hubCardCount} style={{ color: 'var(--gold-readable)' }}>{classCount} classes <span className={styles.hubCardArrow}>→</span></div>
         </div>
       </div>
     </>

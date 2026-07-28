@@ -1063,7 +1063,10 @@
    `> header` targets the PageHeader element by tag — its class is hashed by
    CSS Modules, so a class selector wouldn't reach it. */
 .playerDash > header {
-  margin-bottom: 1.25rem;
+  /* 0.625rem — halved alongside the Summary's own inter-section gap
+     (.rootDense) so the hero->Current Grades gap keeps matching the
+     Current Grades->Tool Grades gap. */
+  margin-bottom: 0.625rem;
 }
 .playerContent {
   padding-top: 0;

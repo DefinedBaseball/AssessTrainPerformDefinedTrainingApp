@@ -2013,8 +2013,12 @@ function TrendMetricCard({
 
 export function PlayerSummaryTab({
   player, topMetrics, reports, progressData, isCoach, onNewReport, onEditReport, onEditProfile, onRefresh,
-  onCaptureSummaryPdf, onOpenVideos, visibleTabKeys, hideHeaderActions = false,
+  onCaptureSummaryPdf, onOpenVideos, visibleTabKeys, hideHeaderActions = false, dense = false,
 }: TabProps & {
+  /** Tighten the gap between sections. Set by the player Dashboard, which
+   *  hosts these bubbles directly under the hero; the profile's Summary tab
+   *  keeps the roomier default spacing. */
+  dense?: boolean;
   /** Drop the Edit Profile / Download PDF / Videos-jump buttons from the
    *  action bar, keeping only the report selector. Set by the player
    *  Dashboard, which hosts this tab's content but has no profile tabs to
@@ -2282,7 +2286,7 @@ export function PlayerSummaryTab({
   // dropdown for metric selection.)
 
   return (
-    <div className={styles.root}>
+    <div className={`${styles.root}${dense ? ' ' + styles.rootDense : ''}`}>
       {/* ── Tab actions: Reports dropdown (per-report download, with "+ Report"
           as the first dropdown row) ── */}
       <TabBarActions>
