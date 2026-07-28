@@ -1063,10 +1063,14 @@
    `> header` targets the PageHeader element by tag — its class is hashed by
    CSS Modules, so a class selector wouldn't reach it. */
 .playerDash > header {
-  /* 0.625rem — halved alongside the Summary's own inter-section gap
-     (.rootDense) so the hero->Current Grades gap keeps matching the
-     Current Grades->Tool Grades gap. */
-  margin-bottom: 0.625rem;
+  /* The hero and the Current Grades bubble read as ONE bubble: no gap
+     between them and square bottom corners so the Current Grades panel
+     (whose top corners are squared to match — see .rootDense .subTabBar)
+     continues the same shape. The gap BELOW Current Grades is untouched;
+     that's still the .rootDense grid gap. */
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 .playerContent {
   padding-top: 0;

@@ -1892,3 +1892,11 @@
 .rootDense {
   gap: 0.625rem;
 }
+
+/* Dashboard only: the Current Grades bubble butts directly against the hero
+   above it, so its top corners square off to continue that bubble's shape.
+   The profile's Summary tab keeps its fully-rounded panel. */
+.rootDense .subTabBar {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
