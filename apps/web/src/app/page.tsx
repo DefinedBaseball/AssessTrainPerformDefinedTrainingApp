@@ -17,6 +17,11 @@ import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
 import { REPORT_TYPE_TO_TAB } from './athletes/[id]/helpers';
 import styles from './page.module.css';
 
+/* Non-breaking space — used as the hero title's placeholder while the
+   player's name is still loading, so the <h1> keeps its line box instead
+   of collapsing and making the whole bubble resize when the name lands. */
+const NBSP = ' ';
+
 /* The Player Summary drags in recharts + the whole grades pipeline, and
    only players render it — code-split so a coach's Dashboard never
    downloads it. ssr:false is safe: this page is client-only behind auth. */
@@ -218,10 +223,23 @@ export default function DashboardPage() {
   if (!isCoach && user.playerId) {
     /* Hero title is the player's own name, split first / last so the last
        name picks up the accent treatment (same as the profile's megaName).
-       Falls back to the account name (then the email prefix) for the moment
-       before the summary bundle resolves, so the bar is never blank. */
-    const fallbackName = (user.name || user.email.split('@')[0] || '').trim();
-    const heroFirst = summary.player?.firstName || fallbackName.split(/\s+/)[0] || '';
+
+       The fallback used while the summary bundle is still in flight is the
+       ACCOUNT name only — never the email. It used to fall through to
+       `user.email.split('@')[0]`, which meant every cold load flashed
+       "connor" (or whatever precedes the @) for a beat and then swapped to
+       the real name. An email prefix is not a name, so it's not shown at
+       all; accounts whose `name` was stored as an email address are caught
+       by the `@` test. With no usable fallback we render nothing and let
+       the name appear once — the "Player Dashboard" eyebrow still labels
+       the bar in the meantime, so it never looks broken. */
+    const accountName = (user.name || '').trim();
+    const fallbackName = accountName.includes('@') ? '' : accountName;
+    const resolvedFirst = summary.player?.firstName || fallbackName.split(/\s+/)[0] || '';
+    /* A truly empty <h1> collapses to zero height, so the hero would grow
+       when the name lands. The nbsp holds the line box at its full size and
+       the bubble never resizes. */
+    const heroFirst = resolvedFirst || NBSP;
     const heroLast = summary.player?.lastName || fallbackName.split(/\s+/).slice(1).join(' ');
 
     return (

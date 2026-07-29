@@ -322,10 +322,16 @@ export function ReportSelector({
   const activeRangeLabel = RANGE_OPTIONS.find(o => o.key === dateRange)?.label ?? 'All Time';
 
   /* Compact mode swaps ONLY the trigger — the dropdown below is shared, so
-     the chip and the full bar can never drift apart in behaviour. */
-  const compactChipText = onRangeChange && aggregateMode !== 'single'
-    ? `${activeRangeLabel} · ${matchingReports.length}`
-    : (selected ? formatDate(selected.createdAt) : (label || 'No reports'));
+     the chip and the full bar can never drift apart in behaviour.
+     `lockLabel` pins the chip text to the static label the same way it pins
+     the full bar's title (the Player Summary chip always reads "Summary
+     Report", never the picked report's date — that tab spans every report,
+     so a single date on the trigger would misrepresent it). */
+  const compactChipText = lockLabel
+    ? (label || 'Reports')
+    : onRangeChange && aggregateMode !== 'single'
+      ? `${activeRangeLabel} · ${matchingReports.length}`
+      : (selected ? formatDate(selected.createdAt) : (label || 'No reports'));
 
   return (
     <div

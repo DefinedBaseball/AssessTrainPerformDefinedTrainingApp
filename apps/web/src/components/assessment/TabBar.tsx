@@ -37,8 +37,15 @@ export function TabBar({ tabs, activeKey, onTabChange, fullWidth, rightSlot }: T
   return (
     <div className={styles.tabBarOuter}>
       <div className={styles.tabBarInner}>
-      {/* Row 1 — the tabs plus any rightSlot. Wrapping them together keeps
-          the slot glued to the tab line when .tabBarInner wraps on phones. */}
+      {/* Row 1 — the tabs, the rightSlot, and the per-tab actions. The
+          actions target used to be a sibling of this row, which is why the
+          Edit / Download buttons dropped to a second line on phones while
+          the Videos jump stayed on the tab line. It now lives INSIDE the
+          row, immediately after the Videos slot, so those buttons sit next
+          to it at every width. On phones `.tabBarActions` becomes
+          `display: contents` so its children wrap individually — the icon
+          buttons stay up on the tab line and only the wide Assessment bar
+          (the tabs that still dock one here) drops to its own line. */}
       <div className={styles.tabBarRow}>
         <div
           className={styles.tabBar}
@@ -61,8 +68,8 @@ export function TabBar({ tabs, activeKey, onTabChange, fullWidth, rightSlot }: T
           ))}
         </div>
         {rightSlot && <div className={styles.tabBarRight}>{rightSlot}</div>}
-      </div>
         <div id={TAB_BAR_ACTIONS_ID} className={styles.tabBarActions} />
+      </div>
       </div>
     </div>
   );

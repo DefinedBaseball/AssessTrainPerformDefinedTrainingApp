@@ -2339,20 +2339,12 @@ export function PlayerSummaryTab({
             real report instead of e.g. an S&C entry). When neither
             type exists the selector falls all the way through to the
             global newest report. */}
-        <ReportSelector
-          reports={reports}
-          reportTypes={[]}
-          label="Player Summary"
-          lockLabel
-          preferredTypes={['HITTING', 'PITCHING']}
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-          onNewReport={onNewReport}
-          onEdit={onEditReport}
-          onDownload={(r) => generateSummaryPdf(player, [r], topMetrics)}
-        />
+        {/* The selector itself moved OUT of this slot — it's now the
+            "Summary Report" chip in the Tool Grades header below, where the
+            "20-80 Scale" legend used to sit. Two reasons: it puts the
+            control on the panel it actually drives, and it makes the
+            selector reachable on the player DASHBOARD, which has no TabBar
+            and therefore no portal target for this slot at all. */}
       </TabBarActions>
 
       {/* ══════════ SUMMARY SUB-TABS ══════════
@@ -2490,8 +2482,34 @@ export function PlayerSummaryTab({
                 marginBottom: 12,
               }}
             />
+            {/* ── Summary Report selector ──
+                Took the "20-80 Scale" legend's spot at the top-right of the
+                Tool Grades header, matching what Hitting / Pitching did with
+                their date chips: the header's right-hand slot IS the report
+                control. `lockLabel` keeps the chip reading "Summary Report"
+                rather than a single report's date — this tab spans every
+                report type, so one date would misrepresent it.
+                `reportTypes={[]}` keeps it type-agnostic so Hitting,
+                Pitching, Defense and S&C reports all appear in the list, and
+                `preferredTypes` makes the auto-pick land on the latest
+                Hitting report (falling through to Pitching) instead of an
+                arbitrary newest entry. */}
             <div className={styles.legendInline}>
-              <span>20-80 Scale</span>
+              <ReportSelector
+                compact
+                lockLabel
+                reports={reports}
+                reportTypes={[]}
+                label="Summary Report"
+                preferredTypes={['HITTING', 'PITCHING']}
+                isCoach={isCoach}
+                selectedId={selectedReport?.id ?? null}
+                onSelect={setSelectedReport}
+                onDeleted={onRefresh}
+                onNewReport={onNewReport}
+                onEdit={onEditReport}
+                onDownload={(r) => generateSummaryPdf(player, [r], topMetrics)}
+              />
             </div>
           </div>
           {/* Each section renders as an upright bar-chart card:

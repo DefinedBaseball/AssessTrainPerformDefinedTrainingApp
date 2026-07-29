@@ -1097,8 +1097,14 @@ export function HittingTab(props: TabProps) {
               alignItems: 'center',
               padding: '3px 12px',
               borderRadius: 6,
-              border: `1px solid ${subTab === 'decision' ? 'rgba(126,182,255,0.65)' : 'var(--border)'}`,
-              background: subTab === 'decision' ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.04)',
+              /* Resting state wears the Pitch Arsenal card surface
+                 (`--bubble-chrome-bg` + `--border-light`) — the same chrome
+                 the "4-Seam Fastball" card and the Assessment chip beside
+                 this button carry — so the whole header row reads as one
+                 material. The ACTIVE state keeps its blue tint: it's the
+                 only signal that Live Results is the current view. */
+              border: `1px solid ${subTab === 'decision' ? 'rgba(126,182,255,0.65)' : 'var(--border-light)'}`,
+              background: subTab === 'decision' ? 'rgba(126,182,255,0.20)' : 'var(--bubble-chrome-bg)',
               /* Active text: pale blue reads on dark theme but vanishes on the
                  light-theme pale-blue chip — dark grey there to offset. */
               color: subTab === 'decision'

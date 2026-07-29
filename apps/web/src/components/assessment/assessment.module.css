@@ -557,6 +557,8 @@
     0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
+/* Full height on desktop — the shortened bar is PHONE-ONLY, see the
+   `max-width: 768px` block near the bottom of this file. */
 .tabBarInner {
   display: flex;
   align-items: center;
@@ -1810,24 +1812,73 @@
      vertical spacing. Landscape phones (≥667px) are above this 640px
      breakpoint, so they keep the single-row layout that already fits. */
   .tabBarInner { flex-wrap: wrap; }
-  /* The row (tabs + right slot) claims the whole first line; the
-     actions slot wraps beneath it. */
-  .tabBarRow { flex: 1 1 100%; }
-  .tabBarActions {
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  /* Report dropdown: drop the fixed 320px so it shares the second row
-     with the icon buttons instead of forcing an overflow. */
+  .tabBarRow { flex: 1 1 100%; flex-wrap: wrap; }
+  /* Zero the tab strip's flex-basis on phones. With `basis: auto` it claims
+     its full content width, so a player with several tabs unhidden pushed
+     the Videos / Edit / Download icons onto a second line — the exact
+     problem this block exists to fix. At basis 0 the strip shrinks and
+     scrolls horizontally instead, keeping the icons on the tab line no
+     matter how many tabs the coach has visible. */
+  .tabBar { flex: 1 1 0%; }
+  /* Dissolve the actions box so its children become direct children of the
+     tab row and wrap INDIVIDUALLY. Without this the whole slot wraps as one
+     unit, which is what used to drag the Edit / Download icons onto a second
+     line while the Videos jump stayed up with the tabs. Now the icons stay
+     next to Videos and only the wide Assessment bar below drops. */
+  .tabBarActions { display: contents; }
+  /* Report dropdown: drop the fixed 320px and claim a full line of its own,
+     beneath the tabs. It's far too wide to share the tab line on a phone —
+     that's what squeezed the tabs to zero width before this block existed. */
   .tabBarActions .reportSelector {
+    flex: 1 0 100%;
     width: auto;
     min-width: 0;
     max-width: none;
-    flex: 1 1 auto;
   }
   .tabBarActions .reportSelectorDropdown { min-width: 0; }
+}
+
+/* ── Profile tab bar — PHONE-ONLY height reduction ──
+   Per coach-spec the Hitting / Pitching / Videos bar is ~40% shorter on
+   phones ONLY; the desktop web app keeps its full 54px bar, so every value
+   below is a phone override of a base rule that is deliberately unchanged.
+   768px is this app's mobile breakpoint (same one that swaps the sidebar
+   for the bottom nav), and this block sits AFTER the 640px block above so
+   its `.tabBtn` padding wins over the `12px 12px` set there.
+
+   All four contributors have to come down together or the bar just springs
+   back to its old height: the container min-height, the tab buttons' own
+   padding, the 6px top padding that offsets the tabs, and the 34px icon
+   buttons / 38px docked Assessment bar riding in the actions slot — any one
+   of those left alone is taller than the target and props the bar open. */
+@media (max-width: 768px) {
+  .tabBarInner { min-height: 32px; }
+  .tabBtn { padding: 7px 12px 6px; }
+  .tabBar,
+  .tabBarRight { padding-top: 2px; }
+
+  .tabBarRight .downloadPdfBtn,
+  .tabBarActions .downloadPdfBtn {
+    width: 24px;
+    height: 24px;
+  }
+  .tabBarRight .downloadPdfBtn svg,
+  .tabBarActions .downloadPdfBtn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* The docked Assessment bar keeps its empty/populated height parity —
+     that's what the min-height is for — just pinned lower here so it fits
+     the shorter bar on the tabs that still show it (Videos, Defense,
+     Vision, Physical). The 12px inner padding has to come down too or it
+     holds the bar at ~38px regardless of the pin. */
+  .tabBarActions .reportSelectorBar { min-height: 26px; }
+  .tabBarActions .reportSelectorTitleBtn,
+  .tabBarActions .reportSelectorArrowBtn {
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1984,8 +2035,12 @@
   gap: 6px;
   padding: 3px 9px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  /* Same surface the Pitch Arsenal cards ("4-Seam Fastball" et al) carry —
+     `--bubble-chrome-bg` + `--border-light` — so the report header's chip
+     reads as part of the same bubble family instead of a flat translucent
+     pill. The variable is theme-aware, so this follows light mode too. */
+  border: 1px solid var(--border-light);
+  background: var(--bubble-chrome-bg);
   color: var(--text-muted);
   /* Mono + 10px mirrors the date chip this replaces, so the header row
      reads exactly as it did before — only now it's interactive. */
@@ -1999,7 +2054,8 @@
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .reportSelectorChip:hover {
-  background: rgba(255, 255, 255, 0.08);
+  /* Keep the arsenal-card surface on hover — brighten the rim and text
+     instead, so hovering doesn't flatten it back to a translucent pill. */
   border-color: var(--border-bright);
   color: var(--text);
 }

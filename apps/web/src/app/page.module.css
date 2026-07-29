@@ -1062,7 +1062,14 @@
    margin to the same 1.25rem so all three gaps match.
    `> header` targets the PageHeader element by tag — its class is hashed by
    CSS Modules, so a class selector wouldn't reach it. */
-.playerDash > header {
+/* `.playerDash` is doubled deliberately. PageHeader's own rule is
+   `.pageHeader.hero { margin-bottom: 28px; border-radius: 28px }` —
+   specificity (0,2,0), which BEAT the single-class `.playerDash > header`
+   (0,1,1) and left the 28px gap (plus rounded bottom corners) in place.
+   Repeating the class lifts this to (0,2,1) so it wins. The classes are
+   hashed by CSS Modules and live in different modules, so we can't just
+   name `.pageHeader` here. */
+.playerDash.playerDash > header {
   /* The hero and the Current Grades bubble read as ONE bubble: no gap
      between them and square bottom corners so the Current Grades panel
      (whose top corners are squared to match — see .rootDense .subTabBar)

@@ -1581,8 +1581,12 @@ export function PitchingTab({
                 alignItems: 'center',
                 padding: '3px 12px',
                 borderRadius: 6,
-                border: `1px solid ${pitchingSubTab === 'live' ? 'rgba(126,182,255,0.65)' : 'var(--border)'}`,
-                background: pitchingSubTab === 'live' ? 'rgba(126,182,255,0.20)' : 'rgba(255,255,255,0.04)',
+                /* Resting state matches the Arsenal cards below it
+                   (`--bubble-chrome-bg` + `--border-light`) and the
+                   Assessment chip at the far right of this same header —
+                   see the twin button in HittingTab. Active stays blue. */
+                border: `1px solid ${pitchingSubTab === 'live' ? 'rgba(126,182,255,0.65)' : 'var(--border-light)'}`,
+                background: pitchingSubTab === 'live' ? 'rgba(126,182,255,0.20)' : 'var(--bubble-chrome-bg)',
                 /* Active text: pale blue reads on the dark theme, but vanishes on
                    the light-theme pale-blue chip — use dark grey there to offset. */
                 color: pitchingSubTab === 'live'

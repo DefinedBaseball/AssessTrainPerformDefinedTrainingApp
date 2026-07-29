@@ -1899,4 +1899,8 @@
 .rootDense .subTabBar {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+  /* Pull up 1px so this panel's top border lands ON the hero's bottom
+     border instead of stacking beside it — otherwise the seam reads as a
+     2px double hairline rather than one continuous bubble edge. */
+  margin-top: -1px;
 }
