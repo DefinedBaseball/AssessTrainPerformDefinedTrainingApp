@@ -137,7 +137,12 @@ export function ReportSelector({
     const filtered = reportTypes.length > 0
       ? reports.filter(r => reportTypes.includes(r.reportType))
       : reports;
-    return filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    /* Copy before sorting. `.sort()` mutates in place, and when `reportTypes`
+       is empty `filtered` IS the `reports` prop — so this was reordering the
+       parent's own array (the Player Summary chip passes `reportTypes={[]}`).
+       Harmless today because every other consumer sorts for itself, but it's
+       a prop mutation waiting to surprise someone. */
+    return [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [reports, reportTypes]);
 
   // Apply the date-range preset on top of the type filter.
