@@ -177,22 +177,30 @@ export function ReportSelector({
   // Skipped in rangeOnly mode — that mode doesn't track an active report.
   useEffect(() => {
     if (rangeOnly) return;
-    /* A manual row pick may target a report OUTSIDE the current window
-       (the list always shows every report) — don't clamp it away. */
-    if (manualPick) {
-      const stillExists = selectedId ? typeFilteredReports.some(r => r.id === selectedId) : false;
-      if (stillExists) return;
-      setManualPick(false); // picked report was deleted/filtered — fall through
-    }
+
+    /* ── Remount-proof guard ──
+       ANY selection that still exists on this player wins, even one sitting
+       OUTSIDE the current window — the list always shows every report, so
+       picking an older one is legitimate.
+
+       This used to be keyed off `manualPick`, which is local state and so
+       dies with the component. Any unmount (a parent that drops this subtree
+       while it re-fetches, a sub-tab toggle, …) reset `manualPick` to false
+       AND `dateRange` to 'lastReport'; that preset collapses the window to
+       just the newest report, so the coach's pick looked invalid here and
+       was silently replaced by the newest one. Comparing against the FULL
+       type-filtered list instead makes the selection survive a remount no
+       matter what resets around it. */
+    if (selectedId && typeFilteredReports.some(r => r.id === selectedId)) return;
+
+    /* Falling through means there's no valid selection — it was deleted, or
+       nothing is picked yet. */
     if (matchingReports.length === 0) {
       if (selectedId !== null) onSelect(null);
       return;
     }
-    const current = selectedId ? matchingReports.find(r => r.id === selectedId) : null;
-    if (!current && pickDefaultReport) {
-      onSelect(pickDefaultReport);
-    }
-  }, [matchingReports, typeFilteredReports, selectedId, rangeOnly, pickDefaultReport, manualPick]);
+    if (pickDefaultReport) onSelect(pickDefaultReport);
+  }, [matchingReports, typeFilteredReports, selectedId, rangeOnly, pickDefaultReport]);
 
   /* ── Big One: report the aggregation window to the surrounding tab ──
      mode: 'single'  → Last Report or a manual row pick (reports = [selected])
@@ -496,6 +504,15 @@ export function ReportSelector({
                     // manual row pick no longer pins single-report view.
                     setManualPick(false);
                     setConfirmId(null);
+                    /* "Last Report" means "snap to the newest" by definition.
+                       The auto-select effect used to do that implicitly, by
+                       overriding any selection that fell outside the window.
+                       It now respects existing selections (so a remount can't
+                       discard the coach's pick), so this preset has to
+                       re-point explicitly instead of relying on that. */
+                    if (opt.key === 'lastReport' && !rangeOnly) {
+                      onSelect(typeFilteredReports[0] ?? null);
+                    }
                     // Close after selecting in rangeOnly mode (it's the only thing in the dropdown).
                     if (rangeOnly) setOpen(false);
                   }}

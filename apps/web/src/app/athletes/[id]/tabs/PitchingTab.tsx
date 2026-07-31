@@ -1487,12 +1487,9 @@ export function PitchingTab({
           HUD. */}
       <>
 
-      {/* Loading */}
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: rem(11.9) }}>
-          Loading pitch data...
-        </div>
-      )}
+      {/* Standalone loading strip retired — the Pitch Report bubble now
+          renders through the fetch and shows the loading / empty state in
+          its own body, so this would just duplicate that message above it. */}
 
       {/* ── Live Results (Phase 6) — surfaces every at-bat this pitcher
           pitched in a Live Session, with rollup stats (FPS %, Early &
@@ -1512,8 +1509,17 @@ export function PitchingTab({
         </Section>
       )}
 
-      {/* ── Unified Pitch Report — Arsenal + Movement + Location in one HUD bubble ── */}
-      {!loading && hasPitchData && (
+      {/* ── Unified Pitch Report — Arsenal + Movement + Location in one HUD bubble ──
+          Rendered UNCONDITIONALLY. This block used to be gated on
+          `!loading && hasPitchData`, which tore the entire bubble down on
+          every re-fetch — header included. Since the Assessment selector
+          moved INTO that header it went down with it, and unmounting it
+          destroyed its local state (`manualPick` / `dateRange`). On remount
+          the selector fell back to "Last Report", judged the coach's older
+          pick to be outside that window, and re-selected the newest report:
+          picking any past report was impossible, with a double flash on the
+          way through. Only the DATA WIDGETS are gated now (see the body
+          split below) — the header never unmounts. */}
         <div
           data-pdf-section="pitch-report"
           className={hud.hudConsole}
@@ -1683,6 +1689,13 @@ export function PitchingTab({
               />
             </div>
           </div>
+
+          {/* ── Body ── everything below depends on the pitch fetch, so THIS
+              is what the loading / empty gate wraps. The header above stays
+              mounted through every fetch because it owns the report
+              selection. */}
+          {!loading && hasPitchData ? (
+          <>
 
           {/* Arsenal strip — the "Pitch Info" row at the top of the HUD. */}
           <div className={hud.hudArsenal}>
@@ -1979,8 +1992,22 @@ export function PitchingTab({
             );
           })()}
 
+          </>
+          ) : (
+            /* Fetch in flight, or this report has no pitch rows attached.
+               Either way the header above is still on screen, so the coach
+               can pick a different report instead of being stranded. */
+            <div style={{
+              textAlign: 'center',
+              padding: '28px 0',
+              color: 'var(--text-muted)',
+              fontSize: rem(11.9),
+            }}>
+              {loading ? 'Loading pitch data…' : 'No pitch data for this report.'}
+            </div>
+          )}
+
         </div>
-      )}
 
       {/* ── Break & Spin + Release & Extension tables ──
           Outer grey bubble holds the section header chrome; each table
