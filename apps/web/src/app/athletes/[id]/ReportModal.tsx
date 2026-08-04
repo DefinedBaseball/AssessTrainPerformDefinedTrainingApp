@@ -3977,7 +3977,15 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         <div className={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h2 className={styles.modalTitle}>
-              {reportType === 'SUMMARY' ? 'Edit Profile' : 'New Report'} — {player.firstName} {player.lastName}
+              {/* Was hardcoded to "New Report", so opening an EXISTING report
+                  for editing still announced itself as a new one — the form
+                  was correctly prefilled and the report-type tiles correctly
+                  locked, but the heading contradicted both. Harmless while
+                  editing was a semi-hidden affordance; actively confusing now
+                  that each row in the report dropdown has its own Edit button. */}
+              {reportType === 'SUMMARY'
+                ? 'Edit Profile'
+                : isEdit ? 'Edit Report' : 'New Report'} — {player.firstName} {player.lastName}
             </h2>
             {/* Edit Profile toggles to/from the Summary form. The chip was
                 removed from REPORT_TYPES, so this is the only entry point.

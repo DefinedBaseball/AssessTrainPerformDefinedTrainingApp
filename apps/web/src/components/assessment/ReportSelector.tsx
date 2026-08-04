@@ -578,7 +578,7 @@ export function ReportSelector({
                   </div>
                 </button>
 
-                {/* Per-row actions: Download (anyone) + Delete (coach only) */}
+                {/* Per-row actions: Edit + Download + Delete (all coach-only) */}
                 {(onDownload || isCoach) && (
                   <div className={styles.reportSelectorItemActions}>
                     {confirmId === r.id ? (
@@ -602,6 +602,34 @@ export function ReportSelector({
                       </div>
                     ) : (
                       <>
+                        {/* Edit — opens THIS row's report in the report modal.
+                            `onEdit` already existed but was only reachable by
+                            clicking the title on the full-size bar, an
+                            affordance the compact chip has no room for. So on
+                            Hitting / Pitching / Summary (all chips now) there
+                            was no way to edit a past report at all. */}
+                        {isCoach && onEdit && (
+                          <button
+                            type="button"
+                            className={styles.reportEditBtn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit(r);
+                              setOpen(false);
+                              setConfirmId(null);
+                            }}
+                            title="Edit this report"
+                            aria-label="Edit this report"
+                          >
+                            {/* Pencil */}
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"
+                              stroke="currentColor" strokeWidth="1.6"
+                              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M11.5 2.5a1.6 1.6 0 0 1 2.3 2.3L5.5 13.1 2.5 14l.9-3z" />
+                              <path d="M10.3 3.7l2 2" />
+                            </svg>
+                          </button>
+                        )}
                         {onDownload && isCoach && (
                           <button
                             type="button"

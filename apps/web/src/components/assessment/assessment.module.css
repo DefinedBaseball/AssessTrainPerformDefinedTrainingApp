@@ -1528,6 +1528,12 @@
 .reportSelectorItemActions {
   flex-shrink: 0;
   padding-right: 12px;
+  /* The action buttons are themselves `display: flex` (to centre their
+     glyphs), which makes them block-level — without a flex row here the
+     third button would stack under the others and stretch the row. */
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ── REPORT HISTORY ── */
@@ -1649,6 +1655,28 @@
   background: #e74c3c20;
   border-color: #e74c3c;
   color: #e74c3c;
+}
+
+/* Per-row Edit — same 28px square as Download / Delete so the three read as
+   one control group. Sits FIRST in the row (edit → download → delete) so the
+   destructive action stays furthest from the pointer's resting position. */
+.reportEditBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.reportEditBtn:hover {
+  background: rgba(126,182,255,0.14);
+  border-color: rgba(126,182,255,0.55);
+  color: var(--accent-light);
 }
 
 .reportDownloadBtn {
