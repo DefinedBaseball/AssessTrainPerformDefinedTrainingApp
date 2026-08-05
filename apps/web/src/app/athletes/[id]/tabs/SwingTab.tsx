@@ -731,6 +731,14 @@ export interface SharedHittingState {
   hasActiveFullSwingData: boolean;
   hasActiveBlastData: boolean;
   hasActiveHitTraxData: boolean;
+  /** Coach-typed batted-ball numbers from the Full Swing card's Manual
+   *  Entry toggle, and whether that toggle is actually on. The Full Swing
+   *  section needs these directly: it refuses to read the shared
+   *  `topMetricsWithMiss` pool for keys HitTrax also emits (to stop HitTrax
+   *  data leaking in), and that same guard was blocking manual values —
+   *  which are Full-Swing-source by definition — from ever showing. */
+  activeManualBatted: Record<string, number | null>;
+  manualFullSwingOn: boolean;
   dirty: boolean;
   saving: boolean;
   saveOk: boolean;
@@ -745,6 +753,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     manualOptions, setManualOptions,
     topMetricsWithMiss, metricGrades, reportUploadIds,
     hasActiveFullSwingData, hasActiveBlastData, hasActiveHitTraxData,
+    activeManualBatted, manualFullSwingOn,
     dirty, saving, saveOk, saveError, saveManual,
   } = shared;
   const latestHitting = useMemo(() => getLatestReport(reports, HITTING_REPORT_TYPES), [reports]);
@@ -828,6 +837,33 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
      for the Full Swing card so HitTrax-source data never appears there. */
   const fullswingOverride: Record<string, { value: number; unit: string }> = useMemo(() => {
     const out: Record<string, { value: number; unit: string }> = {};
+
+    /* Manual entry seeds the override FIRST so CSV values below win when a
+       report has both. Typing a number into the Full Swing card's Manual
+       Entry makes it Full-Swing-source data by definition, so it belongs
+       here rather than in the shared metric pool.
+
+       This is what fixes manual Launch Angle / Distance (and now Max Exit
+       Velo) reading "—" on the Full Swing card. They were being written to
+       `topMetricsWithMiss` — which is why they showed up fine everywhere
+       else on the Hitting Report — but `fsResolve` below deliberately
+       refuses to read that pool for the four keys HitTrax also emits, to
+       stop HitTrax numbers bleeding into this section. Manual values were
+       collateral damage of that guard. */
+    if (manualFullSwingOn) {
+      const unitFor = (k: string) =>
+        k === 'launch_angle' ? 'deg'
+        : k === 'distance' ? 'ft'
+        : k.endsWith('_pct') ? '%'
+        : k === 'smash_factor' ? ''
+        : 'mph';
+      for (const [k, v] of Object.entries(activeManualBatted)) {
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          out[k] = { value: v, unit: unitFor(k) };
+        }
+      }
+    }
+
     if (fullswingVelos.length > 0) {
       out.avg_exit_velo = { value: round(mean(fullswingVelos)), unit: 'mph' };
       out.max_exit_velo = { value: round(Math.max(...fullswingVelos)), unit: 'mph' };
@@ -839,7 +875,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
       out.distance = { value: round(mean(fullswingDists)), unit: 'ft' };
     }
     return out;
-  }, [fullswingVelos, fullswingLAs, fullswingDists]);
+  }, [fullswingVelos, fullswingLAs, fullswingDists, activeManualBatted, manualFullSwingOn]);
 
   /* ── Per-section "has data" flags ──────────────────────────────────
      Each sub-section (Coach Grades / Full Swing / Blast Motion /

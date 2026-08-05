@@ -3421,11 +3421,15 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
      card into "Manual Entry" mode and fill in the same metrics directly.
      Slots that opt-in: blast (Swing Metrics) → manualSwingMetrics,
      fullswing (Batted Ball Metrics) → manualBattedBall. */
+  /* Blank state is derived from the field list rather than spelled out, so
+     adding a metric to MANUAL_BATTED_BALL_FIELDS can't leave this literal
+     behind (which is exactly what happened when Max Exit Velo was added). */
   const [manualBattedBall, setManualBattedBall] = useState<ManualBattedBall>(() =>
-    isEdit && existingReport ? getManualBattedBall(existingReport) : {
-      avg_exit_velo: null, squared_up_pct: null, smash_factor: null,
-      launch_angle: null, distance: null,
-    },
+    isEdit && existingReport
+      ? getManualBattedBall(existingReport)
+      : (Object.fromEntries(
+          MANUAL_BATTED_BALL_FIELDS.map(f => [f.key, null]),
+        ) as ManualBattedBall),
   );
   const [manualSwingMetrics, setManualSwingMetrics] = useState<ManualSwingMetrics>(() =>
     isEdit && existingReport ? getManualSwingMetrics(existingReport) : {

@@ -934,6 +934,10 @@ export function HittingTab(props: TabProps) {
     diagnosisNotes, setDiagnosisNotes,
     topMetricsWithMiss, metricGrades, reportUploadIds,
     hasActiveFullSwingData, hasActiveBlastData, hasActiveHitTraxData,
+    /* The Full Swing section resolves these itself — see the note on
+       `activeManualBatted` in SharedHittingState. */
+    activeManualBatted: activeManualBatted as unknown as Record<string, number | null>,
+    manualFullSwingOn: !!activeManualModes.fullswing,
     dirty, saving, saveOk, saveError, saveManual,
   };
 

@@ -593,6 +593,10 @@ export function getManualSwingScores(report: ReportSummary | null): ManualSwingS
  *  toggle on the Full Swing CSV card instead of uploading a file. */
 export type ManualBattedBall = {
   avg_exit_velo: number | null;
+  /* Added after the fact — reports saved before this existed still load,
+     because `readManualNumberMap` clones the empty template and overlays
+     only the keys actually persisted, leaving this null when absent. */
+  max_exit_velo: number | null;
   squared_up_pct: number | null;
   smash_factor: number | null;
   launch_angle: number | null;
@@ -630,6 +634,7 @@ export type ManualSwingMetrics = {
 /** Field configs the report-modal uses to render the manual entry inputs. */
 export const MANUAL_BATTED_BALL_FIELDS: { key: keyof ManualBattedBall; label: string; unit: string; step?: number }[] = [
   { key: 'avg_exit_velo',  label: 'Avg Exit Velo',  unit: 'mph', step: 0.1 },
+  { key: 'max_exit_velo',  label: 'Max Exit Velo',  unit: 'mph', step: 0.1 },
   { key: 'squared_up_pct', label: 'Squared Up %',   unit: '%',   step: 0.1 },
   { key: 'smash_factor',   label: 'Smash Factor',   unit: '',    step: 0.01 },
   { key: 'launch_angle',   label: 'Launch Angle',   unit: '°',   step: 0.1 },
@@ -672,7 +677,7 @@ export const MANUAL_SWING_METRIC_FIELDS: { key: keyof ManualSwingMetrics; label:
 ];
 
 const EMPTY_MANUAL_BATTED_BALL: ManualBattedBall = {
-  avg_exit_velo: null, squared_up_pct: null, smash_factor: null,
+  avg_exit_velo: null, max_exit_velo: null, squared_up_pct: null, smash_factor: null,
   launch_angle: null, distance: null,
 };
 const EMPTY_MANUAL_SWING: ManualSwingMetrics = {
