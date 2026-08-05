@@ -494,6 +494,17 @@ export async function createInquiry(input: {
   return request<Inquiry>('/inquiries', { method: 'POST', body: JSON.stringify(input) });
 }
 
+/** Email a set-password link to an account a coach created on someone's
+ *  behalf. `emailed: false` means the account exists and the link was issued
+ *  but the mail provider isn't configured / the send failed — the caller
+ *  should say so rather than claim the athlete was contacted. */
+export async function inviteUser(email: string, name?: string) {
+  return request<{ ok: boolean; emailed: boolean }>('/auth/invite', {
+    method: 'POST',
+    body: JSON.stringify({ email, name }),
+  });
+}
+
 export async function updateInquiryStatus(id: string, status: string) {
   return request<Inquiry>(`/inquiries/${id}/status`, {
     method: 'PATCH',

@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   ConflictException,
   BadRequestException,
@@ -12,7 +13,7 @@ import * as bcrypt from 'bcryptjs';
 import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { passwordResetEmail, welcomeEmail } from '../mail/mail.templates';
+import { passwordResetEmail, welcomeEmail, inviteEmail } from '../mail/mail.templates';
 
 /** Full payload from the public /register form: profile + credentials. */
 export interface SignupPlayerPayload {
@@ -38,6 +39,8 @@ export interface SignupPlayerPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
@@ -330,6 +333,62 @@ export class AuthService {
       // Deliberately swallowed — the caller's response must not reveal outcome.
     }
     return { ok: true };
+  }
+
+  /** How long a coach-issued invite link stays valid. Far longer than the
+   *  1-hour forgot-password window: an invite is onboarding mail that may sit
+   *  unread over a weekend, and the recipient has no password to fall back on
+   *  if it lapses. Still bounded, and still single-use. */
+  private static readonly INVITE_TTL_DAYS = 7;
+
+  /**
+   * Issue a set-password link for an account a COACH created on someone's
+   * behalf (converting an inquiry into a player profile). The account is made
+   * with a random password the athlete never sees, so this mail is the only
+   * way in.
+   *
+   * Unlike `requestPasswordReset` this is NOT anonymous-safe by design — it's
+   * coach-only and reports real failures, because the coach needs to know if
+   * the invite didn't go out. A missing mail provider is surfaced rather than
+   * swallowed for the same reason.
+   */
+  async sendInvite(rawEmail: string, name?: string | null): Promise<{ ok: boolean; emailed: boolean }> {
+    const email = rawEmail?.trim().toLowerCase();
+    if (!email) throw new BadRequestException('Email is required');
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new NotFoundException('No account found for that email');
+
+    // Only the newest invite should work, same rule as password reset.
+    await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(
+      Date.now() + AuthService.INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
+    );
+    await this.prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash: this.hashToken(token), expiresAt },
+    });
+
+    /* Mail is config-gated (same pattern as Bunny) — if RESEND_API_KEY isn't
+       set the send is a no-op. Report that back instead of implying the
+       athlete was emailed, so the coach knows to share the link another way. */
+    const setPasswordUrl = `${this.mail.webAppUrl}/reset-password?token=${token}`;
+    const { subject, html, text } = inviteEmail(setPasswordUrl, name, AuthService.INVITE_TTL_DAYS);
+    let emailed = false;
+    try {
+      /* send() RETURNS false when Resend isn't configured or the send fails —
+         it doesn't throw. Trusting the absence of an exception would report
+         "we emailed them" every time, including on a box with no mail set up
+         at all, which is the one thing this flag exists to prevent. */
+      emailed = await this.mail.send({ to: user.email, subject, html, text });
+    } catch (err) {
+      this.logger.warn(`Invite email failed for ${user.email}: ${err}`);
+    }
+    if (!emailed) {
+      this.logger.warn(`Invite link issued for ${user.email} but no email was sent`);
+    }
+    return { ok: true, emailed };
   }
 
   /**

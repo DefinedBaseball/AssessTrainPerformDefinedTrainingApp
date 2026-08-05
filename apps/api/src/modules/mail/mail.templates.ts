@@ -85,6 +85,37 @@ export function welcomeEmail(loginUrl: string, name?: string | null): { subject:
   return { subject: 'Your Defined Baseball account is approved', html, text };
 }
 
+/** Invite email — sent when a COACH creates an account on someone's behalf
+ *  (e.g. converting an inquiry into a player profile). Distinct from
+ *  `welcomeEmail`, which tells an approved self-registrant to log in with the
+ *  password THEY chose. Here the athlete never picked one — the account is
+ *  created with a random password — so the only useful call to action is a
+ *  link to set it. Uses the same PasswordResetToken machinery as
+ *  forgot-password, just with a much longer window: this is an onboarding
+ *  email that may sit unread for days, where a 1-hour expiry would strand
+ *  people. */
+export function inviteEmail(
+  setPasswordUrl: string,
+  name?: string | null,
+  expiryDays = 7,
+): { subject: string; html: string; text: string } {
+  const hi = name?.trim() ? `Welcome, ${escapeHtml(name.trim())}!` : 'Welcome!';
+  const html = shell(`
+    <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">${hi}</h1>
+    <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
+      Your coach has created a Defined Baseball account for you. Set a password
+      to get in and view your reports, videos, training schedule, and progress.
+    </p>
+    <p style="margin:0 0 22px;">${button(setPasswordUrl, 'Set Your Password')}</p>
+    <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
+      This link is active for ${expiryDays} days. If it expires, use
+      &ldquo;Forgot password?&rdquo; on the sign-in page to get a new one.
+    </p>
+  `);
+  const text = `${hi}\n\nYour coach has created a Defined Baseball account for you. Set a password to get in and view your reports, videos, training schedule, and progress:\n\n${setPasswordUrl}\n\nThis link is active for ${expiryDays} days. If it expires, use "Forgot password?" on the sign-in page.`;
+  return { subject: 'Set up your Defined Baseball account', html, text };
+}
+
 /** Coach-review email — sent to a player when a coach completes a review
  *  video on their profile. `reviewUrl` deep-links to their profile. */
 export function coachReviewEmail(reviewUrl: string, name?: string | null): { subject: string; html: string; text: string } {

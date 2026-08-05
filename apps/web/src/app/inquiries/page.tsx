@@ -51,6 +51,13 @@ export default function InquiriesPage() {
   const [selected, setSelected] = useState<Inquiry | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [creating, setCreating] = useState(false);
+  /* Outcome of a Create Player Profile run — kept in the modal so the coach
+     sees what happened (and can jump straight to the new profile) instead of
+     an alert() that disappears. */
+  const [createResult, setCreateResult] = useState<
+    { ok: true; playerId: string; message: string } | { ok: false; message: string } | null
+  >(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -82,7 +89,128 @@ export default function InquiriesPage() {
     load();
   }, [user, isCoach, load]);
 
-  const closeModal = () => { setSelected(null); setConfirmDelete(false); };
+  const closeModal = () => { setSelected(null); setConfirmDelete(false); setCreateResult(null); };
+
+  /* ── Inquiry → Player profile ──────────────────────────────────────────
+     Reuses the exact sequence "+ Add Athlete" runs, just sourced from the
+     submitted form instead of typed by the coach:
+       1. /auth/register  — creates the ACTIVE player account
+       2. /players         — creates the profile (needs the new userId)
+       3. PATCH /players   — fills the fields `create` doesn't accept
+       4. PATCH status     — archives the inquiry (kept, not deleted, so the
+                             original submission and its extra answers survive)
+       5. /auth/invite     — mails a set-password link
+
+     The account is created with a random password nobody sees; step 5 is how
+     the athlete actually gets in. Steps 3-5 are best-effort: once the profile
+     exists the conversion has succeeded, and a failure to (say) send mail
+     shouldn't read as "this didn't work" — it's reported separately instead. */
+  const handleCreateProfile = async () => {
+    if (!selected) return;
+    setCreating(true);
+    setCreateResult(null);
+    try {
+      const first = (selected.firstName || '').trim();
+      const last = (selected.lastName || '').trim();
+      const email = (selected.email || '').trim().toLowerCase();
+      if (!first || !last || !email) {
+        setCreateResult({ ok: false, message: 'This inquiry is missing a name or email, so a profile can’t be created from it.' });
+        return;
+      }
+
+      /* `positions` is required by createPlayer. Prospects sometimes skip it,
+         so fall back to a placeholder the coach can correct on the profile —
+         better than blocking the conversion outright. */
+      const positions = (selected.positions || '').trim() || 'ATH';
+
+      /* Random password: the athlete never receives it and sets their own via
+         the invite link. Avoids the shared `player123` default that
+         "+ Add Athlete" still falls back to. */
+      const randomPassword = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2).toUpperCase()}!7`;
+
+      let userId: string;
+      try {
+        /* `register` returns the new account as `id` (same field
+           "+ Add Athlete" reads). It also returns a token for that account —
+           the client deliberately doesn't store it, so the coach's own
+           session is unaffected. */
+        const reg = await api.register(email, randomPassword, 'PLAYER', undefined, `${first} ${last}`);
+        userId = reg.id;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        /* Decision 3: the duplicate case is the likeliest failure here and
+           deserves a real explanation, not a generic error. */
+        if (/already registered|already exists|conflict|409/i.test(msg)) {
+          setCreateResult({
+            ok: false,
+            message: `An account already exists for ${email}. Find that athlete in the Hub instead of creating a duplicate.`,
+          });
+          return;
+        }
+        setCreateResult({ ok: false, message: `Could not create the account: ${msg}` });
+        return;
+      }
+      if (!userId) {
+        setCreateResult({ ok: false, message: 'The account was created but no id came back — check the Athlete Hub before retrying.' });
+        return;
+      }
+
+      const player = await api.createPlayer({
+        userId,
+        firstName: first,
+        lastName: last,
+        positions,
+        gradYear: selected.gradYear ?? undefined,
+      });
+
+      /* Everything `createPlayer` doesn't take. The four free-text answers
+         have no Player column of their own, so they're folded into
+         developmentNotes with labels rather than dropped. */
+      const extraNotes = [
+        selected.otherSports ? `Other sports: ${selected.otherSports}` : '',
+        selected.injuryHistory ? `Injury history: ${selected.injuryHistory}` : '',
+        selected.otherHobbies ? `Other hobbies: ${selected.otherHobbies}` : '',
+        selected.message ? `Message: ${selected.message}` : '',
+      ].filter(Boolean).join('\n\n');
+
+      const updates: Record<string, unknown> = {};
+      if (selected.birthDate) updates.birthDate = selected.birthDate;
+      if (selected.school) updates.highSchool = selected.school;
+      if (selected.clubTeam) updates.clubTeam = selected.clubTeam;
+      if (selected.goals) updates.goals = selected.goals;
+      if (selected.goalLevel) updates.playingLevelGoal = selected.goalLevel;
+      if (extraNotes) updates.developmentNotes = extraNotes;
+      if (Object.keys(updates).length > 0) {
+        try { await api.updatePlayer(player.id, updates); } catch { /* profile exists; coach can fill the rest */ }
+      }
+
+      // Decision 2: archive rather than delete — the submission is kept.
+      try {
+        await api.updateInquiryStatus(selected.id, 'ARCHIVED');
+        setInquiries((prev) => prev.map((i) => (i.id === selected.id ? { ...i, status: 'ARCHIVED' } : i)));
+      } catch { /* non-fatal — the profile is what matters */ }
+
+      // Decision 1: invite email carrying the set-password link.
+      let emailed = false;
+      try {
+        const res = await api.inviteUser(email, `${first} ${last}`);
+        emailed = !!res?.emailed;
+      } catch { /* reported below as "not emailed" */ }
+
+      setCreateResult({
+        ok: true,
+        playerId: player.id,
+        message: emailed
+          ? `Profile created. ${first} was emailed a link to set their password.`
+          : `Profile created — but the invite email didn’t send. Use "Reset Password" on their profile to get them in.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCreateResult({ ok: false, message: `Could not create the profile: ${msg}` });
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!selected) return;
@@ -240,13 +368,63 @@ export default function InquiriesPage() {
                   </button>
                 </span>
               ) : (
-                <button type="button" onClick={() => setConfirmDelete(true)}
-                  style={{ border: '1px solid var(--border)', color: 'var(--text-muted)', background: 'transparent', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                  Delete
-                </button>
+                <>
+                  <button type="button" onClick={() => setConfirmDelete(true)}
+                    style={{ border: '1px solid var(--border)', color: 'var(--text-muted)', background: 'transparent', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                    Delete
+                  </button>
+                  {/* Create Player Profile — sits next to Delete per spec.
+                      Hidden once the conversion has succeeded so the same
+                      inquiry can't be converted twice into duplicate accounts. */}
+                  {!(createResult && createResult.ok) && (
+                    <button
+                      type="button"
+                      disabled={creating}
+                      onClick={handleCreateProfile}
+                      style={{
+                        border: '1px solid rgba(126,182,255,0.55)',
+                        color: creating ? 'var(--text-muted)' : '#cfe0ff',
+                        background: 'rgba(126,182,255,0.16)',
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        cursor: creating ? 'default' : 'pointer',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {creating ? 'Creating…' : 'Create Player Profile'}
+                    </button>
+                  )}
+                </>
               )}
               <button type="button" className="btn btn-primary" onClick={closeModal}>Close</button>
             </div>
+
+            {/* Conversion outcome — success links straight to the new profile. */}
+            {createResult && (
+              <div
+                style={{
+                  margin: '10px 16px 16px',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  border: `1px solid ${createResult.ok ? 'rgba(126,182,255,0.45)' : 'var(--red, #ef4444)'}`,
+                  background: createResult.ok ? 'rgba(126,182,255,0.10)' : 'rgba(239,68,68,0.08)',
+                  color: 'var(--text)',
+                }}
+              >
+                {createResult.message}
+                {createResult.ok && (
+                  <>
+                    {' '}
+                    <Link href={`/athletes/${createResult.playerId}`} style={{ color: '#cfe0ff', fontWeight: 700 }}>
+                      Open profile →
+                    </Link>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

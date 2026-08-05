@@ -39,6 +39,23 @@ export class AuthController {
     return this.authService.register(req.user!, dto.email, dto.password, dto.role, dto.coachLevel, dto.name);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @Post('invite')
+  /* Emails a set-password link for an account a coach just created on
+   * someone's behalf (inquiry -> player profile). Those accounts get a random
+   * password the athlete never sees, so this is their only way in.
+   *
+   * Throttled looser than /register: it neither creates an account nor
+   * accepts a password, it just mails an existing user, and a coach working
+   * through a batch of inquiries would otherwise trip the 5/10min cap. */
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Email a set-password invite to an existing account (COACH only)' })
+  invite(@Body() dto: { email: string; name?: string }) {
+    return this.authService.sendInvite(dto.email, dto.name);
+  }
+
   @Public()
   @Post('signup')
   /* Public player self-registration. Creates a PENDING account + profile and
