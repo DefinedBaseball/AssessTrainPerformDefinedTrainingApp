@@ -391,10 +391,13 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
   const cellMuted = {
     fontSize: 6, color: colors.textMuted,
   };
-  /* Column widths sized so the 7-column row fits on a landscape page: a
-     fixed-width left "Pitch" label + 6 evenly-shared metric cells. */
-  const colW = ['12%', '14.66%', '14.66%', '14.66%', '14.66%', '14.66%', '14.7%'] as const;
-  const headers = ['Pitch', 'Avg Velo', 'H-Break', 'V-Break', 'Spin', 'Tilt', 'Spin Eff'];
+  /* Column widths sized so the 8-column row fits on a landscape page: a
+     fixed-width left "Pitch" label + 7 evenly-shared metric cells.
+     Widened from 7 when Max Velo was added, to mirror the in-app table —
+     the Arsenal cards that used to carry Max Velo are gone from both
+     surfaces, so this table is now the only place it appears. */
+  const colW = ['12%', '12.57%', '12.57%', '12.57%', '12.57%', '12.57%', '12.57%', '12.58%'] as const;
+  const headers = ['Pitch', 'Max Velo', 'Avg Velo', 'H-Break', 'V-Break', 'Spin', 'Tilt', 'Spin Eff'];
   return (
     <View>
       {/* Header row */}
@@ -413,7 +416,13 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
       {rows.map((r) => (
         <View key={r.pitchType} style={{
           flexDirection: 'row', alignItems: 'center',
-          paddingVertical: 6, paddingHorizontal: 4,
+          /* 6 -> 3.5: with two 8-row tables sharing this page, the taller
+             rows pushed it over a landscape page and the second table spilled
+             onto a 4th page. Saves ~5pt/row across 16 rows, which is more
+             than the ~84pt overflow an 8-pitch-type report produced. Most
+             pitchers show 3-5 types and were never close to the limit; this
+             keeps the busiest reports on one page too. */
+          paddingVertical: 3.5, paddingHorizontal: 4,
           borderBottom: `0.4px solid ${colors.cardBorder}`,
         }}>
           <Text style={{
@@ -424,24 +433,30 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
           }}>
             {PITCH_SHORT[r.pitchType] || r.pitchType}
           </Text>
+          {/* Max Velo — same `r.maxVelo` the in-app table shows, guarded the
+              same way (computeArsenal yields 0 for a type with no readings). */}
           <Text style={[cellData, { width: colW[1] }]}>
+            {r.maxVelo > 0 ? r.maxVelo.toFixed(1) : '—'}
+            {r.maxVelo > 0 && <Text style={cellMuted}> mph</Text>}
+          </Text>
+          <Text style={[cellData, { width: colW[2] }]}>
             {r.avgVelo > 0 ? r.avgVelo.toFixed(1) : '—'}
             {r.avgVelo > 0 && <Text style={cellMuted}> mph</Text>}
           </Text>
-          <Text style={[cellData, { width: colW[2] }]}>
+          <Text style={[cellData, { width: colW[3] }]}>
             {r.avgHBreak > 0 ? '+' : ''}{r.avgHBreak.toFixed(1)}"
           </Text>
-          <Text style={[cellData, { width: colW[3] }]}>
+          <Text style={[cellData, { width: colW[4] }]}>
             {r.avgIVB > 0 ? '+' : ''}{r.avgIVB.toFixed(1)}"
           </Text>
-          <Text style={[cellData, { width: colW[4] }]}>
+          <Text style={[cellData, { width: colW[5] }]}>
             {Math.round(r.avgSpin)}
             <Text style={cellMuted}> rpm</Text>
           </Text>
-          <Text style={[cellData, { width: colW[5] }]}>
+          <Text style={[cellData, { width: colW[6] }]}>
             {r.tilt}
           </Text>
-          <Text style={[cellData, { width: colW[6] }]}>
+          <Text style={[cellData, { width: colW[7] }]}>
             {Math.round(r.spinEff)}%
           </Text>
         </View>
@@ -481,7 +496,13 @@ function PdfReleaseExtensionTable({ rows }: { rows: ArsenalRow[] }) {
       {rows.map((r) => (
         <View key={r.pitchType} style={{
           flexDirection: 'row', alignItems: 'center',
-          paddingVertical: 6, paddingHorizontal: 4,
+          /* 6 -> 3.5: with two 8-row tables sharing this page, the taller
+             rows pushed it over a landscape page and the second table spilled
+             onto a 4th page. Saves ~5pt/row across 16 rows, which is more
+             than the ~84pt overflow an 8-pitch-type report produced. Most
+             pitchers show 3-5 types and were never close to the limit; this
+             keeps the busiest reports on one page too. */
+          paddingVertical: 3.5, paddingHorizontal: 4,
           borderBottom: `0.4px solid ${colors.cardBorder}`,
         }}>
           <Text style={{
@@ -660,7 +681,52 @@ export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
 
   return (
     <>
-      {/* ── Page 2: Pitch Type Bubbles + Plots + Notes ─────────────────
+      {/* ── Page 2: Trackman Pitch Metrics + Release Metrics --
+          Ordered BEFORE the plots page to mirror the in-app console, where
+          both tables sit above the Movement / Location / Release plots.
+          They cannot share one page: the plots grid needs ~238pt and the
+          two tables ~440pt against 552pt of usable landscape height, so
+          "above the plots" becomes "the page before" in print. ──── */}
+      {hasData && (
+        <Page size="LETTER" orientation="landscape" style={s.page}>
+          <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
+
+          <PdfSectionTitle title="Trackman" subtitle="Pitch Metrics · Release Metrics" />
+
+          {/* Break & Spin */}
+          <View style={{
+            backgroundColor: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 8, padding: 10, marginBottom: 10,
+          }}>
+            <Text style={{
+              fontSize: 9, fontFamily: 'Helvetica-Bold',
+              color: colors.black, letterSpacing: 1,
+              textTransform: 'uppercase', marginBottom: 6,
+            }}>
+              Pitch Metrics
+            </Text>
+            <PdfBreakSpinTable rows={arsenal} />
+          </View>
+
+          {/* Release & Extension */}
+          <View style={{
+            backgroundColor: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 8, padding: 10,
+          }}>
+            <Text style={{
+              fontSize: 9, fontFamily: 'Helvetica-Bold',
+              color: colors.black, letterSpacing: 1,
+              textTransform: 'uppercase', marginBottom: 6,
+            }}>
+              Release Metrics
+            </Text>
+            <PdfReleaseExtensionTable rows={arsenal} />
+          </View>
+        </Page>
+      )}
+      {/* ── Page 3: Plots + Notes + Coach Grades ─────────────────
           Top `PdfPlayerInfoBar` retired — the Cover Page already
           carries the player's name + vitals on PDF page 1, so
           repeating the black bar here was redundant. The pitch
@@ -695,15 +761,11 @@ export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
               </Text>
             </View>
 
-            {/* Pitch Type Bubbles row */}
-            <View style={{
-              flexDirection: 'row', gap: 6,
-              marginBottom: 8,
-            }}>
-              {arsenalCards.map(r => (
-                <PdfArsenalCard key={r.pitchType} row={r} />
-              ))}
-            </View>
+            {/* Pitch Type Bubbles row removed to match the in-app Pitching
+                tab, where the Arsenal strip was retired: its Max / Avg velo
+                now live in the Pitch Metrics table on the page before, so the cards
+                were duplicating that. Keeps the export a faithful mirror of
+                what the coach sees on screen. */}
 
             {/* Plots grid — Movement · Location · Release Point */}
             <View style={{
@@ -749,86 +811,43 @@ export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
             {pitchNotes && (
               <PdfNotesBox label="PITCHING NOTES" text={pitchNotes} />
             )}
+
+            {/* Coach Grades -- folded onto this page (was its own page 4) so
+                the report reads Cover / Metrics / Plots + Grades. Gated
+                separately from the plots: a report can have Trackman data
+                with no coach grades entered, or vice versa. */}
+            {hasAnyGrades && (
+              <View style={{ marginTop: 8 }}>
+            <PdfSectionTitle
+              title="Mechanical Grades"
+              subtitle="Per-section aggregate score + selected descriptors"
+            />
+            {/* 3 × 3 grid — 9 sections fit comfortably across 3 rows
+                on landscape Letter without crowding. */}
+            <View style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[0, 1, 2].map((rowIdx) => (
+                <View
+                  key={rowIdx}
+                  style={{ flexDirection: 'row', gap: 6 }}
+                >
+                  {coachGradeSummary
+                    .slice(rowIdx * 3, rowIdx * 3 + 3)
+                    .map((sec) => (
+                      <PdfCoachGradeSection
+                        key={sec.key}
+                        title={sec.title}
+                        avg={sec.avg}
+                        chips={sec.chips}
+                      />
+                    ))}
+                </View>
+              ))}
+            </View>
+              </View>
+            )}
           </>
         )}
       </Page>
-
-      {/* ── Page 3: Trackman Break & Spin + Release & Extension ──── */}
-      {hasData && (
-        <Page size="LETTER" orientation="landscape" style={s.page}>
-          <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
-
-          <PdfSectionTitle title="Trackman" subtitle="Break & Spin · Release & Extension" />
-
-          {/* Break & Spin */}
-          <View style={{
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8, padding: 10, marginBottom: 10,
-          }}>
-            <Text style={{
-              fontSize: 9, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              Break & Spin
-            </Text>
-            <PdfBreakSpinTable rows={arsenal} />
-          </View>
-
-          {/* Release & Extension */}
-          <View style={{
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8, padding: 10,
-          }}>
-            <Text style={{
-              fontSize: 9, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              Release & Extension
-            </Text>
-            <PdfReleaseExtensionTable rows={arsenal} />
-          </View>
-        </Page>
-      )}
-
-      {/* ── Page 4: Coach Grades (per-section aggregate + selected chips) ──
-          Mirrors the in-app Pitching tab's `MechanicalSummaryStrip` —
-          one card per Coach Grade section showing the section title,
-          the averaged 20-80 score across that section's items, and
-          every descriptor chip the coach selected. Page only renders
-          when at least one section has data (score OR chips). */}
-      {hasAnyGrades && (
-        <Page size="LETTER" orientation="landscape" style={s.page}>
-          <PdfSectionTitle
-            title="Mechanical Grades"
-            subtitle="Per-section aggregate score + selected descriptors"
-          />
-          {/* 3 × 3 grid — 9 sections fit comfortably across 3 rows
-              on landscape Letter without crowding. */}
-          <View style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[0, 1, 2].map((rowIdx) => (
-              <View
-                key={rowIdx}
-                style={{ flexDirection: 'row', gap: 6 }}
-              >
-                {coachGradeSummary
-                  .slice(rowIdx * 3, rowIdx * 3 + 3)
-                  .map((sec) => (
-                    <PdfCoachGradeSection
-                      key={sec.key}
-                      title={sec.title}
-                      avg={sec.avg}
-                      chips={sec.chips}
-                    />
-                  ))}
-              </View>
-            ))}
-          </View>
-        </Page>
-      )}
     </>
   );
 }

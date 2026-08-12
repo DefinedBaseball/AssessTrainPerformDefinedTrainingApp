@@ -1061,7 +1061,7 @@ function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
         color: 'var(--text-bright)', lineHeight: 1.05,
         marginBottom: 8,
       }}>
-        Release &amp; Extension
+        Release Metrics
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: cols, padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
@@ -1134,17 +1134,18 @@ function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
 /* ── Break & Spin Table ── */
 function BreakTable({ rows }: { rows: ArsenalRow[] }) {
   const isMobile = useIsMobile();
-  /* Column track widened from 6 → 7 fr-columns to insert a new
-     "Avg Velo" cell between the Pitch label and H-Break. The
-     average velocity (avgVelo) is already computed per row inside
-     `computeArsenal`, so this is purely a UI addition.
-     On phones the 70px fixed Pitch column leaves a wide gap before
-     Avg Velo (the pitch labels are only ~20px), so every column —
+  /* Column track widened 7 → 8 to insert "Max Velo" ahead of "Avg Velo".
+     Both come straight off the ArsenalRow the Arsenal strip already
+     renders — `maxVelo` is the top reading for that pitch type across the
+     report (`Math.max(...velos)` in computeArsenal) — so the table stays a
+     pure view over data computed once, and the two surfaces can't disagree.
+     On phones the 70px fixed Pitch column leaves a wide gap before the
+     velo cells (the pitch labels are only ~20px), so every column —
      including Pitch — shares the width evenly. Desktop keeps the
      fixed 70px label column. */
   const cols = isMobile
-    ? 'repeat(7, minmax(0, 1fr))'
-    : '70px 1fr 1fr 1fr 1fr 1fr 1fr';
+    ? 'repeat(8, minmax(0, 1fr))'
+    : '70px 1fr 1fr 1fr 1fr 1fr 1fr 1fr';
   const headerStyle: React.CSSProperties = { fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center' };
   const cellStyle: React.CSSProperties = { textAlign: 'center', fontFamily: 'inherit', fontWeight: 700, fontSize: rem(12.75), color: 'var(--text)' };
 
@@ -1157,11 +1158,12 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
         color: 'var(--text-bright)', lineHeight: 1.05,
         marginBottom: 8,
       }}>
-        Break &amp; Spin
+        Pitch Metrics
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: cols, padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ ...headerStyle, textAlign: 'left' }}>Pitch</span>
+          <span style={headerStyle}>Max Velo</span>
           <span style={headerStyle}>Avg Velo</span>
           <span style={headerStyle}>H-Break</span>
           <span style={headerStyle}>V-Break</span>
@@ -1173,6 +1175,13 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, fontSize: rem(10.2), color: getPitchColor(r.pitchType) }}>
               {PITCH_SHORT[r.pitchType]}
+            </span>
+            {/* Max Velo — same `r.maxVelo` the Arsenal card shows for this
+                pitch type, so the two always agree. Guarded like Avg Velo:
+                computeArsenal yields 0 when a type has no velo readings. */}
+            <span style={cellStyle}>
+              {r.maxVelo > 0 ? r.maxVelo.toFixed(1) : '--'}
+              <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
             </span>
             <span style={cellStyle}>
               {r.avgVelo > 0 ? r.avgVelo.toFixed(1) : '--'}
@@ -1565,6 +1574,30 @@ export function PitchingTab({
               bottom (which is where the main accent border-bottom
               lives). */}
           <div className={hud.hudHead}>
+            {/* Trackman brand mark — moved up here from the section header
+                that used to sit above the Break & Spin / Release tables.
+                Those tables now live inside this console, so the logo marks
+                the whole report's data provenance instead of labelling a
+                sub-section, and the redundant "Trackman" text label is gone.
+
+                Needs an explicit box: TrackmanLogo is width/height 100%, so
+                without a sized wrapper it would collapse to nothing in a
+                flex row. `align-self: flex-end` + the 1px nudge sit it on
+                the title's baseline — the row is `align-items: flex-end`,
+                and the glyph's optical bottom is slightly above the box's. */}
+            <span
+              aria-hidden="true"
+              style={{
+                width: 21,
+                height: 21,
+                flex: '0 0 auto',
+                display: 'inline-block',
+                alignSelf: 'flex-end',
+                marginBottom: 1,
+              }}
+            >
+              <TrackmanLogo />
+            </span>
             Pitching Report
             {/* Live Results toggle — sits IMMEDIATELY next to the
                 "Pitch Report" title per coach-spec (mirrors the
@@ -1697,12 +1730,57 @@ export function PitchingTab({
           {!loading && hasPitchData ? (
           <>
 
-          {/* Arsenal strip — the "Pitch Info" row at the top of the HUD. */}
-          <div className={hud.hudArsenal}>
-            {arsenalCards.map((row) => (
-              <ArsenalCard key={row.pitchType} row={row} />
-            ))}
+          {/* --- Trackman tables (Break & Spin + Release & Extension) ---
+              Relocated here from below the plot grid, taking the Arsenal
+              strip's old slot at the top of the console. The Arsenal cards
+              (Max / Avg / Low velo per pitch type) were removed in the same
+              change: Break & Spin now carries Max and Avg velo, so the cards
+              were largely duplicating it.
+
+              The `{hasPitchData && (...)}` guard the block used to carry is
+              gone -- this position already sits inside the console's
+              `!loading && hasPitchData` branch, so it was redundant. */}
+        <div style={{ marginBottom: 20 }}>
+          {/* Outer shell now carries the Command Deck (player name)
+              chrome so it reads as a sibling of the Pitch Report HUD
+              bubble above it. Inner Break / Release cards keep the
+              graphite Pitch-Report-bubble gradient for clean inner
+              contrast. */}
+          <div style={{
+            ...commandDeckBubbleStyle,
+            /* Light theme: match the Pitch Report HUD (.hudConsole's
+               light override) instead of the dark-navy Command-Deck
+               chrome — that chrome is an inline style, so it can't flip
+               via the [data-theme="light"] CSS rule and would otherwise
+               stay dark. Now the Trackman bubble reads the same
+               cool-slate (--panel-bg-light) as the Pitch Report bubble
+               above it. Dark theme keeps the Command-Deck look. */
+            ...(isLight ? {
+              background: 'var(--panel-bg-light)',
+              borderColor: 'rgba(0, 0, 0, 0.10)',
+              boxShadow: '0 6px 18px rgba(15, 20, 30, 0.08)',
+            } : {}),
+            padding: 16,
+            /* gap: 16 → 14 (≈0.85rem) so the Trackman SectionHeader's
+               accent line sits the same distance above the Break &
+               Spin table as the Tool Grades accent line sits above
+               its first inner bubble. */
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            {/* The "Trackman" SectionHeader that used to sit here is gone.
+                It was labelling a standalone section; now that these tables
+                live inside the Pitch Report console, the brand mark moved up
+                onto the console's own title row (see the logo beside
+                "Pitching Report" above) and the text label was redundant
+                against it. */}
+            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
+              <BreakTable rows={arsenal} />
+            </div>
+            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
+              <ReleaseTable rows={arsenal} />
+            </div>
           </div>
+        </div>
 
           {/* Pitch Readout bar — now sits BETWEEN the Arsenal (Pitch Info)
               row above and the plot grid below, so the readout for the
@@ -2009,62 +2087,6 @@ export function PitchingTab({
 
         </div>
 
-      {/* ── Break & Spin + Release & Extension tables ──
-          Outer grey bubble holds the section header chrome; each table
-          is now wrapped in its own innerPanel (Movement-Plot-toned) so
-          the two sub-sections read as their own callouts.
-          Bottom margin synced with the shared `.section` 20px so the
-          Break & Spin bubble lines up with the rest of the app's
-          dark-blue main-bubble cadence. */}
-      {hasPitchData && (
-        <div style={{ marginBottom: 20 }}>
-          {/* Outer shell now carries the Command Deck (player name)
-              chrome so it reads as a sibling of the Pitch Report HUD
-              bubble above it. Inner Break / Release cards keep the
-              graphite Pitch-Report-bubble gradient for clean inner
-              contrast. */}
-          <div style={{
-            ...commandDeckBubbleStyle,
-            /* Light theme: match the Pitch Report HUD (.hudConsole's
-               light override) instead of the dark-navy Command-Deck
-               chrome — that chrome is an inline style, so it can't flip
-               via the [data-theme="light"] CSS rule and would otherwise
-               stay dark. Now the Trackman bubble reads the same
-               cool-slate (--panel-bg-light) as the Pitch Report bubble
-               above it. Dark theme keeps the Command-Deck look. */
-            ...(isLight ? {
-              background: 'var(--panel-bg-light)',
-              borderColor: 'rgba(0, 0, 0, 0.10)',
-              boxShadow: '0 6px 18px rgba(15, 20, 30, 0.08)',
-            } : {}),
-            padding: 16,
-            /* gap: 16 → 14 (≈0.85rem) so the Trackman SectionHeader's
-               accent line sits the same distance above the Break &
-               Spin table as the Tool Grades accent line sits above
-               its first inner bubble. */
-            display: 'flex', flexDirection: 'column', gap: 14,
-          }}>
-            {/* Branded section header — matches the Swing-tab pattern
-                (Coach Grades / Full Swing / Blast Motion / HitTrax)
-                where the title sits left and a brand logo badge sits
-                immediately to its right via `iconAfter`. The Trackman
-                logo identifies the data provenance for the Break &
-                Spin + Release & Extension tables below. */}
-            <SectionHeader
-              icon={<TrackmanLogo />}
-              iconColor="gold"
-              title="Trackman"
-              iconAfter
-            />
-            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
-              <BreakTable rows={arsenal} />
-            </div>
-            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
-              <ReleaseTable rows={arsenal} />
-            </div>
-          </div>
-        </div>
-      )}
 
 
       {/* ── Main Video gallery — BOTTOM-most section on this tab.
