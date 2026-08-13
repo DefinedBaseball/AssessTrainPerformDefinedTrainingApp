@@ -22,6 +22,11 @@ import {
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
+
+/** Portal target for the spray chart's Metric Readout. Rendered at the top
+ *  of the Hitting Snapshot's right-hand column so the readout sits above
+ *  Coach Reviews, level with the top of the chart. */
+const SPRAY_READOUT_ID = 'pd-spray-metric-readout';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 
@@ -1325,6 +1330,12 @@ export function HittingTab(props: TabProps) {
                 compact
                 onDataRangeChange={setSprayDateLabel}
                 sliceAggregate={aggInfo?.mode === 'average'}
+                /* Only lift the readout into the right column when that
+                   column actually exists. With no attached Coach Reviews
+                   the grid collapses to one column and the host div has
+                   nowhere sensible to sit, so the readout stays inline
+                   under the chart. */
+                readoutTargetId={hasAttachedReviews ? SPRAY_READOUT_ID : undefined}
               />
             )}
           </div>
@@ -1354,6 +1365,15 @@ export function HittingTab(props: TabProps) {
                 The component itself is intentionally left in SwingTab: it
                 still owns the GradeRow/chip rendering that the Coach Grades
                 bubble and the PDF capture path reuse. */}
+
+            {/* Metric Readout host — SprayChartView portals its EV / LA /
+                BS / DIST / SQ% bubble in here (see `readoutTargetId`) so
+                the right column now OPENS level with the top of the spray
+                chart instead of leading with Coach Reviews. Coach Reviews
+                keeps its `flex: 1` below, so it simply gives up the
+                readout's height + gap and still ends flush with the
+                chart's bottom edge. */}
+            <div id={SPRAY_READOUT_ID} />
 
             {/* Coach Reviews bubble — fills the remaining column
                 height so its bottom is locked to the spray chart's

@@ -2,6 +2,7 @@
 
 import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import aStyles from '@/components/assessment/assessment.module.css';
 import { spraySliceAggregate, type SprayAggregate } from '@/lib/pitchAggregation';
@@ -127,8 +128,15 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
      plotted dot and label) is positioned via `scale`, so this one number
      zooms the entire drawing proportionally; nothing else needs touching.
      At 1.0 the 400-ft fence very nearly touched the top of the viewBox,
-     which left the arc labels crowding the edge. */
-  const ZOOM = 0.9;
+     which left the arc labels crowding the edge.
+
+     Split desktop/phone per coach-spec: the web app pulls back a further
+     40% (0.9 -> 0.54) because the chart now runs full-width with the grade
+     stack gone, so it had far more room than the drawing needed. Phones
+     keep 0.9 — the chart is already narrow there and zooming out again
+     would shrink the dots below a readable size. */
+  const isMobile = useIsMobile();
+  const ZOOM = isMobile ? 0.9 : 0.9 * 0.6;
   const scale = ((H - 70) / maxDist) * ZOOM;
   const toXY = (angleDeg: number, dist: number): [number, number] => {
     const rad = ((90 - angleDeg) * Math.PI) / 180;
@@ -433,6 +441,7 @@ export function SprayChartView({
   playerId, refreshKey, reportUploadIds, maxWidth, compact = false,
   onDataRangeChange, hideReadout = false, hideFilters = false,
   hideColorBar = false, noOuterChrome = false, sliceAggregate = false,
+  readoutTargetId,
 }: {
   playerId: string;
   refreshKey?: number;
@@ -451,6 +460,17 @@ export function SprayChartView({
    *  normally sits ABOVE the spray chart. Used by the Swing Decision
    *  view where the Results GradeRow occupies that slot instead. */
   hideReadout?: boolean;
+  /** Portal the Metric Readout bubble into the element with this id
+   *  instead of rendering it as the bottom sibling under the chart.
+   *  The Hitting Snapshot uses this to seat the readout at the TOP of
+   *  the right-hand column (above Coach Reviews) so that column's
+   *  content lines up with the spray chart beside it.
+   *
+   *  Unlike `HittingVendorMetrics`, a MISSING target falls back to the
+   *  normal inline position rather than rendering nothing — the readout
+   *  must never silently disappear when the host column isn't there
+   *  (e.g. a report with no attached Coach Reviews). */
+  readoutTargetId?: string;
   /** Hide the filter card (EV / LA / BS sliders + Reset) that sits
    *  at the BOTTOM of the spray chart bubble. Used by the Swing
    *  Decision view to make the chart bubble shorter so its bottom
@@ -824,6 +844,15 @@ export function SprayChartView({
     borderRadius: 12,
     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.10)',
   };
+
+  /* Portal host for the Metric Readout. Looked up in an effect (same
+     pattern as `HittingVendorMetrics`) so mount order between this
+     component and the host column doesn't matter. Falls back to the
+     inline position when no id is given or the element isn't there. */
+  const [readoutHost, setReadoutHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setReadoutHost(readoutTargetId ? document.getElementById(readoutTargetId) : null);
+  }, [readoutTargetId]);
 
   return (
     <div
@@ -1230,7 +1259,8 @@ export function SprayChartView({
           Suppressed entirely when `hideReadout` is true — the Swing
           Decision view replaces this readout with the Results
           GradeRow (rendered by the parent above the chart). */}
-      {!hideReadout && sprayDots.length > 0 && (
+      {!hideReadout && sprayDots.length > 0 && (() => {
+        const readoutNode = (
         <div
           style={{
             /* Metric Readout bubble — warm-grey Movement-Plot chrome
@@ -1313,7 +1343,13 @@ export function SprayChartView({
             </div>
           ))}
         </div>
-      )}
+        );
+        /* Seat the readout in the host column when one was supplied (the
+           Hitting Snapshot puts it above Coach Reviews so the right column
+           starts level with the spray chart); otherwise leave it inline as
+           the bottom sibling under the chart. */
+        return readoutHost ? createPortal(readoutNode, readoutHost) : readoutNode;
+      })()}
     </div>
   );
 }

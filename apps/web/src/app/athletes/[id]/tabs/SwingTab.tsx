@@ -456,17 +456,28 @@ function VendorMetricTable({ items, rows }: {
 }) {
   if (items.length === 0) return null;
   const groups = rows && rows.length > 0 ? rows.filter(r => r.length > 0) : [items];
+  /* Every row group shares ONE column template, sized to the widest row, so
+     a metric on the second row sits directly beneath the column above it
+     rather than being spread evenly across the full width. A short second
+     row simply leaves its trailing columns empty. */
+  const colCount = groups.reduce((m, g) => Math.max(m, g.length), 0);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {groups.map((g, gi) => (
-        <VendorMetricRowGroup key={gi} items={g} last={gi === groups.length - 1} />
+        <VendorMetricRowGroup key={gi} items={g} colCount={colCount} last={gi === groups.length - 1} />
       ))}
     </div>
   );
 }
 
-function VendorMetricRowGroup({ items, last }: { items: HittingMetricCell[]; last: boolean }) {
-  const cols = `repeat(${items.length}, minmax(0, 1fr))`;
+function VendorMetricRowGroup({ items, colCount, last }: {
+  items: HittingMetricCell[];
+  /** Column count for the WHOLE table, not just this row — keeps every row
+   *  on the same horizontal grid. */
+  colCount: number;
+  last: boolean;
+}) {
+  const cols = `repeat(${colCount}, minmax(0, 1fr))`;
   const headerStyle: React.CSSProperties = {
     fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase',
     letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center',
@@ -1161,20 +1172,37 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {(() => {
           /* Per the Blast Motion CSV spec, this section surfaces
              every Swing metric that has data — keys with no value
-             are skipped. Then the items are PARTITIONED into two
-             explicit rows:
-               Row 1: every metric NOT in BLAST_ROW2_KEYS
-               Row 2: Connection Score, Plane Score, Early Connection,
-                      Connection at Impact
+             are skipped. The items are then laid out in two EXPLICIT,
+             coach-specified rows (order matters, so these are ordered
+             arrays rather than a Set):
+               Row 1: Max Bat Speed, Avg Bat Speed, Attack Angle,
+                      Vert Bat Angle, Time to Contact,
+                      Rotational Acceleration, Hand Speed
+               Row 2: Early Connection, Connection at Impact,
+                      Connection Score, Plane Score, Rotation Score
              The Swing GradeRow chip strip above renders a fixed list
              of six chips; this bubble is the comprehensive view. */
-          const BLAST_ROW2_KEYS = new Set<string>([
-            'plane_score',
-            'connection_score',
-            'rotation_score',
+          const BLAST_ROW1_ORDER: string[] = [
+            'max_bat_speed',
+            'avg_bat_speed',
+            'attack_angle',
+            'plane_angle',          // labelled "Vert Bat Angle"
+            'time_to_contact',
+            'rotational_accel_g',   // labelled "Rotational Accel"
+            'peak_hand_speed',      // labelled "Hand Speed"
+          ];
+          const BLAST_ROW2_ORDER: string[] = [
             'early_connection',
             'connection_at_impact',
-          ]);
+            'connection_score',
+            /* Both of these render as "Plane Score" — `on_plane_efficiency`
+               is the Blast CSV on-plane % (what actually carries data today)
+               and `plane_score` is the composite-score key. They sit adjacent
+               so whichever one has a value lands in the same slot. */
+            'on_plane_efficiency',
+            'plane_score',
+            'rotation_score',
+          ];
           const buildItem = (k: typeof SWING_METRIC_KEYS[number]): HittingMetricCell => {
             const m = topMetricsWithMiss[k];
             const grade = metricGrades[k];
@@ -1196,10 +1224,19 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             };
           };
           const populated = SWING_METRIC_KEYS.filter(k => !!topMetricsWithMiss[k]);
-          const row1Keys = populated.filter(k => !BLAST_ROW2_KEYS.has(k));
-          const row2Keys = populated.filter(k => BLAST_ROW2_KEYS.has(k));
-          const row1Items = row1Keys.map(buildItem);
-          const row2Items = row2Keys.map(buildItem);
+          const inRow = (order: string[]) =>
+            order.filter(k => populated.includes(k as typeof SWING_METRIC_KEYS[number]));
+          const row1Keys = inRow(BLAST_ROW1_ORDER);
+          /* Anything with data that the coach's two rows don't name (today
+             that's only Power (Kwh)) still renders — appended to the end of
+             row 2 — so adding a Blast key upstream can never make it vanish
+             silently from this bubble. */
+          const leftovers = populated.filter(
+            k => !BLAST_ROW1_ORDER.includes(k) && !BLAST_ROW2_ORDER.includes(k),
+          );
+          const row2Keys = [...inRow(BLAST_ROW2_ORDER), ...leftovers];
+          const row1Items = row1Keys.map(k => buildItem(k as typeof SWING_METRIC_KEYS[number]));
+          const row2Items = row2Keys.map(k => buildItem(k as typeof SWING_METRIC_KEYS[number]));
           const combinedItems = [...row1Items, ...row2Items];
           /* If row 2 is empty (no spec-row-2 keys have data) just
              render the single row 1 — `rows` only kicks in when we
