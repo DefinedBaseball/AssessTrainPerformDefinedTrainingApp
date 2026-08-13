@@ -3,6 +3,7 @@
 import { rem } from '@/lib/rem';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   KpiCard, SectionHeader, Section,
   NotesBox,
@@ -406,6 +407,103 @@ function splitLabelBalanced(label: string): string[] {
     words.slice(0, bestSplit).join(' '),
     words.slice(bestSplit).join(' '),
   ];
+}
+
+/** Target id for the vendor metric bubbles. HittingTab renders the matching
+ *  div immediately above the spray chart; SwingTab portals into it. */
+export const HITTING_VENDOR_METRICS_ID = 'pd-hitting-vendor-metrics';
+
+/** Portals the Full Swing / Blast / HitTrax bubbles above the spray chart.
+ *  Same pattern as `TabBarActions`: the target is looked up in an effect, so
+ *  mount order between HittingTab and SwingTab doesn't matter.
+ *
+ *  Gotcha worth keeping in mind: if the target div is ever removed, this
+ *  renders NOTHING rather than falling back inline — the bubbles would
+ *  vanish silently. HittingTab renders the target unconditionally on the
+ *  swing sub-tab for exactly that reason. */
+function HittingVendorMetrics({ children }: { children: React.ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setTarget(document.getElementById(HITTING_VENDOR_METRICS_ID));
+  }, []);
+  if (!target) return null;
+  return createPortal(children, target);
+}
+
+/* ── Vendor Metric Table (Pitch-Metrics chrome) ──────────────────────────
+   Renders one vendor's session metrics as a header row + a single value
+   row, styled to match the Pitching tab's Pitch Metrics / Release Metrics
+   tables (`BreakTable` / `ReleaseTable` in PitchingTab.tsx): small
+   uppercase column headers over a hairline, then one row of large mono
+   values with a muted unit suffix.
+
+   Deliberately a separate component from `HittingMetricTable` rather than
+   another flag on it — that one still serves Coach Grades, which keeps its
+   existing two-line-label / grade-chip treatment under the spray chart.
+
+   Hitting has no equivalent of the Pitching table's per-pitch-type rows:
+   each vendor emits ONE set of session values, so there is exactly one
+   data row. Items arrive pre-resolved and pre-formatted by the caller, so
+   this component makes no data decisions — source precedence and the
+   HitTrax/Full Swing bleed guards stay exactly where they were. */
+function VendorMetricTable({ items, rows }: {
+  items: HittingMetricCell[];
+  /** Pre-split rows. Blast Motion emits 13 metrics — one row of 13 columns
+   *  is unreadable, so it pins a second row exactly as the previous table
+   *  did. Each row renders its own header + value pair. Omit for the
+   *  single-row case (Full Swing, HitTrax). */
+  rows?: HittingMetricCell[][];
+}) {
+  if (items.length === 0) return null;
+  const groups = rows && rows.length > 0 ? rows.filter(r => r.length > 0) : [items];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {groups.map((g, gi) => (
+        <VendorMetricRowGroup key={gi} items={g} last={gi === groups.length - 1} />
+      ))}
+    </div>
+  );
+}
+
+function VendorMetricRowGroup({ items, last }: { items: HittingMetricCell[]; last: boolean }) {
+  const cols = `repeat(${items.length}, minmax(0, 1fr))`;
+  const headerStyle: React.CSSProperties = {
+    fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase',
+    letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center',
+  };
+  const cellStyle: React.CSSProperties = {
+    textAlign: 'center', fontFamily: 'inherit', fontWeight: 700,
+    fontSize: rem(12.75), color: 'var(--text)',
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: cols,
+        padding: '6px 10px', borderBottom: '1px solid var(--border)',
+      }}>
+        {items.map((it, i) => (
+          <span key={`${it.label}-${i}`} style={headerStyle}>{it.label}</span>
+        ))}
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: cols,
+        padding: '10px', alignItems: 'center',
+        borderBottom: last ? undefined : '1px solid var(--border)',
+      }}>
+        {items.map((it, i) => (
+          <span key={`${it.label}-v-${i}`} style={{ ...cellStyle, color: it.color ?? cellStyle.color }}>
+            {it.display}
+            {it.unit && (
+              <span style={{
+                fontSize: rem(7.65), fontWeight: 500,
+                color: 'var(--text-muted)', marginLeft: 3,
+              }}>{it.unit}</span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function HittingMetricTable({ items, singleRow = false, compact = false, hideLabelDivider = false, singleLineLabels = false, flushEdges = false, mobileColumns, rows: explicitRows }: { items: HittingMetricCell[]; singleRow?: boolean; compact?: boolean; hideLabelDivider?: boolean;
@@ -957,6 +1055,21 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         </div>
         ); })()}
 
+
+        {/* ── Vendor metric bubbles (Full Swing / Blast Motion / HitTrax) ──
+            Portalled ABOVE the spray chart per coach-spec — they now lead
+            the Hitting Report the way Pitch Metrics leads the Pitch Report.
+
+            A portal rather than lifting these into HittingTab: every value
+            here resolves from session data fetched and memoised INSIDE this
+            component (`fullswingOverride`, the HitTrax/Blast series, the
+            source-bleed guards). Moving the markup up would mean moving all
+            of that too, and the brief was to change presentation only —
+            selection, sorting and precedence untouched.
+
+            Coach Grades deliberately stays below, in the Hitting Inputs
+            bubble, in its existing form. */}
+        <HittingVendorMetrics>
         {/* ── FULL SWING — only when QoC metrics have data */}
         {hasFullSwing && (() => {
           renderedSections++;
@@ -1004,10 +1117,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             return topMetricsWithMiss[k];
           };
           return (
-            <HittingMetricTable
-              singleRow
-              hideLabelDivider
-              mobileColumns={4}
+            <VendorMetricTable
               items={QOC_KEYS.map(k => {
                 const m = fsResolve(k);
                 /* Prefer SHORT_LABELS so the Full Swing column
@@ -1095,10 +1205,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
              render the single row 1 — `rows` only kicks in when we
              actually have row-2 content. */
           return (
-            <HittingMetricTable
-              singleRow={row2Items.length === 0}
-              hideLabelDivider
-              mobileColumns={4}
+            <VendorMetricTable
               items={combinedItems}
               rows={row2Items.length > 0 ? [row1Items, row2Items] : undefined}
             />
@@ -1135,9 +1242,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             }
           };
           return (
-            <HittingMetricTable
-              singleRow
-              hideLabelDivider
+            <VendorMetricTable
               items={HITTRAX_KEYS.map(k => {
                 const m = hitTraxValues[k];
                 /* Pull labels from SHORT_LABELS so the HitTrax column
@@ -1169,6 +1274,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         })()}
         </div>
         ); })()}
+        </HittingVendorMetrics>
 
         </div>{/* /outer Hitting Inputs bubble */}
       </Section>

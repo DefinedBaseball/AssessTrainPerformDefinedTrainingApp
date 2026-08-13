@@ -122,7 +122,14 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
   // Outfield fence distance (was 420). Dropped to 400 so the
   // spray chart fence radius matches the requested park dimensions.
   const maxDist = 400;
-  const scale = (H - 70) / maxDist;
+  /* Zoom factor — <1 pulls the whole field in from the frame edges.
+     Everything on the chart (distance arcs, foul lines, the fence, every
+     plotted dot and label) is positioned via `scale`, so this one number
+     zooms the entire drawing proportionally; nothing else needs touching.
+     At 1.0 the 400-ft fence very nearly touched the top of the viewBox,
+     which left the arc labels crowding the edge. */
+  const ZOOM = 0.9;
+  const scale = ((H - 70) / maxDist) * ZOOM;
   const toXY = (angleDeg: number, dist: number): [number, number] => {
     const rad = ((90 - angleDeg) * Math.PI) / 180;
     const r = dist * scale;
@@ -839,101 +846,6 @@ export function SprayChartView({
         margin: maxWidth ? '0 auto' : undefined,
       }}
     >
-      {/* ── Ball Readout bubble — top sibling. Sits ABOVE the spray
-          chart bubble as its own separate panel. Displays the
-          currently-selected pitch's EV / LA / BS / DIST / SQ% — same
-          5-column grid as before, just lifted out of the chart
-          wrapper. Typography + padding bumped ~30% larger so this
-          bubble matches the visual weight of the Results bubble that
-          sits as a top sibling on the right column of the Hitting
-          Snapshot's two-pane grid.
-          Suppressed entirely when `hideReadout` is true — the Swing
-          Decision view replaces this readout with the Results
-          GradeRow (rendered by the parent above the chart). */}
-      {!hideReadout && sprayDots.length > 0 && (
-        <div
-          style={{
-            /* Metric Readout bubble — warm-grey Movement-Plot chrome
-               (same Curveball / Pitch Report Arsenal color used
-               across the app). The previous inner dark-navy tile is
-               retired so the metric grid sits directly on this
-               warm-grey surface. */
-            ...bubbleChrome,
-            padding: compact ? '8px 10px' : '10px 12px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-            gap: 12,
-            alignItems: 'center',
-            /* Height locked to 96px on DESKTOP so this Ball Readout (the
-               Metric Readout sibling at the top of the Spray Chart column)
-               sits the EXACT same height as the Results bubble at the top
-               of the Grade Stack column on the Swing Decision view (which
-               has wrapping chip labels like "Groundball %" / "Fly Ball %"
-               pushing its natural content height to ~90+px). A fixed
-               `height` (not `minHeight`) on both sides guarantees an exact
-               pixel match.
-               On MOBILE the columns stack (no side-by-side Results bubble
-               to match) and the rem-scaled text is much smaller, so 96px
-               left the bubble ~2× taller than its content — halved to 48px.
-               `alignItems:'center'` keeps the metric grid vertically
-               centered in either height. */
-            height: isMobile ? 48 : 96,
-          }}
-        >
-          {[
-            { label: 'EV',   value: activeDot?.exitVelo,    unit: 'mph', decimals: 1 },
-            { label: 'LA',   value: activeDot?.launchAngle, unit: '°',   decimals: 1 },
-            { label: 'BS',   value: activeDot?.batSpeed,    unit: 'mph', decimals: 1 },
-            { label: 'DIST', value: activeDot?.distance,    unit: 'ft',  decimals: 0 },
-            { label: 'SQ%',  value: activeDot?.squaredUp,   unit: '%',   decimals: 1 },
-          ].map(p => (
-            /* alignItems: 'center' so each column's label (EV / LA /
-               BS / DIST / SQ%) sits horizontally centered above the
-               numeric value + unit pair below it. Previously the
-               flex column defaulted to flex-start, which left-aligned
-               the label against the column's left edge while the
-               value was at its natural inline-baseline flex
-               container's start, making the label visibly to the
-               LEFT of where the data populated. */
-            <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }}>
-              <span
-                className={aStyles.sprayLightText}
-                style={{
-                  /* Font D treatment — inherited Satoshi, 9 px, weight
-                     600, 0.05em tracking, uppercase, bright white.
-                     Matches every other grey-bubble secondary label
-                     across the app (Tool Grades bar labels, KPI chip
-                     labels, Break & Spin column header, etc.). */
-                  fontFamily: 'inherit',
-                  fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
-                  textTransform: 'uppercase', color: 'var(--text-bright)',
-                  lineHeight: 1.2,
-                }}
-              >{p.label}</span>
-              <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
-                <span
-                  className={aStyles.sprayLightText}
-                  style={{
-                    /* 16 → 20.8 (≈21) — 30% larger */
-                    fontSize: rem(21), fontWeight: 700, color: 'var(--text)',
-                    fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}
-                >
-                  {p.value != null ? p.value.toFixed(p.decimals) : '—'}
-                </span>
-                {p.value != null && p.unit && (
-                  /* 9 → 12 — 30% larger */
-                  <span
-                    className={aStyles.sprayLightText}
-                    style={{ fontSize: rem(12), color: 'var(--text-muted)', fontWeight: 600 }}
-                  >{p.unit}</span>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
 
     <div
       // Outer spray-chart bubble — now wears the Pitching Movement
@@ -1301,6 +1213,107 @@ export function SprayChartView({
         </div>
       )}
     </div>{/* /spray-chart bubble */}
+      {/* Moved BELOW the chart per coach-spec (was the top sibling). The
+          readout describes the dot you just clicked, so it now reads in the
+          same direction as the interaction: chart first, values underneath.
+          Height is no longer load-bearing for the chart's flex sizing —
+          the chart keeps `flex: 1` and simply grows into the space above
+          this strip instead of below it. */}
+      {/* ── Ball Readout bubble — bottom sibling. Sits UNDER the spray
+          chart bubble as its own separate panel. Displays the
+          currently-selected pitch's EV / LA / BS / DIST / SQ% — same
+          5-column grid as before, just lifted out of the chart
+          wrapper. Typography + padding bumped ~30% larger so this
+          bubble matches the visual weight of the Results bubble that
+          sits as a top sibling on the right column of the Hitting
+          Snapshot's two-pane grid.
+          Suppressed entirely when `hideReadout` is true — the Swing
+          Decision view replaces this readout with the Results
+          GradeRow (rendered by the parent above the chart). */}
+      {!hideReadout && sprayDots.length > 0 && (
+        <div
+          style={{
+            /* Metric Readout bubble — warm-grey Movement-Plot chrome
+               (same Curveball / Pitch Report Arsenal color used
+               across the app). The previous inner dark-navy tile is
+               retired so the metric grid sits directly on this
+               warm-grey surface. */
+            ...bubbleChrome,
+            padding: compact ? '8px 10px' : '10px 12px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            gap: 12,
+            alignItems: 'center',
+            /* Height locked to 96px on DESKTOP so this Ball Readout (the
+               Metric Readout sibling at the top of the Spray Chart column)
+               sits the EXACT same height as the Results bubble at the top
+               of the Grade Stack column on the Swing Decision view (which
+               has wrapping chip labels like "Groundball %" / "Fly Ball %"
+               pushing its natural content height to ~90+px). A fixed
+               `height` (not `minHeight`) on both sides guarantees an exact
+               pixel match.
+               On MOBILE the columns stack (no side-by-side Results bubble
+               to match) and the rem-scaled text is much smaller, so 96px
+               left the bubble ~2× taller than its content — halved to 48px.
+               `alignItems:'center'` keeps the metric grid vertically
+               centered in either height. */
+            height: isMobile ? 48 : 96,
+          }}
+        >
+          {[
+            { label: 'EV',   value: activeDot?.exitVelo,    unit: 'mph', decimals: 1 },
+            { label: 'LA',   value: activeDot?.launchAngle, unit: '°',   decimals: 1 },
+            { label: 'BS',   value: activeDot?.batSpeed,    unit: 'mph', decimals: 1 },
+            { label: 'DIST', value: activeDot?.distance,    unit: 'ft',  decimals: 0 },
+            { label: 'SQ%',  value: activeDot?.squaredUp,   unit: '%',   decimals: 1 },
+          ].map(p => (
+            /* alignItems: 'center' so each column's label (EV / LA /
+               BS / DIST / SQ%) sits horizontally centered above the
+               numeric value + unit pair below it. Previously the
+               flex column defaulted to flex-start, which left-aligned
+               the label against the column's left edge while the
+               value was at its natural inline-baseline flex
+               container's start, making the label visibly to the
+               LEFT of where the data populated. */
+            <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }}>
+              <span
+                className={aStyles.sprayLightText}
+                style={{
+                  /* Font D treatment — inherited Satoshi, 9 px, weight
+                     600, 0.05em tracking, uppercase, bright white.
+                     Matches every other grey-bubble secondary label
+                     across the app (Tool Grades bar labels, KPI chip
+                     labels, Break & Spin column header, etc.). */
+                  fontFamily: 'inherit',
+                  fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
+                  textTransform: 'uppercase', color: 'var(--text-bright)',
+                  lineHeight: 1.2,
+                }}
+              >{p.label}</span>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
+                <span
+                  className={aStyles.sprayLightText}
+                  style={{
+                    /* 16 → 20.8 (≈21) — 30% larger */
+                    fontSize: rem(21), fontWeight: 700, color: 'var(--text)',
+                    fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                >
+                  {p.value != null ? p.value.toFixed(p.decimals) : '—'}
+                </span>
+                {p.value != null && p.unit && (
+                  /* 9 → 12 — 30% larger */
+                  <span
+                    className={aStyles.sprayLightText}
+                    style={{ fontSize: rem(12), color: 'var(--text-muted)', fontWeight: 600 }}
+                  >{p.unit}</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

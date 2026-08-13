@@ -2,7 +2,7 @@
 
 import { rem } from '@/lib/rem';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, type SharedHittingState } from './SwingTab';
+import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, HITTING_VENDOR_METRICS_ID, type SharedHittingState } from './SwingTab';
 import { TabBar, TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
 import aStyles from '@/components/assessment/assessment.module.css';
@@ -260,6 +260,8 @@ export function HittingTab(props: TabProps) {
        • are EXCLUDED from the main Video gallery for this report
          so they don't double-show. Unattached Coach Reviews
          continue to surface in the main gallery as before. */
+  /* Does the right column have anything to show? Mirrors the Coach
+     Reviews render gate below so the grid can collapse when it doesn't. */
   const attachedReviewIds = useMemo(() => {
     if (!activeHittingReport?.content) return [] as string[];
     try {
@@ -270,6 +272,12 @@ export function HittingTab(props: TabProps) {
     } catch { /* ignore */ }
     return [] as string[];
   }, [activeHittingReport]);
+
+  /* True when the Coach Reviews bubble will actually render — same gate it
+     uses internally. Drives whether the snapshot splits into two columns. */
+  const hasAttachedReviews = !!activeHittingReport
+    && attachedReviewIds.length > 0
+    && playerVideos.some((v) => attachedReviewIds.includes(v.id));
 
   const persistedManual = useMemo(() => getManualSwingScores(activeHittingReport), [activeHittingReport]);
   // Multi-select option tags ("Drift" / "+Stack" / "Tall"...) saved with each
@@ -1179,7 +1187,31 @@ export function HittingTab(props: TabProps) {
               toggle still sits next to the date chip in this same
               header row. */}
         </div>
-        <div className={styles.snapshotSplit} style={{
+        {/* ── Vendor metric bubbles land here ──────────────────────────
+            Full Swing / Blast Motion / HitTrax portal into this div from
+            SwingTab (see HITTING_VENDOR_METRICS_ID), placing them above
+            the spray chart the way Pitch Metrics leads the Pitch Report.
+
+            Rendered UNCONDITIONALLY on the swing sub-tab: the portal
+            resolves its target by id in an effect and renders nothing if
+            it is missing, so gating this div on data would make the
+            bubbles disappear silently. The wrapper is display:contents
+            when empty, so it costs no layout when there is nothing to
+            show — each bubble brings its own chrome and spacing. */}
+        {subTab === 'swing' && (
+          <div
+            id={HITTING_VENDOR_METRICS_ID}
+            style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}
+          />
+        )}
+        {/* With the grade stack gone the right column holds only the Coach
+            Reviews bubble, which itself renders nothing unless the active
+            report has attached reviews. Collapse to a single column in that
+            case so the spray chart uses the full width instead of sitting
+            beside dead space. */}
+        <div
+          className={hasAttachedReviews ? styles.snapshotSplit : undefined}
+          style={{
           display: 'grid',
           /* Two-column split on desktop: Spray Chart (left) + Grade
              Stack / Coach Reviews (right). `alignItems: stretch`
@@ -1313,17 +1345,15 @@ export function HittingTab(props: TabProps) {
             flexDirection: 'column',
             gap: 14,
           }}>
-            <HittingGradeStack
-              topMetrics={topMetricsWithMiss}
-              manual={manual}
-              metricGrades={metricGrades}
-              isCoach={isCoach}
-              diagnosisNotes={diagnosisNotes}
-              setDiagnosisNotes={setDiagnosisNotes}
-              subTab={subTab}
-              qocOverride={qocOverride}
-              omitResultsRow={subTab === 'decision'}
-            />
+            {/* HittingGradeStack (Swing / Quality of Contact / Mechanical
+                Grades) removed per coach-spec — those readings now live in
+                the Full Swing / Blast Motion / HitTrax bubbles above the
+                spray chart, and Coach Grades keeps its own bubble below, so
+                the stack was a third restatement of the same numbers.
+
+                The component itself is intentionally left in SwingTab: it
+                still owns the GradeRow/chip rendering that the Coach Grades
+                bubble and the PDF capture path reuse. */}
 
             {/* Coach Reviews bubble — fills the remaining column
                 height so its bottom is locked to the spray chart's
