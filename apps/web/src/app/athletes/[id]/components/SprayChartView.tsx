@@ -845,14 +845,22 @@ export function SprayChartView({
     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.10)',
   };
 
-  /* Portal host for the Metric Readout. Looked up in an effect (same
-     pattern as `HittingVendorMetrics`) so mount order between this
-     component and the host column doesn't matter. Falls back to the
-     inline position when no id is given or the element isn't there. */
+  /* Portal host for the Metric Readout. Falls back to the inline
+     position when no id is given or the element isn't there.
+
+     Deliberately re-checked after EVERY render rather than only when
+     `readoutTargetId` changes. The host lives in a sibling subtree that
+     this component doesn't control, so it can appear on a later render
+     than the one that first hands us the id — and a dependency-keyed
+     lookup would have already run, found nothing, and never retried,
+     stranding the readout inline forever. `getElementById` is cheap and
+     the state bails out when the node is unchanged, so this settles in
+     one extra pass with no render loop. */
   const [readoutHost, setReadoutHost] = useState<HTMLElement | null>(null);
   useEffect(() => {
-    setReadoutHost(readoutTargetId ? document.getElementById(readoutTargetId) : null);
-  }, [readoutTargetId]);
+    const el = readoutTargetId ? document.getElementById(readoutTargetId) : null;
+    setReadoutHost(prev => (prev === el ? prev : el));
+  });
 
   return (
     <div

@@ -278,12 +278,6 @@ export function HittingTab(props: TabProps) {
     return [] as string[];
   }, [activeHittingReport]);
 
-  /* True when the Coach Reviews bubble will actually render — same gate it
-     uses internally. Drives whether the snapshot splits into two columns. */
-  const hasAttachedReviews = !!activeHittingReport
-    && attachedReviewIds.length > 0
-    && playerVideos.some((v) => attachedReviewIds.includes(v.id));
-
   const persistedManual = useMemo(() => getManualSwingScores(activeHittingReport), [activeHittingReport]);
   // Multi-select option tags ("Drift" / "+Stack" / "Tall"...) saved with each
   // manual score on the active HITTING report — edited inline in the Coach
@@ -1209,13 +1203,15 @@ export function HittingTab(props: TabProps) {
             style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}
           />
         )}
-        {/* With the grade stack gone the right column holds only the Coach
-            Reviews bubble, which itself renders nothing unless the active
-            report has attached reviews. Collapse to a single column in that
-            case so the spray chart uses the full width instead of sitting
-            beside dead space. */}
+        {/* The right column now always carries the spray chart's Metric
+            Readout, with Coach Reviews joining it below when the active
+            report has attached reviews. Because it is never empty, the
+            two-column split is unconditional — the readout sits beside the
+            chart on every report rather than only on ones with reviews.
+            (`snapshotSplit` collapses to one column under 768px, so phones
+            keep stacking the readout under the chart.) */}
         <div
-          className={hasAttachedReviews ? styles.snapshotSplit : undefined}
+          className={styles.snapshotSplit}
           style={{
           display: 'grid',
           /* Two-column split on desktop: Spray Chart (left) + Grade
@@ -1330,12 +1326,14 @@ export function HittingTab(props: TabProps) {
                 compact
                 onDataRangeChange={setSprayDateLabel}
                 sliceAggregate={aggInfo?.mode === 'average'}
-                /* Only lift the readout into the right column when that
-                   column actually exists. With no attached Coach Reviews
-                   the grid collapses to one column and the host div has
-                   nowhere sensible to sit, so the readout stays inline
-                   under the chart. */
-                readoutTargetId={hasAttachedReviews ? SPRAY_READOUT_ID : undefined}
+                /* Always lift the readout into the right column. The host
+                   div is rendered unconditionally below, and the column now
+                   holds the readout whether or not Coach Reviews has
+                   anything to show, so the readout's placement no longer
+                   depends on the report having attached reviews. On phones
+                   the grid is a single column, so the portal simply lands
+                   the readout under the chart exactly as before. */
+                readoutTargetId={SPRAY_READOUT_ID}
               />
             )}
           </div>
