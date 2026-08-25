@@ -1530,6 +1530,7 @@ export interface College {
   name: string;
   logoUrl: string | null;
   websiteUrl: string | null;
+  division: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1538,6 +1539,7 @@ export interface CollegeInput {
   name: string;
   logoUrl?: string | null;
   websiteUrl?: string | null;
+  division?: string | null;
 }
 
 export async function getColleges(): Promise<College[]> {
@@ -1862,4 +1864,57 @@ export function sendMessage(input: {
   videoUrl?: string;
 }): Promise<DirectMessage> {
   return request('/messages', { method: 'POST', body: JSON.stringify(input) });
+}
+
+/* ─── College divisions ──────────────────────────────────────────
+   The governing-body + division tags a College can carry, in the
+   order they should be presented (both in the picker and as list
+   section headings). Declared here rather than in the Settings page
+   so the roster/commitment pickers can group by the same order
+   without importing UI code.
+
+   Stored as a plain nullable string on College rather than a Prisma
+   enum: `db push` is the migration path here, and a school with no
+   division yet (or one added later, e.g. a new NJCAA tier) must not
+   require a schema change to keep working. */
+export const COLLEGE_DIVISIONS = [
+  'NCAA D1',
+  'NCAA D2',
+  'NCAA D3',
+  'NJCAA D1',
+  'NJCAA D2',
+  'NJCAA D3',
+  'NAIA',
+] as const;
+
+export type CollegeDivision = typeof COLLEGE_DIVISIONS[number];
+
+/** Heading used for colleges that have no division set yet. */
+export const COLLEGE_DIVISION_UNASSIGNED = 'Unassigned';
+
+/**
+ * Group colleges into division sections in `COLLEGE_DIVISIONS` order,
+ * with any unassigned (or unrecognised) division collected last under
+ * `COLLEGE_DIVISION_UNASSIGNED`. Empty sections are omitted, so a list
+ * with no NJCAA schools simply doesn't render those headings.
+ */
+export function groupCollegesByDivision(
+  colleges: College[],
+): { division: string; colleges: College[] }[] {
+  const buckets = new Map<string, College[]>();
+  for (const c of colleges) {
+    const key = (c.division && (COLLEGE_DIVISIONS as readonly string[]).includes(c.division))
+      ? c.division
+      : COLLEGE_DIVISION_UNASSIGNED;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(c);
+    else buckets.set(key, [c]);
+  }
+  const ordered = [...COLLEGE_DIVISIONS, COLLEGE_DIVISION_UNASSIGNED];
+  return ordered
+    .filter(d => (buckets.get(d)?.length ?? 0) > 0)
+    .map(d => ({
+      division: d,
+      colleges: (buckets.get(d) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    }));
 }

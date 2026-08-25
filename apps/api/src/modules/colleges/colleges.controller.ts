@@ -7,12 +7,14 @@ class CollegeUpsertDto {
   name!: string;
   logoUrl?: string | null;
   websiteUrl?: string | null;
+  division?: string | null;
 }
 
 class CollegePatchDto {
   name?: string;
   logoUrl?: string | null;
   websiteUrl?: string | null;
+  division?: string | null;
 }
 
 @ApiTags('colleges')

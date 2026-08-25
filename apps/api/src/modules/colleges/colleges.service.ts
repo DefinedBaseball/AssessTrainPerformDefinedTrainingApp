@@ -15,11 +15,11 @@ export class CollegesService {
     return college;
   }
 
-  create(data: { name: string; logoUrl?: string | null; websiteUrl?: string | null }) {
+  create(data: { name: string; logoUrl?: string | null; websiteUrl?: string | null; division?: string | null }) {
     return this.prisma.college.create({ data });
   }
 
-  update(id: string, data: { name?: string; logoUrl?: string | null; websiteUrl?: string | null }) {
+  update(id: string, data: { name?: string; logoUrl?: string | null; websiteUrl?: string | null; division?: string | null }) {
     return this.prisma.college.update({ where: { id }, data });
   }
 

@@ -19,6 +19,7 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { DRILLS } from './drills.seed';
+import { seedColleges } from './colleges.seed';
 
 const prisma = new PrismaClient();
 
@@ -119,6 +120,18 @@ async function main() {
   } else {
     console.log(`[seed.prod] inquiries already present (${inquiryCount}) — skipped`);
   }
+
+  /* 4. College list — upsert the curated Minnesota programs by name. Unlike
+   *    the drill/inquiry blocks above this is NOT gated on an empty table:
+   *    it fills only missing fields on schools that already exist and never
+   *    overwrites a curated division/website or touches logoUrl, so running
+   *    it on every deploy is safe and keeps the list current as rows are
+   *    added to colleges.seed.ts. */
+  const collegeTally = await seedColleges(prisma);
+  console.log(
+    `[seed.prod] colleges: ${collegeTally.created} created, `
+    + `${collegeTally.updated} back-filled, ${collegeTally.unchanged} already current`,
+  );
 
   console.log('[seed.prod] done.');
 }

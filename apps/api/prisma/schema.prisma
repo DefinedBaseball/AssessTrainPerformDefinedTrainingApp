@@ -150,6 +150,11 @@ model College {
   name       String   @unique
   logoUrl    String?
   websiteUrl String?
+  // Governing body + division, e.g. "NCAA D1" / "NJCAA D2" / "NAIA".
+  // Optional so the column adds cleanly via `prisma db push` and every
+  // pre-existing school keeps working while unassigned; the UI groups
+  // those under "Unassigned" until a division is picked.
+  division   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }

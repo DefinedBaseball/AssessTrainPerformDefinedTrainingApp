@@ -1009,6 +1009,11 @@ function EntityCrudCard({
   const [formLogoDataUrl, setFormLogoDataUrl] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [formWebsite, setFormWebsite] = useState('');
+  /* Division applies to Colleges only -- Club Teams have no such
+     concept, so the picker below is gated on `kind`. Kept as a plain
+     string so an unrecognised legacy value survives an edit round-trip
+     instead of being silently reset. */
+  const [formDivision, setFormDivision] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -1036,6 +1041,7 @@ function EntityCrudCard({
     setFormLogoFile(null);
     setFormLogoDataUrl(null);
     setFormWebsite('');
+    setFormDivision('');
   }
 
   function openEdit(r: EntityRecord) {
@@ -1045,6 +1051,7 @@ function EntityCrudCard({
     setFormLogoFile(null);
     setFormLogoDataUrl(null);
     setFormWebsite(r.websiteUrl || '');
+    setFormDivision((r as College).division || '');
   }
 
   function cancel() {
@@ -1054,6 +1061,7 @@ function EntityCrudCard({
     setFormLogoFile(null);
     setFormLogoDataUrl(null);
     setFormWebsite('');
+    setFormDivision('');
   }
 
   /* Read the picked logo file into a base64 data URL. Stored in
@@ -1100,6 +1108,9 @@ function EntityCrudCard({
         name: trimmed,
         logoUrl: resolvedLogo,
         websiteUrl: formWebsite.trim() || null,
+        /* Colleges only. The ClubTeam DTO has no `division`, so it is
+           spread in conditionally rather than always sent as null. */
+        ...(kind === 'college' ? { division: formDivision || null } : {}),
       };
       if (editingId === 'new') {
         if (kind === 'clubTeam') await api.createClubTeam(payload);
@@ -1130,6 +1141,62 @@ function EntityCrudCard({
       setError(e?.message || 'Delete failed');
     }
   }
+
+  /* One record row. Extracted so the flat (Club Teams) and the
+     division-grouped (Colleges) lists render byte-identical rows
+     instead of keeping two copies of this markup in sync. */
+  const renderRecordRow = (r: EntityRecord) => (
+            <div key={r.id} className={styles.row}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                {r.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.logoUrl}
+                    alt=""
+                    style={{
+                      width: 36, height: 36, borderRadius: 8, objectFit: 'cover',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border)',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      width: 36, height: 36, borderRadius: 8,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px dashed var(--border)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--muted)', fontSize: rem(13), fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {r.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className={styles.rowLabel}>
+                  <span className={styles.rowTitle}>{r.name}</span>
+                  {r.websiteUrl && (
+                    <span className={styles.rowSub}>
+                      <a
+                        href={r.websiteUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        style={{ color: 'var(--muted)' }}
+                      >
+                        {r.websiteUrl.replace(/^https?:\/\//, '')}
+                      </a>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className={styles.btnSecondary} onClick={() => openEdit(r)}>Edit</button>
+                <button className={styles.btnDanger} onClick={() => remove(r.id, r.name)}>Delete</button>
+              </div>
+            </div>
+  );
 
   return (
     <div className={styles.card}>
@@ -1260,6 +1327,33 @@ function EntityCrudCard({
             />
           </div>
 
+          {/* FOURTH ROW — Division (Colleges only). Club Teams have no
+              governing body, so this whole field is omitted for them and
+              the Website row above keeps the full width it always had.
+              Blank option = unassigned, which the list groups last. A
+              legacy value that is not in COLLEGE_DIVISIONS is preserved
+              as an extra option so editing a school can't silently drop
+              a division nobody has migrated yet. */}
+          {kind === 'college' && (
+            <div className={styles.builderField} style={{ gridColumn: '1 / -1' }}>
+              <label>Division (optional)</label>
+              <select
+                className={styles.select}
+                value={formDivision}
+                onChange={(e) => setFormDivision(e.target.value)}
+              >
+                <option value="">— Unassigned —</option>
+                {api.COLLEGE_DIVISIONS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+                {formDivision
+                  && !(api.COLLEGE_DIVISIONS as readonly string[]).includes(formDivision) && (
+                  <option value={formDivision}>{formDivision} (legacy)</option>
+                )}
+              </select>
+            </div>
+          )}
+
           <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button className={styles.btnSecondary} onClick={cancel} disabled={saving}>Cancel</button>
             <button className={styles.btn} onClick={save} disabled={saving}>
@@ -1274,61 +1368,30 @@ function EntityCrudCard({
         <div className={styles.empty}>Loading…</div>
       ) : records.length === 0 ? (
         <div className={styles.empty}>No {title.toLowerCase()} yet. Click "{addLabel}" to create one.</div>
-      ) : (
+      ) : kind === 'college' ? (
+        /* Colleges group into division sections, ordered by
+           COLLEGE_DIVISIONS with unassigned schools last. Empty
+           divisions render nothing, so the headings that appear are
+           only the ones actually in use. */
         <div>
-          {records.map((r) => (
-            <div key={r.id} className={styles.row}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                {r.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={r.logoUrl}
-                    alt=""
-                    style={{
-                      width: 36, height: 36, borderRadius: 8, objectFit: 'cover',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid var(--border)',
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      width: 36, height: 36, borderRadius: 8,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px dashed var(--border)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'var(--muted)', fontSize: rem(13), fontWeight: 700,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {r.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className={styles.rowLabel}>
-                  <span className={styles.rowTitle}>{r.name}</span>
-                  {r.websiteUrl && (
-                    <span className={styles.rowSub}>
-                      <a
-                        href={r.websiteUrl}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        style={{ color: 'var(--muted)' }}
-                      >
-                        {r.websiteUrl.replace(/^https?:\/\//, '')}
-                      </a>
-                    </span>
-                  )}
-                </div>
+          {api.groupCollegesByDivision(records as College[]).map((section) => (
+            <div key={section.division} style={{ marginTop: 14 }}>
+              <div
+                style={{
+                  padding: '0 0 6px', marginBottom: 2,
+                  borderBottom: '1px solid var(--border)',
+                  fontSize: rem(11), fontWeight: 700, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', color: 'var(--text-bright, #ffffff)',
+                }}
+              >
+                {section.division}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className={styles.btnSecondary} onClick={() => openEdit(r)}>Edit</button>
-                <button className={styles.btnDanger} onClick={() => remove(r.id, r.name)}>Delete</button>
-              </div>
+              {section.colleges.map(renderRecordRow)}
             </div>
           ))}
         </div>
+      ) : (
+        <div>{records.map(renderRecordRow)}</div>
       )}
     </div>
   );
