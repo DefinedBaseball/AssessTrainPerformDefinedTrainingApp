@@ -190,6 +190,10 @@ export interface SprayFieldThird {
   count: number;
   /** Share of all batted balls, 0-100. */
   pct: number;
+  /** Mean exit velocity (mph) of the balls in this wedge that carry one. */
+  avgExitVelo: number | null;
+  /** How many balls actually contributed to `avgExitVelo`. */
+  exitVeloSample: number;
   /** Mean launch angle of the balls in this wedge that carry one. */
   avgLaunchAngle: number | null;
   /** How many balls actually contributed to `avgLaunchAngle`. */
@@ -202,7 +206,7 @@ export interface SprayFieldThirds {
 }
 
 export function sprayFieldThirds(
-  dots: { angle: number; launchAngle?: number }[],
+  dots: { angle: number; launchAngle?: number; exitVelo?: number }[],
 ): SprayFieldThirds | null {
   const valid = dots.filter(d => Number.isFinite(d.angle));
   if (valid.length === 0) return null;
@@ -213,7 +217,7 @@ export function sprayFieldThirds(
     { key: 'RF', label: 'Right Field' },
   ];
 
-  const buckets: { angle: number; launchAngle?: number }[][] = [[], [], []];
+  const buckets: { angle: number; launchAngle?: number; exitVelo?: number }[][] = [[], [], []];
   for (const d of valid) {
     const clamped = Math.max(-45, Math.min(45, d.angle));
     const idx = Math.min(2, Math.floor((clamped + 45) / 30));
@@ -222,15 +226,22 @@ export function sprayFieldThirds(
 
   const thirds = meta.map((m, i) => {
     const bucket = buckets[i];
-    const las = bucket
-      .map(d => d.launchAngle)
-      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    /* Averaged independently of each other: a ball can carry an exit velo
+       without a launch angle (and vice versa), so each mean uses only the
+       balls that actually recorded that reading rather than requiring both. */
+    const nums = (pick: (d: { launchAngle?: number; exitVelo?: number }) => number | undefined) =>
+      bucket.map(pick).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    const las = nums(d => d.launchAngle);
+    const evs = nums(d => d.exitVelo);
+    const mean = (a: number[]) => a.reduce((s, n) => s + n, 0) / a.length;
     return {
       key: m.key,
       label: m.label,
       count: bucket.length,
       pct: (bucket.length / valid.length) * 100,
-      avgLaunchAngle: las.length > 0 ? las.reduce((s, n) => s + n, 0) / las.length : null,
+      avgExitVelo: evs.length > 0 ? mean(evs) : null,
+      exitVeloSample: evs.length,
+      avgLaunchAngle: las.length > 0 ? mean(las) : null,
       launchAngleSample: las.length,
     };
   });

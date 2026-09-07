@@ -470,28 +470,39 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         return fieldThirds.thirds.map((t, i) => {
           const [x, y] = pt(centres[i], r * 0.72);
           const la = t.avgLaunchAngle;
+          const ev = t.avgExitVelo;
+          const DASH = String.fromCharCode(8212);
           return (
             <g key={t.key} pointerEvents="none">
-              <rect x={x - 26} y={y - 17} width={52} height={34} rx={7}
+              {/* Three stacked readings, top to bottom: share of batted
+                  balls, mean exit velocity, mean launch angle. Plate is
+                  sized for three lines. */}
+              <rect x={x - 29} y={y - 23} width={58} height={46} rx={7}
                 fill="rgba(12,16,23,0.66)" stroke="var(--spray-gridline-color)"
                 strokeWidth={0.6} />
-              <text x={x} y={y - 5} textAnchor="middle" dominantBaseline="central"
+              <text x={x} y={y - 11} textAnchor="middle" dominantBaseline="central"
                 fill="rgba(240,245,252,0.97)" fontSize={14} fontWeight={700}
-                fontFamily="'Satoshi', 'DM Sans', sans-serif" letterSpacing="0.02em">
+                fontFamily="'Satoshi', 'DM Sans', sans-serif" letterSpacing="0.02em"
+                pointerEvents="auto" style={{ cursor: 'help' }}>
+                <title>Percent of Batted Balls</title>
                 {Math.round(t.pct)}%
               </text>
-              {/* Average launch angle for the wedge. The " LA" suffix is
-                  deliberately gone -- the value reads as a bare number +
-                  degree symbol, with a native <title> tooltip naming it on
-                  hover. `pointerEvents` is re-enabled on THIS element only:
-                  the wrapping <g> stays `none` so the plates never swallow
-                  a click meant for a dot underneath them. */}
-              <text x={x} y={y + 8} textAnchor="middle" dominantBaseline="central"
+              {/* Mean exit velocity. Like the launch angle below, pointer
+                  events are re-enabled on THIS element only so the plate
+                  never swallows a click meant for a dot underneath. */}
+              <text x={x} y={y + 3} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.72)" fontSize={9} fontWeight={600}
+                fontFamily="'DM Mono', ui-monospace, monospace" letterSpacing="0.04em"
+                pointerEvents="auto" style={{ cursor: 'help' }}>
+                <title>Average Exit Velocity</title>
+                {ev === null ? DASH : `${ev.toFixed(1)} mph`}
+              </text>
+              <text x={x} y={y + 15} textAnchor="middle" dominantBaseline="central"
                 fill="rgba(240,245,252,0.72)" fontSize={9} fontWeight={600}
                 fontFamily="'DM Mono', ui-monospace, monospace" letterSpacing="0.04em"
                 pointerEvents="auto" style={{ cursor: 'help' }}>
                 <title>Average Launch Angle</title>
-                {la === null ? String.fromCharCode(8212) : `${la.toFixed(1)}\u00b0`}
+                {la === null ? DASH : `${la.toFixed(1)}\u00b0`}
               </text>
             </g>
           );
