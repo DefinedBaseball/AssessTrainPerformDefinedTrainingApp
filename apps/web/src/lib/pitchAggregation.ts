@@ -158,3 +158,82 @@ export function spraySliceAggregate(anglesDeg: number[]): SprayAggregate | null 
   }
   return { pcts: counts.map(c => (c / valid.length) * 100), total: valid.length };
 }
+
+/* ── Field thirds (LF / CF / RF) ──────────────────────────────────────
+   Splits the 90-degree fair field into three EVEN 30-degree wedges and
+   reports, per wedge, the share of batted balls that landed in it and
+   the mean launch angle of those balls.
+
+   Distinct from `spraySliceAggregate` above, which cuts the same field
+   into five 18-degree slices for the All-Time average view and reports
+   only percentages. Both are kept: they answer different questions and
+   are shown in different modes.
+
+   Angle convention matches the chart's `toXY`: negative is LEFT field,
+   positive is RIGHT. Angles are clamped to the foul lines, so a ball
+   recorded slightly foul is attributed to the nearest field third
+   rather than dropped.
+
+   Boundaries: LF [-45, -15), CF [-15, +15], RF (+15, +45]. A ball at
+   exactly -15 reads CF and one at exactly +15 reads RF -- the same
+   half-open convention the 18-degree slices already use.
+
+   `avgLaunchAngle` is null when a wedge has balls but none of them
+   carry a launch angle (e.g. spray coords tapped in the live tracker,
+   which record direction but no vertical angle). That is reported as
+   null rather than 0 so the UI can show a dash instead of implying a
+   flat 0-degree average. */
+export interface SprayFieldThird {
+  key: 'LF' | 'CF' | 'RF';
+  label: string;
+  /** Batted balls in this wedge. */
+  count: number;
+  /** Share of all batted balls, 0-100. */
+  pct: number;
+  /** Mean launch angle of the balls in this wedge that carry one. */
+  avgLaunchAngle: number | null;
+  /** How many balls actually contributed to `avgLaunchAngle`. */
+  launchAngleSample: number;
+}
+
+export interface SprayFieldThirds {
+  thirds: SprayFieldThird[];
+  total: number;
+}
+
+export function sprayFieldThirds(
+  dots: { angle: number; launchAngle?: number }[],
+): SprayFieldThirds | null {
+  const valid = dots.filter(d => Number.isFinite(d.angle));
+  if (valid.length === 0) return null;
+
+  const meta: { key: SprayFieldThird['key']; label: string }[] = [
+    { key: 'LF', label: 'Left Field' },
+    { key: 'CF', label: 'Center Field' },
+    { key: 'RF', label: 'Right Field' },
+  ];
+
+  const buckets: { angle: number; launchAngle?: number }[][] = [[], [], []];
+  for (const d of valid) {
+    const clamped = Math.max(-45, Math.min(45, d.angle));
+    const idx = Math.min(2, Math.floor((clamped + 45) / 30));
+    buckets[idx].push(d);
+  }
+
+  const thirds = meta.map((m, i) => {
+    const bucket = buckets[i];
+    const las = bucket
+      .map(d => d.launchAngle)
+      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    return {
+      key: m.key,
+      label: m.label,
+      count: bucket.length,
+      pct: (bucket.length / valid.length) * 100,
+      avgLaunchAngle: las.length > 0 ? las.reduce((s, n) => s + n, 0) / las.length : null,
+      launchAngleSample: las.length,
+    };
+  });
+
+  return { thirds, total: valid.length };
+}

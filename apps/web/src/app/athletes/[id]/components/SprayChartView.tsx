@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import aStyles from '@/components/assessment/assessment.module.css';
-import { spraySliceAggregate, type SprayAggregate } from '@/lib/pitchAggregation';
+import { spraySliceAggregate, sprayFieldThirds, type SprayAggregate, type SprayFieldThirds } from '@/lib/pitchAggregation';
 
 /* Single source of truth for the surface color of the two horizontal
  * bars (Ball Readout + Filter Bar) under the spray chart. Pinned as
@@ -108,7 +108,7 @@ function rampStroke(t: number) {
 /* ─────────────────────────────────────────────────────────────────────────────
    SprayChart — pure SVG, ported from SwingBattedBallTab
    ─────────────────────────────────────────────────────────────────────────── */
-function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
+function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThirds = null }: {
   dots: SprayDot[];
   selected: number | null;
   onSelect: (idx: number | null) => void;
@@ -117,6 +117,12 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
    *  labeled with the PERCENTAGE of batted balls landing in each — replaces
    *  the individual dots. */
   sliceAgg?: SprayAggregate | null;
+  /** LF / CF / RF field thirds: two divider lines at plus and minus 15
+   *  degrees plus a per-wedge readout of batted-ball share and mean
+   *  launch angle. Overlays the live dots rather than replacing them,
+   *  which is why it is a separate prop from `sliceAgg` (that one is the
+   *  average-mode view and swaps the dots out entirely). */
+  fieldThirds?: SprayFieldThirds | null;
 }) {
   const W = 520, H = 460;
   const cx = W / 2, cy = H - 24;
@@ -305,6 +311,24 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
         );
       })()}
 
+      {/* Field-third dividers at -15 and +15 degrees. Drawn here, with
+          the foul lines, so they sit UNDER the dots; the numeric readout
+          is rendered last so it sits over them. Dashed and thinner than
+          the foul lines so the fair-territory boundary stays dominant. */}
+      {fieldThirds && (() => {
+        const r = maxDist * scale;
+        return [-15, 15].map(deg => {
+          const rad = ((90 - deg) * Math.PI) / 180;
+          return (
+            <line key={`third${deg}`}
+              x1={cx} y1={cy}
+              x2={cx + r * Math.cos(rad)} y2={cy - r * Math.sin(rad)}
+              stroke="var(--spray-gridline-color)" strokeWidth={0.7}
+              strokeDasharray="4 4" opacity={0.75} />
+          );
+        });
+      })()}
+
       {/* Bases */}
       {(() => {
         const baseDist = 90 * scale * 0.72;
@@ -430,6 +454,50 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null }: {
           the pane header (replacing the "Spray Chart" label) as a
           standalone React/CSS strip. The in-SVG version was redundant
           once the header strip carried the same gradient + ticks. */}
+      {/* Field-third readout: batted-ball share + mean launch angle,
+          centred in each wedge at ~72% field depth. Rendered LAST so it
+          reads over the dots, each on a rounded backing plate so the
+          numbers stay legible against a dense spray. Hidden in average
+          mode, where the five-slice overlay already owns the field. */}
+      {fieldThirds && !sliceAgg && (() => {
+        const r = maxDist * scale;
+        const pt = (a: number, rr: number): [number, number] => {
+          const rad = ((90 - a) * Math.PI) / 180;
+          return [cx + rr * Math.cos(rad), cy - rr * Math.sin(rad)];
+        };
+        /* Wedge centres: -30 (LF), 0 (CF), +30 (RF). */
+        const centres = [-30, 0, 30];
+        return fieldThirds.thirds.map((t, i) => {
+          const [x, y] = pt(centres[i], r * 0.72);
+          const la = t.avgLaunchAngle;
+          return (
+            <g key={t.key} pointerEvents="none">
+              <rect x={x - 26} y={y - 17} width={52} height={34} rx={7}
+                fill="rgba(12,16,23,0.66)" stroke="var(--spray-gridline-color)"
+                strokeWidth={0.6} />
+              <text x={x} y={y - 5} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.97)" fontSize={14} fontWeight={700}
+                fontFamily="'Satoshi', 'DM Sans', sans-serif" letterSpacing="0.02em">
+                {Math.round(t.pct)}%
+              </text>
+              {/* Average launch angle for the wedge. The " LA" suffix is
+                  deliberately gone -- the value reads as a bare number +
+                  degree symbol, with a native <title> tooltip naming it on
+                  hover. `pointerEvents` is re-enabled on THIS element only:
+                  the wrapping <g> stays `none` so the plates never swallow
+                  a click meant for a dot underneath them. */}
+              <text x={x} y={y + 8} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.72)" fontSize={9} fontWeight={600}
+                fontFamily="'DM Mono', ui-monospace, monospace" letterSpacing="0.04em"
+                pointerEvents="auto" style={{ cursor: 'help' }}>
+                <title>Average Launch Angle</title>
+                {la === null ? String.fromCharCode(8212) : `${la.toFixed(1)}\u00b0`}
+              </text>
+            </g>
+          );
+        });
+      })()}
+
     </svg>
   );
 }
@@ -1072,6 +1140,10 @@ export function SprayChartView({
             onSelect={setSelectedDot}
             axis={COLOR_AXES[colorBy]}
             sliceAgg={sliceAggregate ? spraySliceAggregate(filteredDots.map(d => d.angle)) : null}
+            /* LF / CF / RF thirds computed from the SAME filtered dot set the
+               chart draws, so the percentages always describe exactly what is
+               on screen rather than the unfiltered upload. */
+            fieldThirds={sprayFieldThirds(filteredDots)}
           />
         ) : sprayDots.length > 0 ? (
           <SprayEmpty icon="🎯" title="No batted balls match the current filters" hint="Adjust or reset filters below" />

@@ -942,6 +942,47 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     return out;
   }, [hittraxVelos, hittraxLAs, hittraxDists]);
 
+  /* Line Drive % — share of balls in play struck between 5 and 30 degrees
+     of launch angle, per coach spec.
+
+     Deliberately NOT the existing `line_drive_pct`, which is a different
+     measurement that happens to share a name: that one counts at-bats the
+     coach TAGGED as LINE_DRIVE in the live tracker, over tagged batted-ball
+     outcomes, and still drives the Swing Decision Results row. This one is
+     computed from per-ball launch angles off the report's own uploads, so
+     the two can legitimately disagree and both be right.
+
+     Source precedence matches the rest of the batted-ball reads: HitTrax
+     first (the dedicated batted-ball system), Full Swing as fallback. The
+     two are never pooled — that would double-count the same swings when a
+     report carries both.
+
+     Null (section renders "—") when the active report has no launch-angle
+     readings at all, rather than showing a misleading 0%. */
+  /* Line Drive % helper: share of batted balls struck between 5 and 30
+     degrees of launch angle, per coach spec.
+
+     Computed PER VENDOR rather than pooled, so the HitTrax bubble reports
+     HitTrax's own line-drive rate and the Full Swing bubble reports its
+     own. Pooling them would double-count the same swings whenever a
+     report carries both uploads, and would attribute one system's
+     numbers to the other's header.
+
+     Deliberately NOT the existing `line_drive_pct`, a different
+     measurement sharing the name: that one counts at-bats the coach
+     TAGGED as LINE_DRIVE in the live tracker and still drives the Swing
+     Decision Results row. The two can legitimately disagree.
+
+     Null (column omitted) when the source has no launch angles at all,
+     rather than a misleading 0%. */
+  const ldPctFrom = (las: number[]): number | null => {
+    const inPlay = las.filter(la => Number.isFinite(la));
+    if (inPlay.length === 0) return null;
+    return round((inPlay.filter(la => la >= 5 && la <= 30).length / inPlay.length) * 100);
+  };
+  const hittraxLdPct   = useMemo(() => ldPctFrom(hittraxLAs),   [hittraxLAs]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const fullswingLdPct = useMemo(() => ldPctFrom(fullswingLAs), [fullswingLAs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* Full Swing-only session stats — used to OVERRIDE topMetricsWithMiss
      for the Full Swing card so HitTrax-source data never appears there. */
   const fullswingOverride: Record<string, { value: number; unit: string }> = useMemo(() => {
@@ -1129,7 +1170,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           };
           return (
             <VendorMetricTable
-              items={QOC_KEYS.map(k => {
+              items={[...QOC_KEYS.map(k => {
                 const m = fsResolve(k);
                 /* Prefer SHORT_LABELS so the Full Swing column
                    headers read with the SAME label text the
@@ -1149,7 +1190,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   unit: f.unit,
                   color: grade !== null ? scoreColor(grade) : undefined,
                 };
-              })}
+              }), ...(fullswingLdPct !== null ? [{ label: 'LD %', display: fullswingLdPct.toFixed(1), unit: '%' }] : [])]}
             />
           );
         })()}
@@ -1170,38 +1211,25 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         />
 
         {(() => {
-          /* Per the Blast Motion CSV spec, this section surfaces
-             every Swing metric that has data — keys with no value
-             are skipped. The items are then laid out in two EXPLICIT,
-             coach-specified rows (order matters, so these are ordered
-             arrays rather than a Set):
-               Row 1: Max Bat Speed, Avg Bat Speed, Attack Angle,
-                      Vert Bat Angle, Time to Contact,
-                      Rotational Acceleration, Hand Speed
-               Row 2: Early Connection, Connection at Impact,
-                      Connection Score, Plane Score, Rotation Score
-             The Swing GradeRow chip strip above renders a fixed list
-             of six chips; this bubble is the comprehensive view. */
-          const BLAST_ROW1_ORDER: string[] = [
+          /* Blast Motion display set, per coach spec. This is a curated
+             list, NOT everything Blast emits: the composite scores
+             (Plane / Connection / Rotation Score), Power, On-Plane
+             Efficiency and Connection at Impact are deliberately not
+             shown here. Every entry below is a raw sensor reading.
+
+             Keys with no value are skipped, so a report missing a
+             reading simply renders one fewer column rather than a
+             row of dashes. */
+          const BLAST_ORDER: string[] = [
             'max_bat_speed',
             'avg_bat_speed',
-            'attack_angle',
-            'plane_angle',          // labelled "Vert Bat Angle"
-            'time_to_contact',
-            'rotational_accel_g',   // labelled "Rotational Accel"
             'peak_hand_speed',      // labelled "Hand Speed"
-          ];
-          const BLAST_ROW2_ORDER: string[] = [
+            'time_to_contact',
+            'rotational_accel_g',
             'early_connection',
-            'connection_at_impact',
-            'connection_score',
-            /* Both of these render as "Plane Score" — `on_plane_efficiency`
-               is the Blast CSV on-plane % (what actually carries data today)
-               and `plane_score` is the composite-score key. They sit adjacent
-               so whichever one has a value lands in the same slot. */
-            'on_plane_efficiency',
-            'plane_score',
-            'rotation_score',
+            'plane_angle',          // labelled "Vert Bat Angle"
+            'attack_angle',
+            'on_plane_efficiency',  // On-Plane Efficiency; labelled "Plane Score"
           ];
           const buildItem = (k: typeof SWING_METRIC_KEYS[number]): HittingMetricCell => {
             const m = topMetricsWithMiss[k];
@@ -1223,30 +1251,11 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
               color: grade !== null ? scoreColor(grade) : undefined,
             };
           };
-          const populated = SWING_METRIC_KEYS.filter(k => !!topMetricsWithMiss[k]);
-          const inRow = (order: string[]) =>
-            order.filter(k => populated.includes(k as typeof SWING_METRIC_KEYS[number]));
-          const row1Keys = inRow(BLAST_ROW1_ORDER);
-          /* Anything with data that the coach's two rows don't name (today
-             that's only Power (Kwh)) still renders — appended to the end of
-             row 2 — so adding a Blast key upstream can never make it vanish
-             silently from this bubble. */
-          const leftovers = populated.filter(
-            k => !BLAST_ROW1_ORDER.includes(k) && !BLAST_ROW2_ORDER.includes(k),
-          );
-          const row2Keys = [...inRow(BLAST_ROW2_ORDER), ...leftovers];
-          const row1Items = row1Keys.map(k => buildItem(k as typeof SWING_METRIC_KEYS[number]));
-          const row2Items = row2Keys.map(k => buildItem(k as typeof SWING_METRIC_KEYS[number]));
-          const combinedItems = [...row1Items, ...row2Items];
-          /* If row 2 is empty (no spec-row-2 keys have data) just
-             render the single row 1 — `rows` only kicks in when we
-             actually have row-2 content. */
-          return (
-            <VendorMetricTable
-              items={combinedItems}
-              rows={row2Items.length > 0 ? [row1Items, row2Items] : undefined}
-            />
-          );
+          const items = BLAST_ORDER
+            .filter(k => !!topMetricsWithMiss[k])
+            .map(k => buildItem(k as typeof SWING_METRIC_KEYS[number]));
+
+          return <VendorMetricTable items={items} />;
         })()}
         </div>
         ); })()}
@@ -1280,7 +1289,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           };
           return (
             <VendorMetricTable
-              items={HITTRAX_KEYS.map(k => {
+              items={[...HITTRAX_KEYS.map(k => {
                 const m = hitTraxValues[k];
                 /* Pull labels from SHORT_LABELS so the HitTrax column
                    headers read with the SAME label text the
@@ -1305,7 +1314,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   unit: f.unit,
                   color: grade !== null ? scoreColor(grade) : undefined,
                 };
-              })}
+              }), ...(hittraxLdPct !== null ? [{ label: 'LD %', display: hittraxLdPct.toFixed(1), unit: '%' }] : [])]}
             />
           );
         })()}
