@@ -937,7 +937,12 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
       out.launch_angle = { value: round(mean(hittraxLAs)), unit: 'deg' };
     }
     if (hittraxDists.length > 0) {
+      /* Both readings come off the same per-ball `distance` metric rows:
+         `distance` is the session mean, `max_distance` the single best
+         ball. `max_distance` is display-only — there is no grading scale
+         for it (unlike max_exit_velo), so it renders uncoloured. */
       out.distance = { value: round(mean(hittraxDists)), unit: 'ft' };
+      out.max_distance = { value: round(Math.max(...hittraxDists)), unit: 'ft' };
     }
     return out;
   }, [hittraxVelos, hittraxLAs, hittraxDists]);
@@ -1023,6 +1028,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     }
     if (fullswingDists.length > 0) {
       out.distance = { value: round(mean(fullswingDists)), unit: 'ft' };
+      out.max_distance = { value: round(Math.max(...fullswingDists)), unit: 'ft' };
     }
     return out;
   }, [fullswingVelos, fullswingLAs, fullswingDists, activeManualBatted, manualFullSwingOn]);
@@ -1148,7 +1154,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
               case 'overall_whiff_pct':
               case 'overall_barrel_pct':  return { display: value.toFixed(1), unit: '%' };
               case 'launch_angle':        return { display: value.toFixed(1), unit: 'deg' };
-              case 'distance':            return { display: value.toFixed(0), unit: 'ft' };
+              case 'distance':
+              case 'max_distance':        return { display: value.toFixed(0), unit: 'ft' };
               default:                    return { display: value.toFixed(1) };
             }
           };
@@ -1161,6 +1168,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
              only Full Swing emits), fall through to topMetricsWithMiss. */
           const FULLSWING_ONLY_KEYS = new Set([
             'avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance',
+            'max_distance',
           ]);
           const fsResolve = (k: string): { value: number; unit: string } | undefined => {
             if (fullswingOverride[k] !== undefined) return fullswingOverride[k];
@@ -1170,14 +1178,14 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           };
           return (
             <VendorMetricTable
-              items={[...QOC_KEYS.map(k => {
+              items={[...FULLSWING_KEYS.map(k => {
                 const m = fsResolve(k);
                 /* Prefer SHORT_LABELS so the Full Swing column
                    headers read with the SAME label text the
                    Quality-of-Contact GradeRow uses on the Hitting
                    Snapshot (and so the two-line balanced splitter
                    produces the same line breaks across both views). */
-                const label = SHORT_LABELS[k] || METRIC_LABELS[k] || k;
+                const label = VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
                 if (!m) return { label, display: '—' };
                 const grade = metricToGrade(
                   { [k]: { value: m.value, unit: m.unit, recordedAt: '' } } as any,
@@ -1283,7 +1291,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
               case 'avg_exit_velo':
               case 'max_exit_velo':  return { display: value.toFixed(1), unit: 'mph' };
               case 'launch_angle':   return { display: value.toFixed(1), unit: 'deg' };
-              case 'distance':       return { display: value.toFixed(0), unit: 'ft' };
+              case 'distance':
+              case 'max_distance':   return { display: value.toFixed(0), unit: 'ft' };
               default:               return { display: value.toFixed(1) };
             }
           };
@@ -1299,7 +1308,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                    shows session means, but the user spec now wants
                    the Inputs sections to share label text + line
                    breaks with the Snapshot row above. */
-                const label = SHORT_LABELS[k] || METRIC_LABELS[k] || k;
+                const label = VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
                 if (!m) return { label, display: '—' };
                 /* Synthetic single-entry topMetrics so metricToGrade
                    sees the same averaged value the table displays. */
@@ -1347,8 +1356,29 @@ const QOC_KEYS = [
    the HitTrax CSV parser (and shared with whatever Full Swing happens
    to populate). Rendered in their own section under Blast Motion. */
 const HITTRAX_KEYS = [
-  'avg_exit_velo', 'max_exit_velo', 'distance', 'launch_angle',
+  'max_exit_velo', 'avg_exit_velo', 'max_distance', 'distance', 'launch_angle',
 ] as const;
+
+/* Full Swing shows the same batted-ball readings as HitTrax plus Squared
+   Up %, which only Full Swing emits.
+
+   Deliberately NOT QOC_KEYS: that list still drives the Quality of
+   Contact chip strip on the Hitting Snapshot (and its grading), so
+   trimming it here would have silently reshaped the Snapshot too. */
+const FULLSWING_KEYS = [
+  ...HITTRAX_KEYS, 'squared_up_pct',
+] as const;
+
+/* Column labels for the two vendor Inputs tables only.
+   `launch_angle` and `distance` are session MEANS here, so they read
+   "Avg ..." to sit unambiguously beside the Max columns. The shared
+   SHORT_LABELS entries stay as they are — the Snapshot chips and the
+   PDF still use those. */
+const VENDOR_TABLE_LABELS: Record<string, string> = {
+  max_distance: 'Max Distance',
+  distance:     'Avg Distance',
+  launch_angle: 'Avg Launch Angle',
+};
 
 const DECISION_KEYS = [
   'fb_barrel_pct', 'os_barrel_pct', 'overall_barrel_pct',
