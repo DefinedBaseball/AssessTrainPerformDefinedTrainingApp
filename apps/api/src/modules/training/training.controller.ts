@@ -148,8 +148,19 @@ export class TrainingController {
      * 1080p iPhone clip produces. Anything larger is almost certainly a
      * mis-clicked file. */
     limits: { fileSize: 100 * 1024 * 1024 },
+    /* Compare the BASE type so a legitimately parameterised header
+     * (e.g. `video/mp4; charset=binary`) is not rejected outright.
+     *
+     * NOTE this does NOT rescue a MediaRecorder mime like
+     * `video/mp4;codecs=avc1,mp4a.40.2`: the unquoted comma makes that
+     * header unparseable, so busboy discards it and reports the
+     * multipart default of `text/plain` -- verified by logging
+     * `file.mimetype` against a live request. Clients must send a bare
+     * `video/...` type; the drill recorder strips codec parameters
+     * before upload for exactly this reason. */
     fileFilter: (_req, file, cb) => {
-      if (!file.mimetype || !file.mimetype.startsWith('video/')) {
+      const base = (file.mimetype || '').split(';')[0].trim().toLowerCase();
+      if (!base.startsWith('video/')) {
         return cb(new BadRequestException('Only video files are allowed'), false);
       }
       cb(null, true);

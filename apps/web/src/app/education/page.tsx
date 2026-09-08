@@ -2,12 +2,14 @@
 
 import { rem } from '@/lib/rem';
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { EduClass, Drill, MlbPlayer, MlbVideo } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
+import DrillVideoRecorder from './DrillVideoRecorder';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 
 /* Unified app-wide section identity palette:
@@ -76,7 +78,8 @@ function videoCategoriesForPositions(positions?: string | null): string[] {
 type Page = 'landing' | 'classes' | 'classDetail' | 'drills' | 'mlb' | 'player';
 
 export default function EducationPage() {
-  const { user, isCoach } = useAuth();
+  const { user, isCoach, isLoading } = useAuth();
+  const router = useRouter();
   const [page, setPage] = useState<Page>('landing');
   const [search, setSearch] = useState('');
 
@@ -146,7 +149,17 @@ export default function EducationPage() {
     }
   };
 
-  if (!user) return null;
+  /* Signed-out visitors get sent to /login rather than a blank page.
+     `isLoading` is what makes this safe: `user` is undefined during the
+     initial auth check too, so redirecting on `!user` alone would bounce
+     a signed-in coach to the login screen on every hard refresh. Same
+     shape as the guard on /athletes. */
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) router.replace('/login');
+  }, [isLoading, user, router]);
+
+  if (isLoading || !user) return null;
 
   return (
     <div className={styles.page}>
@@ -774,11 +787,19 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
   const [category, setCategory] = useState(drill.category);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  /* When true the recorder replaces the form. Kept here rather than
+     inside the recorder so the modal footer swaps out with it. */
+  const [recording, setRecording] = useState(false);
 
   const cats = DRILL_CATS[sp] || [];
 
-  const save = async () => {
+  /* `clip` lets the recorder commit the take it just produced without
+     waiting a render for `videoFile` state to land — Save fires
+     straight from the recorder's own button. Falls back to whatever
+     file was picked through the normal file input. */
+  const save = async (clip?: File) => {
     if (!name.trim()) return;
+    const file = clip ?? videoFile;
     setSaving(true);
     try {
       let result = await api.updateDrill(drill.id, {
@@ -787,9 +808,9 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
         category,
         description: desc || undefined,
       });
-      // If a new video was chosen, upload it
-      if (videoFile) {
-        result = await api.uploadDrillVideo(result.id, videoFile);
+      // If a new video was chosen or recorded, upload it
+      if (file) {
+        result = await api.uploadDrillVideo(result.id, file);
       }
       onSaved(result);
     } catch (err) {
@@ -801,7 +822,16 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
-        <div className={styles.modalHeader}><span className={styles.modalTitle}>Edit Drill</span><button className={styles.modalClose} onClick={onClose}>×</button></div>
+        <div className={styles.modalHeader}><span className={styles.modalTitle}>{recording ? 'Record Drill Video' : 'Edit Drill'}</span><button className={styles.modalClose} onClick={onClose}>×</button></div>
+        {recording ? (
+          <DrillVideoRecorder
+            onSave={(file) => { setVideoFile(file); setRecording(false); save(file); }}
+            /* Discard exits the whole drill edit, per spec — not just
+               the recorder. */
+            onDiscard={() => { setRecording(false); onClose(); }}
+          />
+        ) : (
+        <>
         <div className={styles.modalBody}>
           <div className={styles.fieldRow}>
             <div className={styles.field}><label className={styles.fieldLabel}>Sport Tab</label><select className={styles.fieldInput} value={sp} onChange={e => { setSp(e.target.value); setCategory((DRILL_CATS[e.target.value] || [])[0]?.id || 'Drills'); }}>{SPORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
@@ -814,17 +844,24 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
             {drill.videoUrl && !videoFile && (
               <span className={styles.fileUploadMeta}>Current video attached ✓</span>
             )}
-            <label className={styles.fileUpload}>
-              <input type="file" accept="video/*" onChange={e => setVideoFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
-              <span className={styles.fileUploadBtn}>{videoFile ? videoFile.name : 'Choose New Video File...'}</span>
-            </label>
+            <div className={styles.videoSourceRow}>
+              <label className={styles.fileUpload}>
+                <input type="file" accept="video/*" onChange={e => setVideoFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+                <span className={styles.fileUploadBtn}>{videoFile ? videoFile.name : 'Choose New Video File...'}</span>
+              </label>
+              <button type="button" className={styles.fileUploadBtn} onClick={() => setRecording(true)}>
+                Take Video
+              </button>
+            </div>
             {videoFile && <span className={styles.fileUploadMeta}>{(videoFile.size / (1024 * 1024)).toFixed(1)} MB</span>}
           </div>
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
-          <button className={styles.btnSave} onClick={save} disabled={saving || !name.trim()}>{saving ? (videoFile ? 'Uploading...' : 'Saving...') : 'Save Changes'}</button>
+          <button className={styles.btnSave} onClick={() => save()} disabled={saving || !name.trim()}>{saving ? (videoFile ? 'Uploading...' : 'Saving...') : 'Save Changes'}</button>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

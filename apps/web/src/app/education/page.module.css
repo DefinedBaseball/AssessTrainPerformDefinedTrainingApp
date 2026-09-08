@@ -531,3 +531,51 @@
   background-clip: text;
   color: transparent;
 }
+
+/* ── Drill Video Recorder ──
+   Stage is a fixed 16:9 box so the modal doesn't resize when the
+   viewfinder swaps to the recorded clip on review. */
+.recorderStage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.recorderVideo { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.recorderBadge {
+  position: absolute; top: 10px; left: 10px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 9px;
+  background: rgba(0,0,0,.62);
+  border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  color: #fff;
+}
+.recorderDot { width: 8px; height: 8px; border-radius: 50%; background: #ff3b30; animation: recorderPulse 1.2s ease-in-out infinite; }
+@keyframes recorderPulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.recorderSize { color: rgba(255,255,255,.6); font-weight: 600; letter-spacing: 0; }
+.recorderError {
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+/* File picker and Take Video sit side by side; the picker takes the
+   remaining width so long filenames stay readable. */
+.videoSourceRow { display: flex; gap: 8px; align-items: stretch; }
+.videoSourceRow .fileUpload { flex: 1; min-width: 0; }
+.videoSourceRow button { flex-shrink: 0; cursor: pointer; font-family: inherit; }
+/* Placeholder shown when a chosen camera can't open — the stage stays
+   in place so the picker beneath it remains usable. */
+.recorderNoVideo {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  color: rgba(255,255,255,.42);
+}
