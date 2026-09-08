@@ -866,6 +866,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     dirty, saving, saveOk, saveError, saveManual,
   } = shared;
   const latestHitting = useMemo(() => getLatestReport(reports, HITTING_REPORT_TYPES), [reports]);
+  /* Drives the abbreviated vendor-table labels below. */
+  const isMobile = useIsMobile();
 
   /* HitTrax + Full Swing read from the same metric_type names but are
      distinguished by the Metric.source field at the database level
@@ -1185,7 +1187,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                    Quality-of-Contact GradeRow uses on the Hitting
                    Snapshot (and so the two-line balanced splitter
                    produces the same line breaks across both views). */
-                const label = VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
+                const label = (isMobile ? PHONE_TABLE_LABELS[k] : undefined)
+                  || VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
                 if (!m) return { label, display: '—' };
                 const grade = metricToGrade(
                   { [k]: { value: m.value, unit: m.unit, recordedAt: '' } } as any,
@@ -1198,7 +1201,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   unit: f.unit,
                   color: grade !== null ? scoreColor(grade) : undefined,
                 };
-              }), ...(fullswingLdPct !== null ? [{ label: 'LD %', display: fullswingLdPct.toFixed(1), unit: '%' }] : [])]}
+              }), ...(fullswingLdPct !== null ? [{ label: isMobile ? 'LD%' : 'LD %', display: fullswingLdPct.toFixed(1), unit: '%' }] : [])]}
             />
           );
         })()}
@@ -1242,7 +1245,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           const buildItem = (k: typeof SWING_METRIC_KEYS[number]): HittingMetricCell => {
             const m = topMetricsWithMiss[k];
             const grade = metricGrades[k];
-            const label = SHORT_LABELS[k] || SCORE_LABEL_OVERRIDES[k] || METRIC_LABELS[k] || k;
+            const label = (isMobile ? PHONE_TABLE_LABELS[k] : undefined)
+              || SHORT_LABELS[k] || SCORE_LABEL_OVERRIDES[k] || METRIC_LABELS[k] || k;
             if (!m) return { label, display: '—' };
             const display = k === 'time_to_contact'
               ? m.value.toFixed(2)
@@ -1308,7 +1312,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                    shows session means, but the user spec now wants
                    the Inputs sections to share label text + line
                    breaks with the Snapshot row above. */
-                const label = VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
+                const label = (isMobile ? PHONE_TABLE_LABELS[k] : undefined)
+                  || VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
                 if (!m) return { label, display: '—' };
                 /* Synthetic single-entry topMetrics so metricToGrade
                    sees the same averaged value the table displays. */
@@ -1323,7 +1328,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   unit: f.unit,
                   color: grade !== null ? scoreColor(grade) : undefined,
                 };
-              }), ...(hittraxLdPct !== null ? [{ label: 'LD %', display: hittraxLdPct.toFixed(1), unit: '%' }] : [])]}
+              }), ...(hittraxLdPct !== null ? [{ label: isMobile ? 'LD%' : 'LD %', display: hittraxLdPct.toFixed(1), unit: '%' }] : [])]}
             />
           );
         })()}
@@ -1374,6 +1379,38 @@ const FULLSWING_KEYS = [
    "Avg ..." to sit unambiguously beside the Max columns. The shared
    SHORT_LABELS entries stay as they are — the Snapshot chips and the
    PDF still use those. */
+/* Phone-width labels for the three vendor Inputs tables, per coach spec.
+
+   These rows put six or seven columns across a 375px screen — roughly
+   40px each — and the fluid type scale drops the header to ~5px, so the
+   full names both wrap to two lines and shrink past readability. The
+   abbreviations buy back the width.
+
+   Keys absent here keep their desktop label at every width (Hand Speed,
+   Vert Bat Angle, Attack Angle, Plane Score were left as-is by the
+   coach). Desktop is untouched — only the `isMobile` branch reads this.
+
+   Note `squared_up_pct` -> "Barrel %" is a rename, not an abbreviation,
+   and it collides in name (not in key) with `overall_barrel_pct`, which
+   is a DIFFERENT metric labelled "Barrel %" in the Swing Decision rows.
+   They never appear in the same table, so nothing is ambiguous on
+   screen, but the two are not the same number. */
+const PHONE_TABLE_LABELS: Record<string, string> = {
+  // Full Swing + HitTrax
+  max_exit_velo:  'Max EV',
+  avg_exit_velo:  'Avg EV',
+  max_distance:   'Max Dist',
+  distance:       'Avg Dist',
+  launch_angle:   'Avg LA',
+  squared_up_pct: 'Barrel %',
+  // Blast Motion
+  max_bat_speed:      'Max BS',
+  avg_bat_speed:      'Avg BS',
+  time_to_contact:    'TTC',
+  rotational_accel_g: 'Rot Accel',
+  early_connection:   'Early Con',
+};
+
 const VENDOR_TABLE_LABELS: Record<string, string> = {
   max_distance: 'Max Distance',
   distance:     'Avg Distance',
