@@ -503,13 +503,28 @@ function VendorMetricRowGroup({ items, colCount, last }: {
       }}>
         {items.map((it, i) => (
           <span key={`${it.label}-v-${i}`} style={{ ...cellStyle, color: it.color ?? cellStyle.color }}>
-            {it.display}
-            {it.unit && (
-              <span style={{
-                fontSize: rem(7.65), fontWeight: 500,
-                color: 'var(--text-muted)', marginLeft: 3,
-              }}>{it.unit}</span>
-            )}
+            {/* The NUMBER is what centres under the column label — not the
+                number-plus-unit string. Centring the whole "69.2 mph" reads
+                as misaligned, because the unit renders smaller and muted, so
+                the eye centres on the digits while the box centres on the
+                pair, pushing the digits visibly left.
+
+                The unit is a zero-width flex item: it contributes nothing to
+                the row's width and simply overflows to the right of the last
+                digit, leaving the number centred. `alignItems: 'baseline'`
+                keeps it sitting on the number's baseline exactly as the old
+                inline span did, and there is no margin, so it butts flush
+                against the number per spec. */}
+            <span style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+              {it.display}
+              {it.unit && (
+                <span style={{
+                  flex: '0 0 0px', width: 0,
+                  fontSize: rem(7.65), fontWeight: 500,
+                  color: 'var(--text-muted)', whiteSpace: 'nowrap',
+                }}>{it.unit}</span>
+              )}
+            </span>
           </span>
         ))}
       </div>
