@@ -137,12 +137,13 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
      which left the arc labels crowding the edge.
 
      Split desktop/phone per coach-spec: the web app pulls back a further
-     40% (0.9 -> 0.54) because the chart now runs full-width with the grade
-     stack gone, so it had far more room than the drawing needed. Phones
-     keep 0.9 — the chart is already narrow there and zooming out again
-     would shrink the dots below a readable size. */
+     28% (0.9 -> 0.648) because the chart now runs full-width with the grade
+     stack gone, so it had far more room than the drawing needed. That was
+     0.54 originally; bumped 20% so the drawing fills its bubble better.
+     Phones keep 0.9 — the chart is already narrow there and zooming out
+     again would shrink the dots below a readable size. */
   const isMobile = useIsMobile();
-  const ZOOM = isMobile ? 0.9 : 0.9 * 0.6;
+  const ZOOM = isMobile ? 0.9 : 0.9 * 0.72;
   const scale = ((H - 70) / maxDist) * ZOOM;
   const toXY = (angleDeg: number, dist: number): [number, number] => {
     const rad = ((90 - angleDeg) * Math.PI) / 180;
