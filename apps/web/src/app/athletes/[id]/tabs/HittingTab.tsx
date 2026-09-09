@@ -8,6 +8,7 @@ import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import { SprayChartView } from '../components/SprayChartView';
+import { StrikeZoneDamageView } from '../components/StrikeZoneDamageView';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
 import { generateHittingPdf } from '@/lib/pdf';
 import {
@@ -23,10 +24,6 @@ import {
 } from '../helpers';
 import * as api from '@/lib/api';
 
-/** Portal target for the spray chart's Metric Readout. Rendered at the top
- *  of the Hitting Snapshot's right-hand column so the readout sits above
- *  Coach Reviews, level with the top of the chart. */
-const SPRAY_READOUT_ID = 'pd-spray-metric-readout';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 
@@ -317,6 +314,15 @@ export function HittingTab(props: TabProps) {
     [],
   );
   const aggregating = !!aggInfo && aggInfo.mode !== 'single';
+  /* The Strike Zone map self-reports when the active report carries no
+     `strike_zone` metrics (every HitTrax CSV parsed before that column was
+     read). When empty its bubble collapses and the spray chart takes the
+     full snapshot width, rather than leaving a framed hole beside it. */
+  const [zoneEmpty, setZoneEmpty] = useState(false);
+  /* Second column is live only when there is a Strike Zone map to put in it:
+     the Swing sub-tab, with zone data present. Governs BOTH the column count
+     and the column's visibility so the two can never disagree. */
+  const showStrikeZone = subTab === 'swing' && !zoneEmpty;
   const effectiveSwingUploadIds = useMemo(() => {
     if (!aggregating || !aggInfo) return swingUploadIds;
     const set = new Set<string>();
@@ -1211,9 +1217,15 @@ export function HittingTab(props: TabProps) {
             (`snapshotSplit` collapses to one column under 768px, so phones
             keep stacking the readout under the chart.) */}
         <div
-          className={styles.snapshotSplit}
+          /* Two columns ONLY when the Strike Zone map is actually there to
+             fill the second one. `styles.snapshotSplit` hard-codes
+             `repeat(2, 1fr)`, so leaving it on while the right column is
+             absent would strand the spray chart at half width with a hole
+             beside it. Dropping the class lets the inline `1fr` win. */
+          className={showStrikeZone ? styles.snapshotSplit : undefined}
           style={{
           display: 'grid',
+          gridTemplateColumns: showStrikeZone ? undefined : '1fr',
           /* Two-column split on desktop: Spray Chart (left) + Grade
              Stack / Coach Reviews (right). `alignItems: stretch`
              forces both columns to the same height (= max natural);
@@ -1326,204 +1338,197 @@ export function HittingTab(props: TabProps) {
                 compact
                 onDataRangeChange={setSprayDateLabel}
                 sliceAggregate={aggInfo?.mode === 'average'}
-                /* Always lift the readout into the right column. The host
-                   div is rendered unconditionally below, and the column now
-                   holds the readout whether or not Coach Reviews has
-                   anything to show, so the readout's placement no longer
-                   depends on the report having attached reviews. On phones
-                   the grid is a single column, so the portal simply lands
-                   the readout under the chart exactly as before. */
-                readoutTargetId={SPRAY_READOUT_ID}
+                /* No `readoutTargetId` — the EV / LA / BS / DIST / SQ%
+                   readout renders in its default inline position INSIDE the
+                   chart bubble, per coach spec. The right-hand column now
+                   belongs to the Strike Zone map. */
               />
             )}
           </div>
-          {/* Right column — HittingGradeStack at top + Coach
-              Reviews bubble filling the remaining space below.
-              `flex column` + `gap: 14` matches the spacing the
-              original layout used between the grade stack and the
-              video panel. With the parent grid's `alignItems:
-              stretch`, this column shares its height with the
-              left column (spray chart), which is how the Coach
-              Reviews bubble's bottom edge ends up flush with the
-              chart's bottom edge — the bubble's `flex: 1` claims
-              whatever vertical space is left after HittingGradeStack
-              renders. */}
+          {/* Right column — the Strike Zone damage map, sharing the row
+              with the spray chart: where the pitch was, beside where the
+              ball went. `snapshotSplit` collapses to one column under
+              768px, so on phones the map simply stacks under the chart. */}
+          {subTab === 'swing' && (
           <div style={{
             minWidth: 0,
-            display: 'flex',
+            /* Hidden, NOT unmounted: the view has to stay mounted to keep
+               re-reporting `zoneEmpty` when the coach switches reports.
+               Unmounting would freeze the flag at its last value and a
+               report that does carry zone data would never reappear. */
+            display: zoneEmpty ? 'none' : 'flex',
             flexDirection: 'column',
             gap: 14,
           }}>
-            {/* HittingGradeStack (Swing / Quality of Contact / Mechanical
-                Grades) removed per coach-spec — those readings now live in
-                the Full Swing / Blast Motion / HitTrax bubbles above the
-                spray chart, and Coach Grades keeps its own bubble below, so
-                the stack was a third restatement of the same numbers.
+            <div style={{
+              minWidth: 0,
+              ...movementPlotBubbleStyle,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              padding: 11,
+              /* Fill the column so the map's bubble bottom lands level with
+                 the spray chart's, the way Coach Reviews used to. */
+              flex: 1,
+              minHeight: 0,
+            }}>
+              <SectionHeader title="Strike Zone" compact align="left" />
+              <StrikeZoneDamageView
+                playerId={player.id}
+                refreshKey={refreshKey}
+                reportUploadIds={effectiveSwingUploadIds}
+                onEmptyChange={setZoneEmpty}
+              />
+            </div>
+          </div>
+          )}
+        </div>
 
-                The component itself is intentionally left in SwingTab: it
-                still owns the GradeRow/chip rendering that the Coach Grades
-                bubble and the PDF capture path reuse. */}
-
-            {/* Metric Readout host — SprayChartView portals its EV / LA /
-                BS / DIST / SQ% bubble in here (see `readoutTargetId`) so
-                the right column now OPENS level with the top of the spray
-                chart instead of leading with Coach Reviews. Coach Reviews
-                keeps its `flex: 1` below, so it simply gives up the
-                readout's height + gap and still ends flush with the
-                chart's bottom edge. */}
-            <div id={SPRAY_READOUT_ID} />
-
-            {/* Coach Reviews bubble — fills the remaining column
-                height so its bottom is locked to the spray chart's
-                bottom by `alignItems: stretch` on the parent grid.
-                The "smaller bubble" feel from earlier coach-spec
-                edits now lives one level deeper: the inner video
-                grid has its own `maxHeight` + `overflow-y: auto`,
-                so the visible video content area stays compact
-                even when the bubble's chrome stretches taller. */}
-            {(() => {
-              if (!activeHittingReport || attachedReviewIds.length === 0) return null;
-              const attachedVideos = playerVideos.filter((v) => attachedReviewIds.includes(v.id));
-              if (attachedVideos.length === 0) return null;
-              return (
+        {/* Coach Reviews — moved OUT of the snapshot's right column and
+            under BOTH the spray chart and the Strike Zone map, so the
+            attached clips run the full snapshot width instead of being
+            squeezed into a side rail. */}
+          {(() => {
+            if (!activeHittingReport || attachedReviewIds.length === 0) return null;
+            const attachedVideos = playerVideos.filter((v) => attachedReviewIds.includes(v.id));
+            if (attachedVideos.length === 0) return null;
+            return (
+              <div style={{
+                minWidth: 0,
+                ...movementPlotBubbleStyle,
+                display: 'flex',
+                flexDirection: 'column',
+                /* `gap: 10` keeps the white "Coach Reviews" header
+                   (matching Coach Diagnosis above) visually attached
+                   to the video grid underneath without crowding. */
+                gap: 10,
+                padding: 11,
+                /* Stretch to fill the remaining vertical space in
+                   the right column — this is what locks the
+                   bubble's bottom edge onto the spray chart's
+                   bottom edge via the parent grid's stretch. */
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden',
+              }}>
+                {/* Title row — mirrors the GradeRow header pattern
+                    from HittingGradeStack (Swing / Quality of
+                    Contact / Coach Diagnosis) so this bubble
+                    reads as a fourth sibling row.
+                    Layout: label on the LEFT + inline accent
+                    hairline flex-growing to the right edge (sits
+                    at the label's mid-line via alignSelf flex-end
+                    + marginBottom 12, matching GradeRow exactly).
+                    The grade number that GradeRow renders to the
+                    right of the hairline is omitted here — this
+                    bubble has no composite score — so the hairline
+                    simply runs from the label all the way to the
+                    bubble's right edge. */}
                 <div style={{
-                  minWidth: 0,
-                  ...movementPlotBubbleStyle,
                   display: 'flex',
-                  flexDirection: 'column',
-                  /* `gap: 10` keeps the white "Coach Reviews" header
-                     (matching Coach Diagnosis above) visually attached
-                     to the video grid underneath without crowding. */
+                  alignItems: 'baseline',
                   gap: 10,
-                  padding: 11,
-                  /* Stretch to fill the remaining vertical space in
-                     the right column — this is what locks the
-                     bubble's bottom edge onto the spray chart's
-                     bottom edge via the parent grid's stretch. */
-                  flex: 1,
-                  minHeight: 0,
-                  overflow: 'hidden',
+                  flexShrink: 0,
                 }}>
-                  {/* Title row — mirrors the GradeRow header pattern
-                      from HittingGradeStack (Swing / Quality of
-                      Contact / Coach Diagnosis) so this bubble
-                      reads as a fourth sibling row.
-                      Layout: label on the LEFT + inline accent
-                      hairline flex-growing to the right edge (sits
-                      at the label's mid-line via alignSelf flex-end
-                      + marginBottom 12, matching GradeRow exactly).
-                      The grade number that GradeRow renders to the
-                      right of the hairline is omitted here — this
-                      bubble has no composite score — so the hairline
-                      simply runs from the label all the way to the
-                      bubble's right edge. */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    gap: 10,
-                    flexShrink: 0,
+                  <span style={{
+                    /* Same font as the GradeRow label (Coach
+                       Diagnosis / Swing / Quality of Contact). */
+                    fontFamily: 'inherit',
+                    fontSize: rem(17.6), fontWeight: 600, fontStyle: 'normal',
+                    letterSpacing: '-0.025em', textTransform: 'uppercase',
+                    color: 'var(--text-bright)', lineHeight: 1.05,
                   }}>
-                    <span style={{
-                      /* Same font as the GradeRow label (Coach
-                         Diagnosis / Swing / Quality of Contact). */
-                      fontFamily: 'inherit',
-                      fontSize: rem(17.6), fontWeight: 600, fontStyle: 'normal',
-                      letterSpacing: '-0.025em', textTransform: 'uppercase',
-                      color: 'var(--text-bright)', lineHeight: 1.05,
-                    }}>
-                      Coach Reviews
-                    </span>
-                    <div
-                      aria-hidden="true"
-                      style={{
-                        flex: 1,
-                        height: 1,
-                        background: 'var(--border)',
-                        alignSelf: 'flex-end',
-                        marginBottom: 12,
-                      }}
-                    />
-                  </div>
-
-                  {/* Second accent hairline — sits BELOW the title
-                      row, spanning the bubble's full inner width.
-                      Mirrors line 3 of GradeRow's six-line spec
-                      (the white rule between the progress bar and
-                      the chip labels). Visually separates the
-                      "Coach Reviews" title block from the video
-                      grid below, finishing the GradeRow-style frame
-                      around the panel's header. */}
+                    Coach Reviews
+                  </span>
                   <div
                     aria-hidden="true"
                     style={{
+                      flex: 1,
                       height: 1,
                       background: 'var(--border)',
-                      flexShrink: 0,
+                      alignSelf: 'flex-end',
+                      marginBottom: 12,
                     }}
                   />
-
-                  {/* Inner video grid — no surface of its own now
-                      that the outer Swing-bubble supplies the
-                      chrome. Just a scroll container for the tile
-                      grid.
-
-                      The bubble around this grid now stretches to
-                      fill the right column (so its bottom locks
-                      onto the spray chart's bottom via
-                      `alignItems: stretch`). To keep the VISIBLE
-                      video content compact, this grid caps itself
-                      at `maxHeight: 200px` with `overflow-y: auto`.
-                      Any extra bubble height (beyond what title +
-                      hairlines + ≤200 px grid occupy) becomes
-                      empty bubble chrome below the grid — which
-                      reads as a natural extension of the warm-grey
-                      surface rather than visible whitespace,
-                      because there's no inner background change
-                      between the grid area and the bottom of the
-                      bubble. */}
-                  <div style={{
-                    flexShrink: 0,
-                    maxHeight: 200,
-                    overflowY: 'auto',
-                    display: 'grid',
-                    /* Column minimum nudged 110 → 107 (~ 3 % tighter)
-                       so the tiles inside also shrink ~ 3 % when
-                       auto-fill packs them, keeping the contents of
-                       the bubble in proportion. Gap dropped 8 → 7
-                       for the same reason. */
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(107px, 1fr))',
-                    gridAutoRows: 'max-content',
-                    gap: 7,
-                  }}>
-                    {bundleVideos(attachedVideos).map((b) => (
-                      <VideoBundleCard
-                        key={b.key}
-                        videos={b.videos}
-                        size="sm"
-                        playerId={player.id}
-                        recordingCategory="HITTING"
-                        onUploaded={onRefresh}
-                        reports={hittingReports}
-                        /* Suppress the per-tile category-tinted
-                           "eyebrow" label (the blue/orange/teal
-                           caption at the top of each VideoBundleCard
-                           that reads "Coach Review - Hitting - …").
-                           That label is redundant inside the
-                           snapshot's Coach Reviews bubble because
-                           the panel's own white header above already
-                           tells the coach what they're looking at.
-                           The label is left intact for every other
-                           caller of VideoBundleCard (Pitching tab,
-                           Defense tab, Videos library, etc.). */
-                        hideLabel
-                      />
-                    ))}
-                  </div>
                 </div>
-              );
-            })()}
-          </div>
-        </div>
+
+                {/* Second accent hairline — sits BELOW the title
+                    row, spanning the bubble's full inner width.
+                    Mirrors line 3 of GradeRow's six-line spec
+                    (the white rule between the progress bar and
+                    the chip labels). Visually separates the
+                    "Coach Reviews" title block from the video
+                    grid below, finishing the GradeRow-style frame
+                    around the panel's header. */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: 1,
+                    background: 'var(--border)',
+                    flexShrink: 0,
+                  }}
+                />
+
+                {/* Inner video grid — no surface of its own now
+                    that the outer Swing-bubble supplies the
+                    chrome. Just a scroll container for the tile
+                    grid.
+
+                    The bubble around this grid now stretches to
+                    fill the right column (so its bottom locks
+                    onto the spray chart's bottom via
+                    `alignItems: stretch`). To keep the VISIBLE
+                    video content compact, this grid caps itself
+                    at `maxHeight: 200px` with `overflow-y: auto`.
+                    Any extra bubble height (beyond what title +
+                    hairlines + ≤200 px grid occupy) becomes
+                    empty bubble chrome below the grid — which
+                    reads as a natural extension of the warm-grey
+                    surface rather than visible whitespace,
+                    because there's no inner background change
+                    between the grid area and the bottom of the
+                    bubble. */}
+                <div style={{
+                  flexShrink: 0,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  display: 'grid',
+                  /* Column minimum nudged 110 → 107 (~ 3 % tighter)
+                     so the tiles inside also shrink ~ 3 % when
+                     auto-fill packs them, keeping the contents of
+                     the bubble in proportion. Gap dropped 8 → 7
+                     for the same reason. */
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(107px, 1fr))',
+                  gridAutoRows: 'max-content',
+                  gap: 7,
+                }}>
+                  {bundleVideos(attachedVideos).map((b) => (
+                    <VideoBundleCard
+                      key={b.key}
+                      videos={b.videos}
+                      size="sm"
+                      playerId={player.id}
+                      recordingCategory="HITTING"
+                      onUploaded={onRefresh}
+                      reports={hittingReports}
+                      /* Suppress the per-tile category-tinted
+                         "eyebrow" label (the blue/orange/teal
+                         caption at the top of each VideoBundleCard
+                         that reads "Coach Review - Hitting - …").
+                         That label is redundant inside the
+                         snapshot's Coach Reviews bubble because
+                         the panel's own white header above already
+                         tells the coach what they're looking at.
+                         The label is left intact for every other
+                         caller of VideoBundleCard (Pitching tab,
+                         Defense tab, Videos library, etc.). */
+                      hideLabel
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
         {/* Full-width Diagnosis Notes — sits below BOTH the spray chart
             and the grade stack so the coach has the entire Snapshot

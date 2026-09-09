@@ -12,6 +12,19 @@ import { spraySliceAggregate, sprayFieldThirds, type SprayAggregate, type SprayF
  * inline-style constants instead of via the .innerPanel class so the
  * two bars are guaranteed to render identically regardless of how
  * CSS-variable cascades resolve in different theme contexts. */
+/* Field viewBox. FIELD_H drives BOTH the drawing (`cy`, and `scale`, which
+   is (H - 70) / maxDist) AND the chart frame's aspect ratio, so the two can
+   never disagree and the SVG never letterboxes inside its frame.
+
+   Raised 460 -> 486 to spend the 24px the slimmed Ball Readout gave back.
+   The frame is WIDTH-constrained by its column, so merely making the frame
+   taller would have added empty bands above and below a same-size field —
+   growing the viewBox is what actually enlarges the drawing. */
+const FIELD_W = 520;
+const FIELD_H = 486;
+/* Filter-less variant keeps its historic 46-unit-shorter frame. */
+const FIELD_H_NO_FILTERS = FIELD_H - 46;
+
 const SPRAY_BAR_BG = 'rgba(20, 24, 32, 0.92)';
 const SPRAY_BAR_BORDER = '1px solid rgba(255, 255, 255, 0.10)';
 
@@ -124,8 +137,19 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
    *  average-mode view and swaps the dots out entirely). */
   fieldThirds?: SprayFieldThirds | null;
 }) {
-  const W = 520, H = 460;
-  const cx = W / 2, cy = H - 24;
+  const W = FIELD_W, H = FIELD_H;
+  const cx = W / 2;
+  /* Home plate sits 24 units off the bottom, lifted a further 5% of the
+     frame height per coach spec so the field rides higher in its box. */
+  const cy = H - 24 - H * 0.05;
+  /* Vertical stretch. The field is width-capped (the +/-45 degree labels
+     already reach 500 of 520), so "taller" cannot mean a uniform scale-up —
+     it has to be vertical-only, which draws the field as an ellipse rather
+     than a true semicircle. Applied through `upY` and the arc radii below so
+     positions stretch while the glyphs themselves stay unsquashed. */
+  const YS = 1.15;
+  /** Project a vertical distance above home plate into a y coordinate. */
+  const upY = (dy: number) => cy - dy * YS;
   // Outfield fence distance (was 420). Dropped to 400 so the
   // spray chart fence radius matches the requested park dimensions.
   const maxDist = 400;
@@ -136,19 +160,22 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
      At 1.0 the 400-ft fence very nearly touched the top of the viewBox,
      which left the arc labels crowding the edge.
 
-     Split desktop/phone per coach-spec: the web app pulls back a further
-     14% (0.9 -> 0.7776) because the chart now runs full-width with the grade
-     stack gone, so it had more room than the drawing needed. That was 0.54
-     originally, then two 20% bumps so the drawing fills its bubble. Phones
-     keep 0.9 — the chart is already narrow there and zooming out again
-     would shrink the dots below a readable size. */
+     Split desktop/phone per coach-spec. Web sits at 0.81648 (0.54
+     originally, then two 20% bumps, then a final 5% for width + height
+     together — a uniform scale, so 5% wider IS 5% taller).
+
+     Phone stays at 0.83 and does NOT take that last 5%: it is already at
+     its limit (content spans 3.5 to 515.9 of 520), and another 5% would
+     run it off both edges to be silently cropped by the frame's
+     overflow:hidden. The +/-45 degree angle labels, not the fence, set
+     that limit. */
   const isMobile = useIsMobile();
-  const ZOOM = isMobile ? 0.9 : 0.9 * 0.864;
+  const ZOOM = isMobile ? 0.83 : 0.9 * 0.9072;
   const scale = ((H - 70) / maxDist) * ZOOM;
   const toXY = (angleDeg: number, dist: number): [number, number] => {
     const rad = ((90 - angleDeg) * Math.PI) / 180;
     const r = dist * scale;
-    return [cx + r * Math.cos(rad), cy - r * Math.sin(rad)];
+    return [cx + r * Math.cos(rad), upY(r * Math.sin(rad))];
   };
   // Per coach-spec the spray chart now carries seven distance
   // arcs: 90 / 140 / 200 / 250 / 300 / 350 / 400. The 400-ft
@@ -224,9 +251,9 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
       {distArcs.map(d => {
         const r = d * scale;
         const lx = cx - r * Math.cos(Math.PI / 4);
-        const ly = cy - r * Math.sin(Math.PI / 4);
+        const ly = upY(r * Math.sin(Math.PI / 4));
         const rx = cx + r * Math.cos(Math.PI / 4);
-        const ry = cy - r * Math.sin(Math.PI / 4);
+        const ry = upY(r * Math.sin(Math.PI / 4));
         return (
           <g key={d}>
             {/* Distance arc — theme-aware grey gridline via
@@ -234,14 +261,20 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
                `--spray-label-color`, alpha multiplied by 0.70)
                so the field geometry sits behind the labels
                visually instead of competing with them. */}
-            <path d={`M ${lx} ${ly} A ${r} ${r} 0 0 1 ${rx} ${ry}`}
+            <path d={`M ${lx} ${ly} A ${r} ${r * YS} 0 0 1 ${rx} ${ry}`}
               fill="none" stroke="var(--spray-gridline-color)" strokeWidth={1} strokeDasharray="3 5" />
             {/* Distance label pill — light fill + grey border so the
                black label text reads at full contrast in both themes.
                Previous dark-navy pill (rgba(10,12,18,0.75)) was
                retired so the spray chart no longer carries dark
                chips against the off-white bubble chrome in light mode. */}
-            <g transform={`translate(${rx + 6}, ${ry + 4})`}>
+            {/* Pill seated just INSIDE the foul line (was 6 units outside
+                it). Outside, the 42-unit pill reached 46 units past the
+                foul line and became the widest thing on the chart — it,
+                not the fence, was capping how large the field could be
+                drawn. Flipping it inward hands that margin back to the
+                field; the fence is now the widest element. */}
+            <g transform={`translate(${rx - 44}, ${ry + 4})`}>
               <rect x={-2} y={-9} width={42} height={16} rx={8}
                 fill="rgba(255,255,255,0.92)" stroke="var(--spray-gridline-color)" strokeWidth={0.6} />
               <text x={19} y={2.5} fill="#000000" fontSize={9}
@@ -260,9 +293,9 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         const rInner = (maxDist - 30) * scale;
         const rOuter = (maxDist - 12) * scale;
         const rLabel = (maxDist - 2) * scale;
-        const x1 = cx + rInner * Math.cos(rad), y1 = cy - rInner * Math.sin(rad);
-        const x2 = cx + rOuter * Math.cos(rad), y2 = cy - rOuter * Math.sin(rad);
-        const lx = cx + rLabel * Math.cos(rad), ly = cy - rLabel * Math.sin(rad);
+        const x1 = cx + rInner * Math.cos(rad), y1 = upY(rInner * Math.sin(rad));
+        const x2 = cx + rOuter * Math.cos(rad), y2 = upY(rOuter * Math.sin(rad));
+        const lx = cx + rLabel * Math.cos(rad), ly = upY(rLabel * Math.sin(rad));
         const isCenter = deg === 0;
         return (
           <g key={`tick${deg}`}>
@@ -303,10 +336,10 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         return (
           <>
             <line x1={cx} y1={cy}
-              x2={cx - r * Math.cos(Math.PI / 4)} y2={cy - r * Math.sin(Math.PI / 4)}
+              x2={cx - r * Math.cos(Math.PI / 4)} y2={upY(r * Math.sin(Math.PI / 4))}
               stroke="var(--spray-gridline-color)" strokeWidth={1.0} />
             <line x1={cx} y1={cy}
-              x2={cx + r * Math.cos(Math.PI / 4)} y2={cy - r * Math.sin(Math.PI / 4)}
+              x2={cx + r * Math.cos(Math.PI / 4)} y2={upY(r * Math.sin(Math.PI / 4))}
               stroke="var(--spray-gridline-color)" strokeWidth={1.0} />
           </>
         );
@@ -323,7 +356,7 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
           return (
             <line key={`third${deg}`}
               x1={cx} y1={cy}
-              x2={cx + r * Math.cos(rad)} y2={cy - r * Math.sin(rad)}
+              x2={cx + r * Math.cos(rad)} y2={upY(r * Math.sin(rad))}
               stroke="var(--spray-gridline-color)" strokeWidth={0.7}
               strokeDasharray="4 4" opacity={0.75} />
           );
@@ -334,9 +367,9 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
       {(() => {
         const baseDist = 90 * scale * 0.72;
         const bases: [number, number][] = [
-          [cx, cy - baseDist],
-          [cx - baseDist * 0.7, cy - baseDist * 0.5],
-          [cx + baseDist * 0.7, cy - baseDist * 0.5],
+          [cx, upY(baseDist)],
+          [cx - baseDist * 0.7, upY(baseDist * 0.5)],
+          [cx + baseDist * 0.7, upY(baseDist * 0.5)],
         ];
         return bases.map(([bx, by], i) => (
           <rect key={`base${i}`} x={bx - 3} y={by - 3} width={6} height={6}
@@ -360,7 +393,7 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         const names = ['LF', 'LC', 'CF', 'RC', 'RF'];
         const pt = (a: number, rr: number): [number, number] => {
           const rad = ((90 - a) * Math.PI) / 180;
-          return [cx + rr * Math.cos(rad), cy - rr * Math.sin(rad)];
+          return [cx + rr * Math.cos(rad), upY(rr * Math.sin(rad))];
         };
         return names.map((nm, i) => {
           const a0 = -45 + i * 18;
@@ -372,7 +405,7 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
           const [nx, ny] = pt(a0 + 9, r * 0.5);
           return (
             <g key={nm} pointerEvents="none">
-              <path d={`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1} Z`}
+              <path d={`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r * YS} 0 0 1 ${x1} ${y1} Z`}
                 fill="rgba(96,165,250,1)" opacity={0.07 + 0.4 * (pct / maxPct)}
                 stroke="var(--spray-gridline-color)" strokeWidth={0.8} />
               <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central"
@@ -435,21 +468,10 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         );
       })}
 
-      {/* Top zone labels */}
-      {/* LEFT / CENTER / RIGHT zone labels at the top of the field
-         — theme-aware via `--spray-label-color`: matches the Exit
-         Velo / angular label muted blue-grey in dark mode, flips
-         to a clean medium grey in light mode. */}
-      {[
-        { x: W * 0.22, label: 'LEFT' },
-        { x: W * 0.50, label: 'CENTER' },
-        { x: W * 0.78, label: 'RIGHT' },
-      ].map(z => (
-        <text key={z.label} x={z.x} y={18}
-          style={{ fill: 'var(--spray-label-color)' }}
-          fontSize={9} fontFamily="'DM Mono', ui-monospace, monospace"
-          fontWeight={600} letterSpacing="0.28em" textAnchor="middle">{z.label}</text>
-      ))}
+      {/* LEFT / CENTER / RIGHT zone labels retired per coach spec — the
+          ±45/30/15 degree ticks and the field-third readouts already say
+          which way the ball went, and the labels crowded the top of the
+          frame now that the chart shares its row with the Strike Zone. */}
 
       {/* Color-axis legend retired from inside the SVG — moved up into
           the pane header (replacing the "Spray Chart" label) as a
@@ -464,7 +486,7 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         const r = maxDist * scale;
         const pt = (a: number, rr: number): [number, number] => {
           const rad = ((90 - a) * Math.PI) / 180;
-          return [cx + rr * Math.cos(rad), cy - rr * Math.sin(rad)];
+          return [cx + rr * Math.cos(rad), upY(rr * Math.sin(rad))];
         };
         /* Wedge centres: -30 (LF), 0 (CF), +30 (RF). */
         const centres = [-30, 0, 30];
@@ -1117,6 +1139,117 @@ export function SprayChartView({
         );
       })()}
 
+      {/* ── Ball Readout — INSIDE the spray-chart bubble, seated between
+          the Exit Velo colour-axis legend above and the chart frame below,
+          per coach spec. The values sit in the reader's path on the way
+          down to the field they describe. Displays the
+          currently-selected pitch's EV / LA / BS / DIST / SQ% — same
+          5-column grid as before, just lifted out of the chart
+          wrapper. Typography + padding bumped ~30% larger so this
+          bubble matches the visual weight of the Results bubble that
+          sits as a top sibling on the right column of the Hitting
+          Snapshot's two-pane grid.
+          Suppressed entirely when `hideReadout` is true — the Swing
+          Decision view replaces this readout with the Results
+          GradeRow (rendered by the parent above the chart). */}
+      {!hideReadout && sprayDots.length > 0 && (() => {
+        const readoutNode = (
+        <div
+          style={{
+            /* Inner tile, not a bubble. The readout now lives INSIDE the
+               spray-chart bubble per coach spec, so it wears the same
+               understated surface as the filter cards beside it — reusing
+               `bubbleChrome` here would have nested identical chrome inside
+               itself and read as a seam rather than a panel. */
+            background: 'rgba(255, 255, 255, 0.018)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: compact ? '8px 10px' : '10px 12px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            gap: 12,
+            alignItems: 'center',
+            /* Trimmed 25% (96 -> 72 desktop, 48 -> 36 phone) per coach spec;
+               the reclaimed height goes to the chart frame below via the
+               taller viewBox. The note below records the original rationale
+               for the fixed height, which still holds — it is just 25% less.
+               Height locked on DESKTOP so this Ball Readout (the
+               Metric Readout sibling at the top of the Spray Chart column)
+               sits the EXACT same height as the Results bubble at the top
+               of the Grade Stack column on the Swing Decision view (which
+               has wrapping chip labels like "Groundball %" / "Fly Ball %"
+               pushing its natural content height to ~90+px). A fixed
+               `height` (not `minHeight`) on both sides guarantees an exact
+               pixel match.
+               On MOBILE the columns stack (no side-by-side Results bubble
+               to match) and the rem-scaled text is much smaller, so 96px
+               left the bubble ~2× taller than its content — halved to 48px.
+               `alignItems:'center'` keeps the metric grid vertically
+               centered in either height. */
+            height: isMobile ? 36 : 72,
+          }}
+        >
+          {[
+            { label: 'EV',   value: activeDot?.exitVelo,    unit: 'mph', decimals: 1 },
+            { label: 'LA',   value: activeDot?.launchAngle, unit: '°',   decimals: 1 },
+            { label: 'BS',   value: activeDot?.batSpeed,    unit: 'mph', decimals: 1 },
+            { label: 'DIST', value: activeDot?.distance,    unit: 'ft',  decimals: 0 },
+            { label: 'SQ%',  value: activeDot?.squaredUp,   unit: '%',   decimals: 1 },
+          ].map(p => (
+            /* alignItems: 'center' so each column's label (EV / LA /
+               BS / DIST / SQ%) sits horizontally centered above the
+               numeric value + unit pair below it. Previously the
+               flex column defaulted to flex-start, which left-aligned
+               the label against the column's left edge while the
+               value was at its natural inline-baseline flex
+               container's start, making the label visibly to the
+               LEFT of where the data populated. */
+            <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }}>
+              <span
+                className={aStyles.sprayLightText}
+                style={{
+                  /* Font D treatment — inherited Satoshi, 9 px, weight
+                     600, 0.05em tracking, uppercase, bright white.
+                     Matches every other grey-bubble secondary label
+                     across the app (Tool Grades bar labels, KPI chip
+                     labels, Break & Spin column header, etc.). */
+                  fontFamily: 'inherit',
+                  fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
+                  textTransform: 'uppercase', color: 'var(--text-bright)',
+                  lineHeight: 1.2,
+                }}
+              >{p.label}</span>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
+                <span
+                  className={aStyles.sprayLightText}
+                  style={{
+                    /* 16 → 20.8 (≈21) — 30% larger */
+                    fontSize: rem(21), fontWeight: 700, color: 'var(--text)',
+                    fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                >
+                  {p.value != null ? p.value.toFixed(p.decimals) : '—'}
+                </span>
+                {p.value != null && p.unit && (
+                  /* 9 → 12 — 30% larger */
+                  <span
+                    className={aStyles.sprayLightText}
+                    style={{ fontSize: rem(12), color: 'var(--text-muted)', fontWeight: 600 }}
+                  >{p.unit}</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+        );
+        /* Seat the readout in the host column when one was supplied (the
+           Hitting Snapshot puts it above Coach Reviews so the right column
+           starts level with the spray chart); otherwise leave it inline as
+           the bottom sibling under the chart. */
+        return readoutHost ? createPortal(readoutNode, readoutHost) : readoutNode;
+      })()}
+
       {/* Chart frame — transparent container so the SVG sits directly
           on the outer "Spray Chart" bubble's gray surface. The previous
           .innerPanel wrapper was producing a doubled, lighter bubble
@@ -1140,7 +1273,7 @@ export function SprayChartView({
              diamond proportionally intact at any container height. */
           ...(noOuterChrome
             ? { flex: 1, minHeight: 0 }
-            : { aspectRatio: hideFilters ? '520 / 414' : '520 / 460' }),
+            : { aspectRatio: hideFilters ? `${FIELD_W} / ${FIELD_H_NO_FILTERS}` : `${FIELD_W} / ${FIELD_H}` }),
         }}
       >
         {loading ? (
@@ -1164,10 +1297,6 @@ export function SprayChartView({
             hint="Upload a Full Swing CSV with Direction + Distance" />
         )}
       </div>
-
-      {/* Ball Readout retired from inside the spray-chart bubble — it
-          now lives as its own separate bubble ABOVE this one (rendered
-          at the top of the outer wrapper). */}
 
       {/* Filter bar — bubble chrome retired (no background, no border,
           no radius). The filters now sit naked on the spray chart
@@ -1334,114 +1463,6 @@ export function SprayChartView({
         </div>
       )}
     </div>{/* /spray-chart bubble */}
-      {/* Moved BELOW the chart per coach-spec (was the top sibling). The
-          readout describes the dot you just clicked, so it now reads in the
-          same direction as the interaction: chart first, values underneath.
-          Height is no longer load-bearing for the chart's flex sizing —
-          the chart keeps `flex: 1` and simply grows into the space above
-          this strip instead of below it. */}
-      {/* ── Ball Readout bubble — bottom sibling. Sits UNDER the spray
-          chart bubble as its own separate panel. Displays the
-          currently-selected pitch's EV / LA / BS / DIST / SQ% — same
-          5-column grid as before, just lifted out of the chart
-          wrapper. Typography + padding bumped ~30% larger so this
-          bubble matches the visual weight of the Results bubble that
-          sits as a top sibling on the right column of the Hitting
-          Snapshot's two-pane grid.
-          Suppressed entirely when `hideReadout` is true — the Swing
-          Decision view replaces this readout with the Results
-          GradeRow (rendered by the parent above the chart). */}
-      {!hideReadout && sprayDots.length > 0 && (() => {
-        const readoutNode = (
-        <div
-          style={{
-            /* Metric Readout bubble — warm-grey Movement-Plot chrome
-               (same Curveball / Pitch Report Arsenal color used
-               across the app). The previous inner dark-navy tile is
-               retired so the metric grid sits directly on this
-               warm-grey surface. */
-            ...bubbleChrome,
-            padding: compact ? '8px 10px' : '10px 12px',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-            gap: 12,
-            alignItems: 'center',
-            /* Height locked to 96px on DESKTOP so this Ball Readout (the
-               Metric Readout sibling at the top of the Spray Chart column)
-               sits the EXACT same height as the Results bubble at the top
-               of the Grade Stack column on the Swing Decision view (which
-               has wrapping chip labels like "Groundball %" / "Fly Ball %"
-               pushing its natural content height to ~90+px). A fixed
-               `height` (not `minHeight`) on both sides guarantees an exact
-               pixel match.
-               On MOBILE the columns stack (no side-by-side Results bubble
-               to match) and the rem-scaled text is much smaller, so 96px
-               left the bubble ~2× taller than its content — halved to 48px.
-               `alignItems:'center'` keeps the metric grid vertically
-               centered in either height. */
-            height: isMobile ? 48 : 96,
-          }}
-        >
-          {[
-            { label: 'EV',   value: activeDot?.exitVelo,    unit: 'mph', decimals: 1 },
-            { label: 'LA',   value: activeDot?.launchAngle, unit: '°',   decimals: 1 },
-            { label: 'BS',   value: activeDot?.batSpeed,    unit: 'mph', decimals: 1 },
-            { label: 'DIST', value: activeDot?.distance,    unit: 'ft',  decimals: 0 },
-            { label: 'SQ%',  value: activeDot?.squaredUp,   unit: '%',   decimals: 1 },
-          ].map(p => (
-            /* alignItems: 'center' so each column's label (EV / LA /
-               BS / DIST / SQ%) sits horizontally centered above the
-               numeric value + unit pair below it. Previously the
-               flex column defaulted to flex-start, which left-aligned
-               the label against the column's left edge while the
-               value was at its natural inline-baseline flex
-               container's start, making the label visibly to the
-               LEFT of where the data populated. */
-            <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }}>
-              <span
-                className={aStyles.sprayLightText}
-                style={{
-                  /* Font D treatment — inherited Satoshi, 9 px, weight
-                     600, 0.05em tracking, uppercase, bright white.
-                     Matches every other grey-bubble secondary label
-                     across the app (Tool Grades bar labels, KPI chip
-                     labels, Break & Spin column header, etc.). */
-                  fontFamily: 'inherit',
-                  fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
-                  textTransform: 'uppercase', color: 'var(--text-bright)',
-                  lineHeight: 1.2,
-                }}
-              >{p.label}</span>
-              <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
-                <span
-                  className={aStyles.sprayLightText}
-                  style={{
-                    /* 16 → 20.8 (≈21) — 30% larger */
-                    fontSize: rem(21), fontWeight: 700, color: 'var(--text)',
-                    fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}
-                >
-                  {p.value != null ? p.value.toFixed(p.decimals) : '—'}
-                </span>
-                {p.value != null && p.unit && (
-                  /* 9 → 12 — 30% larger */
-                  <span
-                    className={aStyles.sprayLightText}
-                    style={{ fontSize: rem(12), color: 'var(--text-muted)', fontWeight: 600 }}
-                  >{p.unit}</span>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-        );
-        /* Seat the readout in the host column when one was supplied (the
-           Hitting Snapshot puts it above Coach Reviews so the right column
-           starts level with the spray chart); otherwise leave it inline as
-           the bottom sibling under the chart. */
-        return readoutHost ? createPortal(readoutNode, readoutHost) : readoutNode;
-      })()}
     </div>
   );
 }

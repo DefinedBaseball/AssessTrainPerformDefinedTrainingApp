@@ -91,6 +91,10 @@ export class HitTraxParser implements VendorParser {
       x: number | null; z: number | null;
       angle: number | null; sprayDist: number | null;
       type: number | null;
+      /* HitTrax `Strike Zone` column (F): 1-9 = the nine in-zone cells,
+         10-13 = the four out-of-zone quadrants. Drives the Strike Zone
+         damage map, which averages EV / LA per zone. */
+      zone: number | null;
       date: Date;                   // shared by every metric this row emits
     };
     const perRow: PerRow[] = [];
@@ -110,6 +114,10 @@ export class HitTraxParser implements VendorParser {
       const sprayZRaw = this.findCellInsensitive(row, ['spray chart z', 'spray z']);
       const horizAngleRaw = this.findCellInsensitive(row, ['horiz. angle', 'horiz angle', 'horizontal angle']);
       const typeRaw   = this.findCellInsensitive(row, ['type', 'hit type', 'ball type']);
+      /* Exact key match only — the export also carries `Strike Zone
+         Bottom` / `Top` / `Width` (the physical zone geometry in
+         inches), and a substring match would grab those instead. */
+      const zoneRaw   = this.findCellInsensitive(row, ['strike zone']);
 
       const velo = veloRaw == null ? NaN : parseFloat(veloRaw);
       const la   = laRaw   == null ? NaN : parseFloat(laRaw);
@@ -117,6 +125,12 @@ export class HitTraxParser implements VendorParser {
       const sprayX = sprayXRaw == null ? NaN : parseFloat(sprayXRaw);
       const sprayZ = sprayZRaw == null ? NaN : parseFloat(sprayZRaw);
       const horizAngle = horizAngleRaw == null ? NaN : parseFloat(horizAngleRaw);
+      /* Zone is a small integer label, not a measurement — anything
+         outside 1-13 (blank, 0, a stray decimal) is dropped rather
+         than clamped, so a malformed row simply contributes no zone
+         instead of poisoning a real zone's average. */
+      const zoneNum = zoneRaw == null ? NaN : parseInt(zoneRaw.trim(), 10);
+      const zone = Number.isInteger(zoneNum) && zoneNum >= 1 && zoneNum <= 13 ? zoneNum : null;
 
       /* Skip rows with Velo = 0 entirely. HitTrax records a row for every
          pitch — including takes / swings-and-misses where no ball was put
@@ -154,6 +168,7 @@ export class HitTraxParser implements VendorParser {
         angle:    hasPolar ? horizAngle : null,
         sprayDist: hasPolar ? dist      : null,
         type: ballTypeCode(typeRaw),
+        zone,
         date: stamp,
       });
     }
@@ -177,7 +192,14 @@ export class HitTraxParser implements VendorParser {
          spray_z           — feet from home plate
          spray_angle       — degrees (Horiz. Angle, polar fallback)
          spray_dist        — feet (Dist, polar fallback)
-         ball_type_code    — 1=GB, 2=LD, 3=FB (when Type column present) */
+         ball_type_code    — 1=GB, 2=LD, 3=FB (when Type column present)
+         strike_zone       — 1-13 (Strike Zone column; 1-9 in-zone,
+                             10-13 the out-of-zone quadrants)
+
+       Because `strike_zone` shares the row stamp with max_exit_velo and
+       launch_angle, the Strike Zone damage map can pair a zone to the
+       EV / LA of the SAME batted ball by recordedAt — the same trick
+       the Spray Chart Metric Readout uses. */
     for (const r of perRow) {
       success.push({
         playerName: lastPlayerName,
@@ -255,6 +277,16 @@ export class HitTraxParser implements VendorParser {
           unit: '',
           recordedAt: r.date,
           rawData: { type: 'spray_coord' },
+        });
+      }
+      if (r.zone != null) {
+        success.push({
+          playerName: lastPlayerName,
+          metricType: 'strike_zone',
+          value: r.zone, // 1-9 in-zone, 10-13 out-of-zone quadrants
+          unit: '',
+          recordedAt: r.date,
+          rawData: { type: 'strike_zone' },
         });
       }
     }
