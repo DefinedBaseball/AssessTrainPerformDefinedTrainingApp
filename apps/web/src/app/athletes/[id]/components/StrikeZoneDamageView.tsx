@@ -196,6 +196,37 @@ const FIGURE_ASPECT = '300 / 322';
 const BOX_W = '55%';           // strike-zone box, as a share of the figure
 const BOX_H = '63%';
 
+/* Home plate width, as a share of the figure — NOT a px cap, so it keeps
+   its relationship to the strike-zone box (55%) once the figure shrinks on a
+   phone. A hair wider than the box, so the box reads as sitting OVER the
+   plate, the way it does from the mound. */
+const PLATE_W = '58%';
+
+/* ── Home plate ──
+   Purely an orientation cue: the map is drawn from the pitcher's view, so the
+   plate tells a hitter which side of it he is standing on. Proportions are a
+   real 17in plate flattened in perspective — a square-on plate is as tall as
+   it is wide and would swamp the figure it sits under. */
+function HomePlate({ stroke }: { stroke: string }) {
+  return (
+    <svg
+      viewBox="0 0 200 92"
+      width="100%"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+      style={{ display: 'block' }}
+    >
+      <path
+        d="M3 3 H197 V34 L100 89 L3 34 Z"
+        fill="rgba(255, 255, 255, 0.045)"
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /* ── The stat stack shown inside any zone ── */
 function CellBody({ stat, tone, compact }: { stat?: ZoneStat; tone: ZoneTone; compact?: boolean }) {
   if (!stat || stat.n === 0) {
@@ -207,7 +238,7 @@ function CellBody({ stat, tone, compact }: { stat?: ZoneStat; tone: ZoneTone; co
     <>
       <span style={{
         display: 'inline-flex', alignItems: 'baseline',
-        fontSize: rem(compact ? 13.5 : 15), fontWeight: 700, lineHeight: 1.05,
+        fontSize: rem(compact ? 16.2 : 18), fontWeight: 700, lineHeight: 1.05,
         color: tone.text,
       }}>
         {stat.avgEv != null ? stat.avgEv.toFixed(1) : '—'}
@@ -219,7 +250,7 @@ function CellBody({ stat, tone, compact }: { stat?: ZoneStat; tone: ZoneTone; co
       </span>
       <span style={{
         display: 'inline-flex', alignItems: 'baseline',
-        fontSize: rem(compact ? 9.6 : 10.5), fontWeight: 600, lineHeight: 1.05,
+        fontSize: rem(compact ? 11.5 : 12.6), fontWeight: 600, lineHeight: 1.05,
         color: tone.sub,
       }}>
         {stat.avgLa != null ? stat.avgLa.toFixed(1) : '—'}
@@ -229,10 +260,6 @@ function CellBody({ stat, tone, compact }: { stat?: ZoneStat; tone: ZoneTone; co
           color: tone.muted, whiteSpace: 'nowrap',
         }}>deg</span>
       </span>
-      <span style={{
-        fontSize: rem(7.4), fontWeight: 600, lineHeight: 1,
-        color: tone.muted, letterSpacing: '0.04em', textTransform: 'uppercase',
-      }}>{stat.n} {stat.n === 1 ? 'ball' : 'balls'}</span>
     </>
   );
 }
@@ -385,7 +412,7 @@ export function StrikeZoneDamageView({
   const FRAME = 'rgba(150, 158, 172, 0.55)';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: '1 1 auto', minHeight: 0 }}>
       {/* Legend / summary strip */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -491,6 +518,26 @@ export function StrikeZoneDamageView({
           {' '}over {hottest.n} {hottest.n === 1 ? 'ball' : 'balls'}.
         </div>
       )}
+
+      {/* Parked in whatever room is left under the figure — the column is
+          stretched to the spray chart beside it, so that gap is real estate
+          this view would otherwise leave blank. Centred in the space rather
+          than pinned to the bottom, so it stays close to the zone when the
+          column happens to be tall. */}
+      <div style={{
+        flex: '1 1 auto', minHeight: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        paddingTop: 2,
+      }}>
+        {/* Two boxes: the outer one matches the figure's width exactly, the
+            inner takes its share of that — so the plate tracks the figure
+            instead of the bubble. */}
+        <div style={{ width: '100%', maxWidth: FIGURE_MAX_W }}>
+          <div style={{ width: PLATE_W, margin: '0 auto' }}>
+            <HomePlate stroke={FRAME} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

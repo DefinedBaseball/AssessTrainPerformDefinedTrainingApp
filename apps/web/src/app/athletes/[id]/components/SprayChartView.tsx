@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import aStyles from '@/components/assessment/assessment.module.css';
+import { SectionHeader } from '@/components/assessment/SectionHeader';
 import { spraySliceAggregate, sprayFieldThirds, type SprayAggregate, type SprayFieldThirds } from '@/lib/pitchAggregation';
 
 /* Single source of truth for the surface color of the two horizontal
@@ -89,27 +90,88 @@ const COLOR_AXES: Record<FilterKey, ColorAxisDef> = {
   batSpeed:    { key: 'batSpeed',    label: 'BAT SPEED',    unit: 'mph', min: 55,  max: 80,  ticks: [55, 65, 72, 80] },
 };
 
-/* navy → light-blue → white ramp */
-function rampColor(t: number): string {
-  const x = Math.max(0, Math.min(1, t));
-  const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
-  let r: number, g: number, b: number;
-  if (x < 0.5) {
-    const u = x * 2;
-    r = lerp(30, 96, u); g = lerp(58, 165, u); b = lerp(138, 250, u);
-  } else {
-    const u = (x - 0.5) * 2;
-    r = lerp(96, 255, u); g = lerp(165, 255, u); b = lerp(250, 255, u);
-  }
-  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+/**
+ * Fit the colour axis to the player's OWN spread rather than a fixed league
+ * scale: the ramp runs from his softest ball in play to his hardest, each
+ * pushed out to the next multiple of 5 (a 91-mph best puts the bar's right
+ * end at 95). Without this a soft-contact hitter paints the whole chart
+ * blue and a big bat paints it all red — the ends of the ramp only mean
+ * something when they are HIS ends.
+ *
+ * The trade: colours are no longer comparable BETWEEN players. Red means
+ * "hard for him", exactly as the Strike Zone map's rank split does.
+ *
+ * Falls back to the static COLOR_AXES range when nothing on screen carries
+ * a value on this axis, so an empty or all-null set still draws a legend.
+ */
+function fitColorAxis(base: ColorAxisDef, dots: SprayDot[]): ColorAxisDef {
+  const vals = dots
+    .map(d => d[base.key])
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  if (vals.length === 0) return base;
+
+  const STEP = 5;
+  const min = Math.floor(Math.min(...vals) / STEP) * STEP;
+  /* A single ball — or a run of identical ones — collapses min onto max and
+     would divide by zero in axisT. Give it one step of width. */
+  const max = Math.max(Math.ceil(Math.max(...vals) / STEP) * STEP, min + STEP);
+
+  /* Four ticks, evenly spaced IN VALUE. The legend lays them out with
+     space-between, so a tick's label has to describe its position — which
+     means rounding to the nearest integer rather than forcing every tick
+     onto a multiple of 5 (a 35-wide range does not divide into three
+     multiples of 5). Only the two ends are guaranteed round numbers. */
+  const ticks = [0, 1, 2, 3].map(i => Math.round(min + ((max - min) * i) / 3));
+  return { ...base, min, max, ticks };
 }
+
+/* ── Colour ramp: cold blue → off-white → hot red ──
+   The three stops are the EXACT fills the Strike Zone damage map paints its
+   cells with (TONE_COLD / TONE_MID / TONE_HOT in StrikeZoneDamageView), so
+   the two panels sitting side by side speak one colour language: soft
+   contact reads blue in both, hard contact reads red in both.
+
+   Keep these in sync by hand — the strike zone needs its tones as full tone
+   objects (fill + three text colours), so there is no shared constant to
+   import without dragging that whole shape in here. */
+const RAMP_COLD: [number, number, number] = [41, 87, 153];
+const RAMP_MID:  [number, number, number] = [216, 218, 221];
+const RAMP_HOT:  [number, number, number] = [160, 41, 41];
+/* The middle stop is a BAND, not a point. With a single mid stop the ramp
+   only hits off-white at exactly one position, so the bar read as roughly
+   45% blue / 10% white / 45% red. Holding off-white flat across the middle
+   third gives the three tones an even share of the scale — the same even
+   split the Strike Zone map gets from its 4/5/4 rank buckets. */
+const MID_BAND_START = 1 / 3;
+const MID_BAND_END = 2 / 3;
+
+/** The same ramp as a CSS gradient, for the legend bar above the chart. */
+const RAMP_CSS =
+  `linear-gradient(90deg, rgb(${RAMP_COLD}) 0%, rgb(${RAMP_MID}) ${(MID_BAND_START * 100).toFixed(2)}%,` +
+  ` rgb(${RAMP_MID}) ${(MID_BAND_END * 100).toFixed(2)}%, rgb(${RAMP_HOT}) 100%)`;
+
+/** Ramp position → rgb triple. Blue third, flat off-white third, red third. */
+function rampRgb(t: number): [number, number, number] {
+  const x = Math.max(0, Math.min(1, t));
+  if (x >= MID_BAND_START && x <= MID_BAND_END) return RAMP_MID;
+  const lerp = (a: number, b: number, u: number) => Math.round(a + (b - a) * u);
+  const [from, to, u] = x < MID_BAND_START
+    ? [RAMP_COLD, RAMP_MID, x / MID_BAND_START]
+    : [RAMP_MID, RAMP_HOT, (x - MID_BAND_END) / (1 - MID_BAND_END)];
+  return [lerp(from[0], to[0], u), lerp(from[1], to[1], u), lerp(from[2], to[2], u)];
+}
+function rampColor(t: number): string {
+  const [r, g, b] = rampRgb(t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+/* Halo behind each dot. Takes the dot's own colour — a blue dot can't wear a
+   red glow — and fades out across the off-white band, where the fill is
+   nearly white and a halo would just smear it. */
 function rampGlow(t: number): string {
   const x = Math.max(0, Math.min(1, t));
-  const hue = x < 0.5 ? 222 : 210;
-  const sat = x < 0.5 ? 70 - (1 - x * 2) * 25 : 60 - (x - 0.5) * 2 * 55;
-  const light = x < 0.5 ? 40 + x * 2 * 25 : 65 + (x - 0.5) * 2 * 25;
+  const [r, g, b] = rampRgb(x);
   const alpha = 0.30 + Math.abs(x - 0.5) * 0.30;
-  return `hsla(${hue}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%, ${alpha.toFixed(2)})`;
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
 }
 function rampOpacity(t: number) { return 0.98 - Math.max(0, Math.min(1, t)) * 0.18; }
 function rampStrokeWidth(t: number) { return 0.5 + Math.max(0, Math.min(1, t)) * 1.1; }
@@ -184,10 +246,13 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
   // do.
   const distArcs = [90, 140, 200, 250, 300, 350, 400];
   const axisT = (v?: number): number => v == null ? 0 : (v - axis.min) / (axis.max - axis.min);
-  /* Categorical color overrides for HitTrax dots:
-       1 = GB → red
-       2 = LD → blue
-       3 = FB → green
+  /* Ball-type colours — the FALLBACK only, per coach spec: every dot that
+     carries the colour axis's value (all HitTrax dots, which bring EV + LA)
+     is painted on the blue→red ramp instead, so the chart and the Strike
+     Zone read the same. What is left over is the live-tracker AtBat dot: the
+     coach taps a spot on the mini field, so it has a position and an outcome
+     but no measured EV, and without this it would fall through to flat grey.
+       1 = GB → red, 2 = LD → blue, 3 = FB → green
      Glow uses a translucent matching tone so the halo stays cohesive. */
   const ballTypeColor = (code: number): { fill: string; glow: string } => {
     switch (code) {
@@ -197,15 +262,18 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
       default: return { fill: 'hsl(0, 0%, 55%)', glow: 'hsla(0, 0%, 55%, 0.45)' };
     }
   };
+  /* Ramp first, ball type only when the dot has no value on this axis. */
   const dotColor = (d: SprayDot) => {
-    if (d.ballTypeCode != null) return ballTypeColor(d.ballTypeCode).fill;
     const v = d[axis.key];
-    return v == null ? 'hsl(0, 0%, 55%)' : rampColor(axisT(v));
+    if (v != null) return rampColor(axisT(v));
+    if (d.ballTypeCode != null) return ballTypeColor(d.ballTypeCode).fill;
+    return 'hsl(0, 0%, 55%)';
   };
   const dotGlow = (d: SprayDot) => {
-    if (d.ballTypeCode != null) return ballTypeColor(d.ballTypeCode).glow;
     const v = d[axis.key];
-    return v == null ? 'hsla(0, 0%, 55%, 0.45)' : rampGlow(axisT(v));
+    if (v != null) return rampGlow(axisT(v));
+    if (d.ballTypeCode != null) return ballTypeColor(d.ballTypeCode).glow;
+    return 'hsla(0, 0%, 55%, 0.45)';
   };
   const valueOf = (d: SprayDot): number | undefined => d[axis.key];
   const angularTicks = [-45, -30, -15, 0, 15, 30, 45];
@@ -223,10 +291,13 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
           <stop offset="40%"  stopColor="rgba(61,139,253,0.20)" />
           <stop offset="100%" stopColor="rgba(61,139,253,0)" />
         </radialGradient>
+        {/* Left over from the retired in-SVG legend — nothing references it
+            today, but it is kept in step with RAMP_* so a future user of it
+            cannot reintroduce the old blue→white scale. */}
         <linearGradient id="spray-evScale" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   stopColor="#1E3A8A" />
-          <stop offset="50%"  stopColor="#60A5FA" />
-          <stop offset="100%" stopColor="#FFFFFF" />
+          <stop offset="0%"   stopColor={rampColor(0)} />
+          <stop offset="50%"  stopColor={rampColor(0.5)} />
+          <stop offset="100%" stopColor={rampColor(1)} />
         </linearGradient>
       </defs>
 
@@ -444,10 +515,11 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         const t = v == null ? 0 : Math.max(0, Math.min(1, axisT(v)));
         const color = dotColor(dot);
         const glow  = dotGlow(dot);
-        // HitTrax dots use solid ball-type colors; opacity / stroke / glow
-        // intensity come from a flat preset so each category reads
-        // uniformly. Full Swing dots keep the existing axis-ramp scaling.
-        const isCat = dot.ballTypeCode != null;
+        // Flat preset for the ball-type fallback only (live-tracker dots with
+        // no measured value) — with nothing to scale by, opacity / stroke /
+        // glow have to come from somewhere. Everything on the ramp scales
+        // with its own axis value.
+        const isCat = v == null && dot.ballTypeCode != null;
         const pointOpacity = isCat ? 0.92 : (v == null ? 0.85 : rampOpacity(t));
         const pointStrokeW = isCat ? 0.9 : (v == null ? 0.75 : rampStrokeWidth(t));
         const pointStroke  = isCat ? 'rgba(6,8,14,0.5)' : (v == null ? 'rgba(6,8,14,0.55)' : rampStroke(t));
@@ -478,7 +550,8 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
           standalone React/CSS strip. The in-SVG version was redundant
           once the header strip carried the same gradient + ticks. */}
       {/* Field-third readout: batted-ball share + mean launch angle,
-          centred in each wedge at ~72% field depth. Rendered LAST so it
+          centred in each wedge at ~86% field depth — just inside the 400-ft
+          fence. Rendered LAST so it
           reads over the dots, each on a rounded backing plate so the
           numbers stay legible against a dense spray. Hidden in average
           mode, where the five-slice overlay already owns the field. */}
@@ -491,7 +564,11 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
         /* Wedge centres: -30 (LF), 0 (CF), +30 (RF). */
         const centres = [-30, 0, 30];
         return fieldThirds.thirds.map((t, i) => {
-          const [x, y] = pt(centres[i], r * 0.72);
+          /* 0.86 is as far out as the plate fits: at the +-30deg wedges its
+             OUTER top corner lands ~9 units inside the fence arc, and the arc
+             is elliptical (YS), so the margin is tighter than the radius
+             alone suggests. Raising this further clips the plate. */
+          const [x, y] = pt(centres[i], r * 0.86);
           const la = t.avgLaunchAngle;
           const ev = t.avgExitVelo;
           const DASH = String.fromCharCode(8212);
@@ -499,12 +576,13 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
             <g key={t.key} pointerEvents="none">
               {/* Three stacked readings, top to bottom: share of batted
                   balls, mean exit velocity, mean launch angle. Plate is
-                  sized for three lines. */}
-              <rect x={x - 29} y={y - 23} width={58} height={46} rx={7}
+                  sized for three lines, and its box + line offsets scale
+                  WITH the font sizes — bump one, bump all three. */}
+              <rect x={x - 35} y={y - 27.5} width={70} height={55} rx={8}
                 fill="rgba(12,16,23,0.66)" stroke="var(--spray-gridline-color)"
                 strokeWidth={0.6} />
-              <text x={x} y={y - 11} textAnchor="middle" dominantBaseline="central"
-                fill="rgba(240,245,252,0.97)" fontSize={14} fontWeight={700}
+              <text x={x} y={y - 13} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.97)" fontSize={16.8} fontWeight={700}
                 fontFamily="'Satoshi', 'DM Sans', sans-serif" letterSpacing="0.02em"
                 pointerEvents="auto" style={{ cursor: 'help' }}>
                 <title>Percent of Batted Balls</title>
@@ -513,15 +591,15 @@ function SprayChart({ dots, selected, onSelect, axis, sliceAgg = null, fieldThir
               {/* Mean exit velocity. Like the launch angle below, pointer
                   events are re-enabled on THIS element only so the plate
                   never swallows a click meant for a dot underneath. */}
-              <text x={x} y={y + 3} textAnchor="middle" dominantBaseline="central"
-                fill="rgba(240,245,252,0.72)" fontSize={9} fontWeight={600}
+              <text x={x} y={y + 3.6} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.72)" fontSize={10.8} fontWeight={600}
                 fontFamily="'DM Mono', ui-monospace, monospace" letterSpacing="0.04em"
                 pointerEvents="auto" style={{ cursor: 'help' }}>
                 <title>Average Exit Velocity</title>
                 {ev === null ? DASH : `${ev.toFixed(1)} mph`}
               </text>
-              <text x={x} y={y + 15} textAnchor="middle" dominantBaseline="central"
-                fill="rgba(240,245,252,0.72)" fontSize={9} fontWeight={600}
+              <text x={x} y={y + 18} textAnchor="middle" dominantBaseline="central"
+                fill="rgba(240,245,252,0.72)" fontSize={10.8} fontWeight={600}
                 fontFamily="'DM Mono', ui-monospace, monospace" letterSpacing="0.04em"
                 pointerEvents="auto" style={{ cursor: 'help' }}>
                 <title>Average Launch Angle</title>
@@ -616,6 +694,14 @@ export function SprayChartView({
     if (filters.batSpeed    > DEFAULT_FILTERS.batSpeed    && (d.batSpeed    == null || d.batSpeed    < filters.batSpeed))    return false;
     return true;
   }), [sprayDots, filters]);
+
+  /* Fitted to the FILTERED set, matching the field-third readouts: what the
+     legend describes is always exactly what is drawn. Narrowing the EV
+     filter therefore re-spreads the ramp across the balls that survive. */
+  const colorAxis = useMemo(
+    () => fitColorAxis(COLOR_AXES[colorBy], filteredDots),
+    [colorBy, filteredDots],
+  );
 
   // Reset selection when filters change
   useEffect(() => { setSelectedDot(null); }, [filters]);
@@ -1062,14 +1148,20 @@ export function SprayChartView({
            in HittingTab (decision view) — flex-1 ourselves so the
            chart container grows to fill all available vertical
            space within the parent bubble. */
-        flex: noOuterChrome ? 1 : undefined,
-        minHeight: noOuterChrome ? 0 : undefined,
+        /* Always fill the outer wrapper (which is height:100% of its column),
+           so the bubble's bottom edge lands level with the Strike Zone
+           bubble sharing the row. Harmless where the column has no fixed
+           height — there is simply no free space to claim. */
+        flex: 1,
+        minHeight: 0,
       }}
     >
-      {/* "Spray Chart" label retired — the color-axis legend strip
-          below now leads the bubble. The bubble's identity is clear
-          from its content (color ramp + chart) so the eyebrow label
-          was redundant. */}
+      {/* "Spray Chart" label — restored per coach spec and deliberately the
+          SAME component/props the Strike Zone bubble uses, so the two
+          bubbles sharing the row wear identical headers. Tied to the colour
+          legend: the views that suppress the legend (Swing Decision) are the
+          ones where the parent bubble already carries its own heading. */}
+      {!hideColorBar && <SectionHeader title="Spray Chart" compact align="left" />}
 
       {/* Header strip — color-axis legend (Exit Velo gradient ramp) on
           the left, optional date-range chip on the right. The gradient
@@ -1080,7 +1172,7 @@ export function SprayChartView({
           GradeRow above already conveys the per-outcome data, so the
           colour ramp is redundant). */}
       {!hideColorBar && (() => {
-        const axis = COLOR_AXES[colorBy];
+        const axis = colorAxis;
         return (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -1110,7 +1202,7 @@ export function SprayChartView({
               </span>
               <div style={{
                 height: 5, borderRadius: 2.5,
-                background: 'linear-gradient(90deg, #1E3A8A 0%, #60A5FA 50%, #FFFFFF 100%)',
+                background: RAMP_CSS,
               }} />
               <div
                 className={aStyles.sprayLightText}
@@ -1121,7 +1213,7 @@ export function SprayChartView({
                 }}
               >
                 {axis.ticks.map((t, idx, arr) => (
-                  <span key={t} style={{
+                  <span key={`${t}-${idx}`} style={{
                     textAlign: idx === 0 ? 'left' : idx === arr.length - 1 ? 'right' : 'center',
                   }}>
                     {t}
@@ -1273,7 +1365,18 @@ export function SprayChartView({
              diamond proportionally intact at any container height. */
           ...(noOuterChrome
             ? { flex: 1, minHeight: 0 }
-            : { aspectRatio: hideFilters ? `${FIELD_W} / ${FIELD_H_NO_FILTERS}` : `${FIELD_W} / ${FIELD_H}` }),
+            /* aspect-ratio sets the frame's natural height; flex-basis auto
+               then lets it absorb whatever the bubble has left over after
+               being stretched to match the Strike Zone bubble, so the spare
+               room ends up split above and below the field instead of
+               pooling under the filter card. The SVG letterboxes
+               (preserveAspectRatio), so the field itself is unchanged — it
+               is width-bound either way. */
+            : {
+                aspectRatio: hideFilters ? `${FIELD_W} / ${FIELD_H_NO_FILTERS}` : `${FIELD_W} / ${FIELD_H}`,
+                flex: '1 1 auto',
+                minHeight: 0,
+              }),
         }}
       >
         {loading ? (
@@ -1283,7 +1386,7 @@ export function SprayChartView({
             dots={filteredDots}
             selected={selectedDot}
             onSelect={setSelectedDot}
-            axis={COLOR_AXES[colorBy]}
+            axis={colorAxis}
             sliceAgg={sliceAggregate ? spraySliceAggregate(filteredDots.map(d => d.angle)) : null}
             /* LF / CF / RF thirds computed from the SAME filtered dot set the
                chart draws, so the percentages always describe exactly what is

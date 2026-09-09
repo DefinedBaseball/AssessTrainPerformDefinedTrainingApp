@@ -103,6 +103,17 @@ const hittingSectionBubbleStyle: React.CSSProperties = {
   boxShadow: '0 5px 14px rgba(0, 0, 0, 0.21)',
 };
 
+/* Vendor-table variant — Full Swing / Blast Motion / HitTrax only, per coach
+   spec: 20% thinner vertically than the Coach Grades bubble above, which
+   keeps the roomier spacing because its content is grade chips rather than a
+   single row of numbers. Pair with `aStyles.vendorMetricBubble`, which
+   supplies the matching header + icon trim (those live in CSS, not here). */
+const hittingVendorBubbleStyle: React.CSSProperties = {
+  ...hittingSectionBubbleStyle,
+  padding: '9px 16px',
+  gap: 3,
+};
+
 /* Dark-navy `.panel` chrome — same color as the Swing inner bubble.
    Applied inline to KpiCards and ManualScoreCards inside the
    Hitting-inputs sections so every metric tile reads in the same
@@ -168,8 +179,13 @@ function CoachGradesIcon() {
     >
       {/* Dark rounded tile background */}
       <rect x="0" y="0" width="100" height="100" rx="22" fill="#1a1f25" />
-      {/* Paper / clipboard body */}
-      <rect x="22" y="22" width="46" height="64" rx="3" fill="var(--text-bright)" />
+      {/* Paper / clipboard body. Hard-coded white for the same reason the
+          Blast tile is: var(--text-bright) is white in dark mode but
+          #0a0d12 in light, so the paper turned near-black against the
+          near-black tile and the whole icon read as a dark blob. Its tile
+          and every mark on it are fixed dark, so the paper must be fixed
+          white in both themes. */}
+      <rect x="22" y="22" width="46" height="64" rx="3" fill="#ffffff" />
       {/* Three checkbox rows: small square + check + line */}
       <g stroke="#1a1f25" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
         {/* Row 1 */}
@@ -186,7 +202,7 @@ function CoachGradesIcon() {
         <line x1="42" y1="74" x2="63" y2="74" />
       </g>
       {/* A+ grade circle (bottom-right) */}
-      <circle cx="74" cy="62" r="18" fill="var(--text-bright)" stroke="#1a1f25" strokeWidth="3" />
+      <circle cx="74" cy="62" r="18" fill="#ffffff" stroke="#1a1f25" strokeWidth="3" />
       <text
         x="71" y="69"
         textAnchor="middle"
@@ -239,8 +255,11 @@ function HitTraxLogo() {
       {/* Side chevrons */}
       <polygon points="6,50 22,40 22,60" fill="url(#ht-red)" />
       <polygon points="94,50 78,40 78,60" fill="url(#ht-red)" />
-      {/* "HT" wordmark — squared, bold */}
-      <g fill="var(--text-bright)">
+      {/* "HT" wordmark — squared, bold. Fixed white, not var(--text-bright):
+          the tile under it is a hard-coded charcoal gradient in both themes,
+          so a theme-following wordmark went near-black on charcoal in light
+          mode. */}
+      <g fill="#ffffff">
         {/* H */}
         <rect x="28" y="36" width="6" height="30" />
         <rect x="44" y="36" width="6" height="30" />
@@ -310,8 +329,13 @@ function BlastLogo() {
       aria-label="Blast Motion"
       style={{ display: 'block' }}
     >
-      {/* White tile background to match brand presentation */}
-      <rect x="0" y="0" width="100" height="100" rx="50" fill="var(--text-bright)" />
+      {/* White tile background to match brand presentation. Hard-coded
+          white ON PURPOSE — this used to be var(--text-bright), which is
+          white in dark mode but near-black (#0a0d12) in light, so the tile
+          inverted and the black brand mark drawn on top of it vanished into
+          a black disc. The ring and nodes below are hard-coded #000 to match
+          the real Blast logo, so their backing has to be fixed white too. */}
+      <rect x="0" y="0" width="100" height="100" rx="50" fill="#ffffff" />
       {/* Outer ring */}
       <circle cx="50" cy="50" r="36" fill="none" stroke="#000" strokeWidth="6" />
       {/* Connecting lines */}
@@ -490,7 +514,7 @@ function VendorMetricRowGroup({ items, colCount, last }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       <div style={{
         display: 'grid', gridTemplateColumns: cols,
-        padding: '6px 10px', borderBottom: '1px solid var(--border)',
+        padding: '4px 10px', borderBottom: '1px solid var(--border)',
       }}>
         {items.map((it, i) => (
           <span key={`${it.label}-${i}`} style={headerStyle}>{it.label}</span>
@@ -498,7 +522,7 @@ function VendorMetricRowGroup({ items, colCount, last }: {
       </div>
       <div style={{
         display: 'grid', gridTemplateColumns: cols,
-        padding: '10px', alignItems: 'center',
+        padding: '8px 10px', alignItems: 'center',
         borderBottom: last ? undefined : '1px solid var(--border)',
       }}>
         {items.map((it, i) => (
@@ -1149,7 +1173,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {hasFullSwing && (() => {
           renderedSections++;
           return (
-        <div style={hittingSectionBubbleStyle}>
+        <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
           icon={<FullSwingLogo />}
           iconColor="gold"
@@ -1227,7 +1251,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {hasBlast && (() => {
           renderedSections++;
           return (
-        <div style={hittingSectionBubbleStyle}>
+        <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
           icon={<BlastLogo />}
           iconColor="teal"
@@ -1291,7 +1315,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {hasHitTrax && (() => {
           renderedSections++;
           return (
-        <div style={hittingSectionBubbleStyle}>
+        <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
           icon={<HitTraxLogo />}
           iconColor="red"

@@ -2108,3 +2108,18 @@
   border-top: 1px solid var(--border-bright);
   border-radius: var(--radius-md);
 }
+
+/* ── Vendor metric bubbles (Full Swing / Blast Motion / HitTrax) ──
+   These three run 20% tighter vertically than the Coach Grades bubble they
+   share `hittingSectionBubbleStyle` chrome with: they carry a single row of
+   numbers, so the default header ran nearly a third of the bubble's height.
+   Scoped to the bubble class ON PURPOSE — the same SectionHeader at its
+   normal size is still used everywhere else, Coach Grades included. */
+.vendorMetricBubble .sectionHeader {
+  padding-bottom: 6px;
+}
+.vendorMetricBubble .sectionIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
