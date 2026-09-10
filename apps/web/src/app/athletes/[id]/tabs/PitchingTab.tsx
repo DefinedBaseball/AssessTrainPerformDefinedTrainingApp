@@ -1740,45 +1740,28 @@ export function PitchingTab({
               The `{hasPitchData && (...)}` guard the block used to carry is
               gone -- this position already sits inside the console's
               `!loading && hasPitchData` branch, so it was redundant. */}
-        <div style={{ marginBottom: 20 }}>
-          {/* Outer shell now carries the Command Deck (player name)
-              chrome so it reads as a sibling of the Pitch Report HUD
-              bubble above it. Inner Break / Release cards keep the
-              graphite Pitch-Report-bubble gradient for clean inner
-              contrast. */}
-          <div style={{
-            ...commandDeckBubbleStyle,
-            /* Light theme: match the Pitch Report HUD (.hudConsole's
-               light override) instead of the dark-navy Command-Deck
-               chrome — that chrome is an inline style, so it can't flip
-               via the [data-theme="light"] CSS rule and would otherwise
-               stay dark. Now the Trackman bubble reads the same
-               cool-slate (--panel-bg-light) as the Pitch Report bubble
-               above it. Dark theme keeps the Command-Deck look. */
-            ...(isLight ? {
-              background: 'var(--panel-bg-light)',
-              borderColor: 'rgba(0, 0, 0, 0.10)',
-              boxShadow: '0 6px 18px rgba(15, 20, 30, 0.08)',
-            } : {}),
-            padding: 16,
-            /* gap: 16 → 14 (≈0.85rem) so the Trackman SectionHeader's
-               accent line sits the same distance above the Break &
-               Spin table as the Tool Grades accent line sits above
-               its first inner bubble. */
-            display: 'flex', flexDirection: 'column', gap: 14,
-          }}>
-            {/* The "Trackman" SectionHeader that used to sit here is gone.
-                It was labelling a standalone section; now that these tables
-                live inside the Pitch Report console, the brand mark moved up
-                onto the console's own title row (see the logo beside
-                "Pitching Report" above) and the text label was redundant
-                against it. */}
-            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
-              <BreakTable rows={arsenal} />
-            </div>
-            <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
-              <ReleaseTable rows={arsenal} />
-            </div>
+        {/* Pitch Metrics + Release Metrics sit DIRECTLY on the Pitch Report
+            console, per coach spec. They used to share a wrapper bubble
+            (Command-Deck chrome, overridden to --panel-bg-light) — but in
+            light mode that wrapper resolved to the same fill as the console
+            it sat inside, so it read as a bubble-in-a-bubble whose only
+            visible effect was a border and a 16px inset. Dropping it also
+            lines the two cards up with the Pitch Readout bar below, which
+            spans the console's full content width.
+
+            The "Trackman" SectionHeader that used to head this block is
+            long gone: the brand mark moved up onto the console's own title
+            row (see the logo beside "Pitching Report"), so the text label
+            was redundant against it. */}
+        <div style={{
+          marginBottom: 20,
+          display: 'flex', flexDirection: 'column', gap: 14,
+        }}>
+          <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
+            <BreakTable rows={arsenal} />
+          </div>
+          <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
+            <ReleaseTable rows={arsenal} />
           </div>
         </div>
 
