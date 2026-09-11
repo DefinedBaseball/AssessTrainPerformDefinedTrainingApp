@@ -646,10 +646,16 @@
   background: rgba(255,255,255,0.04);
 }
 
+/* Selected post type. The palette is monochrome (--accent is plain white
+   in dark, near-black in light), so a tint cannot carry this: the old
+   rgba(255,255,255,0.06) fill sat a hair above the 0.04 hover and read as
+   nothing. Inverting the pill is the one treatment that stays on-palette and
+   is still unmistakable at a glance. */
 .typeBtnActive {
-  border-color: rgba(255,255,255,0.22) !important;
-  color: var(--text) !important;
-  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)) !important;
+  border-color: #ffffff !important;
+  color: #0b0e13 !important;
+  background: #ffffff !important;
+  font-weight: 700;
 }
 
 .typeIcon {
@@ -805,8 +811,9 @@
   background: rgba(0, 0, 0, 0.04);
 }
 [data-theme="light"] .typeBtnActive {
-  border-color: rgba(0, 0, 0, 0.22) !important;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.025)) !important;
+  border-color: #1a1f25 !important;
+  background: #1a1f25 !important;
+  color: #ffffff !important;
 }
 [data-theme="light"] .fieldInput {
   background: var(--panel-bg-light);
