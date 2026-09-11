@@ -12,7 +12,10 @@ import { MessagesLauncher } from '@/components/MessagesLauncher';
 import { RichTextEditor } from '@/components/RichTextEditor';
 /* The feed + edit modal now live in the bell's Announcements tab; the
    dashboard keeps only post CREATION, which still needs these two. */
-import { POST_TYPES, fileToDataUrl } from '@/components/announcements/AnnouncementFeed';
+import {
+  POST_TYPES, fileToDataUrl, AnnouncementFeed, EditPostModal, AudiencePicker,
+  ATHLETES_TAG, isUrgent,
+} from '@/components/announcements/AnnouncementFeed';
 import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
 import { REPORT_TYPE_TO_TAB } from './athletes/[id]/helpers';
 import styles from './page.module.css';
@@ -90,15 +93,17 @@ export default function DashboardPage() {
 
   /* ── Modal state ── */
   const [showModal, setShowModal] = useState(false);
-  const [postType, setPostType] = useState<string>('FACILITY_ANNOUNCEMENT');
+  const [editingPost, setEditingPost] = useState<PostItem | null>(null);
+  const [postType, setPostType] = useState<string>('GENERAL');
   const [postTitle, setPostTitle] = useState('');
   const [postBody, setPostBody] = useState('');
   const [postUrgency, setPostUrgency] = useState(false);
   const [postTaggedPlayerId, setPostTaggedPlayerId] = useState('');
-  const [postCollegeName, setPostCollegeName] = useState('');
-  const [postPosition, setPostPosition] = useState('');
-  const [postOrgName, setPostOrgName] = useState('');
-  const [postLevel, setPostLevel] = useState('');
+  /* Audience — only meaningful on an Athletes Announcement; the service
+     forces everything else back to COACHES regardless of what we send. */
+  const [postScope, setPostScope] = useState('ALL_PLAYERS');
+  const [postAudienceIds, setPostAudienceIds] = useState<string[]>([]);
+  const [postProgram, setPostProgram] = useState('');
   const [postVideoUrl, setPostVideoUrl] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -151,12 +156,15 @@ export default function DashboardPage() {
         type: postType,
         title: postTitle.trim(),
         body: postBody.trim() || undefined,
-        urgency: postUrgency ? 'IMPORTANT' : 'NORMAL',
+        urgency: postUrgency ? 'URGENT' : 'NORMAL',
         taggedPlayerId: postTaggedPlayerId || undefined,
-        collegeName: postCollegeName || undefined,
-        position: postPosition || undefined,
-        organizationName: postOrgName || undefined,
-        level: postLevel || undefined,
+        ...(postType === ATHLETES_TAG
+          ? {
+              audienceScope: postScope as api.PostAudienceScope,
+              audiencePlayerIds: postScope === 'INDIVIDUAL' ? postAudienceIds.join(',') : '',
+              audienceProgram: postScope === 'PROGRAM' ? postProgram : undefined,
+            }
+          : {}),
         videoUrl: postVideoUrl || undefined,
         imageUrl: postImageUrl || undefined,
       });
@@ -164,15 +172,14 @@ export default function DashboardPage() {
 
       // Reset form
       setShowModal(false);
-      setPostType('FACILITY_ANNOUNCEMENT');
+      setPostType('GENERAL');
       setPostTitle('');
       setPostBody('');
       setPostUrgency(false);
       setPostTaggedPlayerId('');
-      setPostCollegeName('');
-      setPostPosition('');
-      setPostOrgName('');
-      setPostLevel('');
+      setPostScope('ALL_PLAYERS');
+      setPostAudienceIds([]);
+      setPostProgram('');
       setPostVideoUrl('');
       setPostImageUrl('');
     } catch (err: any) {
@@ -180,11 +187,34 @@ export default function DashboardPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [postType, postTitle, postBody, postUrgency, postTaggedPlayerId, postCollegeName, postPosition, postOrgName, postLevel, postVideoUrl, postImageUrl]);
+  }, [postTitle, postType, postBody, postUrgency, postTaggedPlayerId,
+      postScope, postAudienceIds, postProgram, postVideoUrl, postImageUrl]);
 
-  /* Delete + edit handlers moved with the feed into the bell's
-     Announcements tab. `posts` is still fetched here because the
-     "Pro Signings" stat card counts them. */
+  /* ── Feed handlers ──
+     The feed lives on the dashboard again, so edit / delete / flag are
+     owned here rather than by the bell. */
+  const handleDeletePost = useCallback(async (id: string) => {
+    if (!confirm('Delete this post?')) return;
+    const prev = posts;
+    setPosts(p => p.filter(x => x.id !== id));
+    try {
+      await api.deletePost(id);
+    } catch {
+      setPosts(prev);   // put it back rather than lying about the delete
+    }
+  }, [posts]);
+
+  /* Flag as Seen is per coach, so this only unpins it for ME. Optimistic:
+     the row disappears on click and comes back if the write fails. */
+  const handleFlagSeen = useCallback(async (id: string) => {
+    const prev = posts;
+    setPosts(p => p.map(x => (x.id === id ? { ...x, seen: true } : x)));
+    try {
+      await api.markPostSeen(id);
+    } catch {
+      setPosts(prev);
+    }
+  }, [posts]);
 
   /* ── Player Summary data ──
      A player's Dashboard IS their Player Summary now (Grades/Trends, Tool
@@ -297,9 +327,13 @@ export default function DashboardPage() {
   }
 
   /* ── Coach Dashboard ── */
-  const gradYears = new Set(players.map(p => p.gradYear).filter(Boolean));
   const committed = players.filter(p => p.collegeCommit).length;
-  const proSignings = posts.filter(p => p.type === 'PRO_SIGNING').length;
+  /* The old "Pro Signings" card counted posts of a tag that no longer
+     exists. Unflagged urgent posts is the number that actually matters on
+     a staff comms board — and it is MY unflagged count, since seen state
+     is per coach. */
+  const pinnedPosts = posts.filter(p => isUrgent(p) && !p.seen);
+  const normalPosts = posts.filter(p => !(isUrgent(p) && !p.seen));
 
   return (
     <div>
@@ -323,17 +357,20 @@ export default function DashboardPage() {
             <div className={styles.statLabel}>Total Athletes</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>{playersError ? '—' : gradYears.size}</div>
-            <div className={styles.statLabel}>Grad Years</div>
-          </div>
-          <div className={styles.statCard}>
             <div className={styles.statValue}>{playersError ? '—' : committed}</div>
             <div className={styles.statLabel}>Committed</div>
           </div>
-          <div className={styles.statCard}>
-            <div className={styles.statValue}>{proSignings}</div>
-            <div className={styles.statLabel}>Pro Signings</div>
-          </div>
+          {/* The last two cards are DESTINATIONS, not counts — same tile
+              chrome so the row still reads as one strip, with a glyph
+              standing in for the number. */}
+          <Link href="/videos/library" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
+            <div className={styles.statValue} aria-hidden="true">🎬</div>
+            <div className={styles.statLabel}>Videos</div>
+          </Link>
+          <Link href="/video-editor" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
+            <div className={styles.statValue} aria-hidden="true">✂️</div>
+            <div className={styles.statLabel}>Video Editor</div>
+          </Link>
         </div>
         {playersError && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>
@@ -348,8 +385,36 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* The announcement feed moved to the notification bell's
-            Announcements tab — the "+" FAB below still creates posts. */}
+        {/* ── Urgent, unflagged ──
+            Pinned directly under the stat cards and held there until THIS
+            coach clicks the flag. Seen state is per coach, so one person
+            clearing it cannot hide it from the rest of the staff. */}
+        {pinnedPosts.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <AnnouncementFeed
+              posts={pinnedPosts}
+              isCoach
+              onDelete={handleDeletePost}
+              onEdit={setEditingPost}
+              onFlagSeen={handleFlagSeen}
+              title="Urgent"
+            />
+          </div>
+        )}
+
+        {/* ── Everything else ──
+            Suppressed while the only posts there are sit pinned above, so
+            the page never says "No announcements yet" directly under one. */}
+        {(normalPosts.length > 0 || pinnedPosts.length === 0) && (
+        <div style={{ marginTop: 18 }}>
+          <AnnouncementFeed
+            posts={normalPosts}
+            isCoach
+            onDelete={handleDeletePost}
+            onEdit={setEditingPost}
+          />
+        </div>
+        )}
       </div>
 
       {/* ── FAB (Coach only) ── */}
@@ -371,14 +436,12 @@ export default function DashboardPage() {
           setPostUrgency={setPostUrgency}
           postTaggedPlayerId={postTaggedPlayerId}
           setPostTaggedPlayerId={setPostTaggedPlayerId}
-          postCollegeName={postCollegeName}
-          setPostCollegeName={setPostCollegeName}
-          postPosition={postPosition}
-          setPostPosition={setPostPosition}
-          postOrgName={postOrgName}
-          setPostOrgName={setPostOrgName}
-          postLevel={postLevel}
-          setPostLevel={setPostLevel}
+          postScope={postScope}
+          setPostScope={setPostScope}
+          postAudienceIds={postAudienceIds}
+          setPostAudienceIds={setPostAudienceIds}
+          postProgram={postProgram}
+          setPostProgram={setPostProgram}
           postVideoUrl={postVideoUrl}
           setPostVideoUrl={setPostVideoUrl}
           postImageUrl={postImageUrl}
@@ -390,8 +453,21 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Editing a post now happens in the bell's Announcements tab, which
-          owns the feed and hosts EditPostModal. */}
+      {editingPost && (
+        <EditPostModal
+          post={editingPost}
+          players={players}
+          onClose={() => setEditingPost(null)}
+          onSaved={(updated) => {
+            /* The PUT response carries no `seen` (that is a per-viewer
+               field on GET), so keep the flag we already had rather than
+               letting an edit silently re-pin a post someone cleared. */
+            setPosts(prev => prev.map(x =>
+              x.id === updated.id ? { ...updated, seen: x.seen } : x));
+            setEditingPost(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -410,10 +486,9 @@ function CreatePostModal({
   postBody, setPostBody,
   postUrgency, setPostUrgency,
   postTaggedPlayerId, setPostTaggedPlayerId,
-  postCollegeName, setPostCollegeName,
-  postPosition, setPostPosition,
-  postOrgName, setPostOrgName,
-  postLevel, setPostLevel,
+  postScope, setPostScope,
+  postAudienceIds, setPostAudienceIds,
+  postProgram, setPostProgram,
   postVideoUrl, setPostVideoUrl,
   postImageUrl, setPostImageUrl,
   submitting,
@@ -432,14 +507,12 @@ function CreatePostModal({
   setPostUrgency: (v: boolean) => void;
   postTaggedPlayerId: string;
   setPostTaggedPlayerId: (v: string) => void;
-  postCollegeName: string;
-  setPostCollegeName: (v: string) => void;
-  postPosition: string;
-  setPostPosition: (v: string) => void;
-  postOrgName: string;
-  setPostOrgName: (v: string) => void;
-  postLevel: string;
-  setPostLevel: (v: string) => void;
+  postScope: string;
+  setPostScope: (v: string) => void;
+  postAudienceIds: string[];
+  setPostAudienceIds: (v: string[]) => void;
+  postProgram: string;
+  setPostProgram: (v: string) => void;
   postVideoUrl: string;
   setPostVideoUrl: (v: string) => void;
   postImageUrl: string;
@@ -449,9 +522,9 @@ function CreatePostModal({
   onSubmit: () => void;
   onClose: () => void;
 }) {
-  const needsPlayer = ['ATHLETE_HIGHLIGHT', 'COLLEGE_COMMITMENT', 'PRO_SIGNING'].includes(postType);
-  const isCommitment = postType === 'COLLEGE_COMMITMENT';
-  const isProSigning = postType === 'PRO_SIGNING';
+  /* An Athletes Announcement may also spotlight one athlete by name. That
+     is a separate question from the audience picker below it. */
+  const needsPlayer = postType === ATHLETES_TAG;
 
   return (
     <div className={styles.modalOverlay} onClick={(e) => {
@@ -501,7 +574,7 @@ function CreatePostModal({
             />
           </div>
 
-          {/* ── Tagged Player (for Highlight, Commitment, Pro Signing) ── */}
+          {/* ── Tagged Player (Athletes Announcement only) ── */}
           {needsPlayer && (
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Tagged Athlete</label>
@@ -520,60 +593,17 @@ function CreatePostModal({
             </div>
           )}
 
-          {/* ── College Commitment fields ── */}
-          {isCommitment && (
-            <>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>College / University</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  placeholder="e.g. University of Texas"
-                  value={postCollegeName}
-                  onChange={e => setPostCollegeName(e.target.value)}
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Position</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  placeholder="e.g. RHP, SS, OF"
-                  value={postPosition}
-                  onChange={e => setPostPosition(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          {/* ── Pro Signing fields ── */}
-          {isProSigning && (
-            <>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Organization</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  placeholder="e.g. Houston Astros"
-                  value={postOrgName}
-                  onChange={e => setPostOrgName(e.target.value)}
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Level</label>
-                <select
-                  className={`${styles.fieldInput} ${styles.fieldSelect}`}
-                  value={postLevel}
-                  onChange={e => setPostLevel(e.target.value)}
-                >
-                  <option value="">Select level...</option>
-                  <option value="MLB">MLB</option>
-                  <option value="MiLB">MiLB</option>
-                  <option value="Independent">Independent</option>
-                </select>
-              </div>
-            </>
-          )}
+          {/* ── Audience (Athletes Announcement only) ── */}
+          <AudiencePicker
+            postType={postType}
+            scope={postScope}
+            setScope={setPostScope}
+            playerIds={postAudienceIds}
+            setPlayerIds={setPostAudienceIds}
+            program={postProgram}
+            setProgram={setPostProgram}
+            players={players}
+          />
 
           {/* ── Video — URL OR File upload ──
               Both inputs write into the same `postVideoUrl` state, so
@@ -636,7 +666,7 @@ function CreatePostModal({
               onChange={e => setPostUrgency(e.target.checked)}
             />
             <label htmlFor="urgency" className={styles.urgencyLabel}>
-              Mark as Important
+              Mark as Urgent
             </label>
           </div>
 

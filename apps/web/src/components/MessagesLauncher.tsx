@@ -381,15 +381,21 @@ export function MessagesLauncher() {
                 >
                   Notifications
                 </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={notifTab === 'announcements'}
-                  className={`${styles.notifTab} ${notifTab === 'announcements' ? styles.notifTabActive : ''}`}
-                  onClick={openAnnouncements}
-                >
-                  Announcements
-                </button>
+                {/* Players only: the coach dashboard IS the announcement
+                    feed now, so a second copy behind the bell would just be
+                    two places to read the same thing. Players have no
+                    dashboard feed, so this stays their way in. */}
+                {!isCoach && (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={notifTab === 'announcements'}
+                    className={`${styles.notifTab} ${notifTab === 'announcements' ? styles.notifTabActive : ''}`}
+                    onClick={openAnnouncements}
+                  >
+                    Announcements
+                  </button>
+                )}
               </div>
               <div className={styles.notifHeadActions}>
                 {notifTab === 'notifications'

@@ -8,10 +8,14 @@ export class PostsController {
 
   @Get()
   async findAll(
+    @Request() req: any,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    /* The viewer comes from the token, never the query string — the service
+       uses it to decide which posts this caller is allowed to see at all. */
     return this.postsService.findAll(
+      { id: req.user.sub, role: req.user.role, playerId: req.user.playerId },
       limit ? parseInt(limit, 10) : 50,
       offset ? parseInt(offset, 10) : 0,
     );
@@ -33,5 +37,12 @@ export class PostsController {
   @Roles('COACH')
   async delete(@Param('id') id: string) {
     return this.postsService.delete(id);
+  }
+
+  /** Per-coach "Flag as Seen" — clears the post from THIS coach's pinned row. */
+  @Post(':id/seen')
+  @Roles('COACH')
+  async markSeen(@Request() req: any, @Param('id') id: string) {
+    return this.postsService.markSeen(id, req.user.sub);
   }
 }

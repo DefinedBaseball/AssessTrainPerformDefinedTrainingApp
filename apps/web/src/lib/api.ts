@@ -1311,16 +1311,34 @@ export async function createGameReport(data: {
 }
 
 // ─── Posts / Announcements ────────────────────────────────────────
+/** The four dashboard tags. Labels + icons live in AnnouncementFeed. */
+export type PostTypeCode =
+  | 'GENERAL'
+  | 'COACHING'
+  | 'ANNOUNCEMENT'
+  | 'ATHLETES_ANNOUNCEMENT';
+
+export type PostAudienceScope = 'COACHES' | 'ALL_PLAYERS' | 'INDIVIDUAL' | 'PROGRAM';
+
 export interface PostItem {
   id: string;
-  type: 'FACILITY_ANNOUNCEMENT' | 'ATHLETE_HIGHLIGHT' | 'PROGRAM_ANNOUNCEMENT' | 'COLLEGE_COMMITMENT' | 'PRO_SIGNING';
+  type: PostTypeCode;
   title: string;
   body: string | null;
   imageUrl: string | null;
   videoUrl: string | null;
   linkUrl: string | null;
-  urgency: 'NORMAL' | 'IMPORTANT';
+  urgency: 'NORMAL' | 'URGENT';
   taggedPlayerId: string | null;
+  /** Who an ATHLETES_ANNOUNCEMENT reaches; always COACHES on the other tags. */
+  audienceScope: PostAudienceScope;
+  /** CSV of Player ids when audienceScope is INDIVIDUAL. */
+  audiencePlayerIds: string;
+  /** athleteTypes code when audienceScope is PROGRAM. */
+  audienceProgram: string | null;
+  /** Whether the REQUESTING coach has flagged this post as seen. Absent for
+   *  players — pinning urgent posts is a coach-dashboard behaviour. */
+  seen?: boolean;
   taggedPlayer: { id: string; firstName: string; lastName: string; positions: string; profilePhoto: string | null } | null;
   collegeName: string | null;
   position: string | null;
@@ -1345,10 +1363,9 @@ export async function createPost(data: {
   linkUrl?: string;
   urgency?: string;
   taggedPlayerId?: string;
-  collegeName?: string;
-  position?: string;
-  organizationName?: string;
-  level?: string;
+  audienceScope?: PostAudienceScope;
+  audiencePlayerIds?: string;
+  audienceProgram?: string;
 }): Promise<PostItem> {
   return request('/posts', { method: 'POST', body: JSON.stringify(data) });
 }
@@ -1362,16 +1379,20 @@ export async function updatePost(id: string, data: {
   linkUrl?: string;
   urgency?: string;
   taggedPlayerId?: string;
-  collegeName?: string;
-  position?: string;
-  organizationName?: string;
-  level?: string;
+  audienceScope?: PostAudienceScope;
+  audiencePlayerIds?: string;
+  audienceProgram?: string;
 }): Promise<PostItem> {
   return request(`/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
 export async function deletePost(id: string): Promise<void> {
   return request(`/posts/${id}`, { method: 'DELETE' });
+}
+
+/** Per-coach "Flag as Seen" — unpins an urgent post from MY dashboard only. */
+export async function markPostSeen(id: string): Promise<{ seen: boolean }> {
+  return request(`/posts/${id}/seen`, { method: 'POST' });
 }
 
 // ---- Analytics / Chart Configs ----

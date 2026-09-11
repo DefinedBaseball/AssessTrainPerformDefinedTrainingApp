@@ -10,45 +10,46 @@ datasource db {
 // ─── Users & Auth ────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // hashed — will swap to Cognito in production
-  role      String   @default("PLAYER") // "COACH" | "PLAYER"
+  id                String   @id @default(uuid())
+  email             String   @unique
+  password          String // hashed — will swap to Cognito in production
+  role              String   @default("PLAYER") // "COACH" | "PLAYER"
   // Account lifecycle. Existing rows backfill to ACTIVE via the default, so
   // no current user is gated. Self-registered players land as PENDING until a
   // coach accepts them; a declined request deletes the row entirely.
-  status    String   @default("ACTIVE") // "ACTIVE" | "PENDING" | "DECLINED"
+  status            String   @default("ACTIVE") // "ACTIVE" | "PENDING" | "DECLINED"
   // Account profile (settings → Account). `position` is the coach's job
   // title (e.g. "Hitting Coordinator"); `phone` backs the future SMS channel.
-  name      String?
-  phone     String?
-  position  String?
+  name              String?
+  phone             String?
+  position          String?
   // The facility owner. Surfaced as a badge in settings; protected from
   // deletion. Exactly one user is expected to carry this.
-  isPrimaryAdmin Boolean @default(false)
+  isPrimaryAdmin    Boolean  @default(false)
   // Coach access level (only meaningful when role == "COACH"; null for players):
   //   "ADMIN"  — full control incl. creating/managing coach accounts + approvals
   //   "COACH"  — manage players/data/schedules, but NOT coach accounts
   //   "VIEWER" — read-only across the whole app
   // Null on a legacy coach is treated as ADMIN for backward-compat (the guard
   // applies that default); new coaches always get an explicit level.
-  coachLevel String?
+  coachLevel        String?
   // Per-subject notification channel matrix as JSON:
   //   { "<SUBJECT>": { "app": bool, "email": bool, "phone": bool }, … }
   // Missing subject/channel ⇒ default (app on, email on, phone off). Only the
   // APP channel is delivered today; email/phone are stored for go-live.
   notificationPrefs String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  player Player?
-  createdReports Report[] @relation("ReportCreatedBy")
-  posts          Post[]   @relation("PostAuthor")
-  scheduleTemplates ScheduleTemplate[] @relation("ScheduleTemplateCreatedBy")
-  liveSessionsCreated LiveSession[] @relation("LiveSessionCreatedBy")
-  messagesSent     Message[] @relation("MessagesSent")
-  messagesReceived Message[] @relation("MessagesReceived")
-  notifications    Notification[] @relation("NotificationsReceived")
+  player              Player?
+  createdReports      Report[]             @relation("ReportCreatedBy")
+  posts               Post[]               @relation("PostAuthor")
+  postsSeen           PostSeen[]           @relation("PostSeenUser")
+  scheduleTemplates   ScheduleTemplate[]   @relation("ScheduleTemplateCreatedBy")
+  liveSessionsCreated LiveSession[]        @relation("LiveSessionCreatedBy")
+  messagesSent        Message[]            @relation("MessagesSent")
+  messagesReceived    Message[]            @relation("MessagesReceived")
+  notifications       Notification[]       @relation("NotificationsReceived")
   passwordResetTokens PasswordResetToken[] @relation("PasswordResetTokens")
 }
 
@@ -73,31 +74,31 @@ model PasswordResetToken {
 // ─── Player Profile ──────────────────────────────────────────────
 
 model Player {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id])
-  firstName     String
-  lastName      String
-  profilePhoto  String?  // S3 URL
-  positions     String   // comma-separated: "INF,OF"
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  firstName        String
+  lastName         String
+  profilePhoto     String? // S3 URL
+  positions        String // comma-separated: "INF,OF"
   // Coach roster categories (comma-separated codes): PROGRAM, LESSON,
   // MEMBERSHIP, REMOTE. Drives the Athlete Hub type filter. Additive with a
   // "" default so existing rows are simply untagged. A MEMBERSHIP athlete is
   // treated as also PROGRAM by the filter logic (see lib/athlete-types.ts).
-  athleteTypes  String   @default("")
-  heightInches  Int?
-  weightLbs     Int?
-  gradYear      Int?
-  bats          String?  // R, L, S
-  throws        String?  // R, L
-  birthDate     String?  // ISO date string
-  highSchool    String?
-  clubTeam      String?
-  collegeCommit String?
-  pbrNational   Int?
-  pbrState      Int?
-  pbrPosition   Int?
-  pgScore       Float?
+  athleteTypes     String   @default("")
+  heightInches     Int?
+  weightLbs        Int?
+  gradYear         Int?
+  bats             String? // R, L, S
+  throws           String? // R, L
+  birthDate        String? // ISO date string
+  highSchool       String?
+  clubTeam         String?
+  collegeCommit    String?
+  pbrNational      Int?
+  pbrState         Int?
+  pbrPosition      Int?
+  pgScore          Float?
   // JSON map of `${aggregateSectionKey}: string` — coach-entered free-text
   // Notes shown under the Tool Grades bubble on the Player Summary tab.
   // Keys mirror the aggregate section keys ('hitting', 'pitching',
@@ -112,9 +113,9 @@ model Player {
   // will refuse to remove this player. Used for the long-lived
   // "Jack Setterland" sandbox player so uploaded data sticks around
   // through re-seeds.
-  isPermanent   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isPermanent      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   metrics            Metric[]
   videos             Video[]
@@ -124,8 +125,8 @@ model Player {
   leaderboardEntries LeaderboardEntry[]
   scheduledDrills    ScheduledDrill[]
 
-  uploadedVideos Video[]  @relation("UploadedBy")
-  posts              Post[]
+  uploadedVideos Video[] @relation("UploadedBy")
+  posts          Post[]
 
   // Live Session relations — see LiveSession / AtBat / TrainingClip
   // model definitions below.
@@ -168,13 +169,13 @@ model Metric {
   // this Prisma rejects the player delete (FK violation) and any partial
   // delete leaves orphaned rows that pollute leaderboards/aggregates.
   player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  source     String   // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX" | "MANUAL"
-  metricType String   // e.g., 'max_exit_velo', 'fb_max_velo', 'pop_time'
+  source     String // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX" | "MANUAL"
+  metricType String // e.g., 'max_exit_velo', 'fb_max_velo', 'pop_time'
   value      Float
-  unit       String   // e.g., 'mph', 'degrees', 'seconds'
+  unit       String // e.g., 'mph', 'degrees', 'seconds'
   recordedAt DateTime
-  rawData    String?  // JSON string of original vendor data
-  uploadId   String?  // links metric to its CsvUpload batch
+  rawData    String? // JSON string of original vendor data
+  uploadId   String? // links metric to its CsvUpload batch
   createdAt  DateTime @default(now())
 
   @@index([playerId, source, recordedAt])
@@ -194,21 +195,21 @@ model Video {
   uploadedById String?
   uploadedBy   Player?  @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
   title        String
-  category     String   // "HITTING" | "PITCHING" | "FIELDING" | "CATCHING" | "GAME" | "WORKOUT_DEMO"
-  originalUrl  String?  // S3 raw upload
-  hlsUrl       String?  // S3 processed HLS
+  category     String // "HITTING" | "PITCHING" | "FIELDING" | "CATCHING" | "GAME" | "WORKOUT_DEMO"
+  originalUrl  String? // S3 raw upload
+  hlsUrl       String? // S3 processed HLS
   thumbnailUrl String?
   durationSec  Int?
   status       String   @default("UPLOADING") // "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
   createdAt    DateTime @default(now())
 
-  annotations Annotation[]
-  voiceOvers  VoiceOver[]
+  annotations        Annotation[]
+  voiceOvers         VoiceOver[]
   // Optional links back from Live Session artifacts. A Video may
   // originate as an AtBat recording (LIVE mode) or as a training
   // clip (TRAINING mode); these inverse relations let the API
   // resolve a video's source without joining on every read.
-  atBatVideos       AtBat[]        @relation("AtBatVideo")
+  atBatVideos        AtBat[]        @relation("AtBatVideo")
   trainingClipVideos TrainingClip[] @relation("TrainingClipVideo")
 }
 
@@ -219,8 +220,8 @@ model Annotation {
   videoId        String
   video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   createdById    String
-  frameTimestamp Float    // seconds into video
-  strokeData     String   // serialized drawing paths (JSON or base64)
+  frameTimestamp Float // seconds into video
+  strokeData     String // serialized drawing paths (JSON or base64)
   color          String
   strokeWidth    Float
   createdAt      DateTime @default(now())
@@ -235,8 +236,8 @@ model VoiceOver {
   videoId        String
   video          Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   createdById    String
-  audioUrl       String   // S3 URL
-  startTimestamp Float    // seconds into video where audio starts
+  audioUrl       String // S3 URL
+  startTimestamp Float // seconds into video where audio starts
   durationSec    Float
   createdAt      DateTime @default(now())
 }
@@ -255,11 +256,11 @@ model Report {
   // createdBy link goes null. The FK column is nullable for the same
   // reason.
   createdBy   User?    @relation("ReportCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  reportType  String   // "HITTING" | "INFIELD" | "OUTFIELD" | "PITCHING" | "CATCHING"
-  title       String?  // user-assigned report name
-  content     String   // JSON — structured report data
-  notes       String?  // coach's written notes
-  videoIds    String?  // comma-separated video IDs
+  reportType  String // "HITTING" | "INFIELD" | "OUTFIELD" | "PITCHING" | "CATCHING"
+  title       String? // user-assigned report name
+  content     String // JSON — structured report data
+  notes       String? // coach's written notes
+  videoIds    String? // comma-separated video IDs
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -283,17 +284,17 @@ model Report {
 //     bubble and the Pitching tab's new Live Results bubble.
 
 model LiveSession {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   createdById String
-  createdBy   User     @relation("LiveSessionCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
-  mode        String   // "TRAINING" | "LIVE"
+  createdBy   User      @relation("LiveSessionCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  mode        String // "TRAINING" | "LIVE"
   // Only set when mode == "TRAINING". Records which position the
   // training session focused on so the saved clips can be filed
   // under the correct tab (Hitting / Pitching / Infield / Outfield
   // / Catching).
   position    String?
-  status      String   @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "CANCELLED"
-  startedAt   DateTime @default(now())
+  status      String    @default("ACTIVE") // "ACTIVE" | "COMPLETED" | "CANCELLED"
+  startedAt   DateTime  @default(now())
   endedAt     DateTime?
   notes       String?
 
@@ -309,26 +310,26 @@ model LiveSession {
 // links to the recording the coach made for THIS at-bat (videos
 // are written first, then linked here on save).
 model AtBat {
-  id                String   @id @default(uuid())
+  id                String       @id @default(uuid())
   liveSessionId     String?
   liveSession       LiveSession? @relation(fields: [liveSessionId], references: [id], onDelete: SetNull)
   hitterId          String
-  hitter            Player   @relation("AtBatHitter", fields: [hitterId], references: [id], onDelete: Cascade)
+  hitter            Player       @relation("AtBatHitter", fields: [hitterId], references: [id], onDelete: Cascade)
   pitcherId         String?
-  pitcher           Player?  @relation("AtBatPitcher", fields: [pitcherId], references: [id], onDelete: SetNull)
+  pitcher           Player?      @relation("AtBatPitcher", fields: [pitcherId], references: [id], onDelete: SetNull)
   // Snapshot of the pitcher's throwing hand AT TIME OF AT-BAT. The
   // Pitcher's `throws` field may change later (rare, but possible
   // for switch-pitchers or correction), so we copy it here for
   // historical accuracy on filters like "vs LHP / vs RHP".
-  pitcherHandedness String?  // "L" | "R" | null
+  pitcherHandedness String? // "L" | "R" | null
   reportId          String?
-  report            Report?  @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  report            Report?      @relation(fields: [reportId], references: [id], onDelete: SetNull)
   videoId           String?
-  video             Video?   @relation("AtBatVideo", fields: [videoId], references: [id], onDelete: SetNull)
+  video             Video?       @relation("AtBatVideo", fields: [videoId], references: [id], onDelete: SetNull)
   // Final outcome of the at-bat — derived from the terminal pitch
   // when the AB closes. Cached here so spray-chart / Live-Results
   // queries can read without walking the pitch list.
-  outcome           String?  // "STRIKE_OUT_LOOKING" | "STRIKE_OUT_SWINGING" | "WALK" | "FLY_BALL" | "GROUND_BALL" | "LINE_DRIVE" | "BARREL" | null (in-progress)
+  outcome           String? // "STRIKE_OUT_LOOKING" | "STRIKE_OUT_SWINGING" | "WALK" | "FLY_BALL" | "GROUND_BALL" | "LINE_DRIVE" | "BARREL" | null (in-progress)
   // Spray-chart coordinates for in-play outcomes (BARREL / FLY_BALL /
   // GROUND_BALL / LINE_DRIVE). Normalized to [0,1] where x is the
   // horizontal axis (0 = pull-side foul line, 1 = oppo-side foul line)
@@ -343,7 +344,7 @@ model AtBat {
   // location. "BARREL" | "JAM" | "CAP" | null. Legacy at-bats that
   // recorded a BARREL outcome keep that in `outcome` and leave this null.
   qualityOfContact  String?
-  startedAt         DateTime @default(now())
+  startedAt         DateTime     @default(now())
   endedAt           DateTime?
 
   pitches Pitch[]
@@ -361,17 +362,17 @@ model Pitch {
   id             String   @id @default(uuid())
   atBatId        String
   atBat          AtBat    @relation(fields: [atBatId], references: [id], onDelete: Cascade)
-  pitchNumber    Int      // 1, 2, 3 … inside this at-bat
-  pitchType      String   // "FASTBALL" | "SINKER" | "CUTTER" | "SLIDER" | "CURVEBALL" | "SWEEPER" | "CHANGEUP" | "SPLITTER" | "KNUCKLEBALL"
+  pitchNumber    Int // 1, 2, 3 … inside this at-bat
+  pitchType      String // "FASTBALL" | "SINKER" | "CUTTER" | "SLIDER" | "CURVEBALL" | "SWEEPER" | "CHANGEUP" | "SPLITTER" | "KNUCKLEBALL"
   // Umpire call — independent of the granular `result` below. A
   // strike here can be looking OR swinging; the `result` column
   // distinguishes them.
-  callBallStrike String?  // "BALL" | "STRIKE" | null
+  callBallStrike String? // "BALL" | "STRIKE" | null
   // Granular per-pitch outcome. Some values terminate the at-bat
   // (STRIKE_OUT_LOOKING / STRIKE_OUT_SWINGING / WALK / FLY_BALL /
   // GROUND_BALL / LINE_DRIVE / BARREL); others are mid-AB
   // (STRIKE_LOOKING / STRIKE_SWINGING / FOUL / BALL).
-  result         String?  // see comment above
+  result         String? // see comment above
   recordedAt     DateTime @default(now())
 
   @@index([atBatId, pitchNumber])
@@ -384,16 +385,16 @@ model Pitch {
 // profile — saved clips get a non-null `videoId` (and optionally
 // a `savedToReportId` if the coach attached it to a report).
 model TrainingClip {
-  id              String       @id @default(uuid())
+  id              String      @id @default(uuid())
   liveSessionId   String
-  liveSession     LiveSession  @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  liveSession     LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
   playerId        String
-  player          Player       @relation("TrainingClipPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  player          Player      @relation("TrainingClipPlayer", fields: [playerId], references: [id], onDelete: Cascade)
   videoId         String?
-  video           Video?       @relation("TrainingClipVideo", fields: [videoId], references: [id], onDelete: SetNull)
+  video           Video?      @relation("TrainingClipVideo", fields: [videoId], references: [id], onDelete: SetNull)
   savedToReportId String?
-  savedToReport   Report?      @relation("TrainingClipReport", fields: [savedToReportId], references: [id], onDelete: SetNull)
-  recordedAt      DateTime     @default(now())
+  savedToReport   Report?     @relation("TrainingClipReport", fields: [savedToReportId], references: [id], onDelete: SetNull)
+  recordedAt      DateTime    @default(now())
 
   @@index([liveSessionId])
   @@index([playerId])
@@ -404,12 +405,12 @@ model TrainingClip {
 model Drill {
   id          String   @id @default(uuid())
   name        String
-  tab         String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
-  category    String   // "Movement Prep" | "Drills" | "Exercises" | "Batting Practice" | "Machine" | "Bullpen" | "Live" | "Post-Throw" | "Cool Down" | "Vizual Edge"
+  tab         String // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  category    String // "Movement Prep" | "Drills" | "Exercises" | "Batting Practice" | "Machine" | "Bullpen" | "Live" | "Post-Throw" | "Cool Down" | "Vizual Edge"
   description String?
-  videoUrl    String?  // demo video URL
-  duration    Int?     // default duration in minutes
-  tags        String?  // comma-separated tags
+  videoUrl    String? // demo video URL
+  duration    Int? // default duration in minutes
+  tags        String? // comma-separated tags
   createdAt   DateTime @default(now())
 
   scheduledDrills ScheduledDrill[]
@@ -422,12 +423,12 @@ model Drill {
 
 model EduClass {
   id          String   @id @default(uuid())
-  sport       String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
-  level       String   // "beginner" | "intermediate" | "advanced" | "expert"
+  sport       String // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  level       String // "beginner" | "intermediate" | "advanced" | "expert"
   name        String
-  desc        String?  // short summary shown on card
-  description String?  // full detailed description shown on detail page
-  videoUrl    String?  // explanation video URL
+  desc        String? // short summary shown on card
+  description String? // full detailed description shown on detail page
+  videoUrl    String? // explanation video URL
   lessons     Int      @default(1)
   duration    Int      @default(30) // minutes per lesson
   emoji       String   @default("📚")
@@ -439,13 +440,13 @@ model EduClass {
 // ─── Education: MLB Video Library ────────────────────────────────
 
 model MlbPlayer {
-  id            String     @id @default(uuid())
+  id            String   @id @default(uuid())
   name          String
-  positions     String     // comma-separated: "Hitter,Outfield"
-  bats          String?    // "RHH" | "LHH" | "Switch"
-  throws        String?    // "RHP" | "LHP"
+  positions     String // comma-separated: "Hitter,Outfield"
+  bats          String? // "RHH" | "LHH" | "Switch"
+  throws        String? // "RHP" | "LHP"
   team          String?
-  emoji         String     @default("⚾")
+  emoji         String   @default("⚾")
   // Cover photo for the MLB player card + detail-page avatar.
   // Stored as a base64 data URL string (small image files only —
   // expected size ≤ ~500 KB per player; ~150 MB total at the
@@ -456,7 +457,7 @@ model MlbPlayer {
   // Optional physical specs shown on the player card / detail page.
   heightInches  Int?
   weightLbs     Int?
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime @default(now())
 
   videos MlbVideo[]
 
@@ -468,7 +469,7 @@ model MlbVideo {
   playerId  String
   player    MlbPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
   title     String
-  category  String    // "Swing" | "At-Bat" | "Mechanics" | "Pitching" | "Defense" | "Highlight"
+  category  String // "Swing" | "At-Bat" | "Mechanics" | "Pitching" | "Defense" | "Highlight"
   url       String?
   notes     String?
   createdAt DateTime  @default(now())
@@ -479,12 +480,12 @@ model MlbVideo {
 // ─── Scheduled Drills (Calendar entries per player) ─────────────
 
 model ScheduledDrill {
-  id        String   @id @default(uuid())
-  playerId  String
+  id           String   @id @default(uuid())
+  playerId     String
   // Player cascade: if a player record is deleted, drop their schedule
   // too — leaving orphan rows would silently break the calendar render.
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  drillId   String?
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  drillId      String?
   // Drill set-null: when a coach deletes a Drill from the library we
   // don't want to silently nuke every athlete's calendar entry that
   // referenced it. Instead the drillId clears; the row keeps `name`,
@@ -492,14 +493,14 @@ model ScheduledDrill {
   // still renders the slot — just without the linked drill object's
   // description / video. Pairs with the UI's `ev.drill?` chained access
   // so the read side already handles null.
-  drill     Drill?   @relation(fields: [drillId], references: [id], onDelete: SetNull)
-  tab       String   // "hitting" | "pitching" | "defense" | "strength" | "vision"
-  category  String
-  name      String
-  date      String   // "YYYY-MM-DD"
-  time      String   // "HH:MM"
-  duration  Int      // minutes
-  notes     String?
+  drill        Drill?   @relation(fields: [drillId], references: [id], onDelete: SetNull)
+  tab          String // "hitting" | "pitching" | "defense" | "strength" | "vision"
+  category     String
+  name         String
+  date         String // "YYYY-MM-DD"
+  time         String // "HH:MM"
+  duration     Int // minutes
+  notes        String?
   // Coach drag-to-reorder positions. Both default 0 so existing rows and
   // newly-created drills render exactly as before (the surfaces' time /
   // canonical-category sorts act as the tiebreak) — explicit values only
@@ -507,9 +508,9 @@ model ScheduledDrill {
   // section (player+date+tab+category). `sectionOrder` = the rank of this
   // drill's SECTION among the day's sections (shared by every drill in the
   // same section). See training.service.reorderScheduledDrills.
-  order        Int   @default(0)
-  sectionOrder Int   @default(0)
-  createdAt DateTime @default(now())
+  order        Int      @default(0)
+  sectionOrder Int      @default(0)
+  createdAt    DateTime @default(now())
 
   @@index([playerId, tab, date])
   @@index([playerId, date])
@@ -527,8 +528,8 @@ model ScheduledDrill {
 model ScheduleTemplate {
   id          String   @id @default(uuid())
   name        String
-  tab         String   // "hitting" | "pitching" | "catching" | "infield" | "outfield" | "strength"
-  items       String   // JSON snapshot (see above)
+  tab         String // "hitting" | "pitching" | "catching" | "infield" | "outfield" | "strength"
+  items       String // JSON snapshot (see above)
   createdById String?
   // SetNull on creator: staff churn shouldn't delete the facility's plans.
   createdBy   User?    @relation("ScheduleTemplateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -566,10 +567,10 @@ model TrainingExercise {
   id           String      @id @default(uuid())
   dayId        String
   day          TrainingDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  category     String      // "HITTING" | "DEFENSIVE" | "PITCHING" | "WEIGHTROOM"
+  category     String // "HITTING" | "DEFENSIVE" | "PITCHING" | "WEIGHTROOM"
   name         String
   description  String?
-  demoVideoUrl String?     // link to demo video
+  demoVideoUrl String? // link to demo video
   sortOrder    Int         @default(0)
   createdAt    DateTime    @default(now())
 }
@@ -582,10 +583,10 @@ model GameReport {
   player    Player   @relation(fields: [playerId], references: [id])
   gameDate  DateTime
   opponent  String?
-  stats     String?  // JSON — batting line, pitch count, etc.
-  journal   String?  // free-form notes
-  videoIds  String?  // comma-separated video IDs
-  season    String?  // e.g., '2026-spring'
+  stats     String? // JSON — batting line, pitch count, etc.
+  journal   String? // free-form notes
+  videoIds  String? // comma-separated video IDs
+  season    String? // e.g., '2026-spring'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -615,47 +616,47 @@ model LeaderboardEntry {
 model CsvUpload {
   id           String   @id @default(uuid())
   uploadedById String
-  source       String   // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX"
-  fileUrl      String   // S3 raw CSV
+  source       String // "TRACKMAN" | "VALD" | "BLAST_MOTION" | "FULL_SWING" | "HITTRAX"
+  fileUrl      String // S3 raw CSV
   status       String   @default("PENDING") // "PENDING" | "PROCESSING" | "COMPLETED" | "PARTIAL_FAILURE" | "FAILED"
   totalRows    Int?
   successRows  Int?
-  errorDetails String?  // JSON error info
+  errorDetails String? // JSON error info
   createdAt    DateTime @default(now())
 }
 
 // ─── Custom Chart Configs (Coach-built analytics) ───────────────
 
 model ChartConfig {
-  id           String   @id @default(uuid())
-  createdById  String   // User.id (coach)
-  scope        String   @default("PRIVATE") // "PRIVATE" | "GLOBAL"
-  section      String   // "HITTING" | "PITCHING" | "DEFENSE" | "CATCHING" | "STRENGTH" | "OVERVIEW"
-  chartType    String   // "BAR" | "LINE" | "SCATTER" | "BUBBLE" | "PERCENT_INCREASE" | "STAT_BUBBLE"
-  title        String
-  dataSources  String   // JSON array: [{ source, metricType, label, color? }]
-  dateMode     String   @default("ALL_TIME") // "ALL_TIME" | "RANGE" | "LAST_N_DAYS"
-  dateFrom     String?  // ISO date when dateMode = "RANGE"
-  dateTo       String?  // ISO date when dateMode = "RANGE"
-  lastNDays    Int?     // when dateMode = "LAST_N_DAYS"
-  playerScope  String   @default("ALL") // "ALL" | "INDIVIDUAL" (mode)
-  playerIds    String?         // JSON array of player ids when playerScope = "INDIVIDUAL"
-  dataMode     String   @default("DATE_RANGE") // "DATE_RANGE" | "REPORTS"
-  reportIds    String?         // JSON array of report ids when dataMode = "REPORTS"
-  sortOrder    Int      @default(0)
+  id            String   @id @default(uuid())
+  createdById   String // User.id (coach)
+  scope         String   @default("PRIVATE") // "PRIVATE" | "GLOBAL"
+  section       String // "HITTING" | "PITCHING" | "DEFENSE" | "CATCHING" | "STRENGTH" | "OVERVIEW"
+  chartType     String // "BAR" | "LINE" | "SCATTER" | "BUBBLE" | "PERCENT_INCREASE" | "STAT_BUBBLE"
+  title         String
+  dataSources   String // JSON array: [{ source, metricType, label, color? }]
+  dateMode      String   @default("ALL_TIME") // "ALL_TIME" | "RANGE" | "LAST_N_DAYS"
+  dateFrom      String? // ISO date when dateMode = "RANGE"
+  dateTo        String? // ISO date when dateMode = "RANGE"
+  lastNDays     Int? // when dateMode = "LAST_N_DAYS"
+  playerScope   String   @default("ALL") // "ALL" | "INDIVIDUAL" (mode)
+  playerIds     String? // JSON array of player ids when playerScope = "INDIVIDUAL"
+  dataMode      String   @default("DATE_RANGE") // "DATE_RANGE" | "REPORTS"
+  reportIds     String? // JSON array of report ids when dataMode = "REPORTS"
+  sortOrder     Int      @default(0)
   // Advanced chart fields (optional, chartType-specific)
-  rollingWindow Int?            // ROLLING_AVG: window size (# of points)
-  rollingMode   String?         // ROLLING_AVG: "SMA" | "EMA"
-  targetMin     Float?          // TARGET_BAND: lower bound
-  targetMax     Float?          // TARGET_BAND: upper bound
-  pbDirection   String?         // PERSONAL_BEST: "MAX" | "MIN"
-  zoneGrid      String?         // STRIKE_ZONE_HEAT: "3x3" | "5x5"
-  zoneMetric    String?         // STRIKE_ZONE_HEAT: "COUNT" | "AVG" | "WHIFF"
+  rollingWindow Int? // ROLLING_AVG: window size (# of points)
+  rollingMode   String? // ROLLING_AVG: "SMA" | "EMA"
+  targetMin     Float? // TARGET_BAND: lower bound
+  targetMax     Float? // TARGET_BAND: upper bound
+  pbDirection   String? // PERSONAL_BEST: "MAX" | "MIN"
+  zoneGrid      String? // STRIKE_ZONE_HEAT: "3x3" | "5x5"
+  zoneMetric    String? // STRIKE_ZONE_HEAT: "COUNT" | "AVG" | "WHIFF"
   // Cohort overlay — adds "class average" comparison series at evaluate time
-  cohortEnabled Boolean? @default(false)  // when true, append peer-average series
-  cohortMode    String?         // "GRAD_YEAR" | "POSITION" | "ALL"
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  cohortEnabled Boolean? @default(false) // when true, append peer-average series
+  cohortMode    String? // "GRAD_YEAR" | "POSITION" | "ALL"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([section, scope])
   @@index([createdById])
@@ -664,28 +665,56 @@ model ChartConfig {
 // ─── Posts / Announcements Feed ─────────────────────────────────
 
 model Post {
-  id               String   @id @default(uuid())
-  type             String   // "FACILITY_ANNOUNCEMENT" | "ATHLETE_HIGHLIGHT" | "PROGRAM_ANNOUNCEMENT" | "COLLEGE_COMMITMENT" | "PRO_SIGNING"
-  title            String
-  body             String?
-  imageUrl         String?
-  videoUrl         String?
-  linkUrl          String?
-  urgency          String   @default("NORMAL") // "NORMAL" | "IMPORTANT"
-  taggedPlayerId   String?
-  taggedPlayer     Player?  @relation(fields: [taggedPlayerId], references: [id])
-  collegeName      String?  // for COLLEGE_COMMITMENT
-  position         String?  // for COLLEGE_COMMITMENT
-  organizationName String?  // for PRO_SIGNING
-  level            String?  // for PRO_SIGNING: "MLB" | "MiLB" | "Independent"
+  id                String  @id @default(uuid())
+  type              String // "GENERAL" | "COACHING" | "ANNOUNCEMENT" | "ATHLETES_ANNOUNCEMENT"
+  title             String
+  body              String?
+  imageUrl          String?
+  videoUrl          String?
+  linkUrl           String?
+  urgency           String  @default("NORMAL") // "NORMAL" | "URGENT" (was IMPORTANT)
+  taggedPlayerId    String?
+  taggedPlayer      Player? @relation(fields: [taggedPlayerId], references: [id])
+  // ── Audience ──
+  // GENERAL / COACHING / ANNOUNCEMENT are staff-only and stay "COACHES".
+  // ATHLETES_ANNOUNCEMENT goes to coaches PLUS the players this picks out.
+  audienceScope     String  @default("COACHES") // "COACHES" | "ALL_PLAYERS" | "INDIVIDUAL" | "PROGRAM"
+  audiencePlayerIds String  @default("") // CSV of Player ids, when scope = INDIVIDUAL
+  audienceProgram   String? // athleteTypes code, when scope = PROGRAM
+
+  // Retired with the old five-tag scheme (College Commitment / Pro Signing).
+  // Kept as nullable columns rather than dropped so the schema change stays
+  // additive — no data is destroyed on a `db push` against production.
+  collegeName      String?
+  position         String?
+  organizationName String?
+  level            String?
   authorId         String
   author           User     @relation("PostAuthor", fields: [authorId], references: [id])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  seenBy PostSeen[]
+
   @@index([type])
   @@index([createdAt])
   @@index([taggedPlayerId])
+}
+
+// Per-coach "Flag as Seen" on an urgent post. A row exists only once THAT
+// coach has cleared it, so an urgent post keeps pinning to the top of every
+// other coach's dashboard — one coach dismissing it cannot hide it from the
+// rest of the staff.
+model PostSeen {
+  id     String   @id @default(uuid())
+  postId String
+  post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User     @relation("PostSeenUser", fields: [userId], references: [id])
+  seenAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId])
 }
 
 // ─── Direct Messages ─────────────────────────────────────────────
@@ -699,8 +728,8 @@ model Message {
   id          String    @id @default(uuid())
   senderId    String
   recipientId String
-  body        String?   // text content (optional when a video is attached)
-  videoUrl    String?   // attached clip URL (optional)
+  body        String? // text content (optional when a video is attached)
+  videoUrl    String? // attached clip URL (optional)
   readAt      DateTime? // set when the recipient opens the thread
   createdAt   DateTime  @default(now())
 
@@ -721,12 +750,12 @@ model Message {
 model Notification {
   id          String    @id @default(uuid())
   recipientId String
-  type        String    // ACCOUNT_REQUEST | ANNOUNCEMENT | COMMITMENT | COACH_REVIEW | REPORT | VIDEO | SCHEDULE
+  type        String // ACCOUNT_REQUEST | ANNOUNCEMENT | COMMITMENT | COACH_REVIEW | REPORT | VIDEO | SCHEDULE
   title       String
   body        String?
   linkUrl     String?
-  actorId     String?   // user who triggered it (optional)
-  entityId    String?   // related record id (pending userId / playerId / postId …)
+  actorId     String? // user who triggered it (optional)
+  entityId    String? // related record id (pending userId / playerId / postId …)
   readAt      DateTime?
   createdAt   DateTime  @default(now())
 
@@ -744,25 +773,25 @@ model Notification {
 // additional form fields as JSON so the form can evolve without a schema
 // change. `status` lets a coach mark an inquiry NEW → REVIEWED → ARCHIVED.
 model Inquiry {
-  id         String   @id @default(uuid())
-  firstName  String
-  lastName   String
-  email      String
-  phone      String?
-  school     String?  // high school
-  gradYear   Int?
-  clubTeam   String?
-  positions  String?  // comma-separated, e.g. "INF,OF"
-  birthDate  String?  // ISO date string (calendar field)
+  id            String   @id @default(uuid())
+  firstName     String
+  lastName      String
+  email         String
+  phone         String?
+  school        String? // high school
+  gradYear      Int?
+  clubTeam      String?
+  positions     String? // comma-separated, e.g. "INF,OF"
+  birthDate     String? // ISO date string (calendar field)
   otherSports   String?
   injuryHistory String?
   otherHobbies  String?
-  goalLevel  String?  // Goals → target level: High School | College | Professional
-  goals      String?  // Goals → free-text (longer answer)
-  message    String?  // free-text note (optional / legacy)
-  formData   String?  // JSON blob of any extra form fields (future-proof)
-  status     String   @default("NEW") // NEW | REVIEWED | ARCHIVED
-  createdAt  DateTime @default(now())
+  goalLevel     String? // Goals → target level: High School | College | Professional
+  goals         String? // Goals → free-text (longer answer)
+  message       String? // free-text note (optional / legacy)
+  formData      String? // JSON blob of any extra form fields (future-proof)
+  status        String   @default("NEW") // NEW | REVIEWED | ARCHIVED
+  createdAt     DateTime @default(now())
 
   @@index([createdAt])
 }

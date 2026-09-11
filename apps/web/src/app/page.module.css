@@ -1082,3 +1082,31 @@
 .playerContent {
   padding-top: 0;
 }
+
+/* ── Urgent flag ──
+   Deliberately outside .postActions: that container is opacity:0 until the
+   card is hovered, and an urgent marker has to read without hovering. On the
+   dashboard's pinned row the flag is the "Flag as Seen" button; everywhere
+   else it renders as a static marker. */
+.postFlagBtn,
+.postFlagStatic {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 4px 6px;
+  border-radius: 7px;
+}
+.postFlagBtn {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.postFlagBtn:hover {
+  background: rgba(232,175,52,0.14);
+  border-color: rgba(232,175,52,0.45);
+}
+.postFlagStatic {
+  opacity: 0.75;
+}

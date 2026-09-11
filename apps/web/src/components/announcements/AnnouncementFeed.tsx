@@ -21,6 +21,7 @@ import Link from 'next/link';
 import * as api from '@/lib/api';
 import type { PostItem, Player } from '@/lib/api';
 import { RichTextEditor, RichTextView } from '@/components/RichTextEditor';
+import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import styles from '@/app/page.module.css';
 
 export function fileToDataUrl(file: File): Promise<string> {
@@ -45,22 +46,149 @@ export function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
-/* ── Post type config ── */
+/* ── Post type config ──
+   Four tags, and the tag is what decides who the post reaches. The first
+   three are staff-only; only Athletes Announcement can leave the coach
+   dashboard, and it carries the audience fields that say which players. */
 export const POST_TYPES = [
-  { value: 'FACILITY_ANNOUNCEMENT', label: 'Facility Announcement', icon: '🏟️' },
-  { value: 'ATHLETE_HIGHLIGHT', label: 'Athlete Highlight', icon: '⭐' },
-  { value: 'PROGRAM_ANNOUNCEMENT', label: 'Program Announcement', icon: '📋' },
-  { value: 'COLLEGE_COMMITMENT', label: 'College Commitment', icon: '🎓' },
-  { value: 'PRO_SIGNING', label: 'Pro Signing', icon: '✍️' },
+  { value: 'GENERAL', label: 'General', icon: '📌' },
+  { value: 'COACHING', label: 'Coaching', icon: '🧢' },
+  { value: 'ANNOUNCEMENT', label: 'Announcement', icon: '📣' },
+  { value: 'ATHLETES_ANNOUNCEMENT', label: 'Athletes Announcement', icon: '🏅' },
 ] as const;
 
+/** The one tag with an audience beyond the coaching staff. */
+export const ATHLETES_TAG = 'ATHLETES_ANNOUNCEMENT';
+
+/* Tag tint classes. These are the ORIGINAL class names from
+   page.module.css reused against the new tags — the classes are just colour
+   pairs, so renaming them across the stylesheet would be churn for nothing. */
 export const TAG_STYLES: Record<string, string> = {
-  FACILITY_ANNOUNCEMENT: 'tagFacility',
-  ATHLETE_HIGHLIGHT: 'tagHighlight',
-  PROGRAM_ANNOUNCEMENT: 'tagProgram',
-  COLLEGE_COMMITMENT: 'tagCommitment',
-  PRO_SIGNING: 'tagProSigning',
+  GENERAL: 'tagFacility',                 // blue accent
+  COACHING: 'tagProgram',                 // steel blue
+  ANNOUNCEMENT: 'tagHighlight',           // green
+  ATHLETES_ANNOUNCEMENT: 'tagCommitment', // gold
 };
+
+/** Audience scopes an Athletes Announcement can use. */
+export const AUDIENCE_SCOPES = [
+  { value: 'ALL_PLAYERS', label: 'All Players' },
+  { value: 'INDIVIDUAL',  label: 'Individual' },
+  { value: 'PROGRAM',     label: 'Program' },
+] as const;
+
+/**
+ * Is this post urgent?
+ *
+ * Accepts the retired 'IMPORTANT' value as well as today's 'URGENT', so a
+ * post written before the rename still pins and still shows its flag.
+ */
+export function isUrgent(post: { urgency: string }): boolean {
+  return post.urgency === 'URGENT' || post.urgency === 'IMPORTANT';
+}
+
+/* ── Shared audience picker ──
+   Used by BOTH the create modal (on the dashboard) and the edit modal below,
+   so the two cannot drift apart on what an audience means. Renders nothing
+   unless the active tag is Athletes Announcement. */
+export function AudiencePicker({
+  postType, scope, setScope, playerIds, setPlayerIds, program, setProgram, players,
+}: {
+  postType: string;
+  scope: string;
+  setScope: (v: string) => void;
+  playerIds: string[];
+  setPlayerIds: (v: string[]) => void;
+  program: string;
+  setProgram: (v: string) => void;
+  players: Player[];
+}) {
+  if (postType !== ATHLETES_TAG) return null;
+
+  /* Alphabetical by last name, then first — the order a coach scanning a
+     roster expects. */
+  const sorted = [...players].sort((a, b) =>
+    (a.lastName || '').localeCompare(b.lastName || '') ||
+    (a.firstName || '').localeCompare(b.firstName || ''));
+
+  const toggle = (id: string) => {
+    setPlayerIds(playerIds.includes(id) ? playerIds.filter(x => x !== id) : [...playerIds, id]);
+  };
+
+  return (
+    <>
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>Send To</label>
+        <select
+          className={`${styles.fieldInput} ${styles.fieldSelect}`}
+          value={scope}
+          onChange={e => setScope(e.target.value)}
+        >
+          {AUDIENCE_SCOPES.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {scope === 'INDIVIDUAL' && (
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel}>
+            Athletes {playerIds.length > 0 && `(${playerIds.length} selected)`}
+          </label>
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+            maxHeight: 190, overflowY: 'auto',
+            padding: 8, borderRadius: 8, border: '1px solid var(--border)',
+          }}>
+            {sorted.length === 0 && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No athletes on the roster.</span>
+            )}
+            {sorted.map(pl => {
+              const on = playerIds.includes(pl.id);
+              return (
+                <button
+                  key={pl.id}
+                  type="button"
+                  onClick={() => toggle(pl.id)}
+                  style={{
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    padding: '4px 10px', borderRadius: 999,
+                    border: `1px solid ${on ? 'var(--accent, #3d8bfd)' : 'var(--border)'}`,
+                    background: on ? 'var(--accent-dim, rgba(61,139,253,0.14))' : 'transparent',
+                    color: on ? 'var(--accent-light, #3d8bfd)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {pl.lastName}, {pl.firstName}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {scope === 'PROGRAM' && (
+        <div className={styles.fieldGroup}>
+          <label className={styles.fieldLabel}>Program</label>
+          <select
+            className={`${styles.fieldInput} ${styles.fieldSelect}`}
+            value={program}
+            onChange={e => setProgram(e.target.value)}
+          >
+            <option value="">Select program...</option>
+            {ATHLETE_TYPES.map(t => (
+              <option key={t.key} value={t.key}>{t.label}</option>
+            ))}
+          </select>
+          {/* The tag has to be on the athlete's profile for this to reach
+              them — say so rather than letting a send quietly hit nobody. */}
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+            Goes to every athlete carrying this tag on their profile.
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
 
 /* ══════════════════════════════════════════════
    ANNOUNCEMENT FEED
@@ -70,23 +198,32 @@ export function AnnouncementFeed({
   isCoach,
   onDelete,
   onEdit,
+  onFlagSeen,
+  title = 'Announcements & Spotlights',
+  emptyHint = true,
 }: {
   posts: PostItem[];
   isCoach: boolean;
   onDelete: (id: string) => void;
   onEdit: (post: PostItem) => void;
+  /** Supplied only where flagging makes sense (the pinned urgent row on the
+   *  coach dashboard). Without it the flag renders as a static marker. */
+  onFlagSeen?: (id: string) => void;
+  /** Heading — the pinned row overrides it with its own. */
+  title?: string;
+  emptyHint?: boolean;
 }) {
   if (posts.length === 0) {
     return (
       <div className={styles.feedSection}>
         <div className={styles.feedHeader}>
           <div className={styles.feedTitle}>
-            Announcements & Spotlights
+            {title}
           </div>
         </div>
         <div className={styles.feedEmpty}>
           No announcements yet.
-          {isCoach && <span style={{ display: 'block', fontSize: 12, marginTop: 4, color: 'var(--faint)' }}>
+          {isCoach && emptyHint && <span style={{ display: 'block', fontSize: 12, marginTop: 4, color: 'var(--faint)' }}>
             Tap the + button to create one.
           </span>}
         </div>
@@ -98,7 +235,7 @@ export function AnnouncementFeed({
     <div className={styles.feedSection}>
       <div className={styles.feedHeader}>
         <div className={styles.feedTitle}>
-          Announcements & Spotlights
+          {title}
           <span className={styles.feedBadge}>{posts.length}</span>
         </div>
       </div>
@@ -106,11 +243,12 @@ export function AnnouncementFeed({
         {posts.map(post => {
           const typeLabel = POST_TYPES.find(t => t.value === post.type)?.label || post.type;
           const tagClass = TAG_STYLES[post.type] || 'tagFacility';
+          const urgent = isUrgent(post);
 
           return (
             <div
               key={post.id}
-              className={`${styles.postCard} ${post.urgency === 'IMPORTANT' ? styles.postCardImportant : ''}`}
+              className={`${styles.postCard} ${urgent ? styles.postCardImportant : ''}`}
             >
               {/* Full-width type bar — the announcement type, the Important
                   marking, and the time live in this header strip, tinted by
@@ -118,11 +256,29 @@ export function AnnouncementFeed({
               <div className={`${styles.postTop} ${styles[tagClass]}`}>
                 <div className={styles.postMeta}>
                   <span className={styles.postBarLabel}>{typeLabel}</span>
-                  {post.urgency === 'IMPORTANT' && (
-                    <span className={styles.postUrgentBadge}>Important</span>
+                  {urgent && (
+                    <span className={styles.postUrgentBadge}>Urgent</span>
                   )}
                   <span className={styles.postDate}>{timeAgo(post.createdAt)}</span>
                 </div>
+                {/* Urgent flag, pinned to the top-right of the bubble. On the
+                    dashboard's pinned row it is the "Flag as Seen" button;
+                    everywhere else it is a static marker. Deliberately NOT
+                    inside .postActions, which is hidden until card hover. */}
+                {urgent && (
+                  onFlagSeen ? (
+                    <button
+                      type="button"
+                      className={styles.postFlagBtn}
+                      title="Flag as Seen"
+                      onClick={() => onFlagSeen(post.id)}
+                    >
+                      🚩
+                    </button>
+                  ) : (
+                    <span className={styles.postFlagStatic} title="Urgent">🚩</span>
+                  )
+                )}
                 {isCoach && (
                   <div className={styles.postActions}>
                     <button
@@ -174,17 +330,15 @@ export function AnnouncementFeed({
                   </Link>
                 )}
 
-                {post.type === 'COLLEGE_COMMITMENT' && post.collegeName && (
-                  <span className={styles.postCommitInfo}>
-                    {post.collegeName}
-                    {post.position && ` · ${post.position}`}
-                  </span>
-                )}
-
-                {post.type === 'PRO_SIGNING' && post.organizationName && (
-                  <span className={styles.postProInfo}>
-                    {post.organizationName}
-                    {post.level && ` · ${post.level}`}
+                {/* Audience read-back, so a coach can see at a glance who an
+                    Athletes Announcement actually went to. */}
+                {post.type === ATHLETES_TAG && (
+                  <span className={styles.postPlayerChip}>
+                    {post.audienceScope === 'ALL_PLAYERS' && 'All players'}
+                    {post.audienceScope === 'INDIVIDUAL' &&
+                      `${post.audiencePlayerIds.split(',').filter(Boolean).length} athlete(s)`}
+                    {post.audienceScope === 'PROGRAM' &&
+                      (ATHLETE_TYPES.find(t => t.key === post.audienceProgram)?.label || post.audienceProgram)}
                   </span>
                 )}
               </div>
@@ -213,20 +367,21 @@ export function EditPostModal({
   const [postType, setPostType] = useState(post.type);
   const [title, setTitle] = useState(post.title);
   const [body, setBody] = useState(post.body || '');
-  const [urgency, setUrgency] = useState(post.urgency === 'IMPORTANT');
+  const [urgency, setUrgency] = useState(isUrgent(post));
   const [taggedPlayerId, setTaggedPlayerId] = useState(post.taggedPlayerId || '');
-  const [collegeName, setCollegeName] = useState(post.collegeName || '');
-  const [position, setPosition] = useState(post.position || '');
-  const [orgName, setOrgName] = useState(post.organizationName || '');
-  const [level, setLevel] = useState(post.level || '');
+  const [scope, setScope] = useState<string>(
+    post.audienceScope && post.audienceScope !== 'COACHES' ? post.audienceScope : 'ALL_PLAYERS');
+  const [audiencePlayerIds, setAudiencePlayerIds] = useState<string[]>(
+    (post.audiencePlayerIds || '').split(',').map(x => x.trim()).filter(Boolean));
+  const [program, setProgram] = useState(post.audienceProgram || '');
   const [videoUrl, setVideoUrl] = useState(post.videoUrl || '');
   const [imageUrl, setImageUrl] = useState(post.imageUrl || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const needsPlayer = ['ATHLETE_HIGHLIGHT', 'COLLEGE_COMMITMENT', 'PRO_SIGNING'].includes(postType);
-  const isCommitment = postType === 'COLLEGE_COMMITMENT';
-  const isProSigning = postType === 'PRO_SIGNING';
+  /* An Athletes Announcement can still spotlight one athlete by name; the
+     audience picker below is a separate question from the tagged player. */
+  const needsPlayer = postType === ATHLETES_TAG;
 
   const save = async () => {
     if (!title.trim()) return;
@@ -237,12 +392,15 @@ export function EditPostModal({
         type: postType,
         title: title.trim(),
         body: body.trim() || undefined,
-        urgency: urgency ? 'IMPORTANT' : 'NORMAL',
+        urgency: urgency ? 'URGENT' : 'NORMAL',
         taggedPlayerId: taggedPlayerId || undefined,
-        collegeName: collegeName || undefined,
-        position: position || undefined,
-        organizationName: orgName || undefined,
-        level: level || undefined,
+        ...(postType === ATHLETES_TAG
+          ? {
+              audienceScope: scope as api.PostAudienceScope,
+              audiencePlayerIds: scope === 'INDIVIDUAL' ? audiencePlayerIds.join(',') : '',
+              audienceProgram: scope === 'PROGRAM' ? program : undefined,
+            }
+          : {}),
         videoUrl: videoUrl || undefined,
         imageUrl: imageUrl || undefined,
       });
@@ -320,60 +478,17 @@ export function EditPostModal({
             </div>
           )}
 
-          {/* ── College Commitment fields ── */}
-          {isCommitment && (
-            <>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>College / University</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  placeholder="e.g. University of Texas"
-                  value={collegeName}
-                  onChange={e => setCollegeName(e.target.value)}
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Position</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  placeholder="e.g. RHP, SS, OF"
-                  value={position}
-                  onChange={e => setPosition(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
-          {/* ── Pro Signing fields ── */}
-          {isProSigning && (
-            <>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Organization</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  placeholder="e.g. Houston Astros"
-                  value={orgName}
-                  onChange={e => setOrgName(e.target.value)}
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Level</label>
-                <select
-                  className={`${styles.fieldInput} ${styles.fieldSelect}`}
-                  value={level}
-                  onChange={e => setLevel(e.target.value)}
-                >
-                  <option value="">Select level...</option>
-                  <option value="MLB">MLB</option>
-                  <option value="MiLB">MiLB</option>
-                  <option value="Independent">Independent</option>
-                </select>
-              </div>
-            </>
-          )}
+          {/* ── Audience (Athletes Announcement only) ── */}
+          <AudiencePicker
+            postType={postType}
+            scope={scope}
+            setScope={setScope}
+            playerIds={audiencePlayerIds}
+            setPlayerIds={setAudiencePlayerIds}
+            program={program}
+            setProgram={setProgram}
+            players={players}
+          />
 
           {/* ── Video — URL OR File upload (mirrors CreatePostModal) ── */}
           <div className={styles.fieldGroup}>
@@ -431,7 +546,7 @@ export function EditPostModal({
               onChange={e => setUrgency(e.target.checked)}
             />
             <label htmlFor="editUrgency" className={styles.urgencyLabel}>
-              Mark as Important
+              Mark as Urgent
             </label>
           </div>
 
