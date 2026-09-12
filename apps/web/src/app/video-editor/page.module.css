@@ -1,0 +1,124 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   VIDEO EDITOR — the handful of surfaces that must flip with the theme.
+
+   Everything else on the page is inline style, which is fine while it only
+   uses variables that hold a plain colour in BOTH themes. These four could
+   not be, for two different reasons:
+
+     • The filled buttons need a label colour that contrasts with
+       `var(--text)` — which is near-white in dark and near-black in light, so
+       the label has to invert with it. The first attempt used
+       `var(--bubble-chrome-bg)`, but that variable holds a *gradient* in dark
+       mode; a gradient is not a valid `color`, so the whole declaration was
+       dropped and the label inherited light-on-light and vanished.
+
+     • The modal needs a surface colour. `var(--panel-bg)` is not defined in
+       either theme, so it silently fell through to the dark hardcoded
+       fallback and stayed dark on a light page.
+
+   Convention matches the rest of the app: dark is the default, light is the
+   `[data-theme="light"]` override.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Filled button (Import, Play/Pause, Save to profile) ── */
+.primaryBtn {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--text);
+  background: var(--text);
+  /* Dark theme: pale button, so the label takes the page background. */
+  color: #0e1116;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.primaryBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+[data-theme='light'] .primaryBtn {
+  /* Light theme: near-black button, so the label flips to white. */
+  color: #ffffff;
+}
+
+/* ── Selected pill (import source tabs, active draw tool) ── */
+.activeBtn {
+  background: var(--text);
+  border-color: var(--text);
+  color: #0e1116;
+}
+[data-theme='light'] .activeBtn {
+  color: #ffffff;
+}
+
+/* ── Record / Stop — brand red in both themes, so it owns its colours ── */
+.recordBtn {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid #b3303c;
+  background: #b3303c;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.recordBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Import / Save dialogs ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.modal {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #0d0f12 0%, #060708 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45);
+}
+[data-theme='light'] .modal {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 32px 80px rgba(15, 20, 30, 0.18);
+}
+
+/* ── Outline button (transport, reorder, close, Add, Discard, Download) ──
+   Colour lives here rather than inline so .activeBtn can win when one of
+   these is the selected pill. An inline background always outranks a class. */
+.ghostBtn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+}
+.ghostBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Select ──
+   `color-scheme` is what makes the native dropdown LIST readable: without it
+   the popup renders light-on-light in dark mode on Chromium. */
+.selectBox {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  color-scheme: dark;
+}
+[data-theme='light'] .selectBox {
+  color-scheme: light;
+}
