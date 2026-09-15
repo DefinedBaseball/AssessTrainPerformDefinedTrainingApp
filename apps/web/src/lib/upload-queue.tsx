@@ -119,56 +119,63 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
   }, []);
 
   /* ── The worker ──
-     One job at a time; see the header note on why it isn't parallel. */
-  useEffect(() => {
+
+     DO NOT turn this back into an effect that depends on `jobs` and cancels
+     its in-flight work on cleanup. That is what the first version did, and
+     it cancelled itself: the job's own `patch(status: "uploading")` changes
+     `jobs`, which re-runs the effect, which runs the previous cleanup and
+     flips `cancelled` on the closure still awaiting the upload. The bytes
+     landed, the Video row was created, and then the handler returned early —
+     so the clip never attached to its report, the card sat at 0% forever,
+     and the "still uploading" guard never released.
+
+     Instead the pump is a plain loop that reads the CURRENT jobs from a ref
+     and runs until the queue drains. Nothing about it is tied to a render. */
+  const pump = useCallback(async () => {
     if (runningRef.current) return;
-    const next = jobs.find(j => j.status === 'queued');
-    if (!next) return;
-
     runningRef.current = true;
-    let cancelled = false;
+    try {
+      for (;;) {
+        const next = jobsRef.current.find(j => j.status === 'queued');
+        if (!next) break;
 
-    (async () => {
-      try {
-        patch(next.id, { status: 'uploading', progress: 0, error: undefined });
-        const video = await api.uploadVideo(
-          next.file, next.playerId, next.title, next.category, undefined,
-          (pct: number) => { if (!cancelled) patch(next.id, { progress: Math.round(pct) }); },
-        );
-        if (cancelled) return;
+        try {
+          patch(next.id, { status: 'uploading', progress: 0, error: undefined });
+          const video = await api.uploadVideo(
+            next.file, next.playerId, next.title, next.category, undefined,
+            (pct: number) => patch(next.id, { progress: Math.round(pct) }),
+          );
 
-        patch(next.id, { status: 'attaching', progress: 100 });
-        await attach(next, video);
-        if (cancelled) return;
+          patch(next.id, { status: 'attaching', progress: 100 });
+          await attach(next, video);
 
-        patch(next.id, { status: 'done', progress: 100 });
-        /* Tell any open profile view to refetch so the real card replaces the
-           placeholder without a manual refresh. */
-        window.dispatchEvent(new CustomEvent(VIDEO_ATTACHED_EVENT, {
-          detail: { reportId: next.reportId, playerId: next.playerId, videoId: video.id },
-        }));
-        /* Leave the finished card up briefly so the coach sees it complete,
-           then drop it — the real video card has taken its place by then. */
-        setTimeout(() => {
-          setJobs(prev => prev.filter(j => j.id !== next.id));
-        }, 2500);
-      } catch (err: any) {
-        if (!cancelled) {
-          patch(next.id, {
-            status: 'error',
-            error: err?.message || 'Upload failed',
-          });
+          patch(next.id, { status: 'done', progress: 100 });
+          /* Tell any open profile view to refetch so the real card replaces
+             the placeholder without a manual refresh. */
+          window.dispatchEvent(new CustomEvent(VIDEO_ATTACHED_EVENT, {
+            detail: { reportId: next.reportId, playerId: next.playerId, videoId: video.id },
+          }));
+          /* Leave the finished card up briefly so the coach sees it land,
+             then drop it — the real video card has replaced it by then. */
+          const doneId = next.id;
+          setTimeout(() => setJobs(prev => prev.filter(j => j.id !== doneId)), 2500);
+        } catch (err: any) {
+          /* Failing one clip must not stall the queue — mark it and move on
+             to the next. The card offers Retry. */
+          patch(next.id, { status: 'error', error: err?.message || 'Upload failed' });
         }
-      } finally {
-        runningRef.current = false;
-        /* Nudge the effect so the next queued job starts. */
-        if (!cancelled) setJobs(prev => [...prev]);
       }
-    })();
+    } finally {
+      runningRef.current = false;
+    }
+  }, [patch, attach]);
 
-    return () => { cancelled = true; };
-  }, [jobs, patch, attach]);
-
+  /* Kick the pump whenever something is waiting. Keyed on the COUNT of queued
+     jobs, not on `jobs` itself, so a progress tick cannot restart it. */
+  const queuedCount = jobs.filter(j => j.status === 'queued').length;
+  useEffect(() => {
+    if (queuedCount > 0) void pump();
+  }, [queuedCount, pump]);
   const enqueue = useCallback((incoming: NewUploadJob[]) => {
     if (incoming.length === 0) return;
     setJobs(prev => [
@@ -271,6 +278,10 @@ export function useVideoAttachedListener(onAttached: () => void) {
    ring; a failure turns the same tile into Failed + Retry rather than the clip
    silently vanishing, which is what the old blocking save did.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* One keyframe, injected once — the indeterminate ring needs it, and a CSS
+   module would be a whole extra file for three lines. */
+const SPIN_KEYFRAMES = `@keyframes pdapp-spin { to { transform: rotate(360deg); } }`;
+
 export function PendingVideoCards({ reportId, tag }: {
   reportId: string | null | undefined;
   /** Category chip text, matching the finished cards around it. */
@@ -282,13 +293,18 @@ export function PendingVideoCards({ reportId, tag }: {
 
   return (
     <>
+      <style>{SPIN_KEYFRAMES}</style>
       {mine.map(job => {
         const failed = job.status === 'error';
         const done = job.status === 'done';
+        /* Before the first progress event there is no honest number to
+           show, and a confident "0%" is indistinguishable from a stalled
+           upload — exactly the confusion this card exists to prevent. */
+        const indeterminate = !failed && !done && job.progress === 0;
         const label = failed ? 'Upload failed'
           : done ? 'Uploaded'
           : job.status === 'attaching' ? 'Finishing…'
-          : job.status === 'uploading' ? `${job.progress}%`
+          : job.status === 'uploading' ? (indeterminate ? 'Uploading…' : `${job.progress}%`)
           : 'Queued';
         return (
           <div
@@ -317,7 +333,10 @@ export function PendingVideoCards({ reportId, tag }: {
                  indicator is one element that can't drift out of sync. */
               <div style={{
                 width: 34, height: 34, borderRadius: '50%',
-                background: `conic-gradient(var(--text) ${job.progress * 3.6}deg, rgba(127,127,127,0.22) 0deg)`,
+                background: indeterminate
+                  ? `conic-gradient(var(--text) 0deg 90deg, rgba(127,127,127,0.22) 90deg 360deg)`
+                  : `conic-gradient(var(--text) ${job.progress * 3.6}deg, rgba(127,127,127,0.22) 0deg)`,
+                animation: indeterminate ? 'pdapp-spin 1s linear infinite' : undefined,
                 display: 'grid', placeItems: 'center',
               }}>
                 <div style={{

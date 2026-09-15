@@ -811,7 +811,7 @@ interface BunnyPresign {
  * back to the buffered server-side POST /videos/upload — so uploads always
  * succeed and the call sites never change.
  *
- * `onProgress` (0-100) is optional and only reported on the direct path.
+ * `onProgress` (0-100) is optional and reported on BOTH paths.
  */
 export async function uploadVideo(
   file: File,
@@ -827,7 +827,7 @@ export async function uploadVideo(
     // Bunny not configured (dev → 503) or the direct path errored — fall back
     // to the buffered upload so the action still succeeds (small files / dev).
     console.warn('[uploadVideo] direct Bunny upload unavailable, using buffered fallback:', err);
-    return uploadVideoBuffered(file, playerId, title, category, uploadedById);
+    return uploadVideoBuffered(file, playerId, title, category, uploadedById, onProgress);
   }
 }
 
@@ -888,12 +888,22 @@ async function uploadVideoDirectToBunny(
   return completeRes.json();
 }
 
+/**
+ * Buffered upload — the fallback when the direct-to-Bunny path is
+ * unavailable (dev, where Bunny is unconfigured and the presign 503s).
+ *
+ * Uses XMLHttpRequest rather than fetch ON PURPOSE: fetch cannot report
+ * upload progress at all, so this path used to sit at 0% for the entire
+ * upload and then jump to done. `xhr.upload.onprogress` is the only way a
+ * browser will tell you how many bytes have actually gone out.
+ */
 async function uploadVideoBuffered(
   file: File,
   playerId: string,
   title: string,
   category: string,
   uploadedById?: string,
+  onProgress?: (pct: number) => void,
 ): Promise<Video> {
   const token = getAuthToken();
   const params = new URLSearchParams({ playerId, title, category });
@@ -902,18 +912,34 @@ async function uploadVideoBuffered(
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`/api/videos/upload?${params}`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: formData,
+  return new Promise<Video>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/videos/upload?${params}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        /* `lengthComputable` is false for a chunked body — report nothing
+           rather than a made-up number. */
+        if (e.lengthComputable && e.total > 0) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { reject(new Error('Upload succeeded but the response was unreadable')); }
+      } else {
+        reject(new Error(`API ${xhr.status}: ${xhr.responseText}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.onabort = () => reject(new Error('Upload aborted'));
+
+    xhr.send(formData);
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API ${res.status}: ${body}`);
-  }
-
-  return res.json();
 }
 
 /**
