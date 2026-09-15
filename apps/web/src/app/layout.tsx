@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { ThemeProvider, themeBootstrapScript } from '@/lib/theme-context';
+import { UploadQueueProvider } from '@/lib/upload-queue';
 
 export const metadata: Metadata = {
   title: 'Player Development App',
@@ -24,7 +25,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <AuthProvider>
-            <AppShell>{children}</AppShell>
+            {/* Above the router so a background video upload survives closing
+                the report modal and navigating around the app. */}
+            <UploadQueueProvider>
+              <AppShell>{children}</AppShell>
+            </UploadQueueProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

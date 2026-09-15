@@ -1,6 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
+import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
 import { useState, useMemo, useEffect } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
@@ -2514,6 +2515,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
 export function CatchingSubTab({
   player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
 }: TabProps) {
+  const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
@@ -2879,6 +2881,7 @@ export function CatchingSubTab({
       {/* ── Video ── */}
       {(() => {
         const videoIds = getReportVideoIds(selectedReport);
+        const reportIdForVideos = (selectedReport)?.id ?? null;
         /* Exclude Coach Reviews already attached to the active
            Catching report — those surface in the dedicated panel
            directly above. */
@@ -2894,7 +2897,10 @@ export function CatchingSubTab({
           return aR - bR;
         });
         const contentVideos = getReportContentVideos(selectedReport);
-        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0;
+        /* Count clips still uploading, or a report whose only videos are
+                   mid-flight renders "No video data" over the placeholders. */
+        const pendingForReport = uploadQueue.jobs.filter(j => j.reportId === reportIdForVideos);
+        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0 || pendingForReport.length > 0;
         return (
           <Section>
             {/* Video section wrapped in the same Catching Snapshot
@@ -2930,6 +2936,8 @@ export function CatchingSubTab({
                 }}>
                   {/* Cap at 10 most-recent tiles (2 rows × 5 cols);
                       overflow lives in the all-videos page. */}
+                  {/* Clips still uploading, in the slot their finished card will take. */}
+                  <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
@@ -2973,6 +2981,7 @@ export function CatchingSubTab({
 export function InfieldSubTab({
   player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
 }: TabProps) {
+  const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /* Sync the selected report with the parent's fresh `reports` array
@@ -3246,6 +3255,7 @@ export function InfieldSubTab({
       {/* ── Video ── */}
       {(() => {
         const videoIds = getReportVideoIds(selectedReport);
+        const reportIdForVideos = (selectedReport)?.id ?? null;
         const reportVideos = playerVideos.filter(v =>
           (videoIds.includes(v.id) || v.category === 'INFIELD')
         ).sort((a, b) => {
@@ -3258,7 +3268,10 @@ export function InfieldSubTab({
           return aR - bR;
         });
         const contentVideos = getReportContentVideos(selectedReport);
-        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0;
+        /* Count clips still uploading, or a report whose only videos are
+                   mid-flight renders "No video data" over the placeholders. */
+        const pendingForReport = uploadQueue.jobs.filter(j => j.reportId === reportIdForVideos);
+        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0 || pendingForReport.length > 0;
         return (
           <Section>
             {/* Video section wrapped in the same Catching Snapshot
@@ -3294,6 +3307,8 @@ export function InfieldSubTab({
                 }}>
                   {/* Cap at 10 most-recent tiles (2 rows × 5 cols);
                       overflow lives in the all-videos page. */}
+                  {/* Clips still uploading, in the slot their finished card will take. */}
+                  <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
@@ -3337,6 +3352,7 @@ export function InfieldSubTab({
 export function OutfieldSubTab({
   player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
 }: TabProps) {
+  const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /* Sync the selected report with the parent's fresh `reports` array
@@ -3636,6 +3652,7 @@ export function OutfieldSubTab({
       {/* ── Video ── */}
       {(() => {
         const videoIds = getReportVideoIds(selectedReport);
+        const reportIdForVideos = (selectedReport)?.id ?? null;
         const reportVideos = playerVideos.filter(v =>
           (videoIds.includes(v.id) || v.category === 'OUTFIELD')
         ).sort((a, b) => {
@@ -3648,7 +3665,10 @@ export function OutfieldSubTab({
           return aR - bR;
         });
         const contentVideos = getReportContentVideos(selectedReport);
-        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0;
+        /* Count clips still uploading, or a report whose only videos are
+                   mid-flight renders "No video data" over the placeholders. */
+        const pendingForReport = uploadQueue.jobs.filter(j => j.reportId === reportIdForVideos);
+        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0 || pendingForReport.length > 0;
         return (
           <Section>
             {/* Video section wrapped in the same Catching Snapshot
@@ -3684,6 +3704,8 @@ export function OutfieldSubTab({
                 }}>
                   {/* Cap at 10 most-recent tiles (2 rows × 5 cols);
                       overflow lives in the all-videos page. */}
+                  {/* Clips still uploading, in the slot their finished card will take. */}
+                  <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (

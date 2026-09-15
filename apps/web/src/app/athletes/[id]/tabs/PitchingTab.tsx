@@ -1,6 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
+import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { averagePitchesByType, zoneAggregate, type ZoneAggregate } from '@/lib/pitchAggregation';
 import {
@@ -1217,6 +1218,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
 export function PitchingTab({
   player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile, onOpenVideos,
 }: TabProps) {
+  const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -2083,6 +2085,7 @@ export function PitchingTab({
           either spot. */}
       {hasPitchData && (() => {
         const videoIds = getReportVideoIds(selectedReport);
+        const reportIdForVideos = (selectedReport)?.id ?? null;
         const reportVideos = playerVideos.filter(v =>
           (videoIds.includes(v.id) || v.category === 'PITCHING')
         ).sort((a, b) => {
@@ -2091,7 +2094,10 @@ export function PitchingTab({
           return aR - bR;
         });
         const contentVideos = getReportContentVideos(selectedReport);
-        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0;
+        /* Count clips still uploading, or a report whose only videos are
+                   mid-flight renders "No video data" over the placeholders. */
+        const pendingForReport = uploadQueue.jobs.filter(j => j.reportId === reportIdForVideos);
+        const hasVideos = reportVideos.length > 0 || contentVideos.length > 0 || pendingForReport.length > 0;
         return (
           <Section>
             <div
@@ -2109,6 +2115,8 @@ export function PitchingTab({
                 }}>
                   {/* Cap at 10 most-recent tiles (2 rows × 5 cols);
                       overflow lives in the all-videos page. */}
+                  {/* Clips still uploading, in the slot their finished card will take. */}
+                  <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (

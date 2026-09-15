@@ -1,6 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
+import { useVideoAttachedListener } from '@/lib/upload-queue';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -130,6 +131,11 @@ export default function PlayerProfilePage() {
      when the Player Summary tab's "Download PDF" button is clicked. */
   const [pdfBuilderOpen, setPdfBuilderOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  /* A background video upload finishing is the one change that happens with
+     nobody touching the page — refetch so the real card replaces its
+     placeholder instead of the placeholder just disappearing. */
+  useVideoAttachedListener(() => setRefreshKey(k => k + 1));
 
   /* All profile data comes from the shared hook, which the player's
      Dashboard also uses to render the Summary bubbles — one fetch

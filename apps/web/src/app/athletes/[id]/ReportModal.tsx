@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
+import { useUploadQueue, type NewUploadJob } from '@/lib/upload-queue';
 import rs from '@/components/assessment/report-form.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml } from '@/lib/sanitize';
@@ -3214,6 +3215,10 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
   const videos = videosByType[reportType] ?? [];
   const setVideos = (v: VideoEntry[]) => setVideosByType(p => ({ ...p, [reportType]: v }));
   const [submitting, setSubmitting] = useState(false);
+  /* Video uploads no longer block the save — they are handed to the
+     background queue and attach to the report as they land. */
+  const { enqueue, activeCount } = useUploadQueue();
+  const [confirmClose, setConfirmClose] = useState(false);
   const [success, setSuccess] = useState(false);
 
   // ── Edit-mode prefill: surface previously-attached CSV uploads + videos so
@@ -3580,6 +3585,16 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     }
   };
 
+  /* Closing while clips are still going up would kill them — the upload
+     lives in this tab, not on the server. Ask first. The browser blocks
+     custom wording on a real tab close (that prompt is raised by the queue
+     provider and says whatever Chrome wants), but an in-app close is ours
+     to word. */
+  const requestClose = () => {
+    if (activeCount > 0) { setConfirmClose(true); return; }
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -3687,7 +3702,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         // videos staged in the Swing Decision sub-section — those get tagged
         // section: 'decision' so we can split them apart on the next edit.
         type SavedVideo = { name: string; size: number; id?: string; url?: string; section?: 'swing' | 'decision' };
-        const uploadVideos = async (entries: VideoEntry[], section: 'swing' | 'decision') => {
+        const prepareUploads = (entries: VideoEntry[], section: 'swing' | 'decision') => {
           /* Pre-compute per-bundle indices BEFORE firing off uploads so
              each video in a bundle gets a unique " - Angle N" suffix.
              This used to live inside the per-upload loop, where the
@@ -3721,60 +3736,35 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             return { entry: v, title };
           });
 
-          /* Fire every upload in parallel via Promise.all instead of
-             the prior `for…await` sequential loop. Sequential meant a
-             3-video report waited for video 1 to finish before video 2
-             even started — at the new adaptive 4K-up-to-240 fps capture
-             bitrates a single clip can be 100+ MB, so a sequential
-             save would block for ~3× a single upload's time. Parallel
-             keeps the wait at roughly the slowest single upload (the
-             browser still respects HTTP/1.1's per-origin connection
-             cap, but modern browsers run 6 in flight by default — way
-             more than typical report video counts). Per-video errors
-             are caught individually so one failed upload doesn't kill
-             the whole save; the catch arm preserves the same
-             `name + size` shape with no `id`, matching the original
-             error path. */
-          const results = await Promise.all(
-            titledEntries.map(async ({ entry: v, title }) => {
-              try {
-                const result = await api.uploadVideo(v.file, player.id, title, reportType);
-                return {
-                  saved: {
-                    name: v.file.name,
-                    size: v.file.size,
-                    id: result.id,
-                    url: result.originalUrl || undefined,
-                    section,
-                  } as SavedVideo,
-                  id: result.id as string | undefined,
-                };
-              } catch (err: any) {
-                console.error('Video upload failed:', err);
-                return {
-                  saved: { name: v.file.name, size: v.file.size, section } as SavedVideo,
-                  id: undefined,
-                };
-              }
-            }),
-          );
-
-          const ids: string[] = results.map((r) => r.id).filter((x): x is string => !!x);
-          const saved: SavedVideo[] = results.map((r) => r.saved);
-          return { ids, saved };
+          /* Nothing is uploaded here any more. The save used to sit on
+             Promise.all until every byte reached Bunny, which is what made
+             the Save button go dark for a minute. Now we only build the job
+             descriptions; the queue uploads them after the report is saved
+             and patches each clip onto it as it lands. Titles are still
+             computed up front so a bundle's " - Angle N" suffixes stay
+             deterministic. */
+          return titledEntries.map(({ entry: v, title }) => ({
+            file: v.file,
+            playerId: player.id,
+            title,
+            category: reportType,
+            section,
+            /* Filled in below — the report has to exist first. */
+            reportId: '',
+          })) as Omit<NewUploadJob, 'reportId'>[] & { reportId: string }[];
         };
         /* Swing and Swing-Decision uploads now fire in parallel — was
            sequential (`await swing; await decision;`). The decision
            pool only exists on HITTING reports; everything else
            resolves an empty no-op so the two arms always co-exist
            in the Promise.all. */
-        const [swingUpload, decisionUpload] = await Promise.all([
-          uploadVideos(videos, 'swing'),
-          reportType === 'HITTING'
-            ? uploadVideos(swingDecisionVideos, 'decision')
-            : Promise.resolve({ ids: [] as string[], saved: [] as SavedVideo[] }),
-        ]);
-        const uploadedVideoIds = [...swingUpload.ids, ...decisionUpload.ids];
+        const pendingJobs = [
+          ...prepareUploads(videos, 'swing'),
+          ...(reportType === 'HITTING' ? prepareUploads(swingDecisionVideos, 'decision') : []),
+        ];
+        /* The report saves with only the clips it already had. Anything new
+           is attached by the queue afterwards. */
+        const uploadedVideoIds: string[] = [];
 
         // In edit mode, MERGE the new content keys over the existing report's
         // content JSON so we don't drop fields the modal doesn't manage
@@ -3815,11 +3805,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         }
         const tagSwing    = (v: ExistingVideo): SavedVideo => ({ ...v, section: 'swing' });
         const tagDecision = (v: ExistingVideo): SavedVideo => ({ ...v, section: 'decision' });
+        /* Only the clips already on the report — the queue appends the new
+           ones to this same array as each upload finishes. */
         const mergedVideos: SavedVideo[] = [
           ...existingVideos.map(tagSwing),
           ...(reportType === 'HITTING' ? existingSwingDecisionVideos.map(tagDecision) : []),
-          ...swingUpload.saved,
-          ...decisionUpload.saved,
         ];
         /* At-Bat assessment lifecycle:
              • New XLSX uploaded → atBatData truthy → save the freshly parsed block.
@@ -3952,8 +3942,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             notes: notes || undefined,
             videoIds: combinedIds.length > 0 ? combinedIds.join(',') : '',
           });
+          if (pendingJobs.length > 0) {
+            enqueue(pendingJobs.map(j => ({ ...j, reportId: existingReport.id })));
+          }
         } else {
-          await api.createReport({
+          const created = await api.createReport({
             playerId: player.id,
             createdById: userId,
             reportType,
@@ -3962,6 +3955,13 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             notes: notes || undefined,
             videoIds: uploadedVideoIds.length > 0 ? uploadedVideoIds.join(',') : undefined,
           });
+          /* createReport returns the saved row — its id is what the queue
+             patches each finished clip onto. Without an id there is nothing
+             to attach to, so the clips are dropped rather than uploaded into
+             a void where nothing would ever reference them. */
+          if (pendingJobs.length > 0 && created?.id) {
+            enqueue(pendingJobs.map(j => ({ ...j, reportId: created.id })));
+          }
         }
         } // end for (const saveType of typesToSave) — one report per filled section
       }
@@ -3976,7 +3976,48 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
   };
 
   return (
-    <div className={styles.modalOverlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className={styles.modalOverlay} onClick={e => { if (e.target === e.currentTarget) requestClose(); }}>
+      {confirmClose && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.6)',
+          display: 'grid', placeItems: 'center', padding: 18,
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{
+            width: 'min(380px, 100%)', borderRadius: 12, padding: 18,
+            background: 'var(--panel-bg-light, #14181f)',
+            border: '1px solid var(--border)', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+              Still uploading
+            </div>
+            <p style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+              {activeCount} video{activeCount === 1 ? '' : 's'} {activeCount === 1 ? 'is' : 'are'} still
+              uploading. Closing this report is fine — they keep going in the
+              background. Close anyway?
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => { setConfirmClose(false); onClose(); }}
+                style={{
+                  padding: '7px 18px', borderRadius: 8, fontSize: 12.5, fontWeight: 700,
+                  cursor: 'pointer', border: '1px solid var(--text)',
+                  background: 'var(--text)', color: 'var(--bg, #0e1116)',
+                }}
+              >Yes</button>
+              <button
+                type="button"
+                onClick={() => setConfirmClose(false)}
+                style={{
+                  padding: '7px 18px', borderRadius: 8, fontSize: 12.5, fontWeight: 700,
+                  cursor: 'pointer', border: '1px solid var(--border)',
+                  background: 'transparent', color: 'var(--text-secondary)',
+                }}
+              >No</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -4041,7 +4082,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                 tabLabel={REPORT_TYPES.find(t => t.id === reportType)?.label ?? reportType}
               />
             )}
-            <button type="button" className={styles.modalClose} onClick={onClose}>x</button>
+            <button type="button" className={styles.modalClose} onClick={requestClose}>x</button>
           </div>
         </div>
 
