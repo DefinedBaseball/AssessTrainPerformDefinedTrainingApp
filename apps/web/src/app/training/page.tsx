@@ -181,6 +181,41 @@ function CalSortableDrill({
   );
 }
 
+/* A drill the coach has ticked but not yet saved.
+   Rendered like a saved row so a section reads as one continuous list, but
+   with no drag grip — there is no persisted row to reorder yet — and a
+   marker so it is obvious what Save is going to add. Clicking still opens
+   the demo video, which is the whole point of listing these here rather
+   than as chips inside the picker. */
+function CalPendingDrill({
+  rowClass, nameClass, name, onRowClick, onRemove, isCoach,
+}: {
+  rowClass: string;
+  nameClass: string;
+  name: string;
+  onRowClick?: () => void;
+  onRemove: () => void;
+  isCoach: boolean;
+}) {
+  return (
+    <div
+      className={`${rowClass} ${styles.calPendingRow}`}
+      onClick={onRowClick}
+      title={onRowClick ? 'Watch demo (unsaved — press Save to publish)' : 'Unsaved — press Save to publish'}
+    >
+      <span className={styles.calPendingDot} aria-hidden="true" />
+      <span className={nameClass}>{name}</span>
+      {isCoach && (
+        <button
+          className={styles.dayEventDelete}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title="Remove"
+        >×</button>
+      )}
+    </div>
+  );
+}
+
 /* ── Constants ──
    The full tab catalog. Visibility on the calendar is filtered per-athlete
    by position (see `visibleTabsForPlayer` below):
@@ -327,6 +362,26 @@ function drillsForTabDropdowns(allDrills: Drill[], tabKey: string): Record<strin
     }
   }
   return map;
+}
+
+/* ── Pending (unsaved) selections ──
+   A drill the coach has ticked but not yet saved is rendered in the section
+   list underneath the pickers, exactly like a saved one, so the column
+   always reads as the plan. It is carried as a ScheduledDrill with a
+   synthetic id rather than a separate type, so the existing grouping,
+   ordering and rendering all work on it unchanged. */
+const PENDING_PREFIX = 'pending:';
+
+function isPendingRow(id: string): boolean {
+  return id.startsWith(PENDING_PREFIX);
+}
+
+/** `pending:<ddKey>:<drillId>` — neither part can contain a colon. */
+function parsePendingId(id: string): { ddKey: string; drillId: string } | null {
+  const rest = id.slice(PENDING_PREFIX.length);
+  const cut = rest.indexOf(':');
+  if (cut === -1) return null;
+  return { ddKey: rest.slice(0, cut), drillId: rest.slice(cut + 1) };
 }
 
 /** Do two selection maps hold the same drills? Drives the dirty flag. */
@@ -1422,6 +1477,80 @@ function DayView({
     return map;
   }, [allDayEvents]);
 
+  /* What each column actually RENDERS: saved drills plus the coach's
+     unsaved ticks, minus the ones they have unticked. Without this a
+     selection would stay invisible until Save, which reads as the picker
+     being broken.
+
+     Players are unaffected — they have no draft, so they see the saved day
+     exactly as before. */
+  const displayByTab = useMemo(() => {
+    if (!isCoach) return eventsByTab;
+    const out: Record<string, ScheduledDrill[]> = {};
+    for (const t of TABS) {
+      const evs = eventsByTab[t.key] || [];
+      const rows: ScheduledDrill[] = [];
+      const handled = new Set<string>();
+
+      (MODAL_DROPDOWNS[t.key] || []).forEach((dd, ddIndex) => {
+        const sel = draftSel[dd.key] || EMPTY_SET;
+        const mine = evs.filter((ev) => ev.drillId && ddForEvent(ev)?.key === dd.key);
+        const savedDrillIds = new Set(mine.map((ev) => ev.drillId!));
+
+        for (const ev of mine) {
+          handled.add(ev.id);
+          /* Unticked but still on the server → hidden now, deleted on Save. */
+          if (sel.has(ev.drillId!)) rows.push(ev);
+        }
+
+        /* Pending additions inherit the section's position so they appear
+           beside their siblings instead of jumping when saved. */
+        const sectionOrder = mine.length ? mine[0].sectionOrder : ddIndex;
+        let nextOrder = mine.length ? Math.max(...mine.map((ev) => ev.order)) + 1 : 0;
+        for (const drillId of sel) {
+          if (savedDrillIds.has(drillId)) continue;
+          const drill = allDrills.find((d) => d.id === drillId);
+          if (!drill) continue;
+          rows.push({
+            id: `${PENDING_PREFIX}${dd.key}:${drill.id}`,
+            playerId: '', drillId: drill.id, drill,
+            tab: t.key, category: dd.label, name: drill.name,
+            date: '', time: '', duration: 15, notes: null,
+            order: nextOrder++, sectionOrder, createdAt: '',
+          });
+        }
+      });
+
+      /* Hand-entered one-offs and rows on retired categories map to no
+         dropdown. Keep them visible rather than silently dropping them. */
+      for (const ev of evs) if (!handled.has(ev.id)) rows.push(ev);
+      out[t.key] = rows;
+    }
+    return out;
+  }, [isCoach, eventsByTab, draftSel, allDrills]);
+
+  /* Removing a drill goes through the DRAFT wherever it can, so the × and
+     the picker always agree and nothing reaches the athlete before Save.
+
+     This matters beyond tidiness: deleting straight from the server would
+     trigger a refetch, and the refetch re-baselines the draft — silently
+     throwing away every other unsaved edit the coach had made. Only rows no
+     dropdown can represent (hand-entered one-offs, retired categories) go
+     directly, because there is no draft entry to untick. */
+  const removeRow = (ev: ScheduledDrill) => {
+    if (isPendingRow(ev.id)) {
+      const parsed = parsePendingId(ev.id);
+      if (parsed) onToggleDd(parsed.ddKey, parsed.drillId);
+      return;
+    }
+    const dd = ev.drillId ? ddForEvent(ev) : undefined;
+    if (dd && ev.drillId) {
+      onToggleDd(dd.key, ev.drillId);
+      return;
+    }
+    onDelete(ev.id);
+  };
+
   /* Group a tab's events into "category bubbles" preserving the natural
    * ordering coaches expect (Movement Prep → Drills → Bullpen → Live → ...).
    * Uses the LEGEND_CATEGORIES map as the canonical order; anything not
@@ -1476,7 +1605,7 @@ function DayView({
 
   // When entering focus mode, look up the tab's metadata once.
   const focusedTabMeta = focusedTab ? visibleTabs.find((t) => t.key === focusedTab) ?? null : null;
-  const focusedEvents = focusedTab ? (eventsByTab[focusedTab] || []) : [];
+  const focusedEvents = focusedTab ? (displayByTab[focusedTab] || []) : [];
   const focusedColor = focusedTab ? (TAB_COLORS[focusedTab] || TAB_COLORS.hitting) : null;
 
   /* Athletes only see areas that actually have a drill — an empty category
@@ -1487,7 +1616,7 @@ function DayView({
    * Outfield column is where you go to add the athlete's first outfield
    * drill. visibleTabsForPlayer() is what decides that list, so a C/INF gets
    * Catching + Infield and a pitcher-only athlete never sees Hitting. */
-  const populatedTabs = visibleTabs.filter((t) => (eventsByTab[t.key] || []).length > 0);
+  const populatedTabs = visibleTabs.filter((t) => (displayByTab[t.key] || []).length > 0);
   const columnTabs = isCoach ? visibleTabs : populatedTabs;
 
   /* Section → selectable drills, for every tab at once. Memoised on the
@@ -1682,8 +1811,23 @@ function DayView({
                           </span>
                         </div>
                         <div className={styles.dayFocusCardList}>
-                          <SortableContext items={items.map((ev) => ev.id)} strategy={verticalListSortingStrategy}>
-                            {items.map((ev) => (
+                          {/* Only persisted rows are sortable — a pending
+                              selection has no row to reorder yet. */}
+                          <SortableContext
+                            items={items.filter((ev) => !isPendingRow(ev.id)).map((ev) => ev.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {items.map((ev) => isPendingRow(ev.id) ? (
+                              <CalPendingDrill
+                                key={ev.id}
+                                rowClass={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                nameClass={styles.dayFocusCardItemName}
+                                name={ev.name}
+                                onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                onRemove={() => removeRow(ev)}
+                                isCoach={isCoach}
+                              />
+                            ) : (
                               <CalSortableDrill
                                 key={ev.id}
                                 id={ev.id}
@@ -1694,7 +1838,7 @@ function DayView({
                                 nameClass={styles.dayFocusCardItemName}
                                 name={ev.name}
                                 onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
-                                onDelete={() => onDelete(ev.id)}
+                                onDelete={() => removeRow(ev)}
                                 isCoach={isCoach}
                               />
                             ))}
@@ -1728,7 +1872,7 @@ function DayView({
           style={{ ['--day-cols' as string]: columnTabs.length } as React.CSSProperties}
         >
           {columnTabs.map(tab => {
-            const tabEvents = eventsByTab[tab.key] || [];
+            const tabEvents = displayByTab[tab.key] || [];
             const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
             return (
               <div key={tab.key} className={styles.dayCol}>
@@ -1885,8 +2029,21 @@ function DayView({
                               <span className={styles.dayColCardCat} style={catStyle.textStyle}>{category}</span>
                             </div>
                             <div className={styles.dayColCardList}>
-                              <SortableContext items={items.map((ev) => ev.id)} strategy={verticalListSortingStrategy}>
-                                {items.map((ev) => (
+                              <SortableContext
+                                items={items.filter((ev) => !isPendingRow(ev.id)).map((ev) => ev.id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {items.map((ev) => isPendingRow(ev.id) ? (
+                                  <CalPendingDrill
+                                    key={ev.id}
+                                    rowClass={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                    nameClass={styles.dayColCardItemName}
+                                    name={ev.name}
+                                    onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                    onRemove={() => removeRow(ev)}
+                                    isCoach={isCoach}
+                                  />
+                                ) : (
                                   <CalSortableDrill
                                     key={ev.id}
                                     id={ev.id}
@@ -1897,7 +2054,7 @@ function DayView({
                                     nameClass={styles.dayColCardItemName}
                                     name={ev.name}
                                     onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
-                                    onDelete={() => onDelete(ev.id)}
+                                    onDelete={() => removeRow(ev)}
                                     isCoach={isCoach}
                                   />
                                 ))}
@@ -1987,7 +2144,11 @@ function MultiSelectDropdown({
           {/* Selected drills render as chips INSIDE the trigger bubble; the
               "N Selected" badge sits at the far right. */}
           <div className={styles.multiTriggerChips}>
-            {selectedDrills.length === 0 ? (
+            {/* Compact (Day view) deliberately shows NO chips: the selected
+                drills get their own section beneath the picker, where they
+                are clickable to watch the demo video. Repeating them inside
+                the trigger only made the column noisy. */}
+            {compact || selectedDrills.length === 0 ? (
               <span className={styles.multiPlaceholder}>Select {label}...</span>
             ) : (
               selectedDrills.map(d => (
