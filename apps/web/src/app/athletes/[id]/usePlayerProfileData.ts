@@ -15,7 +15,7 @@
    a real error, since without the player there's nothing to render.
    ───────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import * as api from '@/lib/api';
 import type { Metric, Player, Video } from '@/lib/api';
 import type { ReportSummary } from './helpers';
@@ -46,6 +46,8 @@ export interface PlayerProfileData {
   topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>;
   progressData: Record<string, { value: number; recordedAt: string }[]>;
   videos: Video[];
+  /** Refetch just the videos — see the note on the implementation. */
+  refreshVideos?: () => Promise<void>;
   reports: ReportSummary[];
   colleges: api.College[];
   loading: boolean;
@@ -119,5 +121,25 @@ export function usePlayerProfileData(
     return () => { cancelled = true; };
   }, [enabled, playerId, refreshKey, withColleges]);
 
-  return { player, topMetrics, progressData, videos, reports, colleges, loading, error };
+  /**
+   * Refetch ONLY the video list.
+   *
+   * A background upload finishing changes exactly one thing — the clips on
+   * this player. Bumping `refreshKey` for that would re-run the whole
+   * bundle (player, metrics, reports, every progress series) and remount
+   * the tabs underneath the coach, throwing away their scroll position and
+   * whichever report they had open. This swaps just the slice that changed.
+   */
+  const refreshVideos = useCallback(async () => {
+    if (!enabled || !playerId) return;
+    try {
+      const vids = await api.getPlayerVideos(playerId);
+      setVideos(vids);
+    } catch {
+      /* Leave the existing list alone — a failed refresh must not blank
+         the section the coach is looking at. */
+    }
+  }, [enabled, playerId]);
+
+  return { player, topMetrics, progressData, videos, reports, colleges, loading, error, refreshVideos };
 }

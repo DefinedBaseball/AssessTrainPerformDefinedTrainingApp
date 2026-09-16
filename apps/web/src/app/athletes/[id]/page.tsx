@@ -132,17 +132,23 @@ export default function PlayerProfilePage() {
   const [pdfBuilderOpen, setPdfBuilderOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  /* A background video upload finishing is the one change that happens with
-     nobody touching the page — refetch so the real card replaces its
-     placeholder instead of the placeholder just disappearing. */
-  useVideoAttachedListener(() => setRefreshKey(k => k + 1));
-
   /* All profile data comes from the shared hook, which the player's
      Dashboard also uses to render the Summary bubbles — one fetch
      definition so the two surfaces can't drift. */
   const {
-    player, topMetrics, progressData, videos, reports, colleges, loading, error,
+    player, topMetrics, progressData, videos, reports, colleges, loading, error, refreshVideos,
   } = usePlayerProfileData(id, { enabled: !!user, refreshKey });
+
+  /* A background upload finishing is the one change that lands with nobody
+     touching the page, so the view has to react on its own — otherwise the
+     placeholder just vanishes and the real card only appears on the next
+     manual refresh.
+
+     Refetch ONLY the videos. This used to bump `refreshKey`, which re-ran the
+     whole profile bundle and remounted every tab the instant an upload
+     finished — yanking the page out from under whatever the coach was doing.
+     Declared after the hook because it comes FROM the hook. */
+  useVideoAttachedListener(() => { void refreshVideos?.(); });
   const [showReportModal, setShowReportModal] = useState(false);
   /** When set, ReportModal opens in edit mode for this existing report. */
   const [editingReport, setEditingReport] = useState<ReportSummary | null>(null);
