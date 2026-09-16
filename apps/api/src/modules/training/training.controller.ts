@@ -245,6 +245,19 @@ export class TrainingController {
     return this.trainingService.reorderScheduledDrills(dto.items);
   }
 
+  @Post('schedule/apply-calendar')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Copy one athlete's forward calendar onto other athletes (COACH only)" })
+  applyCalendar(
+    @Body() dto: { sourcePlayerId: string; targetPlayerIds: string[]; fromDate: string },
+  ) {
+    return this.trainingService.applyCalendarToPlayers(
+      dto.sourcePlayerId,
+      Array.isArray(dto.targetPlayerIds) ? dto.targetPlayerIds : [],
+      dto.fromDate,
+    );
+  }
+
   // ─── Schedule Templates (named, reusable day plans) ────────────
   // Facility-wide: any coach can list/apply/delete any template. Applying
   // a template reuses POST schedule/batch — no dedicated apply endpoint.

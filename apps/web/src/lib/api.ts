@@ -1200,6 +1200,24 @@ export function parseTemplateItems(t: ScheduleTemplate): ScheduleTemplateItem[] 
   }
 }
 
+/**
+ * Copy one athlete's calendar from `fromDate` forward onto other athletes.
+ *
+ * Server-side and transactional: each target's drills are REPLACED on the
+ * dates the source actually has drills for, and dates the source has nothing
+ * on are left alone. The source is skipped if it appears among the targets.
+ */
+export async function applyCalendarToPlayers(data: {
+  sourcePlayerId: string;
+  targetPlayerIds: string[];
+  fromDate: string;
+}) {
+  return request<{ players: number; dates: number; drillsPerPlayer: number; drillsWritten: number }>(
+    '/training/schedule/apply-calendar',
+    { method: 'POST', body: JSON.stringify(data) },
+  );
+}
+
 export async function getScheduleTemplates(tab?: string) {
   const qs = tab ? `?tab=${encodeURIComponent(tab)}` : '';
   return request<ScheduleTemplate[]>(`/training/templates${qs}`);

@@ -182,6 +182,90 @@ export class TrainingService {
     return results;
   }
 
+  /**
+   * Copy one athlete's forward calendar onto other athletes.
+   *
+   * Server-side on purpose. Doing this from the browser would mean fetching
+   * each target's calendar, deleting their rows one at a time and re-creating
+   * them — thousands of requests for a 20-athlete program, with no way to
+   * avoid leaving half the group in a broken state if one failed partway.
+   *
+   * Semantics (coach spec):
+   *   - Only dates from `fromDate` on are copied; completed history stays put.
+   *   - Each target's drills ARE REPLACED on the dates the source actually
+   *     has drills for, so the group ends up matching the source. Dates the
+   *     source has nothing on are left completely alone.
+   *   - The source is skipped if it appears in the target list, so a coach
+   *     ticking "Winter Program" cannot wipe the athlete they copied FROM.
+   */
+  async applyCalendarToPlayers(
+    sourcePlayerId: string,
+    targetPlayerIds: string[],
+    fromDate: string,
+  ) {
+    if (!sourcePlayerId) throw new BadRequestException('sourcePlayerId is required');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate || '')) {
+      throw new BadRequestException('fromDate must be YYYY-MM-DD');
+    }
+
+    /* Real players only — a bad id would otherwise create orphan rows that
+       no calendar renders and nothing cleans up. */
+    const targets = await this.prisma.player.findMany({
+      where: { id: { in: targetPlayerIds.filter((id) => id && id !== sourcePlayerId) } },
+      select: { id: true, userId: true },
+    });
+    if (targets.length === 0) {
+      throw new BadRequestException('No valid target athletes');
+    }
+
+    const source = await this.prisma.scheduledDrill.findMany({
+      where: { playerId: sourcePlayerId, date: { gte: fromDate } },
+      orderBy: [{ date: 'asc' }, { sectionOrder: 'asc' }, { order: 'asc' }],
+    });
+    if (source.length === 0) {
+      throw new BadRequestException('The selected athlete has nothing scheduled from this date forward');
+    }
+
+    const dates = [...new Set(source.map((d) => d.date))];
+    const targetIds = targets.map((t) => t.id);
+
+    const rows = targetIds.flatMap((playerId) =>
+      source.map((d) => ({
+        playerId,
+        drillId: d.drillId,
+        tab: d.tab,
+        category: d.category,
+        name: d.name,
+        date: d.date,
+        time: d.time,
+        duration: d.duration,
+        notes: d.notes,
+        /* Carry the coach's drag-reorder so a copied day reads exactly like
+           the one it came from. */
+        order: d.order,
+        sectionOrder: d.sectionOrder,
+      })),
+    );
+
+    /* Wipe-then-write as ONE transaction: a failure mid-way would otherwise
+       leave targets with their old plan deleted and the new one missing. */
+    await this.prisma.$transaction([
+      this.prisma.scheduledDrill.deleteMany({
+        where: { playerId: { in: targetIds }, date: { in: dates } },
+      }),
+      this.prisma.scheduledDrill.createMany({ data: rows }),
+    ]);
+
+    void this.notifyScheduledPlayers(targetIds);
+
+    return {
+      players: targetIds.length,
+      dates: dates.length,
+      drillsPerPlayer: source.length,
+      drillsWritten: rows.length,
+    };
+  }
+
   /** Notify each given player once that new training hit their calendar. */
   private async notifyScheduledPlayers(playerIds: string[]) {
     const players = await this.prisma.player.findMany({

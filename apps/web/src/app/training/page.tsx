@@ -17,6 +17,7 @@ const ScheduleDownloadModal = nextDynamic(
   { ssr: false },
 );
 import { SaveTemplateModal } from '@/components/TemplatePicker';
+import { ApplyCalendarModal } from './ApplyCalendarModal';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -842,6 +843,13 @@ export default function TrainingPage() {
   const [draftSel, setDraftSel] = useState<Record<string, Set<string>>>(persistedDraft);
   const [savingDay, setSavingDay] = useState(false);
 
+  /* Apply Calendar — pushes this athlete's forward schedule onto a group.
+     The banner is how a bulk write that touches other athletes' calendars
+     reports what it did; it is not a toast because the coach should be able
+     to read it after the fact. */
+  const [showApply, setShowApply] = useState(false);
+  const [applyBanner, setApplyBanner] = useState('');
+
   /* Saved templates, for the per-column Template pickers. Fetched once for
      every sport and split by tab, so a column only ever offers its own. */
   const [templates, setTemplates] = useState<api.ScheduleTemplate[]>([]);
@@ -1102,6 +1110,43 @@ export default function TrainingPage() {
               </option>
             ))}
           </select>
+
+          {/* Push this athlete's schedule onto a program or a hand-picked
+              set. Needs a selected athlete — there is no calendar to copy
+              otherwise. */}
+          {selectedPlayerId && (
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className={styles.applyTrigger}
+                onClick={() => setShowApply(o => !o)}
+                title="Copy this athlete's schedule to other athletes or a program"
+              >
+                Apply Calendar
+              </button>
+              <ApplyCalendarModal
+                open={showApply}
+                onClose={() => setShowApply(false)}
+                players={players}
+                sourcePlayer={selectedPlayer}
+                fromDate={toDateStr(new Date())}
+                onApplied={(msg) => {
+                  setApplyBanner(msg);
+                  /* Only the SOURCE calendar is on screen and it is never a
+                     target, so nothing here needs refetching — but a coach
+                     who then switches to a target expects to see it. */
+                  refreshEvents();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {applyBanner && (
+        <div className={styles.applyBanner}>
+          <span>{applyBanner}</span>
+          <button type="button" onClick={() => setApplyBanner('')} aria-label="Dismiss">×</button>
         </div>
       )}
 
