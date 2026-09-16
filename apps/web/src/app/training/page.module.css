@@ -1687,6 +1687,11 @@
 .tplWrap {
   position: relative;
   flex-shrink: 0;
+  /* Flex, not block: as a block the wrapper is a line box, so the inline
+     button inside picks up the leading and lands ~2px below the bare chips
+     beside it. Flex makes the wrapper exactly the button's height. */
+  display: flex;
+  align-items: center;
 }
 
 .tplPanel {
