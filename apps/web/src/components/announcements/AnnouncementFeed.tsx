@@ -60,6 +60,26 @@ export const POST_TYPES = [
 /** The one tag with an audience beyond the coaching staff. */
 export const ATHLETES_TAG = 'ATHLETES_ANNOUNCEMENT';
 
+/**
+ * Human label for a post tag.
+ *
+ * Falls back to title-casing the raw code instead of printing it, so a post
+ * saved under a retired tag (the old FACILITY_ANNOUNCEMENT / PRO_SIGNING
+ * scheme) reads as "Pro Signing" rather than shouting PRO_SIGNING at the
+ * coach. retag-legacy-posts.ts cleans those rows up, but this makes the UI
+ * safe against ANY future tag retirement without a second data migration.
+ */
+export function postTypeLabel(type: string): string {
+  const known = POST_TYPES.find(t => t.value === type);
+  if (known) return known.label;
+  return type
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map(w => w[0].toUpperCase() + w.slice(1))
+    .join(' ') || type;
+}
+
 /* Tag tint classes. These are the ORIGINAL class names from
    page.module.css reused against the new tags — the classes are just colour
    pairs, so renaming them across the stylesheet would be churn for nothing. */
@@ -241,7 +261,7 @@ export function AnnouncementFeed({
       </div>
       <div className={styles.feedList}>
         {posts.map(post => {
-          const typeLabel = POST_TYPES.find(t => t.value === post.type)?.label || post.type;
+          const typeLabel = postTypeLabel(post.type);
           const tagClass = TAG_STYLES[post.type] || 'tagFacility';
           const urgent = isUrgent(post);
 
