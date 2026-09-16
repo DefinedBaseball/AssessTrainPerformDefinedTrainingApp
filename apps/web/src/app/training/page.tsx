@@ -850,6 +850,28 @@ export default function TrainingPage() {
   const [showApply, setShowApply] = useState(false);
   const [applyBanner, setApplyBanner] = useState('');
 
+  /* Where an Apply Calendar copy starts: the date the coach is LOOKING AT,
+     not today.
+
+     Calendars here are built in blocks that routinely sit in the past
+     relative to today — every athlete in the roster can have a full spring
+     block and nothing at all from today forward. Anchoring to today made the
+     feature refuse every athlete. Anchoring to the view means "apply what is
+     on screen, and everything after it".
+
+     Month deliberately uses the 1st rather than dateRange.startDate, which
+     pads back to the 20th of the previous month to fill the grid — copying
+     from a date the coach cannot see would be its own surprise. */
+  const applyFromDate = useMemo(() => {
+    if (view === 'day') return toDateStr(currentDate);
+    if (view === 'week') {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - d.getDay());
+      return toDateStr(d);
+    }
+    return toDateStr(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+  }, [view, currentDate]);
+
   /* Saved templates, for the per-column Template pickers. Fetched once for
      every sport and split by tab, so a column only ever offers its own. */
   const [templates, setTemplates] = useState<api.ScheduleTemplate[]>([]);
@@ -1129,7 +1151,7 @@ export default function TrainingPage() {
                 onClose={() => setShowApply(false)}
                 players={players}
                 sourcePlayer={selectedPlayer}
-                fromDate={toDateStr(new Date())}
+                fromDate={applyFromDate}
                 onApplied={(msg) => {
                   setApplyBanner(msg);
                   /* Only the SOURCE calendar is on screen and it is never a

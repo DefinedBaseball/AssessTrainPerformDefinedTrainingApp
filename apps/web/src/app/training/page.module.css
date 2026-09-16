@@ -1968,3 +1968,14 @@
   line-height: 1;
   cursor: pointer;
 }
+
+.applyPreview {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Nothing to copy from the viewed date — the reason Apply is disabled. */
+.applyNothing {
+  color: #e5a23d;
+  font-weight: 700;
+}

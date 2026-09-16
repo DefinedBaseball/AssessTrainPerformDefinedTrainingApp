@@ -18,6 +18,15 @@ import type { Player } from '@/lib/api';
 import { ATHLETE_TYPES, parseAthleteTypes } from '@/lib/athlete-types';
 import styles from './page.module.css';
 
+/** "2026-04-01" → "Apr 1, 2026" — parsed as LOCAL midnight, never UTC. */
+function formatFromDate(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  if (!m) return d;
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric',
+  });
+}
+
 export function ApplyCalendarModal({
   open,
   onClose,
@@ -39,6 +48,10 @@ export function ApplyCalendarModal({
   const [confirming, setConfirming] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
+  /* What the copy will actually carry. Fetched when the panel opens so the
+     coach sees "3 days · 12 drills" BEFORE committing — the alternative was
+     finding out via a server error after pressing Apply. */
+  const [preview, setPreview] = useState<{ days: number; drills: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   /* Reset every time it opens: a stale selection from last time is exactly
@@ -50,6 +63,20 @@ export function ApplyCalendarModal({
     setConfirming(false);
     setError('');
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !sourcePlayer) { setPreview(null); return; }
+    let cancelled = false;
+    setPreview(null);
+    api.getScheduledDrills(sourcePlayer.id)
+      .then(rows => {
+        if (cancelled) return;
+        const forward = rows.filter(r => r.date >= fromDate);
+        setPreview({ days: new Set(forward.map(r => r.date)).size, drills: forward.length });
+      })
+      .catch(() => { if (!cancelled) setPreview({ days: 0, drills: 0 }); });
+    return () => { cancelled = true; };
+  }, [open, sourcePlayer, fromDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -136,7 +163,15 @@ export function ApplyCalendarModal({
         </div>
         <div className={styles.applySub}>
           Copies {sourcePlayer ? `${sourcePlayer.firstName} ${sourcePlayer.lastName}’s` : 'this athlete’s'} schedule
-          from today forward. Selected athletes have their drills replaced on those dates.
+          from <strong>{formatFromDate(fromDate)}</strong> forward. Selected athletes have their
+          drills replaced on those dates.
+          {preview && (
+            <span className={preview.days === 0 ? styles.applyNothing : styles.applyPreview}>
+              {preview.days === 0
+                ? ' Nothing is scheduled from this date — move to a date with drills on it.'
+                : ` ${preview.days} day${preview.days === 1 ? '' : 's'} · ${preview.drills} drill${preview.drills === 1 ? '' : 's'}.`}
+            </span>
+          )}
         </div>
 
         {/* Action row sits ABOVE the list, not below it. Below, it was the
@@ -167,7 +202,8 @@ export function ApplyCalendarModal({
               <button
                 type="button"
                 className={styles.applyGo}
-                disabled={targetIds.length === 0 || !sourcePlayer}
+                disabled={targetIds.length === 0 || !sourcePlayer || preview?.days === 0}
+                title={preview?.days === 0 ? 'Nothing scheduled from this date forward' : undefined}
                 onClick={() => setConfirming(true)}
               >
                 Apply
