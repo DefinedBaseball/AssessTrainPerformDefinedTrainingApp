@@ -28,6 +28,7 @@ class UpdatePlayerDto {
   highSchool?: string | null;
   clubTeam?: string | null;
   collegeCommit?: string | null;
+  parentEmail?: string | null;
   pbrNational?: number | null;
   pbrState?: number | null;
   pbrPosition?: number | null;

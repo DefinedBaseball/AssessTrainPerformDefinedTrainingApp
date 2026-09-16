@@ -25,7 +25,7 @@ export class PlayersService {
     return this.prisma.player.findMany({
       where,
       orderBy: { firstName: 'asc' },
-      include: { user: { select: { email: true, role: true } } },
+      include: { user: { select: { email: true, role: true, phone: true } } },
     });
   }
 
@@ -33,7 +33,7 @@ export class PlayersService {
     const player = await this.prisma.player.findUnique({
       where: { id },
       include: {
-        user: { select: { email: true, role: true } },
+        user: { select: { email: true, role: true, phone: true } },
         metrics: { orderBy: { recordedAt: 'desc' }, take: 50 },
         videos: { orderBy: { createdAt: 'desc' }, take: 20 },
         leaderboardEntries: true,
@@ -62,6 +62,7 @@ export class PlayersService {
     highSchool?: string | null;
     clubTeam?: string | null;
     collegeCommit?: string | null;
+    parentEmail?: string | null;
     pbrNational?: number | null;
     pbrState?: number | null;
     pbrPosition?: number | null;

@@ -66,13 +66,19 @@ export interface Player {
   highSchool: string | null;
   clubTeam: string | null;
   birthDate: string | null;
+  /** Guardian contact. Distinct from the athlete's own login email, which
+   *  lives on the linked `user` below. */
+  parentEmail?: string | null;
   /** JSON-encoded map of `{ [aggregateSectionKey]: notesText }` rendered
    *  as per-section Notes bubbles under the Tool Grades panel on the
    *  Player Summary tab. Coach-editable; player view is read-only. */
   developmentNotes?: string | null;
   playingLevelGoal?: string | null;
   goals?: string | null;
-  user?: { email: string; role: string };
+  /** The linked account. `email` and `phone` are the athlete's own contact
+   *  details — they live on User, not Player, so the Client Directory reads
+   *  them from here. */
+  user?: { email: string; role: string; phone?: string | null };
 }
 
 export interface Metric {

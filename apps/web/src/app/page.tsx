@@ -352,10 +352,12 @@ export default function DashboardPage() {
         {/* Stat KPIs — the three roster-derived cards show "—" (not a scary 0)
             if the roster couldn't load; Pro Signings is posts-derived. */}
         <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
+          {/* Still shows the count, but it is also the way into the Client
+              Directory — the full contact list for every athlete. */}
+          <Link href="/clients" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
             <div className={styles.statValue}>{playersError ? '—' : players.length}</div>
             <div className={styles.statLabel}>Total Athletes</div>
-          </div>
+          </Link>
           <div className={styles.statCard}>
             <div className={styles.statValue}>{playersError ? '—' : committed}</div>
             <div className={styles.statLabel}>Committed</div>

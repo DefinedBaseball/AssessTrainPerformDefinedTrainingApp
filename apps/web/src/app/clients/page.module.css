@@ -1,0 +1,155 @@
+/* ── Client Directory (coach-only contact list) ──
+   Reuses the Athlete Hub's .pageRoot / .listWrap / .empty / .avatar /
+   .playerName (imported from ../athletes/page.module.css) so the rosters
+   read as siblings; this module only adds the contact column grid, the
+   search toolbar, and the mailto/tel link treatment. */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+
+.search {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.search::placeholder {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.search:focus {
+  outline: none;
+  border-color: var(--accent, #3d8bfd);
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.retry {
+  border: 1px solid var(--accent, #3d8bfd);
+  color: var(--accent, #3d8bfd);
+  background: transparent;
+  border-radius: 8px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scrollX {
+  overflow-x: auto;
+}
+
+.head,
+.row {
+  display: grid;
+  /* Shared by BOTH: a min-width on the rows alone would let the header
+     resolve its columns against the narrower container, shifting every
+     label one column away from the data it labels. */
+  min-width: 860px;
+  /* Name wide enough for the avatar + full name; the three contact columns
+     carry the longest values, so they get the most room. */
+  grid-template-columns: 1.7fr 0.45fr 1.5fr 1.1fr 1.8fr 1.8fr;
+  gap: 8px;
+  align-items: center;
+  padding: 13px 20px;
+}
+
+.head {
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid var(--border);
+}
+.head > span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+[data-theme='light'] .head {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.row {
+  border-bottom: 1px solid var(--border);
+  /* The row navigates to the profile; the contact links inside it stop
+     propagation so clicking an email opens the mail client instead. */
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s;
+}
+.row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-theme='light'] .row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cell {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellMuted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.contactLink {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border);
+}
+.contactLink:hover {
+  color: var(--accent, #3d8bfd);
+  border-bottom-color: currentColor;
+}
+
+@media (max-width: 768px) {
+  .head,
+  .row {
+    padding: 12px 14px;
+  }
+  .cell {
+    font-size: 11.5px;
+  }
+}
+
+/* Only the athlete's name navigates to their profile — the contact cells are
+   their own mailto:/tel: links, and nesting anchors is invalid HTML. */
+.nameLink {
+  text-decoration: none;
+  color: inherit;
+}
+.nameLink:hover {
+  color: var(--accent, #3d8bfd);
+}

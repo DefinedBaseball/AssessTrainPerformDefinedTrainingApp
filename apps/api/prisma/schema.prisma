@@ -95,6 +95,10 @@ model Player {
   highSchool       String?
   clubTeam         String?
   collegeCommit    String?
+  // Guardian contact, surfaced on the coach Client Directory alongside the
+  // athlete's own email (which lives on the linked User). Nullable: plenty of
+  // adult athletes have no parent contact on file.
+  parentEmail      String?
   pbrNational      Int?
   pbrState         Int?
   pbrPosition      Int?
