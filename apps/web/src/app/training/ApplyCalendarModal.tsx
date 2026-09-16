@@ -139,6 +139,43 @@ export function ApplyCalendarModal({
           from today forward. Selected athletes have their drills replaced on those dates.
         </div>
 
+        {/* Action row sits ABOVE the list, not below it. Below, it was the
+            last thing in a 330px panel anchored to a trigger near the right
+            edge of the page — the Apply button rendered off-screen and the
+            control looked like it simply did not exist. Top also means it
+            never scrolls away as the athlete list grows. */}
+        {error && <div className={styles.applyError}>{error}</div>}
+
+        <div className={styles.applyActions}>
+          {confirming ? (
+            <>
+              <span className={styles.applyConfirmText}>
+                Replace schedules for {targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}?
+              </span>
+              <button type="button" className={styles.applyCancel} onClick={() => setConfirming(false)} disabled={applying}>
+                Cancel
+              </button>
+              <button type="button" className={styles.applyGo} onClick={handleApply} disabled={applying}>
+                {applying ? 'Applying…' : 'Yes, apply'}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className={styles.applyCount}>
+                {targetIds.length} selected
+              </span>
+              <button
+                type="button"
+                className={styles.applyGo}
+                disabled={targetIds.length === 0 || !sourcePlayer}
+                onClick={() => setConfirming(true)}
+              >
+                Apply
+              </button>
+            </>
+          )}
+        </div>
+
         <div className={styles.applyBody}>
           <div className={styles.applyGroupLabel}>Programs</div>
           {ATHLETE_TYPES.map(t => (
@@ -182,37 +219,6 @@ export function ApplyCalendarModal({
           })}
         </div>
 
-        {error && <div className={styles.applyError}>{error}</div>}
-
-        <div className={styles.applyFoot}>
-          {confirming ? (
-            <>
-              <span className={styles.applyConfirmText}>
-                Replace schedules for {targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}?
-              </span>
-              <button type="button" className={styles.applyCancel} onClick={() => setConfirming(false)} disabled={applying}>
-                Cancel
-              </button>
-              <button type="button" className={styles.applyGo} onClick={handleApply} disabled={applying}>
-                {applying ? 'Applying…' : 'Yes, apply'}
-              </button>
-            </>
-          ) : (
-            <>
-              <span className={styles.applyCount}>
-                {targetIds.length} selected
-              </span>
-              <button
-                type="button"
-                className={styles.applyGo}
-                disabled={targetIds.length === 0 || !sourcePlayer}
-                onClick={() => setConfirming(true)}
-              >
-                Apply
-              </button>
-            </>
-          )}
-        </div>
       </div>
     </div>
   );
