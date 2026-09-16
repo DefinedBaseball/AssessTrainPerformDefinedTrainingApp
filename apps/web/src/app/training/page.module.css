@@ -1570,13 +1570,23 @@
    the tighter geometry than the modal's version of the same control.
    ══════════════════════════════════════════════════════════════════ */
 
-.dayColPickers {
+/* One picker plus the drills currently in its section. The picker's own
+   label names the section, so the drill list needs no second heading — it
+   just hangs off the picker with a tinted rule in the category colour. */
+.dayColSection {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-bottom: 7px;
-  margin-bottom: 3px;
-  border-bottom: 1px dashed var(--border);
+  gap: 3px;
+  margin-bottom: 7px;
+}
+
+.dayColSectionList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 1px 0 0 5px;
+  padding-left: 6px;
+  border-left: 2px solid var(--border);
 }
 
 .dayColField {

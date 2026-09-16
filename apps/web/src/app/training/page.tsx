@@ -1529,6 +1529,42 @@ function DayView({
     return out;
   }, [isCoach, eventsByTab, draftSel, allDrills]);
 
+  /* Split a tab's rows by the picker that owns them, so each dropdown can
+     render its own drills directly underneath itself.
+
+     Keyed by dropdown, NOT by the stored `category` string: a row written
+     before the sections split carries the shared library category ('Drills')
+     rather than the section label ('Tee'), and ddForEvent is what reconciles
+     the two. Rows no picker can claim — hand-entered one-offs, retired
+     categories — come back separately so they can still be shown. */
+  const splitBySection = (tabKey: string) => {
+    const byDd = new Map<string, ScheduledDrill[]>();
+    const orphans: ScheduledDrill[] = [];
+    const push = (ddKey: string, ev: ScheduledDrill) => {
+      const arr = byDd.get(ddKey) || [];
+      arr.push(ev);
+      byDd.set(ddKey, arr);
+    };
+
+    for (const ev of displayByTab[tabKey] || []) {
+      if (isPendingRow(ev.id)) {
+        const parsed = parsePendingId(ev.id);
+        if (parsed) { push(parsed.ddKey, ev); continue; }
+      }
+      const dd = ev.drillId ? ddForEvent(ev) : undefined;
+      if (dd) push(dd.key, ev);
+      else orphans.push(ev);
+    }
+
+    /* Same ordering the section cards use: coach order first, time as the
+       tiebreak. Pending rows carry order values above the saved ones, so
+       they queue at the end of their section. */
+    for (const arr of byDd.values()) {
+      arr.sort((a, b) => a.order - b.order || parseTime(a.time) - parseTime(b.time));
+    }
+    return { byDd, orphans };
+  };
+
   /* Removing a drill goes through the DRAFT wherever it can, so the × and
      the picker always agree and nothing reaches the athlete before Save.
 
@@ -1979,33 +2015,115 @@ function DayView({
                 </div>
                 <div className={styles.dayColBody}>
                   {/* ── In-column editor ──
-                      One multi-select per drill category for this area
-                      (Hitting → Movement Prep / Vision / Tee / Flips / …).
-                      Ticking a drill only changes the local draft; the Save
-                      button up in the calendar controls is what publishes the
-                      day to the athlete. */}
-                  {isCoach && (
-                    <div className={styles.dayColPickers}>
-                      {(MODAL_DROPDOWNS[tab.key] || []).map(dd => (
-                        <MultiSelectDropdown
-                          key={dd.key}
-                          label={dd.label}
-                          drills={drillsByTabDd[tab.key]?.[dd.key] || []}
-                          selected={draftSel[dd.key] || EMPTY_SET}
-                          onToggle={(id) => onToggleDd(dd.key, id)}
-                          color={dd.color}
-                          compact
-                        />
-                      ))}
-                    </div>
-                  )}
+                      One picker per drill category, each followed immediately
+                      by the drills currently in that section. The picker's own
+                      label names the section, so the drills need no second
+                      heading. Ticking only changes the local draft; Save (in
+                      the calendar controls) is what publishes the day.
+
+                      Section-level drag is deliberately absent here: a
+                      section's position is now its picker's position, which
+                      follows the drill taxonomy. Drills still reorder within
+                      their own section, and the focused single-area view still
+                      offers section dragging. */}
+                  {isCoach && (() => {
+                    const { byDd, orphans } = splitBySection(tab.key);
+                    return (
+                      <>
+                        {(MODAL_DROPDOWNS[tab.key] || []).map(dd => {
+                          const rows = byDd.get(dd.key) || [];
+                          return (
+                            <div key={dd.key} className={styles.dayColSection}>
+                              <MultiSelectDropdown
+                                label={dd.label}
+                                drills={drillsByTabDd[tab.key]?.[dd.key] || []}
+                                selected={draftSel[dd.key] || EMPTY_SET}
+                                onToggle={(id) => onToggleDd(dd.key, id)}
+                                color={dd.color}
+                                compact
+                              />
+                              {rows.length > 0 && (
+                                <div
+                                  className={styles.dayColSectionList}
+                                  style={{ borderLeftColor: dd.color }}
+                                >
+                                  <SortableContext
+                                    items={rows.filter((ev) => !isPendingRow(ev.id)).map((ev) => ev.id)}
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    {rows.map((ev) => isPendingRow(ev.id) ? (
+                                      <CalPendingDrill
+                                        key={ev.id}
+                                        rowClass={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                        nameClass={styles.dayColCardItemName}
+                                        name={ev.name}
+                                        onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                        onRemove={() => removeRow(ev)}
+                                        isCoach={isCoach}
+                                      />
+                                    ) : (
+                                      <CalSortableDrill
+                                        key={ev.id}
+                                        id={ev.id}
+                                        tab={tab.key}
+                                        /* The STORED category, so drag-reorder keeps
+                                           matching the same rows it always did. */
+                                        category={ev.category}
+                                        disabled={!isCoach}
+                                        rowClass={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                        nameClass={styles.dayColCardItemName}
+                                        name={ev.name}
+                                        onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                        onDelete={() => removeRow(ev)}
+                                        isCoach={isCoach}
+                                      />
+                                    ))}
+                                  </SortableContext>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Rows no picker can represent still have to be
+                            visible and removable, so they keep the old
+                            labelled-card treatment below the pickers. */}
+                        {groupByCategory(orphans, tab.key).map(([category, items]) => {
+                          const catStyle = getTabCatStyle(tab.key, category);
+                          return (
+                            <div key={`orphan-${category}`} className={styles.dayColCard} style={catStyle.bgStyle}>
+                              <div className={styles.dayColCardTop}>
+                                <span className={styles.dayColCardCat} style={catStyle.textStyle}>{category}</span>
+                              </div>
+                              <div className={styles.dayColCardList}>
+                                {items.map((ev) => (
+                                  <div
+                                    key={ev.id}
+                                    className={`${styles.dayColCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                    onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                  >
+                                    <span className={styles.dayColCardItemName}>{ev.name}</span>
+                                    <button
+                                      className={styles.dayEventDelete}
+                                      onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
+                                      title="Delete"
+                                    >×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
                   {tabEvents.length === 0 && !isCoach && (
                     <div className={styles.dayColEmpty}>—</div>
                   )}
-                  {/* Group this tab's drills into one bubble per category
-                      (Movement Prep / Drills / Bullpen / Live / ...). Drill
-                      names list inside the bubble; click any name to open
-                      the per-drill modal, × to delete that one entry. */}
+                  {/* Athlete view: drills grouped into one labelled bubble per
+                      category. Coaches get the picker-led layout above instead,
+                      where each section hangs off its own dropdown. */}
+                  {!isCoach && (
                   <SortableContext
                     items={groupByCategory(tabEvents, tab.key).map(([c]) => `sec:${tab.key}:${c}`)}
                     strategy={verticalListSortingStrategy}
@@ -2066,6 +2184,7 @@ function DayView({
                     );
                   })}
                   </SortableContext>
+                  )}
                 </div>
               </div>
             );
