@@ -64,11 +64,15 @@ export interface Player {
   bats: string | null;
   throws: string | null;
   highSchool: string | null;
+  /** The college they currently play for. NOT `collegeCommit`, which is the
+   *  recruiting commitment behind the dashboard's Committed count. */
+  college?: string | null;
   clubTeam: string | null;
   birthDate: string | null;
   /** Guardian contact. Distinct from the athlete's own login email, which
    *  lives on the linked `user` below. */
   parentEmail?: string | null;
+  parentPhone?: string | null;
   /** JSON-encoded map of `{ [aggregateSectionKey]: notesText }` rendered
    *  as per-section Notes bubbles under the Tool Grades panel on the
    *  Player Summary tab. Coach-editable; player view is read-only. */

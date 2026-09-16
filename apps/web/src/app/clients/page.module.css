@@ -62,10 +62,10 @@
   /* Shared by BOTH: a min-width on the rows alone would let the header
      resolve its columns against the narrower container, shifting every
      label one column away from the data it labels. */
-  min-width: 860px;
-  /* Name wide enough for the avatar + full name; the three contact columns
+  min-width: 1010px;
+  /* Name wide enough for the avatar + full name; the four contact columns
      carry the longest values, so they get the most room. */
-  grid-template-columns: 1.7fr 0.45fr 1.5fr 1.1fr 1.8fr 1.8fr;
+  grid-template-columns: 1.6fr 0.4fr 1.4fr 1.05fr 1.7fr 1.05fr 1.7fr;
   gap: 8px;
   align-items: center;
   padding: 13px 20px;

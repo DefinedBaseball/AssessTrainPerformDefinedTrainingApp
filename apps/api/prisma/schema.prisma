@@ -93,12 +93,19 @@ model Player {
   throws           String? // R, L
   birthDate        String? // ISO date string
   highSchool       String?
+  // The college they currently play for. Deliberately NOT collegeCommit,
+  // which is the recruiting commitment and drives the dashboard's Committed
+  // count, the profile commitment badge and the leaderboard label. A senior
+  // who has already enrolled is not a "commit"; the Client Directory's Team
+  // column reads this field.
+  college          String?
   clubTeam         String?
   collegeCommit    String?
   // Guardian contact, surfaced on the coach Client Directory alongside the
   // athlete's own email (which lives on the linked User). Nullable: plenty of
   // adult athletes have no parent contact on file.
   parentEmail      String?
+  parentPhone      String?
   pbrNational      Int?
   pbrState         Int?
   pbrPosition      Int?

@@ -1417,7 +1417,9 @@ function MyProfileTab({ playerId }: { playerId: string }) {
   const [gradYear, setGradYear] = useState<string>('');
   const [birthDate, setBirthDate] = useState('');
   const [highSchool, setHighSchool] = useState('');
+  const [college, setCollege] = useState('');
   const [parentEmail, setParentEmail] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
   const [clubTeam, setClubTeam] = useState('');
   const [collegeCommit, setCollegeCommit] = useState('');
 
@@ -1442,7 +1444,9 @@ function MyProfileTab({ playerId }: { playerId: string }) {
         setGradYear(p.gradYear != null ? String(p.gradYear) : '');
         setBirthDate(p.birthDate || '');
         setHighSchool(p.highSchool || '');
+        setCollege(p.college || '');
         setParentEmail(p.parentEmail || '');
+        setParentPhone(p.parentPhone || '');
         setClubTeam(p.clubTeam || '');
         setCollegeCommit(p.collegeCommit || '');
         setClubTeams(ct);
@@ -1475,7 +1479,9 @@ function MyProfileTab({ playerId }: { playerId: string }) {
         gradYear: gradYear ? parseInt(gradYear, 10) : null,
         birthDate: birthDate || null,
         highSchool: highSchool.trim() || null,
+        college: college.trim() || null,
         parentEmail: parentEmail.trim() || null,
+        parentPhone: parentPhone.trim() || null,
         clubTeam: clubTeam || null,
         collegeCommit: collegeCommit || null,
       });
@@ -1590,9 +1596,28 @@ function MyProfileTab({ playerId }: { playerId: string }) {
           <div className={styles.rowLabel}><span className={styles.rowTitle}>High School</span></div>
           <input className={styles.input} value={highSchool} onChange={(e) => setHighSchool(e.target.value)} />
         </div>
-        {/* Guardian contact — separate from the athlete's own login email,
-            which is managed under Account. Coaches read it off the Client
-            Directory. */}
+        {/* The college currently played for. Distinct from the College
+            Commitment field on the profile, which is the recruiting one. */}
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>College</span></div>
+          <input className={styles.input} value={college} onChange={(e) => setCollege(e.target.value)} placeholder="Current college" />
+        </div>
+        {/* Guardian contacts — separate from the athlete's own email and
+            phone, which are managed under Account. Coaches read these off
+            the Client Directory. */}
+        <div className={styles.row}>
+          <div className={styles.rowLabel}>
+            <span className={styles.rowTitle}>Parent Phone</span>
+            <span className={styles.rowSub}>Guardian contact, shown to coaches on the client list.</span>
+          </div>
+          <input
+            className={styles.input}
+            type="tel"
+            value={parentPhone}
+            onChange={(e) => setParentPhone(e.target.value)}
+            placeholder="(407) 555-0100"
+          />
+        </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Parent Email</span>

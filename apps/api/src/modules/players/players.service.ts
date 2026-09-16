@@ -61,8 +61,10 @@ export class PlayersService {
     birthDate?: string | null;
     highSchool?: string | null;
     clubTeam?: string | null;
+    college?: string | null;
     collegeCommit?: string | null;
     parentEmail?: string | null;
+    parentPhone?: string | null;
     pbrNational?: number | null;
     pbrState?: number | null;
     pbrPosition?: number | null;

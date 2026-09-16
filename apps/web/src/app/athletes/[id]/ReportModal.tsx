@@ -729,8 +729,11 @@ interface SummaryData {
   height: string; weight: string; gradYear: string; birthDate: string; highSchool: string;
   clubTeam: string; pbrNational: string; pbrState: string; pbrPosition: string; pgScore: string;
   collegeCommit: string; logoFile: File | null;
-  /** Guardian contact — surfaced on the coach Client Directory. */
+  /** The college they currently play for — distinct from collegeCommit. */
+  college: string;
+  /** Guardian contacts — surfaced on the coach Client Directory. */
   parentEmail: string;
+  parentPhone: string;
   playingLevelGoal: string; goals: string;
 }
 
@@ -903,9 +906,22 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             <label className={rs.summaryLabel}>High School</label>
             <input type="text" className={rs.summaryInput} value={data.highSchool} onChange={e => update({ highSchool: e.target.value })} placeholder="High school name" />
           </div>
-          {/* Guardian contact. Separate from the athlete's own login email,
-              which lives on their User account — this is the one a coach
-              reaches for on the Client Directory. */}
+          {/* The college they currently play for. Distinct from College
+              Commitment below, which is the recruiting field driving the
+              Committed count and the profile badge — an enrolled senior is
+              not a commit. This is what the Client Directory's Team column
+              prefers. */}
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>College</label>
+            <input type="text" className={rs.summaryInput} value={data.college} onChange={e => update({ college: e.target.value })} placeholder="Current college" />
+          </div>
+          {/* Guardian contacts. Separate from the athlete's own email and
+              phone, which live on their User account — these are the ones a
+              coach reaches for on the Client Directory. */}
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Parent Phone</label>
+            <input type="tel" className={rs.summaryInput} value={data.parentPhone} onChange={e => update({ parentPhone: e.target.value })} placeholder="(407) 555-0100" />
+          </div>
           <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>Parent Email</label>
             <input type="email" className={rs.summaryInput} value={data.parentEmail} onChange={e => update({ parentEmail: e.target.value })} placeholder="parent@example.com" />
@@ -3316,7 +3332,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
 
   const emptySummary: SummaryData = {
     firstName: '', lastName: '', positions: [], athleteTypes: [], bats: '', throws: '',
-    height: '', weight: '', gradYear: '', birthDate: '', highSchool: '', parentEmail: '',
+    height: '', weight: '', gradYear: '', birthDate: '', highSchool: '', college: '',
+    parentEmail: '', parentPhone: '',
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
     collegeCommit: '', logoFile: null,
     playingLevelGoal: '', goals: '',
@@ -3494,7 +3511,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       gradYear: player.gradYear ? String(player.gradYear) : '',
       birthDate: player.birthDate ? player.birthDate.slice(0, 10) : '',
       highSchool: player.highSchool || '', clubTeam: player.clubTeam || '',
+      college: player.college || '',
       parentEmail: player.parentEmail || '',
+      parentPhone: player.parentPhone || '',
       pbrNational: player.pbrNational ? String(player.pbrNational) : '',
       pbrState: player.pbrState ? String(player.pbrState) : '',
       pbrPosition: player.pbrPosition ? String(player.pbrPosition) : '',
@@ -3627,7 +3646,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           heightInches: heightToInches(summaryData.height), weightLbs: summaryData.weight ? parseInt(summaryData.weight) : null,
           gradYear: summaryData.gradYear ? parseInt(summaryData.gradYear) : null,
           birthDate: summaryData.birthDate || null, highSchool: summaryData.highSchool || null,
+          college: summaryData.college.trim() || null,
           parentEmail: summaryData.parentEmail.trim() || null,
+          parentPhone: summaryData.parentPhone.trim() || null,
           clubTeam: summaryData.clubTeam || null,
           pbrNational: summaryData.pbrNational ? parseInt(summaryData.pbrNational) : null,
           pbrState: summaryData.pbrState ? parseInt(summaryData.pbrState) : null,

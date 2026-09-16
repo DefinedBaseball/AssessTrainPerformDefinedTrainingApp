@@ -18,16 +18,20 @@ function initials(f: string, l: string) {
 /**
  * The single "Team" a client is playing for.
  *
- * An athlete can carry a high school, a club and a college commitment at the
- * same time, so this picks the highest level on file: a committed athlete is
- * best identified by their college, otherwise their club, otherwise their
- * school. The club case is labelled because "Canes National" on its own reads
- * like a school to anyone scanning the column.
+ * An athlete can carry all three at once, so this picks the one that
+ * identifies them best: College, else High School, else Club Team.
+ *
+ * Reads `college` (where they actually play), NOT `collegeCommit` — that is
+ * the recruiting commitment behind the dashboard's Committed count, and a
+ * committed junior still plays for their high school.
+ *
+ * The club case is labelled because "Canes National" on its own reads like a
+ * school to anyone scanning the column.
  */
 function teamFor(p: Player): string {
-  if (p.collegeCommit) return p.collegeCommit;
-  if (p.clubTeam) return `${p.clubTeam} (club)`;
+  if (p.college) return p.college;
   if (p.highSchool) return p.highSchool;
+  if (p.clubTeam) return `${p.clubTeam} (club)`;
   return '';
 }
 
@@ -98,7 +102,8 @@ export default function ClientsPage() {
     /* Search every column shown, so a coach can find a client by the parent's
        email or the team just as easily as by name. */
     return sorted.filter((p) => [
-      p.firstName, p.lastName, teamFor(p), p.user?.email, p.user?.phone, p.parentEmail,
+      p.firstName, p.lastName, teamFor(p),
+      p.user?.email, p.user?.phone, p.parentEmail, p.parentPhone,
     ].some((v) => (v || '').toLowerCase().includes(q)));
   }, [players, query]);
 
@@ -151,6 +156,7 @@ export default function ClientsPage() {
               <span>Team</span>
               <span>Phone</span>
               <span>Email</span>
+              <span>Parent Phone</span>
               <span>Parent Email</span>
             </div>
             {rows.map((p) => {
@@ -173,6 +179,7 @@ export default function ClientsPage() {
                   </span>
                   <span className={styles.cell}><ContactCell value={p.user?.phone} href="tel" /></span>
                   <span className={styles.cell}><ContactCell value={p.user?.email} href="mailto" /></span>
+                  <span className={styles.cell}><ContactCell value={p.parentPhone} href="tel" /></span>
                   <span className={styles.cell}><ContactCell value={p.parentEmail} href="mailto" /></span>
                 </div>
               );
