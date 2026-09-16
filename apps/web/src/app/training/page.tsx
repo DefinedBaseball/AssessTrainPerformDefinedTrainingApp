@@ -265,6 +265,82 @@ const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = Object.fromEntries(
    allocating a fresh Set on every render). */
 const EMPTY_SET = new Set<string>();
 
+/* ── Inline day editor: scheduled drills ⇄ dropdown selections ──
+   The coach Day view edits a day in place, so it needs to map BOTH ways
+   between what is on the calendar and what is ticked in each dropdown.
+   Shared with DrillDashboardModal so the two surfaces cannot drift on
+   how a saved row maps back to the section that produced it. */
+
+/** The dropdown section a scheduled drill belongs to, or undefined. */
+function ddForEvent(ev: { tab: string; category: string }): ModalDropdown | undefined {
+  const dds = MODAL_DROPDOWNS[ev.tab] || [];
+  /* New rows save the SECTION label as `category` (e.g. 'Tee'); rows
+     written before the sections split saved the shared library category
+     (e.g. 'Drills'), so fall back to the first section drawing from it. */
+  return dds.find(d => d.label === ev.category) || dds.find(d => d.dbCategory === ev.category);
+}
+
+/**
+ * Selections-by-section for a day, derived from what is already scheduled.
+ *
+ * Only library-linked rows can round-trip: a hand-entered one-off has no
+ * drillId, so no dropdown can represent it. Those are deliberately absent
+ * here and the save diff never touches them — they keep showing in the
+ * cards below the dropdowns.
+ */
+function buildDraftFromEvents(events: ScheduledDrill[]): Record<string, Set<string>> {
+  const init: Record<string, Set<string>> = {};
+  for (const ev of events) {
+    if (!ev.drillId) continue;
+    const dd = ddForEvent(ev);
+    if (!dd) continue;
+    (init[dd.key] ||= new Set<string>()).add(ev.drillId);
+  }
+  return init;
+}
+
+/**
+ * Which library drills each dropdown section of a tab can offer.
+ *
+ * Movement Prep is a SHARED warm-up library across every sport: each tab's
+ * Movement Prep picker shows ALL Movement Prep drills (deduped by name)
+ * whichever tab they were created under, so a warm-up built under Hitting is
+ * also selectable for Pitching / Infield / Outfield / Catching — videos
+ * included, no duplicated rows. Every other category stays tab-specific.
+ */
+function drillsForTabDropdowns(allDrills: Drill[], tabKey: string): Record<string, Drill[]> {
+  const dds = MODAL_DROPDOWNS[tabKey] || [];
+  const tabDrills = allDrills.filter(d => d.tab === tabKey);
+  const map: Record<string, Drill[]> = {};
+  for (const dd of dds) {
+    if (dd.dbCategory === 'Movement Prep') {
+      const seen = new Set<string>();
+      map[dd.key] = allDrills.filter(d => {
+        if (d.category !== 'Movement Prep') return false;
+        const key = d.name.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    } else {
+      map[dd.key] = tabDrills.filter(d => d.category === dd.dbCategory);
+    }
+  }
+  return map;
+}
+
+/** Do two selection maps hold the same drills? Drives the dirty flag. */
+function sameDraft(a: Record<string, Set<string>>, b: Record<string, Set<string>>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    const sa = a[k] || EMPTY_SET;
+    const sb = b[k] || EMPTY_SET;
+    if (sa.size !== sb.size) return false;
+    for (const id of sa) if (!sb.has(id)) return false;
+  }
+  return true;
+}
+
 /* LEGEND_CATEGORIES moved to `@/lib/training-colors`. */
 
 function formatDate(y: number, m: number, d: number): string {
@@ -662,6 +738,151 @@ export default function TrainingPage() {
     }
   }, [visibleTabs, activeTab]);
 
+  const todayDateStr = toDateStr(currentDate);
+
+  /* ══ Inline day editor (coach) ══════════════════════════════════
+     The Day view edits the selected day in place: every position column
+     carries its own category dropdowns, and nothing reaches the athlete
+     until Save. The draft lives HERE rather than in DayView because the
+     Save button sits up in the calendar controls beside Today.
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* The drill library, loaded once for the whole page. The modal used to
+     own this fetch; the inline editor needs the same list, so it moved up
+     rather than both surfaces fetching it separately. */
+  const [allDrills, setAllDrills] = useState<Drill[]>([]);
+  useEffect(() => {
+    /* Coaches only — the library feeds the in-column pickers and an athlete
+       has nothing to pick with, so this avoids pulling the whole drill list
+       onto a player's phone on every visit. */
+    if (!isCoach) return;
+    api.getDrills().then(setAllDrills).catch(() => setAllDrills([]));
+  }, [isCoach]);
+
+  /* What the day currently looks like ON THE SERVER — the baseline the
+     draft is compared against to decide if there is anything to save. */
+  const persistedDraft = useMemo(
+    () => buildDraftFromEvents(allEventsByDate[todayDateStr] || []),
+    [allEventsByDate, todayDateStr],
+  );
+
+  const [draftSel, setDraftSel] = useState<Record<string, Set<string>>>(persistedDraft);
+  const [savingDay, setSavingDay] = useState(false);
+
+  /* Re-baseline whenever the persisted day changes — switching athlete,
+     moving to another date, or a refetch after save. Any unsaved edits are
+     dropped at that point BY DESIGN: they belonged to the day being left.
+     The nav guard below is what stops that happening silently. */
+  useEffect(() => { setDraftSel(persistedDraft); }, [persistedDraft]);
+
+  const dayDirty = useMemo(
+    () => !sameDraft(draftSel, persistedDraft),
+    [draftSel, persistedDraft],
+  );
+
+  const toggleDraftDd = useCallback((ddKey: string, drillId: string) => {
+    setDraftSel(prev => {
+      const set = new Set(prev[ddKey] || []);
+      if (set.has(drillId)) set.delete(drillId);
+      else set.add(drillId);
+      return { ...prev, [ddKey]: set };
+    });
+  }, []);
+
+  /**
+   * Persist the day.
+   *
+   * Diff-based on purpose. The modal's save deletes every library-linked
+   * row and recreates it, which throws away the coach's drag-reorder
+   * (`order` / `sectionOrder` reset to 0) and churns row ids on every
+   * save. Here an untouched drill is left completely alone: only removed
+   * drills are deleted and only added ones are created.
+   *
+   * Hand-entered one-offs (drillId == null) are never in the diff, so they
+   * survive a save untouched.
+   */
+  const handleSaveDay = useCallback(async () => {
+    if (!selectedPlayerId || !dayDirty) return;
+    setSavingDay(true);
+    try {
+      const existing = allEventsByDate[todayDateStr] || [];
+      const toDelete: string[] = [];
+      const toAdd: Parameters<typeof api.createScheduledDrillsBatch>[0] = [];
+
+      for (const tab of TABS) {
+        const dds = MODAL_DROPDOWNS[tab.key] || [];
+        const tabEvents = existing.filter(ev => ev.tab === tab.key);
+
+        /* New drills queue up after the last one already on the day, so a
+           save never collides two drills onto the same time slot. */
+        let slot = tabEvents.length
+          ? Math.max(...tabEvents.map(ev => parseTime(ev.time))) + 15
+          : 9 * 60;
+
+        dds.forEach((dd, ddIndex) => {
+          const sel = draftSel[dd.key] || EMPTY_SET;
+          const mine = tabEvents.filter(ev => ev.drillId && ddForEvent(ev)?.key === dd.key);
+
+          for (const ev of mine) {
+            if (!sel.has(ev.drillId!)) toDelete.push(ev.id);
+          }
+
+          const alreadyThere = new Set(mine.map(ev => ev.drillId!));
+          const added = [...sel].filter(id => !alreadyThere.has(id));
+          if (added.length === 0) return;
+
+          /* Slot new drills into the section where it already exists so they
+             land beside their siblings; a brand-new section takes its
+             canonical position in the taxonomy. */
+          const sectionOrder = mine.length ? mine[0].sectionOrder : ddIndex;
+          const baseOrder = mine.length ? Math.max(...mine.map(ev => ev.order)) + 1 : 0;
+
+          added.forEach((drillId, i) => {
+            const drill = allDrills.find(d => d.id === drillId);
+            if (!drill) return;
+            const h = Math.floor(slot / 60), m = slot % 60;
+            toAdd.push({
+              playerId: selectedPlayerId,
+              drillId: drill.id,
+              tab: tab.key,
+              /* The SECTION label, not the shared library category, so the
+                 row round-trips back into this same dropdown on reload. */
+              category: dd.label,
+              name: drill.name,
+              date: todayDateStr,
+              time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+              duration: 15,
+              order: baseOrder + i,
+              sectionOrder,
+            });
+            slot += 15;
+          });
+        });
+      }
+
+      for (const id of toDelete) await api.deleteScheduledDrill(id);
+      if (toAdd.length) await api.createScheduledDrillsBatch(toAdd);
+
+      refreshEvents();
+    } catch (err) {
+      console.error('Failed to save day:', err);
+      /* Pull the truth back so the UI never shows a draft it failed to
+         persist as though it had saved. */
+      refreshEvents();
+    } finally {
+      setSavingDay(false);
+    }
+  }, [selectedPlayerId, dayDirty, allEventsByDate, todayDateStr, draftSel, allDrills, refreshEvents]);
+
+  /* Unsaved edits die when the day or athlete changes, so warn on the way
+     out of the page entirely. */
+  useEffect(() => {
+    if (!dayDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dayDirty]);
+
   if (authLoading || !user) return null;
 
   const calTitle = view === 'month'
@@ -678,7 +899,7 @@ export default function TrainingPage() {
       : currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   const legendCats = getLegendCategories(activeTab);
-  const todayDateStr = toDateStr(currentDate);
+
 
   return (
     <div className={styles.page}>
@@ -770,7 +991,19 @@ export default function TrainingPage() {
               <span className={styles.calNavDivider} aria-hidden="true" />
               {view === 'day' && (
                 <>
-                  <button className={styles.dayActionBtn} onClick={() => openEditModal(todayDateStr)} title="Edit this day's drills">Edit</button>
+                  {/* Save replaces the old Edit button: the day is edited
+                      inline in the columns below, and nothing reaches the
+                      athlete until this is pressed. */}
+                  <button
+                    className={dayDirty ? styles.dayActionBtnAccent : styles.dayActionBtn}
+                    onClick={handleSaveDay}
+                    disabled={savingDay || !dayDirty}
+                    title={dayDirty
+                      ? 'Save this day — athletes see the changes once saved'
+                      : 'No unsaved changes'}
+                  >
+                    {savingDay ? 'Saving…' : dayDirty ? 'Save' : 'Saved'}
+                  </button>
                   <button className={styles.dayActionBtn} onClick={() => handleCopyDay(todayDateStr)} title="Copy this day's drills">Copy</button>
                   {copiedDrills.length > 0 && (
                     <button className={styles.dayActionBtnAccent} onClick={() => handlePasteDay(todayDateStr)} title={copiedDate ? `Paste day from ${copiedDate}` : 'Paste copied day'}>Paste</button>
@@ -858,7 +1091,6 @@ export default function TrainingPage() {
           allDayEvents={allEventsByDate[todayDateStr] || []}
           isCoach={isCoach}
           onDelete={handleDelete}
-          onEdit={() => openEditModal(todayDateStr)}
           onCopy={() => handleCopyDay(todayDateStr)}
           onCopyTab={(tabKey) => handleCopyTab(todayDateStr, tabKey)}
           onPaste={() => handlePasteDay(todayDateStr)}
@@ -869,6 +1101,9 @@ export default function TrainingPage() {
           onReorder={applyReorder}
           onSaveTemplate={handleSaveTemplate}
           onOpenTemplates={() => setShowTemplates(true)}
+          allDrills={allDrills}
+          draftSel={draftSel}
+          onToggleDd={toggleDraftDd}
         />
       )}
 
@@ -1125,7 +1360,6 @@ function DayView({
   allDayEvents,
   isCoach,
   onDelete,
-  onEdit,
   onCopy,
   onCopyTab,
   onPaste,
@@ -1136,12 +1370,14 @@ function DayView({
   onReorder,
   onSaveTemplate,
   onOpenTemplates,
+  allDrills,
+  draftSel,
+  onToggleDd,
 }: {
   currentDate: Date;
   allDayEvents: ScheduledDrill[];
   isCoach: boolean;
   onDelete: (id: string) => void;
-  onEdit: () => void;
   onCopy: () => void;
   /** Copy a single tab's drills (just Hitting / just Pitching / etc.)
    *  — same clipboard the day-wide `onCopy` uses, filtered to one
@@ -1160,6 +1396,12 @@ function DayView({
   onSaveTemplate: (tabKey: string, items: api.ScheduleTemplateItem[]) => void;
   /** Open the Apply-Template picker for this day. */
   onOpenTemplates: () => void;
+  /** Drill library, for the in-column category dropdowns. */
+  allDrills: Drill[];
+  /** Coach's unsaved selections, keyed by dropdown section. */
+  draftSel: Record<string, Set<string>>;
+  /** Tick / untick one drill in one section. */
+  onToggleDd: (ddKey: string, drillId: string) => void;
 }) {
   const dateLabel = currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -1237,10 +1479,24 @@ function DayView({
   const focusedEvents = focusedTab ? (eventsByTab[focusedTab] || []) : [];
   const focusedColor = focusedTab ? (TAB_COLORS[focusedTab] || TAB_COLORS.hitting) : null;
 
-  /* Columns appear ONLY for areas that have at least one drill scheduled this
-   * day — an empty category no longer renders a blank column. Coaches add to a
-   * new area via Edit; its column appears once that area has a drill. */
+  /* Athletes only see areas that actually have a drill — an empty category
+   * renders no column for them.
+   *
+   * Coaches get a column for EVERY area the athlete's profile qualifies for,
+   * empty or not, because the column is now the editing surface: an empty
+   * Outfield column is where you go to add the athlete's first outfield
+   * drill. visibleTabsForPlayer() is what decides that list, so a C/INF gets
+   * Catching + Infield and a pitcher-only athlete never sees Hitting. */
   const populatedTabs = visibleTabs.filter((t) => (eventsByTab[t.key] || []).length > 0);
+  const columnTabs = isCoach ? visibleTabs : populatedTabs;
+
+  /* Section → selectable drills, for every tab at once. Memoised on the
+     library alone so opening a dropdown does not recompute the others. */
+  const drillsByTabDd = useMemo(() => {
+    const out: Record<string, Record<string, Drill[]>> = {};
+    for (const t of TABS) out[t.key] = drillsForTabDropdowns(allDrills, t.key);
+    return out;
+  }, [allDrills]);
 
   /* ── Coach drag-to-reorder (dnd-kit) — same engine as the Program board.
      Reorder is constrained to within a single sport/tab: drills move within
@@ -1453,16 +1709,25 @@ function DayView({
             )}
           </div>
         </div>
-      ) : populatedTabs.length === 0 ? (
-        /* No area has a drill scheduled this day → show a note instead of a
-           row of empty columns. */
+      ) : columnTabs.length === 0 ? (
+        /* Nothing to show: no drills scheduled (athlete), or the athlete has
+           no positions on file at all (coach). */
         <div className={styles.dayFocusEmpty} style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
           No workouts scheduled for this day.
         </div>
       ) : (
-        /* ── Default multi-column grid — only areas WITH drills get a column ── */
-        <div className={styles.dayGrid} style={{ gridTemplateColumns: `repeat(${populatedTabs.length}, 1fr)` }}>
-          {populatedTabs.map(tab => {
+        /* ── Multi-column grid — one column per position area ── */
+        /* Column count travels as a custom property, NOT as an inline
+           grid-template-columns. An inline declaration outranks every
+           media query, which silently killed the responsive rules for
+           this grid — on a phone a six-position athlete rendered six
+           60px columns. The stylesheet now owns the layout at each
+           breakpoint and only reads the count from here. */
+        <div
+          className={styles.dayGrid}
+          style={{ ['--day-cols' as string]: columnTabs.length } as React.CSSProperties}
+        >
+          {columnTabs.map(tab => {
             const tabEvents = eventsByTab[tab.key] || [];
             const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
             return (
@@ -1569,7 +1834,28 @@ function DayView({
                   )}
                 </div>
                 <div className={styles.dayColBody}>
-                  {tabEvents.length === 0 && (
+                  {/* ── In-column editor ──
+                      One multi-select per drill category for this area
+                      (Hitting → Movement Prep / Vision / Tee / Flips / …).
+                      Ticking a drill only changes the local draft; the Save
+                      button up in the calendar controls is what publishes the
+                      day to the athlete. */}
+                  {isCoach && (
+                    <div className={styles.dayColPickers}>
+                      {(MODAL_DROPDOWNS[tab.key] || []).map(dd => (
+                        <MultiSelectDropdown
+                          key={dd.key}
+                          label={dd.label}
+                          drills={drillsByTabDd[tab.key]?.[dd.key] || []}
+                          selected={draftSel[dd.key] || EMPTY_SET}
+                          onToggle={(id) => onToggleDd(dd.key, id)}
+                          color={dd.color}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {tabEvents.length === 0 && !isCoach && (
                     <div className={styles.dayColEmpty}>—</div>
                   )}
                   {/* Group this tab's drills into one bubble per category
@@ -1651,12 +1937,17 @@ function MultiSelectDropdown({
   selected,
   onToggle,
   color,
+  compact = false,
 }: {
   label: string;
   drills: Drill[];
   selected: Set<string>;
   onToggle: (id: string) => void;
   color: string;
+  /** Tighter geometry for the Day view's in-column pickers, where six or
+   *  seven of these stack inside one narrow position column. Colour and
+   *  behaviour are identical to the modal's — only the sizing changes. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -1682,13 +1973,13 @@ function MultiSelectDropdown({
   // Always show the dropdown section even if empty — coach can still see the label
 
   return (
-    <div className={styles.field}>
-      <label className={styles.fieldLabel}>{label}</label>
+    <div className={compact ? styles.dayColField : styles.field}>
+      <label className={compact ? styles.dayColFieldLabel : styles.fieldLabel}>{label}</label>
       <div className={styles.multiWrap} ref={wrapRef}>
         <div
           role="button"
           tabIndex={0}
-          className={styles.multiTrigger}
+          className={`${styles.multiTrigger} ${compact ? styles.multiTriggerCompact : ''}`}
           style={{ borderColor: color }}
           onClick={() => setOpen(!open)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o); } }}
@@ -1778,20 +2069,9 @@ function DrillDashboardModal({
   // Per-dropdown selection — keyed by dropdown key (e.g. 'h-tee', 'h-ft') so
   // the SAME drill can be picked in Tee but not Front Toss, even though both
   // pull from the shared "Drills" library category.
-  const [selectedByDd, setSelectedByDd] = useState<Record<string, Set<string>>>(() => {
-    const init: Record<string, Set<string>> = {};
-    for (const ev of existingEvents) {
-      if (!ev.drillId) continue;
-      const dds = MODAL_DROPDOWNS[ev.tab] || [];
-      // New records save the SECTION as the category (e.g. 'Tee'); older
-      // records saved the library dbCategory (e.g. 'Drills') — fall back to
-      // the first dropdown that pulls from it.
-      const dd = dds.find(d => d.label === ev.category) || dds.find(d => d.dbCategory === ev.category);
-      if (!dd) continue;
-      (init[dd.key] ||= new Set<string>()).add(ev.drillId);
-    }
-    return init;
-  });
+  const [selectedByDd, setSelectedByDd] = useState<Record<string, Set<string>>>(
+    () => buildDraftFromEvents(existingEvents),
+  );
 
   // Load ALL drills from library once
   const [allDrills, setAllDrills] = useState<Drill[]>([]);
@@ -1802,30 +2082,11 @@ function DrillDashboardModal({
   // Drills for current modal tab, split by dropdown dbCategory
   const tabDrills = useMemo(() => allDrills.filter(d => d.tab === modalTab), [allDrills, modalTab]);
   const modalCategories = MODAL_DROPDOWNS[modalTab] || [];
-  const drillsByDropdown = useMemo(() => {
-    const map: Record<string, Drill[]> = {};
-    for (const dd of modalCategories) {
-      if (dd.dbCategory === 'Movement Prep') {
-        // Movement Prep is a SHARED warm-up library across every sport: each
-        // tab's Movement Prep picker shows ALL Movement Prep drills (deduped
-        // by name) regardless of which tab they were created under. So the
-        // drills built under Hitting's Movement Prep are also selectable for
-        // Pitching / Infield / Outfield / Catching — videos included, no
-        // duplicated rows. Other categories stay tab-specific.
-        const seen = new Set<string>();
-        map[dd.key] = allDrills.filter(d => {
-          if (d.category !== 'Movement Prep') return false;
-          const key = d.name.trim().toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-      } else {
-        map[dd.key] = tabDrills.filter(d => d.category === dd.dbCategory);
-      }
-    }
-    return map;
-  }, [tabDrills, allDrills, modalCategories]);
+  /* Shared with the Day view's in-column pickers — see the helper. */
+  const drillsByDropdown = useMemo(
+    () => drillsForTabDropdowns(allDrills, modalTab),
+    [allDrills, modalTab],
+  );
 
   // Per-tab badge counts = sum of that tab's dropdown-section selections.
   const countsPerTab = useMemo(() => {

@@ -439,10 +439,12 @@
   gap: 12px;
 }
 
-/* ── Day Grid (5-column layout) ── */
+/* ── Day Grid ──
+   One column per position area; --day-cols is set by the component. The
+   fallback of 5 only applies if the property is missing. */
 .dayGrid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(var(--day-cols, 5), 1fr);
   border-top: 1px solid var(--border);
 }
 
@@ -1438,7 +1440,12 @@
   .dashModal { width: 100%; }
   .dashTab { padding: 7px 10px; font-size: 10px; }
   .dayActions { flex-wrap: wrap; }
-  .dayGrid { grid-template-columns: repeat(3, 1fr); }
+  /* Keep all the columns but stop them collapsing: each gets a readable
+     floor and the grid scrolls sideways instead. */
+  .dayGrid {
+    grid-template-columns: repeat(var(--day-cols, 5), minmax(200px, 1fr));
+    overflow-x: auto;
+  }
   .dayColCardName { font-size: 11px; }
   .dayColCardDesc { display: none; }
 }
@@ -1455,7 +1462,7 @@
   .dayNum { font-size: 10px; }
   .eventPill { font-size: 8px; padding: 1px 3px; }
   .weekListGrid { grid-template-columns: repeat(3, 1fr); }
-  .dayGrid { grid-template-columns: repeat(2, 1fr); }
+  .dayGrid { grid-template-columns: repeat(var(--day-cols, 5), minmax(170px, 1fr)); }
   .dayColHeader { padding: 8px 4px; }
   .dayColTitle { font-size: 9px; }
   .athleteSelect { max-width: 100%; }
@@ -1553,4 +1560,62 @@
   background: var(--panel-bg-light);
   border-color: rgba(0, 0, 0, 0.10);
   color: var(--text);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Coach in-column day editor
+   Each position column in the Day view carries its own category
+   multi-selects, so a coach edits the day in place instead of opening
+   a modal. Six or seven pickers stack inside one narrow column, hence
+   the tighter geometry than the modal's version of the same control.
+   ══════════════════════════════════════════════════════════════════ */
+
+.dayColPickers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 7px;
+  margin-bottom: 3px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.dayColField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dayColFieldLabel {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.multiTriggerCompact {
+  min-height: 26px;
+  padding: 3px 6px;
+  font-size: 11px;
+  border-radius: 5px;
+  gap: 4px;
+}
+
+/* Chips inside a compact trigger shrink to match, and the label is
+   allowed to ellipsis rather than force the column wider. */
+.multiTriggerCompact .multiChip {
+  padding: 1px 6px;
+  font-size: 10px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.multiTriggerCompact .multiCount,
+.multiTriggerCompact .multiPlaceholder {
+  font-size: 10px;
+}
+
+.multiTriggerCompact .multiChevron {
+  margin-left: 4px;
 }
