@@ -465,6 +465,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  /* The action chips are a full-width child, so they wrap onto their own
+     row beneath the sport name instead of squeezing it. */
+  flex-wrap: wrap;
   /* Column header is a clickable <button> that drills into the focused
    * single-tab view. Reset the browser button defaults so it still
    * looks like a header. */
@@ -1646,4 +1649,100 @@
   opacity: 0.55;
   flex-shrink: 0;
   margin-right: 1px;
+}
+
+/* ── Column action chips (Template / +Temp / Copy) ──
+   Their own row under the sport name so a narrow column keeps the title
+   readable. Colour comes from the tab, applied inline. */
+.dayColActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.colChip {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: opacity 0.12s;
+}
+.colChip:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+/* ── Template picker panel ── */
+.tplWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tplPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 190px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 30;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42);
+  padding: 4px;
+  text-align: left;
+}
+
+.tplEmpty {
+  padding: 10px 10px 11px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.tplItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tplItem:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+.tplItemOn {
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.tplCheckbox {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.tplName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

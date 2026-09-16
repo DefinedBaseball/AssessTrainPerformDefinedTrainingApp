@@ -16,7 +16,7 @@ const ScheduleDownloadModal = nextDynamic(
   () => import('./ScheduleDownloadModal').then(m => m.ScheduleDownloadModal),
   { ssr: false },
 );
-import { TemplatePicker, SaveTemplateModal } from '@/components/TemplatePicker';
+import { SaveTemplateModal } from '@/components/TemplatePicker';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -384,6 +384,53 @@ function parsePendingId(id: string): { ddKey: string; drillId: string } | null {
   return { ddKey: rest.slice(0, cut), drillId: rest.slice(cut + 1) };
 }
 
+/**
+ * A template's drills, keyed by the picker section that owns them.
+ *
+ * Selecting a template feeds the SAME draft the drill pickers write to, so a
+ * templated drill and a hand-picked one are indistinguishable once applied —
+ * that is what lets Save publish both together.
+ *
+ * Items with no drillId (a hand-entered one-off that was snapshotted into the
+ * template) are skipped: no picker can represent them, so there is nothing to
+ * tick. Templates built from library drills — every template the "+Temp"
+ * button produces from a normal day — are unaffected.
+ */
+function templateDrillsByDd(
+  t: api.ScheduleTemplate,
+  allDrills: Drill[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const options = drillsForTabDropdowns(allDrills, t.tab);
+  const byId = new Map(allDrills.map(d => [d.id, d]));
+
+  for (const it of api.parseTemplateItems(t)) {
+    if (!it.drillId) continue;
+    const dd = ddForEvent({ tab: t.tab, category: it.category });
+    if (!dd) continue;
+    const choices = options[dd.key] || [];
+
+    /* Resolve to the row this picker actually offers.
+
+       Exact id first. Failing that, match on name: Movement Prep is a shared
+       library deduped BY NAME across sports, so the same warm-up exists as a
+       separate Drill row per tab (47 of them do) and the picker surfaces only
+       one. A template holding a sibling row's id would otherwise land a
+       second, identical-looking drill next to the one already selected. */
+    let resolved = choices.find(d => d.id === it.drillId);
+    if (!resolved) {
+      const wanted = (byId.get(it.drillId)?.name || it.name || '').trim().toLowerCase();
+      if (wanted) resolved = choices.find(d => d.name.trim().toLowerCase() === wanted);
+    }
+    if (!resolved) continue;
+
+    const bucket = (out[dd.key] ||= []);
+    /* A template listing the same drill twice must not double it. */
+    if (!bucket.includes(resolved.id)) bucket.push(resolved.id);
+  }
+  return out;
+}
+
 /** Do two selection maps hold the same drills? Drives the dirty flag. */
 function sameDraft(a: Record<string, Set<string>>, b: Record<string, Set<string>>): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
@@ -610,13 +657,14 @@ export default function TrainingPage() {
   }, []);
 
   /* ── Schedule templates ──
-     Save: name prompt → snapshot persists facility-wide. Apply: picker modal
-     → recreate the template's drills on the CURRENT day for the selected
-     player via the existing batch endpoint (order/sectionOrder carried so
-     the applied day matches the template's curated layout). */
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [applyingTemplate, setApplyingTemplate] = useState(false);
-  /* "Save as template" opens the styled name modal (SaveTemplateModal); the
+     Applying is per column and goes through the DRAFT (see toggleTemplate),
+     not straight to the athlete: ticking a template adds its drills to the
+     column exactly as if the coach had picked them, and the day-level Save is
+     what publishes. The old modal wrote to the athlete the instant you picked
+     a template, which bypassed Save entirely and made the two paths disagree
+     about when a day becomes real.
+
+     "+Temp" opens the styled name modal (SaveTemplateModal); the
      modal owns the input + inline "✓ Saved" confirmation, this page owns the
      API write. Replaces the v1 window.prompt/alert flow. */
   const [saveTpl, setSaveTpl] = useState<{ tabKey: string; label: string; items: api.ScheduleTemplateItem[] } | null>(null);
@@ -625,36 +673,6 @@ export default function TrainingPage() {
     const label = TABS.find(t => t.key === tabKey)?.label ?? tabKey;
     setSaveTpl({ tabKey, label, items });
   }, []);
-  const handleApplyTemplate = useCallback(async (t: api.ScheduleTemplate, items: api.ScheduleTemplateItem[]) => {
-    if (!selectedPlayerId || items.length === 0) return;
-    // Computed inline (not the later-declared todayDateStr const) so this
-    // callback's dep array never touches a binding above its declaration.
-    const dateStr = toDateStr(currentDate);
-    setApplyingTemplate(true);
-    try {
-      await api.createScheduledDrillsBatch(items.map(it => ({
-        playerId: selectedPlayerId,
-        drillId: it.drillId ?? undefined,
-        tab: t.tab,
-        category: it.category,
-        name: it.name,
-        date: dateStr,
-        time: it.time,
-        duration: it.duration,
-        notes: it.notes ?? undefined,
-        order: it.order,
-        sectionOrder: it.sectionOrder,
-      })));
-      refreshEvents();
-      setShowTemplates(false);
-    } catch (e) {
-      console.error('Apply template failed', e);
-      window.alert('Failed to apply template');
-    } finally {
-      setApplyingTemplate(false);
-    }
-  }, [selectedPlayerId, currentDate, refreshEvents]);
-
   /* Coach drag-reorder: optimistically merge the updated rows into `events`
      (board reflects the new order instantly), then persist the position
      payload; resync from the server on failure. */
@@ -824,16 +842,98 @@ export default function TrainingPage() {
   const [draftSel, setDraftSel] = useState<Record<string, Set<string>>>(persistedDraft);
   const [savingDay, setSavingDay] = useState(false);
 
+  /* Saved templates, for the per-column Template pickers. Fetched once for
+     every sport and split by tab, so a column only ever offers its own. */
+  const [templates, setTemplates] = useState<api.ScheduleTemplate[]>([]);
+  const loadTemplates = useCallback(() => {
+    if (!isCoach) return;
+    api.getScheduleTemplates().then(setTemplates).catch(() => setTemplates([]));
+  }, [isCoach]);
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
+
+  const templatesByTab = useMemo(() => {
+    const out: Record<string, api.ScheduleTemplate[]> = {};
+    for (const t of templates) (out[t.tab] ||= []).push(t);
+    return out;
+  }, [templates]);
+
+  /* Which templates are currently applied to the draft, and exactly which
+     drills each one CONTRIBUTED.
+
+     Storing the contribution (rather than re-deriving it on removal) is what
+     makes unticking a template subtract only what it actually added. If two
+     templates share a drill, or the coach had already picked it by hand, the
+     second template records nothing for it — so turning that template off
+     leaves the drill where it was instead of yanking it out from under the
+     other source. Presence of a key is also what marks a template selected. */
+  const [tplAdded, setTplAdded] = useState<Record<string, Record<string, string[]>>>({});
+
   /* Re-baseline whenever the persisted day changes — switching athlete,
      moving to another date, or a refetch after save. Any unsaved edits are
      dropped at that point BY DESIGN: they belonged to the day being left.
      The nav guard below is what stops that happening silently. */
-  useEffect(() => { setDraftSel(persistedDraft); }, [persistedDraft]);
+  useEffect(() => {
+    setDraftSel(persistedDraft);
+    /* Templates come off with it: once a day is saved its drills are simply
+       part of the day, not a pending template application. */
+    setTplAdded({});
+  }, [persistedDraft]);
 
   const dayDirty = useMemo(
     () => !sameDraft(draftSel, persistedDraft),
     [draftSel, persistedDraft],
   );
+
+  /**
+   * Add or remove a whole template's drills from the draft.
+   *
+   * Both halves compute their effect OUTSIDE the state updaters. React
+   * StrictMode double-invokes updaters in development, so deriving "what did
+   * this add" inside one would run the derivation twice and record the wrong
+   * contribution. The updaters themselves only add/delete, which is
+   * idempotent and safe to run twice.
+   */
+  const toggleTemplate = useCallback((t: api.ScheduleTemplate) => {
+    const byDd = templateDrillsByDd(t, allDrills);
+
+    if (Object.prototype.hasOwnProperty.call(tplAdded, t.id)) {
+      const contributed = tplAdded[t.id] || {};
+      setDraftSel(prev => {
+        const next = { ...prev };
+        for (const [ddKey, ids] of Object.entries(contributed)) {
+          const set = new Set(next[ddKey] || []);
+          ids.forEach(id => set.delete(id));
+          next[ddKey] = set;
+        }
+        return next;
+      });
+      setTplAdded(prev => {
+        const next = { ...prev };
+        delete next[t.id];
+        return next;
+      });
+      return;
+    }
+
+    /* Only drills this template is genuinely introducing count as its
+       contribution — see the note on tplAdded. */
+    const added: Record<string, string[]> = {};
+    for (const [ddKey, ids] of Object.entries(byDd)) {
+      const have = draftSel[ddKey] || EMPTY_SET;
+      const newly = ids.filter(id => !have.has(id));
+      if (newly.length) added[ddKey] = newly;
+    }
+    setDraftSel(prev => {
+      const next = { ...prev };
+      for (const [ddKey, ids] of Object.entries(byDd)) {
+        const set = new Set(next[ddKey] || []);
+        ids.forEach(id => set.add(id));
+        next[ddKey] = set;
+      }
+      return next;
+    });
+    setTplAdded(prev => ({ ...prev, [t.id]: added }));
+  }, [tplAdded, draftSel, allDrills]);
 
   const toggleDraftDd = useCallback((ddKey: string, drillId: string) => {
     setDraftSel(prev => {
@@ -1155,23 +1255,14 @@ export default function TrainingPage() {
           visibleTabs={visibleTabs}
           onReorder={applyReorder}
           onSaveTemplate={handleSaveTemplate}
-          onOpenTemplates={() => setShowTemplates(true)}
           allDrills={allDrills}
           draftSel={draftSel}
           onToggleDd={toggleDraftDd}
+          templatesByTab={templatesByTab}
+          selectedTemplateIds={tplAdded}
+          onToggleTemplate={toggleTemplate}
         />
       )}
-
-      {/* ── Apply-Template picker — applies to the selected player + the
-          day currently shown in Day view. Lists every sport's templates
-          (the coach may be filling multiple areas of the same day). */}
-      <TemplatePicker
-        open={showTemplates}
-        title={`Apply to ${selectedPlayer ? `${selectedPlayer.firstName} ${selectedPlayer.lastName}` : 'selected player'} — ${todayDateStr}`}
-        onClose={() => setShowTemplates(false)}
-        onApply={handleApplyTemplate}
-        applying={applyingTemplate}
-      />
 
       {/* Styled name-and-confirm modal for "Save as template". */}
       <SaveTemplateModal
@@ -1183,6 +1274,8 @@ export default function TrainingPage() {
         onSave={async (nm) => {
           if (!saveTpl) return;
           await api.createScheduleTemplate({ name: nm, tab: saveTpl.tabKey, items: saveTpl.items });
+          /* So it shows up in the column pickers without a reload. */
+          loadTemplates();
         }}
       />
 
@@ -1424,10 +1517,12 @@ function DayView({
   visibleTabs,
   onReorder,
   onSaveTemplate,
-  onOpenTemplates,
   allDrills,
   draftSel,
   onToggleDd,
+  templatesByTab,
+  selectedTemplateIds,
+  onToggleTemplate,
 }: {
   currentDate: Date;
   allDayEvents: ScheduledDrill[];
@@ -1449,8 +1544,12 @@ function DayView({
   onReorder: (updatedRows: ScheduledDrill[], payload: { id: string; order?: number; sectionOrder?: number }[]) => void;
   /** Save one sport's day plan as a named reusable template. */
   onSaveTemplate: (tabKey: string, items: api.ScheduleTemplateItem[]) => void;
-  /** Open the Apply-Template picker for this day. */
-  onOpenTemplates: () => void;
+  /** Saved templates split by sport — a column only offers its own. */
+  templatesByTab: Record<string, api.ScheduleTemplate[]>;
+  /** Keyed by applied template id; presence marks it selected. */
+  selectedTemplateIds: Record<string, unknown>;
+  /** Add / remove a whole template's drills from the draft. */
+  onToggleTemplate: (t: api.ScheduleTemplate) => void;
   /** Drill library, for the in-column category dropdowns. */
   allDrills: Drill[];
   /** Coach's unsaved selections, keyed by dropdown section. */
@@ -1625,19 +1724,35 @@ function DayView({
      comes from the SAME groupByCategory ordering the coach sees on screen
      (honouring any drag-reorder), so an applied template reproduces the
      day exactly. */
-  const buildTemplateItems = (tabKey: string): api.ScheduleTemplateItem[] =>
-    groupByCategory(eventsByTab[tabKey] || [], tabKey).flatMap(([category, evs], gi) =>
-      evs.map((ev, i) => ({
-        drillId: ev.drillId,
-        category,
-        name: ev.name,
-        time: ev.time,
-        duration: ev.duration,
-        notes: ev.notes,
-        order: i,
-        sectionOrder: gi,
-      })),
+  const buildTemplateItems = (tabKey: string): api.ScheduleTemplateItem[] => {
+    /* Snapshots the DISPLAYED day, draft included, so "+Temp" captures a day
+       the coach has just assembled and not yet saved — which is the moment
+       they are most likely to want it as a template.
+
+       Pending rows have no time (there is no scheduled row behind them yet),
+       so they get laid out on the same 15-minute grid the day save uses. */
+    let slot = 9 * 60;
+    return groupByCategory(displayByTab[tabKey] || [], tabKey).flatMap(([category, evs], gi) =>
+      evs.map((ev, i) => {
+        let time = ev.time;
+        if (!time) {
+          const h = Math.floor(slot / 60), m = slot % 60;
+          time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          slot += 15;
+        }
+        return {
+          drillId: ev.drillId,
+          category,
+          name: ev.name,
+          time,
+          duration: ev.duration,
+          notes: ev.notes,
+          order: i,
+          sectionOrder: gi,
+        };
+      }),
     );
+  };
 
   // When entering focus mode, look up the tab's metadata once.
   const focusedTabMeta = focusedTab ? visibleTabs.find((t) => t.key === focusedTab) ?? null : null;
@@ -1736,17 +1851,17 @@ function DayView({
               ← All areas
             </button>
           )}
-          {/* Apply a saved template to this day (coach). Works in both the
-              multi-column and focused views — the picker lists every sport's
-              templates and the apply targets the selected player + this day. */}
-          {isCoach && (
-            <button
+          {/* Applying a template is per column now — see the Template picker
+              in each column header. In the focused single-area view it sits
+              beside Copy below. */}
+          {isCoach && focusedTabMeta && (
+            <TemplateMultiSelect
+              templates={templatesByTab[focusedTabMeta.key] || []}
+              selectedIds={selectedTemplateIds}
+              onToggle={onToggleTemplate}
+              color={(TAB_COLORS[focusedTabMeta.key] || TAB_COLORS.hitting).text}
               className={styles.dayActionBtn}
-              onClick={onOpenTemplates}
-              title="Apply a saved schedule template to this day"
-            >
-              Templates
-            </button>
+            />
           )}
           {/* While focused on a single tab the coach can still copy
               just THAT tab's drills via this button (mirrors the
@@ -1768,7 +1883,7 @@ function DayView({
               onClick={() => onSaveTemplate(focusedTabMeta.key, buildTemplateItems(focusedTabMeta.key))}
               title={`Save this ${focusedTabMeta.label} day as a reusable template`}
             >
-              Save as template
+              +Temp
             </button>
           )}
           {/* Day-level Edit / Copy / Paste / Copy Week now live in the
@@ -1945,72 +2060,53 @@ function DayView({
                       </span>
                     )}
                   </button>
-                  {/* Per-tab Copy button — always rendered for coaches
-                      so the affordance is visible regardless of
-                      whether the column currently has drills.
-                      Disabled (with a tooltip) when there's nothing
-                      to copy so the empty-clipboard case is obvious
-                      instead of the button silently disappearing. */}
+                  {/* Column actions: Template (apply saved plans for THIS
+                      sport) · +Temp (save what is in this column as a new
+                      one) · Copy. They sit on their own row so a narrow
+                      column keeps the sport name readable. */}
                   {isCoach && (
-                    <button
-                      type="button"
-                      disabled={tabEvents.length === 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (tabEvents.length > 0) onCopyTab(tab.key);
-                      }}
-                      title={tabEvents.length > 0
-                        ? `Copy ${tab.label} drills only`
-                        : `No ${tab.label} drills to copy`}
-                      style={{
-                        background: tabEvents.length > 0
-                          ? tabColor.bg
-                          : 'transparent',
-                        border: `1px solid ${tabColor.text}`,
-                        color: tabColor.text,
-                        padding: '2px 8px',
-                        borderRadius: 5,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase',
-                        cursor: tabEvents.length > 0 ? 'pointer' : 'not-allowed',
-                        opacity: tabEvents.length > 0 ? 1 : 0.4,
-                        marginLeft: 'auto',
-                        flexShrink: 0,
-                      }}
-                    >
-                      Copy
-                    </button>
-                  )}
-                  {/* Save this sport's day as a named reusable template —
-                      sits beside Copy with the same chip treatment. Only
-                      shown when there ARE drills to snapshot. */}
-                  {isCoach && tabEvents.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSaveTemplate(tab.key, buildTemplateItems(tab.key));
-                      }}
-                      title={`Save this ${tab.label} day as a reusable template`}
-                      style={{
-                        background: 'transparent',
-                        border: `1px solid ${tabColor.text}`,
-                        color: tabColor.text,
-                        padding: '2px 8px',
-                        borderRadius: 5,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase',
-                        cursor: 'pointer',
-                        marginLeft: 6,
-                        flexShrink: 0,
-                      }}
-                    >
-                      Save
-                    </button>
+                    <div className={styles.dayColActions}>
+                      <TemplateMultiSelect
+                        templates={templatesByTab[tab.key] || []}
+                        selectedIds={selectedTemplateIds}
+                        onToggle={onToggleTemplate}
+                        color={tabColor.text}
+                      />
+                      <button
+                        type="button"
+                        className={styles.colChip}
+                        disabled={tabEvents.length === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (tabEvents.length > 0) onSaveTemplate(tab.key, buildTemplateItems(tab.key));
+                        }}
+                        title={tabEvents.length > 0
+                          ? `Save this ${tab.label} column as a reusable template`
+                          : `Nothing in ${tab.label} to save as a template`}
+                        style={{ borderColor: tabColor.text, color: tabColor.text }}
+                      >
+                        +Temp
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.colChip}
+                        disabled={tabEvents.length === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (tabEvents.length > 0) onCopyTab(tab.key);
+                        }}
+                        title={tabEvents.length > 0
+                          ? `Copy ${tab.label} drills only`
+                          : `No ${tab.label} drills to copy`}
+                        style={{
+                          borderColor: tabColor.text,
+                          color: tabColor.text,
+                          background: tabEvents.length > 0 ? tabColor.bg : undefined,
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className={styles.dayColBody}>
@@ -2199,6 +2295,80 @@ function DayView({
         ) : null}
       </DragOverlay>
       </DndContext>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Template Multi-Select — a column's "Template" button
+   Lists ONLY that sport's saved templates. Ticking one merges its drills
+   into the column's draft exactly as if the coach had picked them by hand;
+   unticking removes precisely what that template contributed. Nothing here
+   touches the athlete — the day-level Save publishes.
+   ══════════════════════════════════════════════════════════════════ */
+
+function TemplateMultiSelect({
+  templates, selectedIds, onToggle, color, className,
+}: {
+  templates: api.ScheduleTemplate[];
+  /** Presence of a template's id marks it applied. */
+  selectedIds: Record<string, unknown>;
+  onToggle: (t: api.ScheduleTemplate) => void;
+  color: string;
+  /** Lets the focused view borrow the day-action button chrome. */
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const applied = templates.filter(t => Object.prototype.hasOwnProperty.call(selectedIds, t.id));
+
+  return (
+    <div className={styles.tplWrap} ref={wrapRef}>
+      <button
+        type="button"
+        className={className ?? styles.colChip}
+        style={{ borderColor: color, color }}
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        title={templates.length
+          ? 'Apply saved templates to this area'
+          : 'No templates saved for this area yet'}
+      >
+        Template{applied.length > 0 ? ` (${applied.length})` : ''}
+      </button>
+
+      {open && (
+        <div className={styles.tplPanel} onClick={(e) => e.stopPropagation()}>
+          {templates.length === 0 ? (
+            <div className={styles.tplEmpty}>
+              No templates for this area yet. Build a day, then press “+Temp”.
+            </div>
+          ) : (
+            templates.map(t => {
+              const on = Object.prototype.hasOwnProperty.call(selectedIds, t.id);
+              return (
+                <label key={t.id} className={`${styles.tplItem} ${on ? styles.tplItemOn : ''}`}>
+                  <input
+                    type="checkbox"
+                    className={styles.tplCheckbox}
+                    checked={on}
+                    onChange={() => onToggle(t)}
+                  />
+                  <span className={styles.tplName}>{t.name}</span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
