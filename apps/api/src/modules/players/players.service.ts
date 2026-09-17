@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -25,7 +25,9 @@ export class PlayersService {
     return this.prisma.player.findMany({
       where,
       orderBy: { firstName: 'asc' },
-      include: { user: { select: { email: true, role: true, phone: true } } },
+      /* status drives the Athlete Hub's locked/unlocked split and keeps
+         locked athletes out of Apply Calendar's target list. */
+      include: { user: { select: { email: true, role: true, phone: true, status: true } } },
     });
   }
 
@@ -33,7 +35,7 @@ export class PlayersService {
     const player = await this.prisma.player.findUnique({
       where: { id },
       include: {
-        user: { select: { email: true, role: true, phone: true } },
+        user: { select: { email: true, role: true, phone: true, status: true } },
         metrics: { orderBy: { recordedAt: 'desc' }, take: 50 },
         videos: { orderBy: { createdAt: 'desc' }, take: 20 },
         leaderboardEntries: true,
@@ -74,6 +76,44 @@ export class PlayersService {
     goals?: string | null;
   }) {
     return this.prisma.player.update({ where: { id }, data });
+  }
+
+  /**
+   * Pause or restore an athlete's account.
+   *
+   * Locking flips the linked User's status to LOCKED, which the JWT guard
+   * already enforces on EVERY request — so access stops on the next call
+   * rather than whenever their week-long token happens to expire.
+   *
+   * Deliberately only toggles ACTIVE ⇄ LOCKED. A PENDING self-registration
+   * must not be "unlocked" into a live account — that would route around the
+   * coach approval step entirely — and a DECLINED one must stay declined.
+   */
+  async setPlayerLocked(playerId: string, locked: boolean) {
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { id: true, userId: true, user: { select: { status: true } } },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+
+    const current = player.user?.status;
+    const target = locked ? 'LOCKED' : 'ACTIVE';
+
+    if (current === target) {
+      return { playerId, status: target, changed: false };
+    }
+    if (locked && current !== 'ACTIVE') {
+      throw new BadRequestException(`Only an active account can be locked (this one is ${current})`);
+    }
+    if (!locked && current !== 'LOCKED') {
+      throw new BadRequestException(`Only a locked account can be unlocked (this one is ${current})`);
+    }
+
+    await this.prisma.user.update({
+      where: { id: player.userId },
+      data: { status: target },
+    });
+    return { playerId, status: target, changed: true };
   }
 
   async getTopMetrics(playerId: string) {

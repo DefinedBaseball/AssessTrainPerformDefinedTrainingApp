@@ -79,6 +79,13 @@ export class PlayersController {
     return this.playersService.update(id, dto);
   }
 
+  @Patch(':id/lock')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Pause or restore an athlete's account access (COACH only)" })
+  setLocked(@Param('id') id: string, @Body() dto: { locked: boolean }) {
+    return this.playersService.setPlayerLocked(id, !!dto.locked);
+  }
+
   @Get(':id/top-metrics')
   @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Get latest value for each metric type (ownership-checked)' })

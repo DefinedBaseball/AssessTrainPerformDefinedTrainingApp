@@ -93,8 +93,12 @@ export function ApplyCalendarModal({
   const countForType = useMemo(() => {
     const out: Record<string, number> = {};
     for (const t of ATHLETE_TYPES) {
+      /* Locked athletes are paused, so a program's count must not promise to
+         reach them — the server refuses them too. */
       out[t.key] = players.filter(
-        p => p.id !== sourcePlayer?.id && parseAthleteTypes(p.athleteTypes).includes(t.key),
+        p => p.id !== sourcePlayer?.id
+          && !api.isPlayerLocked(p)
+          && parseAthleteTypes(p.athleteTypes).includes(t.key),
       ).length;
     }
     return out;
@@ -106,7 +110,7 @@ export function ApplyCalendarModal({
   const targetIds = useMemo(() => {
     const ids = new Set<string>();
     for (const p of players) {
-      if (p.id === sourcePlayer?.id) continue;
+      if (p.id === sourcePlayer?.id || api.isPlayerLocked(p)) continue;
       if (parseAthleteTypes(p.athleteTypes).some(t => checkedTypes.has(t))) ids.add(p.id);
     }
     for (const id of checkedPlayers) {
@@ -230,25 +234,31 @@ export function ApplyCalendarModal({
           <div className={styles.applyGroupLabel}>Athletes</div>
           {sortedPlayers.map(p => {
             const isSource = p.id === sourcePlayer?.id;
+            const locked = api.isPlayerLocked(p);
             /* Already covered by a ticked program — shown ticked and locked so
                the count and the list never disagree. */
-            const viaType = !isSource && parseAthleteTypes(p.athleteTypes).some(t => checkedTypes.has(t));
+            const viaType = !isSource && !locked && parseAthleteTypes(p.athleteTypes).some(t => checkedTypes.has(t));
             return (
               <label
                 key={p.id}
-                className={`${styles.applyItem} ${isSource ? styles.applyItemDisabled : ''}`}
-                title={isSource ? 'This is the calendar being copied from' : undefined}
+                className={`${styles.applyItem} ${isSource || locked ? styles.applyItemDisabled : ''}`}
+                title={
+                  isSource ? 'This is the calendar being copied from'
+                    : locked ? 'This athlete is locked — unlock them to schedule training'
+                      : undefined
+                }
               >
                 <input
                   type="checkbox"
                   className={styles.applyCheckbox}
-                  disabled={isSource || viaType}
-                  checked={!isSource && (viaType || checkedPlayers.has(p.id))}
+                  disabled={isSource || locked || viaType}
+                  checked={!isSource && !locked && (viaType || checkedPlayers.has(p.id))}
                   onChange={() => toggle(checkedPlayers, p.id, setCheckedPlayers)}
                 />
                 <span className={styles.applyItemName}>
                   {p.firstName} {p.lastName}
                   {isSource && <span className={styles.applyItemNote}> — source</span>}
+                  {locked && <span className={styles.applyItemNote}> — locked</span>}
                 </span>
               </label>
             );

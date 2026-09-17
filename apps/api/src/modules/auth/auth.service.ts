@@ -446,6 +446,24 @@ export class AuthService {
     if (!(await this.verifyPassword(password, user.password)))
       throw new UnauthorizedException('Invalid credentials');
 
+    /* Refuse a non-ACTIVE account HERE, not just at the guard.
+    
+       Login used to hand out a token regardless of status, so a locked (or
+       still-pending) athlete signed in "successfully" and then had every
+       subsequent request rejected — they land in the app shell watching
+       everything fail instead of being told why. The credentials are already
+       verified at this point, so naming the actual reason leaks nothing they
+       do not own. */
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException(
+        user.status === 'LOCKED'
+          ? 'Your account is paused. Contact your coach.'
+          : user.status === 'PENDING'
+            ? 'Your account is awaiting coach approval.'
+            : 'This account is not active.',
+      );
+    }
+
     // Transparent upgrade: an account still on the legacy SHA-256 hash is
     // re-hashed with bcrypt now that we hold the plaintext. One-time per user,
     // on their next successful login.

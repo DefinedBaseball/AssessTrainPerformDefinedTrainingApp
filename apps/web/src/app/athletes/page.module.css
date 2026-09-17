@@ -44,6 +44,8 @@
    two buttons resolve to the same height. */
 .iconBtn {
   padding: 11px 14px;
+  /* Anchors the locked-count badge. */
+  position: relative;
 }
 .iconBtn svg {
   display: block;
@@ -296,15 +298,13 @@
 @media (max-width: 900px) {
   .listHeader,
   .listRow {
-    grid-template-columns: 2fr 0.6fr 0.7fr 1fr 0.7fr 0.7fr;
+    /* Name · Age · Grad · Position · Ht · Wt · Lock. Lock keeps its column
+       at every width: it is an ACTION, not a stat like the PBR ranking it
+       replaced, so dropping it on a narrow screen would remove the only way
+       to pause an athlete from a phone. */
+    grid-template-columns: 2fr 0.6fr 0.7fr 1fr 0.7fr 0.7fr 0.6fr;
   }
-  /* Hide PBR and PG on smaller screens */
-  .colPbr,
   .colPg {
-    display: none;
-  }
-  .listHeader > span:nth-child(7),
-  .listHeader > span:nth-child(8) {
     display: none;
   }
 }
@@ -312,25 +312,206 @@
 @media (max-width: 640px) {
   .listHeader,
   .listRow {
-    grid-template-columns: 2fr 0.7fr 1fr;
+    grid-template-columns: 2fr 0.7fr 1fr 0.6fr;
   }
-  /* Show only Name, Grad, Position on mobile */
+  /* Name, Grad, Position and Lock on mobile — the stats drop, the action stays. */
   .colAge,
   .colHt,
   .colWt,
-  .colPbr,
   .colPg {
     display: none;
   }
+  /* Age (2), Height (5), Weight (6) headers only. NOT 7 — that is Lock now,
+     and it must stay visible with its column. */
   .listHeader > span:nth-child(2),
   .listHeader > span:nth-child(5),
-  .listHeader > span:nth-child(6),
-  .listHeader > span:nth-child(7),
-  .listHeader > span:nth-child(8) {
+  .listHeader > span:nth-child(6) {
     display: none;
   }
   .header { flex-direction: column; gap: 12px; align-items: flex-start; }
   .searchInput { width: 100%; }
   .typeFilter { width: 100%; }
   .filterRow { flex-wrap: wrap; }
+}
+
+/* ── Lock / unlock (stale-athlete handling) ──
+   Replaces the PBR State column. Locking flips the athlete's account to
+   LOCKED: no app access, and Apply Calendar skips them. */
+.colLock {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Only the name navigates now — the row carries a button, and a button
+   inside an anchor is invalid HTML. */
+.playerNameLink {
+  text-decoration: none;
+  color: inherit;
+}
+.playerNameLink:hover {
+  color: var(--accent, #3d8bfd);
+}
+
+.lockBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.lockBtn:hover:not(:disabled) {
+  color: #e5484d;
+  border-color: #e5484d;
+  background: rgba(229, 72, 77, 0.1);
+}
+.lockBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lockBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+.lockedPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(300px, 92vw);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  overflow: hidden;
+  text-align: left;
+}
+
+.lockedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px 3px;
+}
+.lockedTitle {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.lockedClose {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lockedSub {
+  padding: 0 13px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.lockedEmpty {
+  padding: 14px 13px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lockedList {
+  max-height: 44vh;
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.lockedRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+}
+.lockedRow:hover {
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.lockedName {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lockedName:hover {
+  color: var(--accent, #3d8bfd);
+}
+
+.unlockBtn {
+  flex-shrink: 0;
+  border: 1px solid var(--accent, #3d8bfd);
+  background: transparent;
+  color: var(--accent, #3d8bfd);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.unlockBtn:hover:not(:disabled) {
+  background: rgba(61, 139, 253, 0.12);
+}
+.unlockBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lockError {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 9px 13px;
+  border: 1px solid #e5484d;
+  background: rgba(229, 72, 77, 0.1);
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.lockError button {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
 }

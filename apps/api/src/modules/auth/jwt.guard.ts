@@ -104,8 +104,14 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Account no longer exists');
     }
     if (dbUser.status !== 'ACTIVE') {
-      // PENDING (awaiting coach approval) or DECLINED → no access.
-      throw new UnauthorizedException('Account is not active');
+      // LOCKED is a coach pausing an existing athlete; PENDING (awaiting
+      // approval) and DECLINED never had access. Separate messages so a
+      // locked athlete is not told their account is awaiting approval.
+      throw new UnauthorizedException(
+        dbUser.status === 'LOCKED'
+          ? 'Your account is paused. Contact your coach.'
+          : 'Account is not active',
+      );
     }
     // Overwrite the stale token snapshot with the live role/level so every
     // check below (role gate, admin-only, viewer read-only) uses current

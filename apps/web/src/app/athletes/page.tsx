@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -39,6 +39,15 @@ export default function AthletesPage() {
   const [sortDir, setSortDir] = useState<'az' | 'za'>('az'); // default alphabetical
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  /* Locking pauses an athlete: the API flips their account to LOCKED, which
+     the JWT guard rejects on every request, and Apply Calendar skips them.
+     `lockingId` disables just the row being changed so a slow request cannot
+     be double-fired. */
+  const [lockingId, setLockingId] = useState<string | null>(null);
+  const [lockError, setLockError] = useState('');
+  const [showLocked, setShowLocked] = useState(false);
+  const lockedWrapRef = useRef<HTMLDivElement>(null);
+  const lockedPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -78,7 +87,80 @@ export default function AthletesPage() {
     loadPlayers();
   }, [user, isCoach, loadPlayers]);
 
+  /* Keep the panel on screen.
+
+     It anchors to the trigger's RIGHT edge, which is right while the trigger
+     sits near the right of a wide page. On a narrow screen the header actions
+     wrap and the trigger moves left, so a 300px panel hangs off the left edge
+     instead. Measure once on open and flip the anchor when that happens —
+     a breakpoint would only be guessing where the wrap occurs. */
+  useEffect(() => {
+    if (!showLocked) return;
+    const flip = () => {
+      const el = lockedPanelRef.current;
+      if (!el) return;
+
+      /* Reset to the default anchor first — this runs again on resize, and a
+         stale override from a narrower width would otherwise stick. */
+      el.style.position = '';
+      el.style.right = '0';
+      el.style.left = 'auto';
+
+      if (el.getBoundingClientRect().left >= 8) return;
+
+      el.style.right = 'auto';
+      el.style.left = '0';
+
+      /* If the other anchor overflows too, the panel is simply wider than the
+         space beside the trigger — pin it to the viewport instead of trading
+         one clipped edge for the other. */
+      if (el.getBoundingClientRect().right > window.innerWidth - 8) {
+        el.style.position = 'fixed';
+        el.style.left = '8px';
+        el.style.right = '8px';
+      }
+    };
+    flip();
+    window.addEventListener('resize', flip);
+    return () => window.removeEventListener('resize', flip);
+  }, [showLocked]);
+
+  /* Close the locked panel on an outside click. */
+  useEffect(() => {
+    if (!showLocked) return;
+    const handler = (e: MouseEvent) => {
+      if (lockedWrapRef.current && !lockedWrapRef.current.contains(e.target as Node)) setShowLocked(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showLocked]);
+
+  const toggleLock = useCallback(async (p: Player, locked: boolean) => {
+    if (locked && !window.confirm(
+      `Lock ${p.firstName} ${p.lastName}?\n\nThey lose access to the app immediately, and program schedules will skip them until you unlock.`,
+    )) return;
+    setLockingId(p.id);
+    setLockError('');
+    try {
+      await api.setPlayerLocked(p.id, locked);
+      /* Refetch rather than patching local state: the row moves between two
+         lists, and the server is the authority on the resulting status. */
+      await loadPlayers();
+    } catch (e: any) {
+      setLockError(e?.message || (locked ? 'Failed to lock' : 'Failed to unlock'));
+    } finally {
+      setLockingId(null);
+    }
+  }, [loadPlayers]);
+
+  /* Locked athletes leave the main roster and live in their own list — the
+     Hub should read as "who is active" at a glance. */
+  const lockedPlayers = players
+    .filter(api.isPlayerLocked)
+    .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+
   const filtered = players.filter(p => {
+    if (api.isPlayerLocked(p)) return false;
     const name = `${p.firstName} ${p.lastName}`.toLowerCase();
     const matchesSearch = !search || name.includes(search.toLowerCase());
     const matchesPos = posFilter === 'All' || p.positions.includes(posFilter);
@@ -137,6 +219,61 @@ export default function AthletesPage() {
                 + Add Athlete
               </Link>
             )}
+            {/* Locked athletes — paused accounts live here rather than in
+                the main roster. Sits to the left of the inquiry form. */}
+            {isCoach && (
+              <div style={{ position: 'relative' }} ref={lockedWrapRef}>
+                <button
+                  type="button"
+                  className={`btn btn-outline ${styles.iconBtn}`}
+                  onClick={() => setShowLocked(o => !o)}
+                  title={`Locked athletes (${lockedPlayers.length})`}
+                  aria-label={`Locked athletes (${lockedPlayers.length})`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="4" y="10.5" width="16" height="10" rx="2" />
+                    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+                  </svg>
+                  {lockedPlayers.length > 0 && (
+                    <span className={styles.lockBadge}>{lockedPlayers.length}</span>
+                  )}
+                </button>
+
+                {showLocked && (
+                  <div className={styles.lockedPanel} ref={lockedPanelRef}>
+                    <div className={styles.lockedHead}>
+                      <span className={styles.lockedTitle}>Locked Athletes</span>
+                      <button type="button" className={styles.lockedClose} onClick={() => setShowLocked(false)} aria-label="Close">×</button>
+                    </div>
+                    <div className={styles.lockedSub}>
+                      No app access and no program schedules until unlocked.
+                    </div>
+                    {lockedPlayers.length === 0 ? (
+                      <div className={styles.lockedEmpty}>No locked athletes.</div>
+                    ) : (
+                      <div className={styles.lockedList}>
+                        {lockedPlayers.map(p => (
+                          <div key={p.id} className={styles.lockedRow}>
+                            <Link href={`/athletes/${p.id}`} className={styles.lockedName}>
+                              {p.firstName} {p.lastName}
+                            </Link>
+                            <button
+                              type="button"
+                              className={styles.unlockBtn}
+                              disabled={lockingId === p.id}
+                              onClick={() => toggleLock(p, false)}
+                              title="Unlock — restores access and program scheduling"
+                            >
+                              {lockingId === p.id ? '…' : 'Unlock'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {/* Form icon → the inquiry roster (prospective athletes who
                 submitted the public inquiry form). Coach-only. */}
             {isCoach && (
@@ -157,6 +294,13 @@ export default function AthletesPage() {
           </div>
         }
       />
+
+      {lockError && (
+        <div className={styles.lockError}>
+          {lockError}
+          <button type="button" onClick={() => setLockError('')} aria-label="Dismiss">×</button>
+        </div>
+      )}
 
       {/* Position filter */}
       <div className={styles.filterRow}>
@@ -205,7 +349,7 @@ export default function AthletesPage() {
             <span className={styles.colPos}>Position</span>
             <span className={styles.colHt}>Height</span>
             <span className={styles.colWt}>Weight</span>
-            <span className={styles.colPbr}>PBR St.</span>
+            <span className={styles.colLock}>Lock</span>
           </div>
           {sorted.map(p => {
             // Age comes strictly from birthDate via the shared
@@ -219,12 +363,17 @@ export default function AthletesPage() {
               : '—';
 
             return (
-              <Link key={p.id} href={`/athletes/${p.id}`} className={styles.listRow}>
+              /* A div, not a Link: the row now holds a lock BUTTON, and a
+                 button inside an anchor is invalid HTML. The name carries the
+                 navigation instead. */
+              <div key={p.id} className={styles.listRow}>
                 <span className={styles.colName}>
                   <span className={styles.avatar}>
                     {p.firstName[0]}{p.lastName[0]}
                   </span>
-                  <span className={styles.playerName}>{p.firstName} {p.lastName}</span>
+                  <Link href={`/athletes/${p.id}`} className={`${styles.playerName} ${styles.playerNameLink}`}>
+                    {p.firstName} {p.lastName}
+                  </Link>
                 </span>
                 <span className={styles.colAge}>{age ?? '—'}</span>
                 <span className={styles.colGrad}>{api.formatGradYear(p.gradYear)}</span>
@@ -237,8 +386,26 @@ export default function AthletesPage() {
                 </span>
                 <span className={styles.colHt}>{ht}</span>
                 <span className={styles.colWt}>{p.weightLbs ?? '—'}</span>
-                <span className={styles.colPbr}>{p.pbrState ?? '—'}</span>
-              </Link>
+                <span className={styles.colLock}>
+                  {isCoach && (
+                    <button
+                      type="button"
+                      className={styles.lockBtn}
+                      disabled={lockingId === p.id}
+                      onClick={() => toggleLock(p, true)}
+                      title="Lock — pauses app access and program scheduling"
+                      aria-label={`Lock ${p.firstName} ${p.lastName}`}
+                    >
+                      {lockingId === p.id ? '…' : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="4" y="10.5" width="16" height="10" rx="2" />
+                          <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </span>
+              </div>
             );
           })}
         </div>

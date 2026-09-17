@@ -210,12 +210,24 @@ export class TrainingService {
 
     /* Real players only — a bad id would otherwise create orphan rows that
        no calendar renders and nothing cleans up. */
-    const targets = await this.prisma.player.findMany({
-      where: { id: { in: targetPlayerIds.filter((id) => id && id !== sourcePlayerId) } },
-      select: { id: true, userId: true },
+    const requested = targetPlayerIds.filter((id) => id && id !== sourcePlayerId);
+    const candidates = await this.prisma.player.findMany({
+      where: { id: { in: requested } },
+      select: { id: true, userId: true, user: { select: { status: true } } },
     });
+
+    /* A locked athlete is paused: no access, and no program schedule pushed
+       onto them. Filtering here — not just in the UI — means a stale client
+       payload cannot schedule someone a coach has deliberately paused. */
+    const targets = candidates.filter((t) => t.user?.status !== 'LOCKED');
+    const skippedLocked = candidates.length - targets.length;
+
     if (targets.length === 0) {
-      throw new BadRequestException('No valid target athletes');
+      throw new BadRequestException(
+        skippedLocked > 0
+          ? 'Every selected athlete is locked — unlock them to schedule training'
+          : 'No valid target athletes',
+      );
     }
 
     const source = await this.prisma.scheduledDrill.findMany({
@@ -263,6 +275,7 @@ export class TrainingService {
       dates: dates.length,
       drillsPerPlayer: source.length,
       drillsWritten: rows.length,
+      skippedLocked,
     };
   }
 

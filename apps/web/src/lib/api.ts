@@ -82,7 +82,14 @@ export interface Player {
   /** The linked account. `email` and `phone` are the athlete's own contact
    *  details — they live on User, not Player, so the Client Directory reads
    *  them from here. */
-  user?: { email: string; role: string; phone?: string | null };
+  user?: {
+    email: string;
+    role: string;
+    phone?: string | null;
+    /** "ACTIVE" | "LOCKED" | "PENDING" | "DECLINED". LOCKED = a coach paused
+     *  them: no login, and Apply Calendar skips them. */
+    status?: string;
+  };
 }
 
 export interface Metric {
@@ -406,6 +413,24 @@ export function gradYearShort(y: number | null | undefined): string {
   if (y === GRAD_COLLEGE) return 'College';
   if (y === GRAD_PRO) return 'Pro';
   return `'${String(y).slice(-2)}`;
+}
+
+/** True when a coach has paused this athlete's account. */
+export function isPlayerLocked(p: Player): boolean {
+  return p.user?.status === 'LOCKED';
+}
+
+/**
+ * Pause or restore an athlete's account.
+ *
+ * The API only toggles ACTIVE ⇄ LOCKED — a PENDING self-registration cannot
+ * be unlocked into a live account, which would skip coach approval.
+ */
+export async function setPlayerLocked(playerId: string, locked: boolean) {
+  return request<{ playerId: string; status: string; changed: boolean }>(
+    `/players/${playerId}/lock`,
+    { method: 'PATCH', body: JSON.stringify({ locked }) },
+  );
 }
 
 export async function getPlayers(filters?: { gradYear?: number; position?: string }) {
