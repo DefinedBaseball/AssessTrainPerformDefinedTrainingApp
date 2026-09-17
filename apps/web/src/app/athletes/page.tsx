@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -45,9 +45,7 @@ export default function AthletesPage() {
      be double-fired. */
   const [lockingId, setLockingId] = useState<string | null>(null);
   const [lockError, setLockError] = useState('');
-  const [showLocked, setShowLocked] = useState(false);
-  const lockedWrapRef = useRef<HTMLDivElement>(null);
-  const lockedPanelRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     if (isLoading) return;
@@ -86,54 +84,6 @@ export default function AthletesPage() {
     if (!user || !isCoach) return;
     loadPlayers();
   }, [user, isCoach, loadPlayers]);
-
-  /* Keep the panel on screen.
-
-     It anchors to the trigger's RIGHT edge, which is right while the trigger
-     sits near the right of a wide page. On a narrow screen the header actions
-     wrap and the trigger moves left, so a 300px panel hangs off the left edge
-     instead. Measure once on open and flip the anchor when that happens —
-     a breakpoint would only be guessing where the wrap occurs. */
-  useEffect(() => {
-    if (!showLocked) return;
-    const flip = () => {
-      const el = lockedPanelRef.current;
-      if (!el) return;
-
-      /* Reset to the default anchor first — this runs again on resize, and a
-         stale override from a narrower width would otherwise stick. */
-      el.style.position = '';
-      el.style.right = '0';
-      el.style.left = 'auto';
-
-      if (el.getBoundingClientRect().left >= 8) return;
-
-      el.style.right = 'auto';
-      el.style.left = '0';
-
-      /* If the other anchor overflows too, the panel is simply wider than the
-         space beside the trigger — pin it to the viewport instead of trading
-         one clipped edge for the other. */
-      if (el.getBoundingClientRect().right > window.innerWidth - 8) {
-        el.style.position = 'fixed';
-        el.style.left = '8px';
-        el.style.right = '8px';
-      }
-    };
-    flip();
-    window.addEventListener('resize', flip);
-    return () => window.removeEventListener('resize', flip);
-  }, [showLocked]);
-
-  /* Close the locked panel on an outside click. */
-  useEffect(() => {
-    if (!showLocked) return;
-    const handler = (e: MouseEvent) => {
-      if (lockedWrapRef.current && !lockedWrapRef.current.contains(e.target as Node)) setShowLocked(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showLocked]);
 
   const toggleLock = useCallback(async (p: Player, locked: boolean) => {
     if (locked && !window.confirm(
@@ -219,60 +169,24 @@ export default function AthletesPage() {
                 + Add Athlete
               </Link>
             )}
-            {/* Locked athletes — paused accounts live here rather than in
-                the main roster. Sits to the left of the inquiry form. */}
+            {/* Locked athletes live on their own page — same table as this
+                one, with Unlock in place of Lock. Sits left of the inquiry
+                form. */}
             {isCoach && (
-              <div style={{ position: 'relative' }} ref={lockedWrapRef}>
-                <button
-                  type="button"
-                  className={`btn btn-outline ${styles.iconBtn}`}
-                  onClick={() => setShowLocked(o => !o)}
-                  title={`Locked athletes (${lockedPlayers.length})`}
-                  aria-label={`Locked athletes (${lockedPlayers.length})`}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect x="4" y="10.5" width="16" height="10" rx="2" />
-                    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
-                  </svg>
-                  {lockedPlayers.length > 0 && (
-                    <span className={styles.lockBadge}>{lockedPlayers.length}</span>
-                  )}
-                </button>
-
-                {showLocked && (
-                  <div className={styles.lockedPanel} ref={lockedPanelRef}>
-                    <div className={styles.lockedHead}>
-                      <span className={styles.lockedTitle}>Locked Athletes</span>
-                      <button type="button" className={styles.lockedClose} onClick={() => setShowLocked(false)} aria-label="Close">×</button>
-                    </div>
-                    <div className={styles.lockedSub}>
-                      No app access and no program schedules until unlocked.
-                    </div>
-                    {lockedPlayers.length === 0 ? (
-                      <div className={styles.lockedEmpty}>No locked athletes.</div>
-                    ) : (
-                      <div className={styles.lockedList}>
-                        {lockedPlayers.map(p => (
-                          <div key={p.id} className={styles.lockedRow}>
-                            <Link href={`/athletes/${p.id}`} className={styles.lockedName}>
-                              {p.firstName} {p.lastName}
-                            </Link>
-                            <button
-                              type="button"
-                              className={styles.unlockBtn}
-                              disabled={lockingId === p.id}
-                              onClick={() => toggleLock(p, false)}
-                              title="Unlock — restores access and program scheduling"
-                            >
-                              {lockingId === p.id ? '…' : 'Unlock'}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              <Link
+                href="/athletes/locked"
+                className={`btn btn-outline ${styles.iconBtn}`}
+                title={`Locked athletes (${lockedPlayers.length})`}
+                aria-label={`Locked athletes (${lockedPlayers.length})`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="4" y="10.5" width="16" height="10" rx="2" />
+                  <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+                </svg>
+                {lockedPlayers.length > 0 && (
+                  <span className={styles.lockBadge}>{lockedPlayers.length}</span>
                 )}
-              </div>
+              </Link>
             )}
             {/* Form icon → the inquiry roster (prospective athletes who
                 submitted the public inquiry form). Coach-only. */}
