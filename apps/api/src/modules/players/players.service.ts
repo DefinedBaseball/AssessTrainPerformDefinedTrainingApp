@@ -92,9 +92,31 @@ export class PlayersService {
   async setPlayerLocked(playerId: string, locked: boolean) {
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },
-      select: { id: true, userId: true, user: { select: { status: true } } },
+      select: {
+        id: true,
+        userId: true,
+        user: { select: { status: true, role: true, isPrimaryAdmin: true } },
+      },
     });
     if (!player) throw new NotFoundException('Player not found');
+
+    /* Refuse anything that is not a PLAYER account.
+    
+       A Player row does not guarantee a player ACCOUNT: staff who also train
+       carry one, and the primary admin is among them. Without this check the
+       Lock button beside their name in the Athlete Hub flips their own
+       coach login to LOCKED, and because the guard rejects every request
+       from a locked account they cannot reach Settings to undo it — the app
+       locks its owner out, recoverable only from the database.
+
+       The Hub's "positions !== 'COACH'" filter does not catch this: a coach
+       who trains carries real positions like "C,P,INF,OF". */
+    if (player.user?.role !== 'PLAYER') {
+      throw new BadRequestException('Only athlete accounts can be locked');
+    }
+    if (player.user?.isPrimaryAdmin) {
+      throw new BadRequestException('The primary admin account cannot be locked');
+    }
 
     const current = player.user?.status;
     const target = locked ? 'LOCKED' : 'ACTIVE';

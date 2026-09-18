@@ -332,6 +332,13 @@ export class TrainingService {
     endDate: string | undefined,
     actorUserId?: string,
   ) {
+    /* Validate before touching Prisma: findUnique with an undefined id throws
+       a client error, which surfaced as a bare 500 rather than telling the
+       caller what was wrong. */
+    if (!playerId || typeof playerId !== 'string') {
+      throw new BadRequestException('playerId is required');
+    }
+
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },
       select: { firstName: true },
