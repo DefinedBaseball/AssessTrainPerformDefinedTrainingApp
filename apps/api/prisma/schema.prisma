@@ -46,6 +46,7 @@ model User {
   posts               Post[]               @relation("PostAuthor")
   postsSeen           PostSeen[]           @relation("PostSeenUser")
   scheduleTemplates   ScheduleTemplate[]   @relation("ScheduleTemplateCreatedBy")
+  calendarChanges     CalendarChangeLog[]  @relation("CalendarChangeActor")
   liveSessionsCreated LiveSession[]        @relation("LiveSessionCreatedBy")
   messagesSent        Message[]            @relation("MessagesSent")
   messagesReceived    Message[]            @relation("MessagesReceived")
@@ -536,6 +537,43 @@ model ScheduledDrill {
 // Applying a template goes through the existing POST /training/schedule/batch;
 // there is no separate "apply" endpoint. Templates are facility-wide (any
 // coach can use/delete any template) to match the single-facility model.
+/// One reversible bulk change to somebody's calendar.
+///
+/// Apply Calendar and Clear Schedule both destroy scheduled drills — Apply
+/// replaces a target's day, Clear empties a range — and neither is something
+/// a coach should have to reconstruct by hand after a misclick. Each run
+/// records what it removed and what it created so it can be rolled back
+/// exactly, and doubles as the beginning of an audit trail: who did it, to
+/// whom, when.
+model CalendarChangeLog {
+  id   String @id @default(uuid())
+  /// "APPLY" (copied one athlete's calendar onto others) | "CLEAR".
+  kind String
+
+  /// The coach who ran it. SetNull on staff churn — the log outlives them.
+  actorId String?
+  actor   User?   @relation("CalendarChangeActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// Human-readable summary, so the log reads without rehydrating the JSON.
+  summary String
+
+  /// Full JSON snapshots of the ScheduledDrill rows this change DELETED, and
+  /// the ids of the rows it CREATED. Undo drops the created ids and restores
+  /// the deleted rows verbatim — ids included, so anything referencing them
+  /// still resolves.
+  removedRows    String
+  createdRowIds  String
+
+  /// Blocks a second undo of the same change.
+  undone   Boolean   @default(false)
+  undoneAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+}
+
 model ScheduleTemplate {
   id          String   @id @default(uuid())
   name        String

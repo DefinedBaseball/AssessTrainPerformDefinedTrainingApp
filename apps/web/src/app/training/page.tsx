@@ -18,6 +18,7 @@ const ScheduleDownloadModal = nextDynamic(
 );
 import { SaveTemplateModal } from '@/components/TemplatePicker';
 import { ApplyCalendarModal } from './ApplyCalendarModal';
+import { ClearScheduleMenu } from './ClearScheduleMenu';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -848,7 +849,13 @@ export default function TrainingPage() {
      reports what it did; it is not a toast because the coach should be able
      to read it after the fact. */
   const [showApply, setShowApply] = useState(false);
-  const [applyBanner, setApplyBanner] = useState('');
+  const [showClear, setShowClear] = useState(false);
+  /* The banner carries the log id for the change it describes, which is what
+     makes Undo possible — the server kept a snapshot of everything the change
+     removed. `undoing` disables the button so a slow request cannot double
+     fire, and `undone` turns the banner into its own receipt. */
+  const [applyBanner, setApplyBanner] = useState<{ text: string; logId: string | null } | null>(null);
+  const [undoing, setUndoing] = useState(false);
 
   /* Where an Apply Calendar copy starts: the date the coach is LOOKING AT,
      not today.
@@ -862,6 +869,34 @@ export default function TrainingPage() {
      Month deliberately uses the 1st rather than dateRange.startDate, which
      pads back to the 20th of the previous month to fill the grid — copying
      from a date the coach cannot see would be its own surprise. */
+  const handleUndo = useCallback(async () => {
+    if (!applyBanner?.logId) return;
+    setUndoing(true);
+    try {
+      const res = await api.undoCalendarChange(applyBanner.logId);
+      setApplyBanner({
+        text: `Undone — restored ${res.restored} drill${res.restored === 1 ? '' : 's'}` +
+          (res.discarded ? ` and removed ${res.discarded} that were added.` : '.'),
+        logId: null,
+      });
+      refreshEvents();
+    } catch (e: any) {
+      setApplyBanner({ text: e?.message || 'Undo failed', logId: applyBanner.logId });
+    } finally {
+      setUndoing(false);
+    }
+  }, [applyBanner, refreshEvents]);
+
+  /* The week the coach is looking at — Clear Week uses exactly these bounds
+     so it removes what is drawn on screen, nothing more. */
+  const viewWeek = useMemo(() => {
+    const start = new Date(currentDate);
+    start.setDate(currentDate.getDate() - currentDate.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start: toDateStr(start), end: toDateStr(end) };
+  }, [currentDate]);
+
   const applyFromDate = useMemo(() => {
     if (view === 'day') return toDateStr(currentDate);
     if (view === 'week') {
@@ -1152,11 +1187,38 @@ export default function TrainingPage() {
                 players={players}
                 sourcePlayer={selectedPlayer}
                 fromDate={applyFromDate}
-                onApplied={(msg) => {
-                  setApplyBanner(msg);
+                onApplied={(msg, logId) => {
+                  setApplyBanner({ text: msg, logId });
                   /* Only the SOURCE calendar is on screen and it is never a
                      target, so nothing here needs refetching — but a coach
                      who then switches to a target expects to see it. */
+                  refreshEvents();
+                }}
+              />
+            </div>
+          )}
+
+          {/* Clear this athlete's schedule — day, week, or everything. */}
+          {selectedPlayerId && (
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className={styles.clearTrigger}
+                onClick={() => setShowClear(o => !o)}
+                title="Clear this athlete's schedule"
+              >
+                Clear
+              </button>
+              <ClearScheduleMenu
+                open={showClear}
+                onClose={() => setShowClear(false)}
+                playerId={selectedPlayerId}
+                playerName={selectedPlayer ? selectedPlayer.firstName : 'this athlete'}
+                dayDate={toDateStr(currentDate)}
+                weekStart={viewWeek.start}
+                weekEnd={viewWeek.end}
+                onCleared={(msg, logId) => {
+                  setApplyBanner({ text: msg, logId });
                   refreshEvents();
                 }}
               />
@@ -1167,8 +1229,21 @@ export default function TrainingPage() {
 
       {applyBanner && (
         <div className={styles.applyBanner}>
-          <span>{applyBanner}</span>
-          <button type="button" onClick={() => setApplyBanner('')} aria-label="Dismiss">×</button>
+          <span>{applyBanner.text}</span>
+          {/* Undo is offered only while the change is still reversible — once
+              rolled back the id is cleared, so the banner cannot invite a
+              second undo of the same change. */}
+          {applyBanner.logId && (
+            <button
+              type="button"
+              className={styles.undoBtn}
+              disabled={undoing}
+              onClick={handleUndo}
+            >
+              {undoing ? 'Undoing…' : 'Undo'}
+            </button>
+          )}
+          <button type="button" onClick={() => setApplyBanner(null)} aria-label="Dismiss">×</button>
         </div>
       )}
 

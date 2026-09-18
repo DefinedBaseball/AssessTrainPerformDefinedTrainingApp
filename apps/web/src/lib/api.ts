@@ -1237,9 +1237,37 @@ export async function applyCalendarToPlayers(data: {
   targetPlayerIds: string[];
   fromDate: string;
 }) {
-  return request<{ players: number; dates: number; drillsPerPlayer: number; drillsWritten: number }>(
-    '/training/schedule/apply-calendar',
+  return request<{
+    players: number; dates: number; drillsPerPlayer: number; drillsWritten: number;
+    skippedLocked: number; summary: string;
+    /** Pass to `undoCalendarChange` to roll this apply back. */
+    logId: string;
+  }>('/training/schedule/apply-calendar', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/**
+ * Empty an athlete's schedule over a date range.
+ *
+ * Bounds are explicit dates, not a "day/week/all" keyword — the week a coach
+ * sees depends on their locale, and the calendar already knows which dates it
+ * drew. Omit both to clear everything.
+ */
+export async function clearSchedule(data: {
+  playerId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  return request<{ drills: number; days: number; summary: string; logId: string }>(
+    '/training/schedule/clear',
     { method: 'POST', body: JSON.stringify(data) },
+  );
+}
+
+/** Roll back a logged Apply Calendar or Clear. */
+export async function undoCalendarChange(logId: string) {
+  return request<{ restored: number; discarded: number }>(
+    `/training/schedule/undo/${logId}`,
+    { method: 'POST' },
   );
 }
 

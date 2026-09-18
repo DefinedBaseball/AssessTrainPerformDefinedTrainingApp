@@ -1979,3 +1979,143 @@
   color: #e5a23d;
   font-weight: 700;
 }
+
+/* ── Undo on the change banner ── */
+.undoBtn {
+  flex-shrink: 0;
+  border: 1px solid var(--accent, #3d8bfd);
+  background: transparent;
+  color: var(--accent, #3d8bfd);
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  margin-left: auto;
+}
+.undoBtn:hover:not(:disabled) {
+  background: rgba(61, 139, 253, 0.14);
+}
+.undoBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* The dismiss × keeps its place at the far right once Undo takes the
+   auto-margin. */
+.applyBanner .undoBtn + button {
+  margin-left: 0;
+}
+
+/* ── Clear Schedule ── */
+.clearTrigger {
+  padding: 7px 14px;
+  border: 1px solid #e5484d;
+  background: transparent;
+  color: #e5484d;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.clearTrigger:hover {
+  background: rgba(229, 72, 77, 0.12);
+}
+
+.clearWrap {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+}
+
+.clearPanel {
+  width: min(310px, 92vw);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.clearList {
+  padding: 6px;
+}
+
+.clearOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+}
+.clearOption:hover {
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.clearOptionText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.clearOptionLabel {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.clearOptionSub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.clearBtn {
+  flex-shrink: 0;
+  border: 1px solid #e5484d;
+  background: transparent;
+  color: #e5484d;
+  border-radius: 6px;
+  padding: 4px 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.clearBtn:hover:not(:disabled) {
+  background: rgba(229, 72, 77, 0.12);
+}
+.clearBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.clearConfirmRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.clearGo {
+  border: none;
+  background: #e5484d;
+  color: #fff;
+  border-radius: 6px;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.clearGo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -249,13 +249,37 @@ export class TrainingController {
   @Roles('COACH')
   @ApiOperation({ summary: "Copy one athlete's forward calendar onto other athletes (COACH only)" })
   applyCalendar(
+    @Request() req: AuthenticatedRequest,
     @Body() dto: { sourcePlayerId: string; targetPlayerIds: string[]; fromDate: string },
   ) {
     return this.trainingService.applyCalendarToPlayers(
       dto.sourcePlayerId,
       Array.isArray(dto.targetPlayerIds) ? dto.targetPlayerIds : [],
       dto.fromDate,
+      req.user?.sub,
     );
+  }
+
+  @Post('schedule/clear')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Clear an athlete's schedule over a date range (COACH only)" })
+  clearSchedule(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { playerId: string; startDate?: string; endDate?: string },
+  ) {
+    return this.trainingService.clearSchedule(
+      dto.playerId,
+      dto.startDate,
+      dto.endDate,
+      req.user?.sub,
+    );
+  }
+
+  @Post('schedule/undo/:logId')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Roll back a logged Apply Calendar or Clear (COACH only)' })
+  undoCalendarChange(@Param('logId') logId: string) {
+    return this.trainingService.undoCalendarChange(logId);
   }
 
   // ─── Schedule Templates (named, reusable day plans) ────────────

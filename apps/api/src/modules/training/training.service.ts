@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as fs from 'fs';
@@ -202,6 +203,7 @@ export class TrainingService {
     sourcePlayerId: string,
     targetPlayerIds: string[],
     fromDate: string,
+    actorUserId?: string,
   ) {
     if (!sourcePlayerId) throw new BadRequestException('sourcePlayerId is required');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate || '')) {
@@ -229,6 +231,12 @@ export class TrainingService {
           : 'No valid target athletes',
       );
     }
+
+    const sourcePlayer = await this.prisma.player.findUnique({
+      where: { id: sourcePlayerId },
+      select: { firstName: true },
+    });
+    const sourceName = sourcePlayer?.firstName ?? 'this athlete';
 
     const source = await this.prisma.scheduledDrill.findMany({
       where: { playerId: sourcePlayerId, date: { gte: fromDate } },
@@ -259,14 +267,41 @@ export class TrainingService {
       })),
     );
 
+    /* Snapshot what is about to be destroyed BEFORE destroying it — this is
+       the only record of the targets' previous plans, and undo restores from
+       it verbatim. */
+    const removed = await this.prisma.scheduledDrill.findMany({
+      where: { playerId: { in: targetIds }, date: { in: dates } },
+    });
+
+    /* Ids are generated up front so the log can name exactly what this run
+       created. createMany cannot return them, and "everything on those dates"
+       would also sweep up rows a coach added afterwards. */
+    const withIds = rows.map((r) => ({ ...r, id: randomUUID() }));
+
     /* Wipe-then-write as ONE transaction: a failure mid-way would otherwise
        leave targets with their old plan deleted and the new one missing. */
     await this.prisma.$transaction([
       this.prisma.scheduledDrill.deleteMany({
         where: { playerId: { in: targetIds }, date: { in: dates } },
       }),
-      this.prisma.scheduledDrill.createMany({ data: rows }),
+      this.prisma.scheduledDrill.createMany({ data: withIds }),
     ]);
+
+    const summary =
+      `Applied ${sourceName}'s calendar — ${source.length} drill${source.length === 1 ? '' : 's'} ` +
+      `across ${dates.length} day${dates.length === 1 ? '' : 's'} to ${targetIds.length} athlete${targetIds.length === 1 ? '' : 's'}.`;
+
+    const log = await this.prisma.calendarChangeLog.create({
+      data: {
+        kind: 'APPLY',
+        actorId: actorUserId ?? null,
+        summary,
+        removedRows: JSON.stringify(removed),
+        createdRowIds: JSON.stringify(withIds.map((r) => r.id)),
+      },
+      select: { id: true },
+    });
 
     void this.notifyScheduledPlayers(targetIds);
 
@@ -276,7 +311,116 @@ export class TrainingService {
       drillsPerPlayer: source.length,
       drillsWritten: rows.length,
       skippedLocked,
+      summary,
+      logId: log.id,
     };
+  }
+
+  /**
+   * Empty an athlete's schedule over a date range.
+   *
+   * Range comes from the caller as explicit dates rather than a "day / week /
+   * all" keyword: the week a coach sees depends on their locale and timezone,
+   * and the client already knows exactly which dates it drew. Omitting both
+   * bounds clears everything.
+   *
+   * Logged like an apply, so the same Undo restores it.
+   */
+  async clearSchedule(
+    playerId: string,
+    startDate: string | undefined,
+    endDate: string | undefined,
+    actorUserId?: string,
+  ) {
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { firstName: true },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+
+    const where: any = { playerId };
+    if (startDate && endDate) where.date = { gte: startDate, lte: endDate };
+    else if (startDate) where.date = { gte: startDate };
+    else if (endDate) where.date = { lte: endDate };
+
+    const removed = await this.prisma.scheduledDrill.findMany({ where });
+    if (removed.length === 0) {
+      throw new BadRequestException('Nothing scheduled in that range to clear');
+    }
+
+    await this.prisma.scheduledDrill.deleteMany({ where });
+
+    const days = new Set(removed.map((r) => r.date)).size;
+    const scope = startDate && endDate && startDate === endDate ? 'day'
+      : startDate || endDate ? 'range'
+        : 'whole calendar';
+    const summary =
+      `Cleared ${player.firstName}'s ${scope} — ${removed.length} drill${removed.length === 1 ? '' : 's'} ` +
+      `across ${days} day${days === 1 ? '' : 's'}.`;
+
+    const log = await this.prisma.calendarChangeLog.create({
+      data: {
+        kind: 'CLEAR',
+        actorId: actorUserId ?? null,
+        summary,
+        removedRows: JSON.stringify(removed),
+        createdRowIds: JSON.stringify([]),
+      },
+      select: { id: true },
+    });
+
+    return { drills: removed.length, days, summary, logId: log.id };
+  }
+
+  /**
+   * Roll back one logged calendar change.
+   *
+   * Drops the rows that change created and restores the ones it removed, with
+   * their original ids — so an undo lands the calendar exactly where it was,
+   * not merely something equivalent. Both halves run in one transaction, and
+   * the log is marked so the same change cannot be undone twice.
+   */
+  async undoCalendarChange(logId: string) {
+    const log = await this.prisma.calendarChangeLog.findUnique({ where: { id: logId } });
+    if (!log) throw new NotFoundException('That change is no longer on record');
+    if (log.undone) throw new BadRequestException('That change has already been undone');
+
+    let removed: any[] = [];
+    let createdIds: string[] = [];
+    try {
+      removed = JSON.parse(log.removedRows);
+      createdIds = JSON.parse(log.createdRowIds);
+    } catch {
+      throw new BadRequestException('That change cannot be undone — its record is unreadable');
+    }
+
+    /* Drop Prisma's relation fields and normalise dates: the snapshot came
+       from findMany, so it carries whatever shape the row had. */
+    const restore = removed.map((r) => ({
+      id: r.id,
+      playerId: r.playerId,
+      drillId: r.drillId ?? null,
+      tab: r.tab,
+      category: r.category,
+      name: r.name,
+      date: r.date,
+      time: r.time,
+      duration: r.duration,
+      notes: r.notes ?? null,
+      order: r.order ?? 0,
+      sectionOrder: r.sectionOrder ?? 0,
+    }));
+
+    await this.prisma.$transaction([
+      this.prisma.scheduledDrill.deleteMany({ where: { id: { in: createdIds } } }),
+      ...(restore.length ? [this.prisma.scheduledDrill.createMany({ data: restore })] : []),
+      this.prisma.calendarChangeLog.update({
+        where: { id: logId },
+        data: { undone: true, undoneAt: new Date() },
+      }),
+    ]);
+
+    return { restored: restore.length, discarded: createdIds.length };
   }
 
   /** Notify each given player once that new training hit their calendar. */

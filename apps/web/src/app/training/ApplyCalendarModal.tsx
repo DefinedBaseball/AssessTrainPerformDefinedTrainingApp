@@ -41,7 +41,8 @@ export function ApplyCalendarModal({
   sourcePlayer: Player | null | undefined;
   /** Copy from this date forward — today. */
   fromDate: string;
-  onApplied: (summary: string) => void;
+  /** Summary line plus the id that can roll this apply back. */
+  onApplied: (summary: string, logId: string) => void;
 }) {
   const [checkedTypes, setCheckedTypes] = useState<Set<string>>(new Set());
   const [checkedPlayers, setCheckedPlayers] = useState<Set<string>>(new Set());
@@ -146,9 +147,9 @@ export function ApplyCalendarModal({
         targetPlayerIds: targetIds,
         fromDate,
       });
-      onApplied(
-        `Applied ${sourcePlayer.firstName}'s calendar — ${res.drillsPerPlayer} drill${res.drillsPerPlayer === 1 ? '' : 's'} across ${res.dates} day${res.dates === 1 ? '' : 's'} to ${res.players} athlete${res.players === 1 ? '' : 's'}.`,
-      );
+      /* The server composes the summary now, so the banner and the log row
+         can never disagree about what happened. */
+      onApplied(res.summary, res.logId);
       onClose();
     } catch (e: any) {
       setError(e?.message || 'Failed to apply the calendar');
