@@ -15,7 +15,6 @@ import {
 import {
   METRIC_LABELS, getBadgeLevel, getBadgeText,
   formatHeight, getAge,
-  type ManualSwingScores,
 } from '@/app/athletes/[id]/helpers';
 
 /* ─── Metric groupings (mirror SwingTab + SwingDecisionTab) ─── */
@@ -289,82 +288,6 @@ function PdfGradeRow({
   );
 }
 
-/* ─── Coach Grade card (single-stat cards for the 8 manual grades) ─── */
-
-function PdfCoachGradeCard({
-  label, value, options,
-}: {
-  label: string;
-  value: number | null;
-  /** Selected option tags from the in-app multi-select. Renders a row of
-   *  small chips beneath the bar so PDF readers see the same checkpoint
-   *  labels the coach selected on screen. */
-  options?: string[];
-}) {
-  /* Coach grade color follows the same 3-band scoreColor scale as the
-     in-app chips: ≥60 green, 40-59 yellow, <40 red. The previous logic
-     had a teal (blue) tier at 40-49 which made low-side coach grades
-     read as blue instead of red — fixed by collapsing into three bands. */
-  const tone =
-    value === null   ? colors.cardBorder
-    : value >= 60    ? colors.elite       // green
-    : value >= 40    ? colors.aboveAvg    // yellow
-    : colors.developing;                  // red
-  const opts = (options || []).filter(Boolean);
-  return (
-    <View style={{
-      width: '23%',
-      backgroundColor: colors.cardBg,
-      border: `1px solid ${colors.cardBorder}`,
-      borderRadius: 6,
-      padding: 8,
-      marginBottom: 8,
-    }}>
-      <View style={{
-        flexDirection: 'row', justifyContent: 'space-between',
-        alignItems: 'baseline', marginBottom: 4,
-      }}>
-        <Text style={{
-          fontSize: 7, fontFamily: 'Helvetica-Bold',
-          /* Coach grade label (Counter / Stride / Posture / Stability /
-             Slot / Path / Direction / Timing) — black to match the rest
-             of the body labels. */
-          color: colors.black, letterSpacing: 0.5,
-        }}>
-          {label.toUpperCase()}
-        </Text>
-        <Text style={{
-          fontSize: 14, fontFamily: 'Helvetica-Bold', color: tone,
-        }}>
-          {value ?? '—'}
-        </Text>
-      </View>
-      {/* Score bar removed per spec — Coach Grade cards now read just
-          like the Pitching mechanical-grade cards: a numeric score in
-          the corner + the selected option chips below, no filled bar
-          underneath. Color is still carried by the number itself. */}
-      {opts.length > 0 && (
-        <View style={{
-          flexDirection: 'row', flexWrap: 'wrap', gap: 3,
-          marginTop: 6,
-        }}>
-          {opts.map((o, i) => (
-            <View key={i} style={{
-              backgroundColor: colors.tableBg,
-              border: `0.5px solid ${colors.cardBorder}`,
-              borderRadius: 8,
-              paddingHorizontal: 5, paddingVertical: 1.5,
-            }}>
-              <Text style={{ fontSize: 6.2, color: colors.black, fontFamily: 'Helvetica-Bold' }}>
-                {o}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
 
 /* ─── Public type ─── */
 
@@ -384,13 +307,8 @@ export interface HittingPdfData {
   topMetrics: Record<string, { value: number; unit: string }>;
   /** Per-key 20-80 grades for the swing mechanics inputs. */
   metricGrades: Record<string, number | null>;
-  manual: ManualSwingScores;
-  /** Multi-select option tags chosen alongside each Coach Grade
-   *  (Stuck/Stable/Drift, Tall/Hinged, Steep/Flat/Uphill, etc.). When
-   *  present, each Coach Grade card prints its selected tags so the PDF
-   *  matches what the coach saw on screen. Optional for backwards
-   *  compatibility with older saved reports. */
-  manualOptions?: Partial<Record<keyof ManualSwingScores, string[]>>;
+  /** The report’s own notes, printed as HITTING NOTES. (Coach grades are
+   *  deliberately absent from this shape — they never print.) */
   diagnosisNotes: string;
   /** Each batted ball — angle (deg, 0=center, ±=left/right), distance (ft), optional EV. */
   sprayDots: SprayDot[];
@@ -510,7 +428,7 @@ function PdfSprayChart({ dots }: { dots: SprayDot[] }) {
 
 export function HittingReportPages({ data }: { data: HittingPdfData }) {
   const {
-    player, topMetrics, metricGrades, manual, diagnosisNotes, sprayDots,
+    player, topMetrics, metricGrades, diagnosisNotes, sprayDots,
     swingNotes, reportDate,
     hittraxValues, fullswingValues,
   } = data;
@@ -521,7 +439,6 @@ export function HittingReportPages({ data }: { data: HittingPdfData }) {
   const hasHitTrax  = !!hittraxValues  && SOURCE_KEYS.some(k => hittraxValues[k]  !== undefined);
   const hasFullSwing = !!fullswingValues && SOURCE_KEYS.some(k => fullswingValues[k] !== undefined);
   const hasBlast = SWING_METRIC_KEYS.some(k => topMetrics[k] !== undefined);
-  const hasCoachGrades = (Object.values(manual) as (number | null)[]).some(v => typeof v === 'number');
 
   // ── Build chip data for each grade row ────────────────────────────────────
   /* Snapshot Swing row uses the trimmed SWING_GRADEROW_KEYS so only the
@@ -549,28 +466,6 @@ export function HittingReportPages({ data }: { data: HittingPdfData }) {
     };
   });
   const qocComposite = averageGrades(qocChips.map(c => c.grade));
-
-  /* Coach Diagnosis chip labels — data keys unchanged so existing
-     reports keep their saved grades; display labels rotate per the
-     latest spec, mirroring the in-app `diagnosisChips` in SwingTab:
-       forwardMove → retired (chip removed entirely)
-       stretch     → "Counter"
-       stability   → "Slot"
-       core        → "Stability"
-       slot        → "Path"
-     The `manual.forwardMove` value still persists on the
-     ManualSwingScores type — only the chip render is gone. */
-  const diagnosisChips = [
-    { key: 'stride',      label: 'Stride',     grade: manual.stride },
-    { key: 'stretch',     label: 'Counter',    grade: manual.stretch },
-    { key: 'posture',     label: 'Posture',    grade: manual.posture },
-    { key: 'core',        label: 'Stability',  grade: manual.core },
-    { key: 'slot',        label: 'Path',       grade: manual.slot },
-    { key: 'direction',   label: 'Direction',  grade: manual.direction },
-    { key: 'timing',      label: 'Timing',     grade: manual.timing },
-    { key: 'stability',   label: 'Adjust', grade: manual.stability },
-  ];
-  const diagnosisComposite = averageGrades(diagnosisChips.map(c => c.grade));
 
   // ── Decision groups ──────────────────────────────────────────────────────
   const buildGroup = (keys: string[]) => {
@@ -663,54 +558,32 @@ export function HittingReportPages({ data }: { data: HittingPdfData }) {
             }}>
               HITTING GRADES
             </Text>
-            <PdfGradeRow label="Swing"              grade={swingComposite}     chips={swingChips} />
-            <PdfGradeRow label="Quality of Contact" grade={qocComposite}       chips={qocChips} />
-            {/* `isLast` drops the last row's bottom margin so the
-                Stride chip strip sits the same distance from the
-                bubble's bottom border as the HITTING GRADES title sits
-                from the top border — symmetric interior padding. */}
-            <PdfGradeRow label="Mechanical Grades"  grade={diagnosisComposite} chips={diagnosisChips} isLast />
+            {/* Swing + Quality of Contact only. The third row used to be
+                "Mechanical Grades", the average of the nine coach swing
+                grades — those are retired, so the row went with them.
+                Coach grades now live on the dashboard alone and never
+                appear in a forward-facing report.
+                `isLast` drops the final row's bottom margin so the chip
+                strip sits the same distance from the bubble's bottom
+                border as the HITTING GRADES title sits from the top. */}
+            <PdfGradeRow label="Swing"              grade={swingComposite} chips={swingChips} />
+            <PdfGradeRow label="Quality of Contact" grade={qocComposite}   chips={qocChips} isLast />
           </View>
         </View>
 
-        {/* Diagnosis Notes — flows directly under the spray-chart /
-            hitting-grades row on page 2. */}
+        {/* Hitting Notes — the report's own notes field. Flows directly
+            under the spray-chart / hitting-grades row on page 2. Renamed
+            from "Diagnosis Notes" now that Coach Diagnosis is retired. */}
         {diagnosisNotes && (
-          <PdfNotesBox label="DIAGNOSIS NOTES" text={diagnosisNotes} />
+          <PdfNotesBox label="HITTING NOTES" text={diagnosisNotes} />
         )}
 
-        {/* Hard page break before the data sections — Coach Grades /
-            Full Swing / HitTrax / Blast Motion ALWAYS start on page 3.
+        {/* Hard page break before the data sections — Full Swing /
+            HitTrax / Blast Motion ALWAYS start on page 3.
             That gives the snapshot + notes the entirety of page 2 to
             themselves, so the notes don't get squeezed by the data
             sections trying to share the page. */}
         <View break>
-
-        {/* Coach Grades cards — only render when at least one manual score is set,
-            mirroring the in-app profile's per-section auto-hide. */}
-        {hasCoachGrades && (
-          <>
-            <PdfSectionHeader title="Coach Grades" subtitle="20 - 80 Scale" />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {/* Coach Grade cards — order + labels mirror the
-                  in-app Coach Grades column tables in SwingTab:
-                    "Forward Move" card retired (chip removed app-wide)
-                    "Stretch" → "Counter"
-                    manual.stability → "Slot"
-                    manual.core      → "Stability"
-                    manual.slot      → "Path"
-                  Data keys are unchanged so saved scores stay attached. */}
-              <PdfCoachGradeCard label="Stride"     value={manual.stride}      options={data.manualOptions?.stride} />
-              <PdfCoachGradeCard label="Counter"    value={manual.stretch}     options={data.manualOptions?.stretch} />
-              <PdfCoachGradeCard label="Posture"    value={manual.posture}     options={data.manualOptions?.posture} />
-              <PdfCoachGradeCard label="Stability"  value={manual.core}        options={data.manualOptions?.core} />
-              <PdfCoachGradeCard label="Path"       value={manual.slot}        options={data.manualOptions?.slot} />
-              <PdfCoachGradeCard label="Direction"  value={manual.direction}   options={data.manualOptions?.direction} />
-              <PdfCoachGradeCard label="Timing"     value={manual.timing}      options={data.manualOptions?.timing} />
-              <PdfCoachGradeCard label="Adjust" value={manual.stability} options={data.manualOptions?.stability} />
-            </View>
-          </>
-        )}
 
         {/* Full Swing — only render when Full-Swing-source data exists.
             EV / LA / Dist values come ONLY from fullswingValues so HitTrax

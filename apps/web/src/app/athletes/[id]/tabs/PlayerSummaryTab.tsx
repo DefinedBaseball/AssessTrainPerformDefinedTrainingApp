@@ -20,7 +20,6 @@ import {
   type AggregateSection,
   type AggregateBar,
 } from '../helpers';
-import { useHittingComposites } from '../useHittingComposites';
 /* Shared tab/category color system — used by both this tab's
    Upcoming Drills panel and the Training (`/training`) page so the
    two surfaces render scheduled drills with identical color cues. */
@@ -2060,15 +2059,13 @@ export function PlayerSummaryTab({
       .catch(() => { if (!cancelled) setLiveAtBats([]); });
     return () => { cancelled = true; };
   }, [player?.id]);
-  /* Hitting Tool Grades (Swing / Quality of Contact / Mechanical) are computed
-     LIVE with the exact same pipeline the Hitting Snapshot uses (shared hook,
-     keyed off the latest HITTING report — same one the Snapshot defaults to),
-     so the two surfaces show identical numbers. No persistence → no loop. */
-  const latestHittingReport = useMemo(() => getLatestReport(reports, ['HITTING']), [reports]);
-  const hittingComposites = useHittingComposites(player?.id, latestHittingReport);
+  /* Tool Grades bars for Hitting and Pitching are the coach’s three grades,
+     read off the latest report of each type inside computeAggregateScores.
+     Nothing is recomputed from CSV metrics here any more, so the tab no
+     longer needs the shared Hitting Snapshot composites hook. */
   const aggregate = useMemo(
-    () => computeAggregateScores(player, reports, topMetrics, liveAtBats, hittingComposites),
-    [player, reports, topMetrics, liveAtBats, hittingComposites],
+    () => computeAggregateScores(player, reports, topMetrics, liveAtBats),
+    [player, reports, topMetrics, liveAtBats],
   );
 
   /* ── Trackman pitch history for the Metric Trend per-pitch-type

@@ -15,12 +15,9 @@ import { generateHittingPdf } from '@/lib/pdf';
 import {
   TabProps,
   getLatestReport, getReportUploadIds, getReportUploadIdsForKeys,
-  getManualSwingScores, getManualSwingOptions,
   getManualSwingMetrics, getManualBattedBall,
   getReportVideoIds, getReportContentVideos,
   metricToGrade, computeHittingComposites,
-  type ManualSwingScores,
-  type ManualSwingOptions,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -277,11 +274,9 @@ export function HittingTab(props: TabProps) {
     return [] as string[];
   }, [activeHittingReport]);
 
-  const persistedManual = useMemo(() => getManualSwingScores(activeHittingReport), [activeHittingReport]);
   // Multi-select option tags ("Drift" / "+Stack" / "Tall"...) saved with each
   // manual score on the active HITTING report — edited inline in the Coach
   // Grades section so coaches can pick descriptive labels alongside the bars.
-  const persistedManualOptions = useMemo(() => getManualSwingOptions(activeHittingReport), [activeHittingReport]);
   const reportUploadIds = useMemo(() => getReportUploadIds(activeHittingReport), [activeHittingReport]);
   /* Two sub-tab-scoped slices of the same `csvUploads` map:
        - swingUploadIds    → Blast Motion + Full Swing + HitTrax
@@ -345,10 +340,7 @@ export function HittingTab(props: TabProps) {
     [],
   );
 
-  const [manual, setManual] = useState<ManualSwingScores>(persistedManual);
-  useEffect(() => { setManual(persistedManual); }, [persistedManual]);
-  const [manualOptions, setManualOptions] = useState<ManualSwingOptions>(persistedManualOptions);
-  useEffect(() => { setManualOptions(persistedManualOptions); }, [persistedManualOptions]);
+
 
   /* The Hitting Snapshot's notes box is now backed by the report's
      top-level `notes` field — whatever the coach types in the report
@@ -843,109 +835,29 @@ export function HittingTab(props: TabProps) {
     return out;
   }, [hittraxVelos, hittraxLAs, hittraxDists, fullswingVelos, fullswingLAs, fullswingDists]);
 
-  /* The three Hitting Snapshot composites (Swing / Quality of Contact /
-     Mechanical Grades), computed via the SAME shared helper the Snapshot's
-     HittingGradeStack uses — so this is exactly what's on screen. Persisted
-     onto the report (below) so the Player Summary Tool Grades copy these
-     verbatim instead of recomputing. */
+  /* The two metric-derived Hitting Snapshot composites (Swing / Quality of
+     Contact), via the same shared helper the Snapshot uses. The former
+     third composite ("Mechanical") averaged the retired coach grades and
+     went with them. */
   const snapshotComposites = useMemo(
     () => computeHittingComposites({
       topMetrics: topMetricsWithMiss,
       metricGrades,
       qocOverride,
-      manual: manual as unknown as Record<string, number | null | undefined>,
     }),
-    [topMetricsWithMiss, metricGrades, qocOverride, manual],
+    [topMetricsWithMiss, metricGrades, qocOverride],
   );
 
-  /* NOTE: composites are persisted to content.hittingToolGrades ONLY in the
-     explicit save flow (saveManual, below) — NOT on view. An earlier
-     auto-persist-on-view effect here caused a refresh loop (it called
-     onRefresh after writing, which refetched and re-triggered the write while
-     the pooled QoC data was momentarily resetting). The Player Summary reads
-     whatever the last save stored and falls back to the live computed score
-     when absent, so existing reports migrate the next time their grades are
-     saved — no background writes on view. */
+  /* These composites are computed on view and never written back. The old
+     persist-on-view effect caused a refresh loop and was replaced by a save
+     flow that no longer exists; the dashboard reads coach grades directly
+     off the report now, so nothing needs persisting here. */
 
-  // Save flow (Coach Grades + Diagnosis Notes)
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState(false);
-
-  const dirty = useMemo(() => {
-    const manualDirty = (Object.keys(persistedManual) as (keyof ManualSwingScores)[])
-      .some(k => persistedManual[k] !== manual[k]);
-    const notesDirty =
-      diagnosisNotes !== persistedDiagnosisNotes
-      || swingDecisionNotes !== persistedSwingDecisionNotes;
-    // Compare option arrays by stringified content — order-stable since both
-    // come from the same source (the report's saved order or empty []).
-    const optionsDirty = (Object.keys(persistedManualOptions) as (keyof ManualSwingOptions)[])
-      .some(k => JSON.stringify(persistedManualOptions[k] ?? []) !== JSON.stringify(manualOptions[k] ?? []));
-    return manualDirty || notesDirty || optionsDirty;
-  }, [persistedManual, manual, diagnosisNotes, persistedDiagnosisNotes, swingDecisionNotes, persistedSwingDecisionNotes, persistedManualOptions, manualOptions]);
-
-  async function saveManual() {
-    if (!user) { setSaveError('Not signed in.'); return; }
-    setSaving(true);
-    setSaveError(null);
-    setSaveOk(false);
-    try {
-      const userId = (user as any).id || (user as any).sub;
-      let prevContent: Record<string, any> = {};
-      if (activeHittingReport?.content) {
-        try { prevContent = JSON.parse(activeHittingReport.content) || {}; } catch { /* ignore */ }
-      }
-      const newContent = {
-        ...prevContent,
-        manualScores: {
-          forwardMove: manual.forwardMove,
-          posture:     manual.posture,
-          stability:   manual.stability,
-          direction:   manual.direction,
-          stretch:     manual.stretch,
-          core:        manual.core,
-          slot:        manual.slot,
-          timing:      manual.timing,
-          updatedAt:   new Date().toISOString(),
-          updatedBy:   userId,
-        },
-        // Multi-select option tags for each Coach Grade — saved with the
-        // scores so removals propagate cleanly into content.manualOptions.
-        manualOptions: { ...manualOptions },
-        diagnosisNotes,
-        /* Swing Decision-specific diagnosis notes, edited from the
-           NoteBlock that lives at the bottom of the snapshot bubble
-           when the Swing Decision sub-tab is active. */
-        swingDecisionNotes,
-        /* Persist the three Snapshot composites so the Player Summary Tool
-           Grades copy them verbatim (kept in sync on every grade save). */
-        hittingToolGrades: snapshotComposites,
-      };
-      await api.createReport({
-        playerId: player.id,
-        createdById: userId,
-        reportType: 'HITTING',
-        title: activeHittingReport?.notes ? undefined : 'Swing Mechanics Update',
-        content: JSON.stringify(newContent),
-        // Persist edits made in the snapshot's notes box back to the
-        // report's top-level Notes field so the report modal and the
-        // snapshot always show the same text.
-        notes: diagnosisNotes || undefined,
-      });
-      setSaveOk(true);
-      onRefresh?.();
-    } catch (e) {
-      setSaveError((e as Error).message || 'Save failed');
-    } finally {
-      setSaving(false);
-      setTimeout(() => setSaveOk(false), 2200);
-    }
-  }
-
+  /* The inline save flow that used to live here (grade state, a dirty
+     check and a saveManual that wrote content.manualScores) is gone.
+     It had already stopped being called from anywhere; coach grades are
+     now entered on the report itself. */
   const shared: SharedHittingState = {
-    manual, setManual, persistedManual,
-    manualOptions, setManualOptions,
     diagnosisNotes, setDiagnosisNotes,
     topMetricsWithMiss, metricGrades, reportUploadIds,
     hasActiveFullSwingData, hasActiveBlastData, hasActiveHitTraxData,
@@ -953,7 +865,6 @@ export function HittingTab(props: TabProps) {
        `activeManualBatted` in SharedHittingState. */
     activeManualBatted: activeManualBatted as unknown as Record<string, number | null>,
     manualFullSwingOn: !!activeManualModes.fullswing,
-    dirty, saving, saveOk, saveError, saveManual,
   };
 
   // Sub-tab nav rendered INSIDE the shared bubble at the top — pill-style buttons

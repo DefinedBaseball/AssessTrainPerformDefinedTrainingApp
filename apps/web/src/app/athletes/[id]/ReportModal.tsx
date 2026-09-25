@@ -17,17 +17,14 @@ import styles from './page.module.css';
 import { StrengthConditioningForm, emptyScForm } from './StrengthConditioningForm';
 import type { SCContent } from './tabs/StrengthConditioningTab';
 import {
-  type ManualSwingScores, getManualSwingScores,
-  type ManualSwingOptions, getManualSwingOptions,
   type ManualBattedBall, getManualBattedBall,
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
-  type PitchingGrades, type PitchingGradeEntry, getPitchingGrades,
   getPhysicalGrades,
-  type PitchingGradeItemConfig, type PitchingGradeSectionConfig,
-  PITCHING_GRADE_SECTIONS, pitchingGradeKey,
   type DefenseCoachGrades, type DefensePosition,
   DEFENSE_COACH_GRADE_SECTIONS, getDefenseCoachGrades,
+  type CoachGrades, type CoachGradeSectionConfig, getCoachGrades,
+  HITTING_COACH_GRADE_SECTIONS, PITCHING_COACH_GRADE_SECTIONS,
   scoreColor,
   getHiddenTabs, setHiddenTabsForPlayer, REPORT_TYPE_TO_TAB,
   normalizePositionsForSave,
@@ -3389,31 +3386,17 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     return emptyScForm();
   });
 
-  // Coach Diagnosis manual scores (HITTING reports). When editing an existing
-  // HITTING report, prefill from the report's content.manualScores; otherwise
-  // start with all nulls so coaches can grade fresh.
-  const [manualScores, setManualScores] = useState<ManualSwingScores>(() =>
-    isEdit && existingReport ? getManualSwingScores(existingReport) : {
-      forwardMove: null, posture: null, stability: null, direction: null,
-      stretch: null, core: null, slot: null, timing: null, stride: null,
-      connection: null,
-    }
+  /* Coach grades — three per report type, and this modal is the only
+     place they can be set. Replaced the nine hitting "Coach Diagnosis"
+     sliders (content.manualScores + manualOptions) and the seven-section
+     pitching delivery tree (content.pitchingGrades). Those blocks are no
+     longer written or read; edit mode merges over existing content, so a
+     legacy report keeps its old block on disk rather than losing it. */
+  const [hittingCoachGrades, setHittingCoachGrades] = useState<CoachGrades>(() =>
+    getCoachGrades(isEdit ? existingReport ?? null : null, 'hitting')
   );
-  // Multi-select option tags paired with each manual score (descriptive
-  // labels like "Drift" / "Tall" / "+Stack"). Stored at content.manualOptions.
-  const [manualOptions, setManualOptions] = useState<ManualSwingOptions>(() =>
-    isEdit && existingReport ? getManualSwingOptions(existingReport) : {
-      forwardMove: [], posture: [], stability: [], direction: [],
-      stretch: [], core: [], slot: [], timing: [], stride: [],
-      connection: [],
-    }
-  );
-
-  // Pitching grades (PITCHING reports). When editing, prefill from the
-  // report's content.pitchingGrades; otherwise start empty so each row reads
-  // "—" until the coach grades it.
-  const [pitchingGrades, setPitchingGrades] = useState<PitchingGrades>(() =>
-    isEdit && existingReport ? getPitchingGrades(existingReport) : {}
+  const [pitchingCoachGrades, setPitchingCoachGrades] = useState<CoachGrades>(() =>
+    getCoachGrades(isEdit ? existingReport ?? null : null, 'pitching')
   );
 
   // Physical grades (STRENGTH reports) — three 20-80 sliders (Speed / Strength /
@@ -3592,12 +3575,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     if ((REPORT_CSV_SLOTS[t] || []).some(s => (csvFiles[s.key]?.length ?? 0) > 0)) return true;
     switch (t) {
       case 'HITTING':
-        return Object.values(manualScores).some(v => v != null)
-          || Object.values(manualOptions).some((a: any) => a?.length)
+        return Object.values(hittingCoachGrades).some(v => v != null)
           || manualMode.fullswing || manualMode.blast
           || swingDecisionNotes.trim().length > 0 || swingDecisionVideos.length > 0;
       case 'PITCHING':
-        return Object.values(pitchingGrades).some((e: any) => e?.score != null || (e?.options?.length));
+        return Object.values(pitchingCoachGrades).some(v => v != null);
       case 'CATCHING':
         return JSON.stringify(catchingData) !== JSON.stringify(emptyCatchingForm())
           || Object.values(catchingCoachGrades).some(v => v != null);
@@ -3904,23 +3886,14 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             },
           } : {}),
           ...(reportType === 'HITTING' ? {
-            manualScores: {
-              forwardMove: manualScores.forwardMove,
-              posture:     manualScores.posture,
-              stability:   manualScores.stability,
-              direction:   manualScores.direction,
-              stretch:     manualScores.stretch,
-              core:        manualScores.core,
-              slot:        manualScores.slot,
-              timing:      manualScores.timing,
-              stride:      manualScores.stride,
-              connection:  manualScores.connection,
-              updatedAt:   new Date().toISOString(),
-              updatedBy:   userId,
+            /* Swing / Contact / Mental — the three coach grades, straight
+               to the dashboard Tool Grades bars. Written every submit so
+               a cleared grade (null) sticks. */
+            hittingCoachGrades: {
+              ...hittingCoachGrades,
+              updatedAt: new Date().toISOString(),
+              updatedBy: userId,
             },
-            // Multi-select descriptive tags for each Coach Diagnosis category
-            // (e.g. forwardMove: ['Drift']). Always written so removals stick.
-            manualOptions: { ...manualOptions },
             /* Per-CSV-slot manual entries — ONLY written when the slot's
                Manual Entry toggle is ON. When the coach disables manual
                mode (or removes the slot entirely), we save an empty object
@@ -3949,10 +3922,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             swingDecisionNotes: swingDecisionNotes || undefined,
           } : {}),
           ...(reportType === 'PITCHING' ? {
-            // 7-section delivery grades (score + multi-select tags per item).
-            // Saved every submit so removed entries propagate cleanly.
-            pitchingGrades: {
-              ...pitchingGrades,
+            /* Mechanics / Velocity / Movement — see hittingCoachGrades. */
+            pitchingCoachGrades: {
+              ...pitchingCoachGrades,
               updatedAt: new Date().toISOString(),
               updatedBy: userId,
             },
@@ -4204,7 +4176,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           ) : reportType === 'INFIELD' ? (
             <>
               <InfieldForm data={infieldData} setData={setInfieldData} />
-              <DefenseCoachGradesSection
+              <CoachGradesSection
+                title="Throwing Grades"
+                sections={DEFENSE_COACH_GRADE_SECTIONS}
                 grades={infieldCoachGrades}
                 setGrades={setInfieldCoachGrades}
               />
@@ -4223,7 +4197,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           ) : reportType === 'OUTFIELD' ? (
             <>
               <OutfieldForm data={outfieldData} setData={setOutfieldData} />
-              <DefenseCoachGradesSection
+              <CoachGradesSection
+                title="Throwing Grades"
+                sections={DEFENSE_COACH_GRADE_SECTIONS}
                 grades={outfieldCoachGrades}
                 setGrades={setOutfieldCoachGrades}
               />
@@ -4273,14 +4249,25 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             </>
           ) : (
             <>
+              {/* Three coach grades, one slider each — no sub-grades and no
+                  descriptor chips, matching the defense reports. These are
+                  the only grades the app still captures for hitting and
+                  pitching, and they surface on the dashboard only. */}
               {reportType === 'HITTING' && (
-                <CoachDiagnosisSliders
-                  scores={manualScores} setScores={setManualScores}
-                  options={manualOptions} setOptions={setManualOptions}
+                <CoachGradesSection
+                  title="Coach Grades"
+                  sections={HITTING_COACH_GRADE_SECTIONS}
+                  grades={hittingCoachGrades}
+                  setGrades={setHittingCoachGrades}
                 />
               )}
               {reportType === 'PITCHING' && (
-                <PitchingGradesSections grades={pitchingGrades} setGrades={setPitchingGrades} />
+                <CoachGradesSection
+                  title="Coach Grades"
+                  sections={PITCHING_COACH_GRADE_SECTIONS}
+                  grades={pitchingCoachGrades}
+                  setGrades={setPitchingCoachGrades}
+                />
               )}
               <div className={rs.section}>
                 <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📝</span><span className={rs.sectionTitle}>Notes</span></div>
@@ -4431,280 +4418,28 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Coach Diagnosis Sliders — eight 20-80 sliders the coach uses to grade the
-   player on each Hitting Report. The same data feeds the Coach Diagnosis bar
-   in the Hitting Snapshot bubble on the player's profile.
-   ─────────────────────────────────────────────────────────────────────────── */
-const COACH_DIAG_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; options: string[] }[] = [
-  /* Label + order mirror the player-profile Coach Diagnosis chip strip
-     (SwingTab.tsx / HittingReport.tsx) so the modal grading UI matches
-     what coaches see on the read side. DATA KEYS UNCHANGED so existing
-     saved scores stay attached:
-       key `stretch`   → "Counter"   (was "Stretch")
-       key `core`      → "Stability"
-       key `stability` → "Slot"
-       key `slot`      → "Path"
-     The `forwardMove` row is retired entirely — the chip / coach-grade
-     card disappeared app-wide so the slider goes with it. The data key
-     still exists in ManualSwingScores for backward compatibility, but
-     no UI surface writes to it.
-     `stride` is a new Coach Diagnosis slot — null on legacy reports,
-     persists alongside the other manual scores once a coach grades it. */
-  { key: 'stride',      label: 'Stride',       hint: 'Stride length & direction from load to launch.',            options: ['Short', 'Long', 'Square', 'Open'] },
-  { key: 'stretch',     label: 'Counter',      hint: 'Counter-rotation — lower-half load → directional intent toward the pitcher.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
-  { key: 'posture',     label: 'Tilt',         hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
-  { key: 'connection',  label: 'Conn',         hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
-  { key: 'slot',        label: 'Path',         hint: 'Bat-path / barrel route through the zone.',                 options: ['Steep', 'Flat', 'Uphill'] },
-  { key: 'core',        label: 'Stable',       hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
-  { key: 'direction',   label: 'Direct',       hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
-  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
-  { key: 'stability',   label: 'Adjust',       hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
-];
-
-function CoachDiagnosisSliders({
-  scores, setScores,
-  options, setOptions,
+/* The nine-slider hitting "Coach Diagnosis" editor and the seven-section
+   pitching delivery-grade editor lived here. Both retired: each report
+   now carries three coach grades, rendered by CoachGradesSection below. */
+function CoachGradesSection({
+  grades, setGrades, sections, title,
 }: {
-  scores: ManualSwingScores;
-  setScores: React.Dispatch<React.SetStateAction<ManualSwingScores>>;
-  options: ManualSwingOptions;
-  setOptions: React.Dispatch<React.SetStateAction<ManualSwingOptions>>;
+  grades: CoachGrades;
+  setGrades: React.Dispatch<React.SetStateAction<CoachGrades>>;
+  /** Which grade set to render — defense throwing, hitting or pitching. */
+  sections: CoachGradeSectionConfig[];
+  title: string;
 }) {
-  const filledCount = COACH_DIAG_KEYS.filter(k => scores[k.key] != null || (options[k.key]?.length ?? 0) > 0).length;
-  /* Coach Diagnosis (HITTING) — slate "Hitting Snapshot" outer bubble
-     wrapping the off-white CoachDiagnosisRow cards, matching the
-     Pitching report's delivery sections. */
-  return (
-    <div className={rs.section} style={reportOuterBubbleStyle}>
-      <div className={rs.sectionHeader}>
-        <span className={rs.sectionIcon}>✍️</span>
-        <span className={rs.sectionTitle}>Mechanical Grades</span>
-        <span className={rs.sectionCount}>{filledCount} / {COACH_DIAG_KEYS.length} graded</span>
-      </div>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: 12,
-      }}>
-        {COACH_DIAG_KEYS.map(({ key, label, hint, options: opts }) => (
-          <CoachDiagnosisRow
-            key={key}
-            label={label}
-            hint={hint}
-            value={scores[key]}
-            onChange={(v) => setScores(prev => ({ ...prev, [key]: v }))}
-            optionList={opts}
-            selectedOptions={options[key] || []}
-            onToggleOption={(opt) => setOptions(prev => {
-              const cur = prev[key] || [];
-              const next = cur.includes(opt) ? cur.filter(o => o !== opt) : [...cur, opt];
-              return { ...prev, [key]: next };
-            })}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CoachDiagnosisRow({
-  label, hint, value, onChange,
-  optionList, selectedOptions, onToggleOption,
-}: {
-  label: string;
-  hint: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  optionList: string[];
-  selectedOptions: string[];
-  onToggleOption: (opt: string) => void;
-}) {
-  const tone = value !== null ? scoreColor(value) : '#475569';
-  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
-  return (
-    <div style={{
-      ...reportInnerBubbleStyle,
-      padding: '12px 14px',
-      display: 'flex', flexDirection: 'column', gap: 8,
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
-      }}>
-        <span style={{
-          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
-          textTransform: 'uppercase', color: 'var(--text-muted)',
-        }}>
-          {label}
-        </span>
-        <span style={{
-          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: rem(20),
-          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
-        }}>
-          {value ?? '—'}
-        </span>
-      </div>
-
-      {/* Multi-select option chips — saved alongside the score and surfaced
-          on the Hitting Report read side under the Coach Diagnosis row. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-        {optionList.map(opt => {
-          const active = selectedOptions.includes(opt);
-          return (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => onToggleOption(opt)}
-              style={{
-                padding: '4px 9px',
-                borderRadius: 6,
-                fontSize: rem(11),
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
-                background: active
-                  ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
-                  : 'rgba(255,255,255,0.04)',
-                color: active ? '#cfe0ff' : 'var(--text-muted)',
-                whiteSpace: 'nowrap',
-                transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
-              }}
-            >
-              {opt}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{
-        height: 5, borderRadius: 3,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid var(--border)',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${pct}%`, height: '100%',
-          background: tone, transition: 'width 0.18s ease',
-        }} />
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input
-          type="range"
-          min={20} max={80} step={5}
-          value={value ?? 50}
-          // Hide the thumb when this row is unscored so coaches don't
-          // think "50" is already picked. First interaction snaps to 50
-          // (or wherever they click via native onChange) and the thumb
-          // reappears.
-          className={value === null ? 'scoreSliderEmpty' : undefined}
-          onPointerDown={() => { if (value === null) onChange(50); }}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ flex: 1 }}
-        />
-        <input
-          type="number"
-          min={20} max={80} step={5}
-          value={value ?? ''}
-          placeholder="—"
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === '') return onChange(null);
-            const n = Number(v);
-            if (!Number.isFinite(n)) return;
-            onChange(Math.max(20, Math.min(80, Math.round(n / 5) * 5)));
-          }}
-          style={{
-            width: 56,
-            background: 'rgba(20,24,32,0.85)',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            padding: '4px 7px',
-            borderRadius: 6,
-            fontSize: rem(12), fontWeight: 700,
-            fontVariantNumeric: 'tabular-nums',
-            textAlign: 'center',
-          }}
-        />
-        {value !== null && (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            title="Clear"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', fontSize: rem(13), padding: '0 4px',
-            }}
-          >×</button>
-        )}
-      </div>
-
-      <span style={{ fontSize: rem(10.5), color: 'var(--text-muted)', lineHeight: 1.45 }}>
-        {hint}
-      </span>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   PITCHING report — graded delivery checkpoints
-   The 7-section taxonomy (PITCHING_GRADE_SECTIONS) is defined in helpers.ts
-   so the player profile's Mechanical Grades panel can render the same data.
-   Each item carries a 20-80 score PLUS multi-select descriptive tags, saved
-   as content.pitchingGrades keyed by `${section}.${item}`.
-   ───────────────────────────────────────────────────────────────────────── */
-/** Total item count across all sections — drives the "X / N graded" header. */
-const PITCHING_GRADE_TOTAL_ITEMS = PITCHING_GRADE_SECTIONS.reduce((n, s) => n + s.items.length, 0);
-
-function PitchingGradesSections({
-  grades, setGrades,
-}: {
-  grades: PitchingGrades;
-  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
-}) {
-  const filledCount = Object.values(grades)
-    .filter(g => g && (g.score != null || (g.options?.length ?? 0) > 0)).length;
+  /* Count against the CONFIGURED sections, not every key present: a
+     legacy report can carry retired keys that are no longer graded. */
+  const filledCount = sections.filter(sec => grades[sec.key] != null).length;
+  const total = sections.length;
   return (
     <>
       <div className={rs.section}>
         <div className={rs.sectionHeader}>
           <span className={rs.sectionIcon}>✍️</span>
-          <span className={rs.sectionTitle}>Delivery Grades</span>
-          <span className={rs.sectionCount}>{filledCount} / {PITCHING_GRADE_TOTAL_ITEMS} graded</span>
-        </div>
-      </div>
-      {PITCHING_GRADE_SECTIONS.map(sec => (
-        <PitchingGradeSection key={sec.key} section={sec} grades={grades} setGrades={setGrades} />
-      ))}
-    </>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   DefenseCoachGradesSection — simpler editor used by every defense
-   report (CATCHING / INFIELD / OUTFIELD). Renders the 7 Coach Grade
-   sections defined in DEFENSE_COACH_GRADE_SECTIONS as a single grid
-   of one-slider bubbles per section — no per-item sub-grades, no
-   descriptor multi-select chips (intentionally simpler than Pitching
-   per coach-spec: "I dont need the underlying metrics, just give me
-   the 7 Coach Grades"). State shape: `DefenseCoachGrades` (a flat
-   Record<sectionKey, number|null>) persisted to one of three content
-   slots (catchingCoachGrades / infieldCoachGrades / outfieldCoachGrades).
-   ─────────────────────────────────────────────────────────────── */
-function DefenseCoachGradesSection({
-  grades, setGrades,
-}: {
-  grades: DefenseCoachGrades;
-  setGrades: React.Dispatch<React.SetStateAction<DefenseCoachGrades>>;
-}) {
-  const filledCount = Object.values(grades).filter(v => v != null).length;
-  const total = DEFENSE_COACH_GRADE_SECTIONS.length;
-  return (
-    <>
-      <div className={rs.section}>
-        <div className={rs.sectionHeader}>
-          <span className={rs.sectionIcon}>✍️</span>
-          <span className={rs.sectionTitle}>Throwing Grades</span>
+          <span className={rs.sectionTitle}>{title}</span>
           <span className={rs.sectionCount}>{filledCount} / {total} graded</span>
         </div>
       </div>
@@ -4728,8 +4463,8 @@ function DefenseCoachGradesSection({
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: 12,
         }}>
-          {DEFENSE_COACH_GRADE_SECTIONS.map(sec => (
-            <DefenseCoachGradeItem
+          {sections.map(sec => (
+            <CoachGradeItem
               key={sec.key}
               section={sec}
               value={grades[sec.key] ?? null}
@@ -4742,10 +4477,10 @@ function DefenseCoachGradesSection({
   );
 }
 
-function DefenseCoachGradeItem({
+function CoachGradeItem({
   section, value, onChange,
 }: {
-  section: { key: string; title: string; icon: string };
+  section: { key: string; title: string; icon: string; hint?: string };
   value: number | null;
   onChange: (next: number | null) => void;
 }) {
@@ -4844,239 +4579,11 @@ function DefenseCoachGradeItem({
           transition: 'width 0.08s linear',
         }} />
       </div>
-    </div>
-  );
-}
-
-function PitchingGradeSection({
-  section, grades, setGrades,
-}: {
-  section: PitchingGradeSectionConfig;
-  grades: PitchingGrades;
-  setGrades: React.Dispatch<React.SetStateAction<PitchingGrades>>;
-}) {
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-  return (
-    /* Outer bubble per delivery section (Gather / Arm Path / Direction /
-       ... / Movement / Execution). Dark theme keeps the deep dark-navy
-       chrome it always had. Light theme flips to `--panel-bg-light`
-       (the cool-slate surface the Hitting Snapshot wears) so the
-       Pitching grade sections read as siblings of the Hitting Snapshot
-       bubble across themes. The inline dark-navy bg can't pick up the
-       `[data-theme="light"]` CSS override, so the switch is wired via
-       useTheme(). */
-    <div
-      className={rs.section}
-      style={{
-        background: isLight
-          ? 'var(--panel-bg-light)'
-          : 'radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%), rgba(10, 14, 20, 0.38)',
-        border: isLight ? '1px solid rgba(0, 0, 0, 0.10)' : '1px solid var(--border-light)',
-        borderRadius: 12,
-        padding: 16,
-        boxShadow: isLight
-          ? '0 6px 18px rgba(15, 20, 30, 0.08)'
-          : 'inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 24px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25)',
-      }}
-    >
-      <div className={rs.sectionHeader}>
-        <span className={rs.sectionIcon}>{section.icon}</span>
-        <span className={rs.sectionTitle}>{section.title}</span>
-      </div>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: 12,
-      }}>
-        {section.items.map(item => {
-          const k = pitchingGradeKey(section.key, item.key);
-          const entry = grades[k] || { score: null, options: [] };
-          return (
-            <PitchingGradeItem
-              key={k}
-              item={item}
-              entry={entry}
-              onChange={(next) => setGrades(prev => ({ ...prev, [k]: next }))}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PitchingGradeItem({
-  item, entry, onChange,
-}: {
-  item: PitchingGradeItemConfig;
-  entry: PitchingGradeEntry;
-  onChange: (next: PitchingGradeEntry) => void;
-}) {
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-  const value = entry.score;
-  const tone = value !== null ? scoreColor(value) : '#475569';
-  const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
-
-  const toggleOption = (opt: string) => {
-    const has = entry.options.includes(opt);
-    const next = has ? entry.options.filter(o => o !== opt) : [...entry.options, opt];
-    onChange({ ...entry, options: next });
-  };
-
-  /* Single interactive score bar — handles BOTH display and input.
-     Clicking or dragging anywhere on the track sets the score; the
-     fill width visualizes the current value. Replaces the previous
-     stack of separate score bar + slider + numeric input + clear
-     button, which gave each checkpoint bubble four rows. Now each
-     bubble is just three rows: label+score / option chips / bar.
-
-     Snap step is 5 (matches the previous slider) so scores land on
-     the canonical 20/25/30/…/80 scouting grid. Touch + mouse +
-     trackpad all route through pointer events. */
-  const handleBarPointer = (e: React.PointerEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const fraction = rect.width === 0 ? 0 : x / rect.width;
-    const raw = 20 + fraction * 60;
-    const snapped = Math.max(20, Math.min(80, Math.round(raw / 5) * 5));
-    onChange({ ...entry, score: snapped });
-  };
-
-  return (
-    /* Inner per-checkpoint bubble (Leg Lift Height / Load / Stability
-       / Tempo / etc.) — sits inside the section's outer panel.
-       Light theme uses `--bubble-chrome-bg` (the same #eaeaea surface
-       the arsenal cards Curveball / Fastball / Slider / Changeup wear)
-       so every inner bubble in the Pitching Report reads as one
-       consistent surface. Dark theme keeps the warm translucent-white
-       wash. The inline background is the lever — `[data-theme="light"]`
-       CSS overrides can't beat inline styles, so we flip via useTheme. */
-    <div style={{
-      padding: '10px 12px',
-      background: isLight
-        ? 'var(--bubble-chrome-bg)'
-        : 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.04) 100%)',
-      border: isLight ? '1px solid var(--border-light)' : '1px solid var(--border)',
-      borderRadius: 10,
-      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
-      display: 'flex', flexDirection: 'column', gap: 7,
-    }}>
-      {/* Label + score readout + clear */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{
-          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
-          textTransform: 'uppercase', color: 'var(--text-muted)',
-        }}>
-          {item.label}
+      {section.hint && (
+        <span style={{ fontSize: rem(10.5), color: 'var(--text-muted)', lineHeight: 1.45 }}>
+          {section.hint}
         </span>
-        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{
-            fontWeight: 800, fontSize: rem(20),
-            color: tone, lineHeight: 1, letterSpacing: '-0.02em',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {value ?? '—'}
-          </span>
-          {/* Inline clear — surfaces only when there's something
-              to clear so the row stays compact for fresh
-              checkpoints. */}
-          {(value !== null || entry.options.length > 0) && (
-            <button
-              type="button"
-              onClick={() => onChange({ score: null, options: [] })}
-              title="Clear this checkpoint"
-              style={{
-                background: 'transparent', color: 'var(--text-muted)',
-                border: '1px solid var(--border)', borderRadius: 5,
-                padding: '1px 6px', fontSize: rem(10), cursor: 'pointer',
-                lineHeight: 1.2,
-              }}
-            >x</button>
-          )}
-        </span>
-      </div>
-
-      {/* Multi-select chips */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-        {item.options.map(opt => {
-          const active = entry.options.includes(opt);
-          return (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => toggleOption(opt)}
-              style={{
-                padding: '4px 9px',
-                borderRadius: 6,
-                fontSize: rem(11),
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: active ? '1px solid rgba(126,182,255,0.55)' : '1px solid var(--border)',
-                background: active
-                  ? 'linear-gradient(135deg, rgba(126,182,255,0.28), rgba(61,139,253,0.16))'
-                  : 'rgba(255,255,255,0.04)',
-                color: active ? '#cfe0ff' : 'var(--text-muted)',
-                whiteSpace: 'nowrap',
-                transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
-              }}
-            >
-              {opt}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Combined display + input bar. Click anywhere to set the
-          score; press-and-drag to fine-tune. Pointer capture keeps
-          the drag responsive even when the cursor leaves the bar. */}
-      <div
-        role="slider"
-        aria-label={`${item.label} score`}
-        aria-valuemin={20}
-        aria-valuemax={80}
-        aria-valuenow={value ?? undefined}
-        tabIndex={0}
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          handleBarPointer(e);
-        }}
-        onPointerMove={(e) => {
-          /* Only respond while the primary button is held (drag),
-             not on hover. `e.buttons === 1` is reliable across
-             mouse + touch. */
-          if (e.buttons !== 1) return;
-          handleBarPointer(e);
-        }}
-        onKeyDown={(e) => {
-          /* Keyboard accessibility — arrow keys nudge by the
-             snap step. */
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            const cur = value ?? 50;
-            onChange({ ...entry, score: Math.max(20, cur - 5) });
-          } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            const cur = value ?? 50;
-            onChange({ ...entry, score: Math.min(80, cur + 5) });
-          }
-        }}
-        style={{
-          height: 10, borderRadius: 5,
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          touchAction: 'none',
-          position: 'relative',
-        }}
-      >
-        <div style={{
-          width: `${pct}%`, height: '100%',
-          background: tone, transition: 'width 0.18s ease',
-        }} />
-      </div>
+      )}
     </div>
   );
 }

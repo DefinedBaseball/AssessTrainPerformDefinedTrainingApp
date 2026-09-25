@@ -4,8 +4,6 @@
  *   Page 2 — Pitch Type Bubbles row, Movement / Location / Release Point
  *            plots, Pitching Notes.
  *   Page 3 — Trackman Break & Spin and Release & Extension tables.
- *   Page 4 — Coach Grades (per-section aggregate score + selected chips,
- *            mirrors the in-app `MechanicalSummaryStrip`).
  *
  * Interior pages render in landscape LETTER so the deck shares the
  * same canvas as the Cover Page.
@@ -18,8 +16,6 @@ import {
 } from './components';
 import {
   formatHeight, getAge,
-  PITCHING_GRADE_SECTIONS, pitchingGradeKey,
-  type PitchingGrades,
 } from '@/app/athletes/[id]/helpers';
 
 export interface ArsenalRow {
@@ -65,11 +61,6 @@ export interface PitchingPdfData {
   /** Raw pitches (filtered to the active report's uploadIds when present)
    *  so the plots reproduce exactly what the profile shows. */
   pitches: PdfPitch[];
-  /** Saved per-checkpoint coach grades for this PITCHING report. Drives
-   *  the new "Coach Grades" page (per-section score + selected chips).
-   *  Optional for backwards compatibility — older reports just won't
-   *  surface the grades page. */
-  pitchingGrades?: PitchingGrades;
   reportDate: string;
 }
 
@@ -531,86 +522,6 @@ function PdfReleaseExtensionTable({ rows }: { rows: ArsenalRow[] }) {
   );
 }
 
-/* ─── Coach Grades — one section card (title + aggregate score + chips) ───
-   Mirrors the in-app `MechanicalSummaryStrip`: a tight column with the
-   section title up top, the average of every populated item score in
-   the middle, and a wrap of every selected descriptor chip below.
-   Renders one card per section in the Coach Grades page grid. */
-function PdfCoachGradeSection({
-  title,
-  avg,
-  chips,
-}: {
-  title: string;
-  avg: number | null;
-  chips: string[];
-}) {
-  /* Tier color mirrors the in-app `scoreColor` 3-band scale
-     (≥60 elite, 40-59 above avg, <40 developing) so the PDF reads
-     the same as on screen. */
-  const tone =
-    avg === null   ? colors.cardBorder
-    : avg >= 60    ? colors.elite
-    : avg >= 40    ? colors.aboveAvg
-    : colors.developing;
-
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: colors.cardBg,
-        border: `1px solid ${colors.cardBorder}`,
-        borderRadius: 8,
-        padding: 8,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-      }}
-    >
-      {/* Section title — uppercase eyebrow, centered. */}
-      <Text style={{
-        fontSize: 8, fontFamily: 'Helvetica-Bold',
-        color: colors.black, letterSpacing: 0.8,
-        textTransform: 'uppercase', textAlign: 'center',
-        lineHeight: 1.15,
-      }}>
-        {title}
-      </Text>
-
-      {/* Aggregate score */}
-      <Text style={{
-        fontSize: 16, fontFamily: 'Helvetica-Bold',
-        color: tone, textAlign: 'center',
-        lineHeight: 1.05, letterSpacing: -0.2,
-      }}>
-        {avg ?? '—'}
-      </Text>
-
-      {/* Selected descriptor chips (flattened across every item in
-          the section). Each chip is a small pill. */}
-      {chips.length > 0 && (
-        <View style={{
-          flexDirection: 'row', flexWrap: 'wrap',
-          gap: 2, justifyContent: 'center', marginTop: 2,
-        }}>
-          {chips.map((tag, i) => (
-            <View key={`${tag}-${i}`} style={{
-              backgroundColor: colors.tableBg,
-              border: `0.5px solid ${colors.cardBorder}`,
-              borderRadius: 6,
-              paddingHorizontal: 4, paddingVertical: 1,
-            }}>
-              <Text style={{ fontSize: 6.5, color: colors.black, fontFamily: 'Helvetica-Bold' }}>
-                {tag}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
 /* ─── Section header (small label above each PDF section) ─── */
 function PdfSectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -635,31 +546,7 @@ function PdfSectionTitle({ title, subtitle }: { title: string; subtitle?: string
 
 /* ─── Document body ─── */
 export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
-  const { player, arsenal, totalPitches, pitchNotes, pitches, pitchingGrades } = data;
-
-  /* Build per-section aggregate score + flattened chip list from the
-     saved Coach Grades. Sections with no data still render (empty
-     score + no chips) so the Coach Grades page consistently shows
-     every section in the taxonomy. */
-  const coachGradeSummary = (() => {
-    const grades = pitchingGrades ?? {};
-    return PITCHING_GRADE_SECTIONS.map((section) => {
-      const itemScores = section.items
-        .map((it) => grades[pitchingGradeKey(section.key, it.key)]?.score)
-        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-      const avg = itemScores.length === 0
-        ? null
-        : Math.round(itemScores.reduce((a, b) => a + b, 0) / itemScores.length);
-      const chips = section.items.flatMap((it) => {
-        const entry = grades[pitchingGradeKey(section.key, it.key)];
-        return entry?.options ?? [];
-      });
-      return { key: section.key, title: section.title, avg, chips };
-    });
-  })();
-  const hasAnyGrades = coachGradeSummary.some(
-    (s) => s.avg !== null || s.chips.length > 0,
-  );
+  const { player, arsenal, totalPitches, pitchNotes, pitches } = data;
 
   // Always show the 4 main pitch types in the bubble row, even if no data,
   // matching the in-app `arsenalCards` build. Any extra types in the
@@ -812,39 +699,11 @@ export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
               <PdfNotesBox label="PITCHING NOTES" text={pitchNotes} />
             )}
 
-            {/* Coach Grades -- folded onto this page (was its own page 4) so
-                the report reads Cover / Metrics / Plots + Grades. Gated
-                separately from the plots: a report can have Trackman data
-                with no coach grades entered, or vice versa. */}
-            {hasAnyGrades && (
-              <View style={{ marginTop: 8 }}>
-            <PdfSectionTitle
-              title="Mechanical Grades"
-              subtitle="Per-section aggregate score + selected descriptors"
-            />
-            {/* 3 × 3 grid — 9 sections fit comfortably across 3 rows
-                on landscape Letter without crowding. */}
-            <View style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {[0, 1, 2].map((rowIdx) => (
-                <View
-                  key={rowIdx}
-                  style={{ flexDirection: 'row', gap: 6 }}
-                >
-                  {coachGradeSummary
-                    .slice(rowIdx * 3, rowIdx * 3 + 3)
-                    .map((sec) => (
-                      <PdfCoachGradeSection
-                        key={sec.key}
-                        title={sec.title}
-                        avg={sec.avg}
-                        chips={sec.chips}
-                      />
-                    ))}
-                </View>
-              ))}
-            </View>
-              </View>
-            )}
+            {/* Coach grades used to close this page (a "Mechanical
+                Grades" grid of per-section scores + descriptors).
+                Retired: the pitching report is now Trackman metrics,
+                plots and notes only, and the three coach grades show
+                on the dashboard alone. */}
           </>
         )}
       </Page>

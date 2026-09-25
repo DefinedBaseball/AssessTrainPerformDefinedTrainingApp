@@ -484,6 +484,97 @@ export function getDefenseCoachGrades(
   } catch { return {}; }
 }
 
+/* ───────────────────────────────────────────────────
+   HITTING / PITCHING COACH GRADES
+   ───────────────────────────────────────────────────
+   Per coach-spec these REPLACE the two old per-checkpoint taxonomies:
+   the nine hitting `manualScores` sliders and the seven-section
+   pitching `pitchingGrades` tree. A report now carries exactly three
+   20-80 grades, one slider each — no sub-grades, no descriptor chips.
+   The same shape the defense reports already settled on.
+
+   Two rules the whole feature hangs on:
+     • Entered ONLY from the report modal (upload + edit). The inline
+       editors that used to live on the Hitting and Swing tabs are gone,
+       so a grade has exactly one point of entry.
+     • Surfaced ONLY on the dashboard Tool Grades bubble. The Hitting
+       and Pitching profile pages deliberately show no coach grades at
+       all, and neither does the forward-facing PDF.
+
+   Storage: `content.hittingCoachGrades` / `content.pitchingCoachGrades`,
+   a flat Record<key, number|null>. Deliberately FRESH content keys —
+   reusing `manualScores` / `pitchingGrades` would let a legacy report’s
+   retired sub-grades read back as one of the three new grades (both old
+   shapes carry colliding key names). The old blocks stay on disk
+   untouched and simply go unread. */
+export interface CoachGradeSectionConfig {
+  key: string;
+  title: string;
+  icon: string;
+  /** One-line coaching prompt shown under the slider in the modal.
+   *  Optional so the defense grade config (title only, no prompt) can
+   *  share the same editor component. */
+  hint?: string;
+}
+
+/** Flat `{ [key]: 20-80 | null }` — one entry per configured grade. */
+export type CoachGrades = Record<string, number | null>;
+
+/** Which report type’s grade set to read / write. */
+export type CoachGradeKind = 'hitting' | 'pitching';
+
+export const HITTING_COACH_GRADE_SECTIONS: CoachGradeSectionConfig[] = [
+  { key: 'swing',   title: 'Swing',   icon: '🏏', hint: 'Overall swing — path, sequence and adjustability.' },
+  { key: 'contact', title: 'Contact', icon: '🎯', hint: 'Quality and consistency of contact.' },
+  { key: 'mental',  title: 'Mental',  icon: '🧠', hint: 'Approach, competitiveness and in-box adjustments.' },
+];
+
+export const PITCHING_COACH_GRADE_SECTIONS: CoachGradeSectionConfig[] = [
+  { key: 'mechanics', title: 'Mechanics', icon: '⚙️', hint: 'Delivery — balance, direction and arm path.' },
+  { key: 'velocity',  title: 'Velocity',  icon: '🔥', hint: 'Present arm strength and velocity projection.' },
+  { key: 'movement',  title: 'Movement',  icon: '🌀', hint: 'Shape and life across the arsenal.' },
+];
+
+export const COACH_GRADE_SECTIONS: Record<CoachGradeKind, CoachGradeSectionConfig[]> = {
+  hitting: HITTING_COACH_GRADE_SECTIONS,
+  pitching: PITCHING_COACH_GRADE_SECTIONS,
+};
+
+const COACH_GRADES_CONTENT_KEY: Record<CoachGradeKind, string> = {
+  hitting: 'hittingCoachGrades',
+  pitching: 'pitchingCoachGrades',
+};
+
+/** Content key for a kind’s grade block — exported so the report modal
+ *  writes to the same slot this module reads from. */
+export function coachGradesContentKey(kind: CoachGradeKind): string {
+  return COACH_GRADES_CONTENT_KEY[kind];
+}
+
+/** Read the three coach grades off a HITTING / PITCHING report. Always
+ *  returns a Record (empty when missing or unparseable) so callers can
+ *  index in without null guards. Only CONFIGURED keys are returned, so a
+ *  retired grade can never resurface as a stray bar. */
+export function getCoachGrades(
+  report: ReportSummary | null,
+  kind: CoachGradeKind,
+): CoachGrades {
+  const out: CoachGrades = {};
+  const known = COACH_GRADE_SECTIONS[kind];
+  for (const { key } of known) out[key] = null;
+  if (!report?.content) return out;
+  try {
+    const parsed = JSON.parse(report.content);
+    const g = parsed?.[COACH_GRADES_CONTENT_KEY[kind]];
+    if (!g || typeof g !== 'object') return out;
+    for (const { key } of known) {
+      const v = (g as Record<string, unknown>)[key];
+      out[key] = typeof v === 'number' && Number.isFinite(v) ? v : null;
+    }
+    return out;
+  } catch { return out; }
+}
+
 /** Read pitching grades off a PITCHING report's content.pitchingGrades block.
  *  Always returns a Record (empty when missing/unparseable) so the modal can
  *  index into it without null guards. */
@@ -1464,21 +1555,23 @@ export function getPhysicalGrades(report: ReportSummary | null): PhysicalGrades 
    (content.hittingToolGrades); the Player Summary copies that value. */
 export const HIT_SWING_KEYS = ['max_bat_speed', 'avg_bat_speed', 'attack_angle', 'plane_angle', 'time_to_contact', 'power_output'] as const;
 export const HIT_QOC_KEYS = ['avg_exit_velo', 'max_exit_velo', 'squared_up_pct', 'smash_factor', 'launch_angle', 'distance'] as const;
-export const HIT_MANUAL_KEYS = ['stride', 'stretch', 'posture', 'connection', 'slot', 'core', 'direction', 'timing', 'stability'] as const;
 
-export interface HittingComposites { swing: number | null; qoc: number | null; mechanical: number | null; }
+/** Two composites, not three. "Mechanical" averaged the nine retired
+ *  hitting coach grades; coach grades are now three per report, entered
+ *  in the report modal and shown on the dashboard only, so no composite
+ *  derives from them. */
+export interface HittingComposites { swing: number | null; qoc: number | null; }
 
-/** The exact three grades the Hitting Snapshot shows (Swing / Quality of
- *  Contact / Mechanical Grades). Swing reads the pre-computed `metricGrades`;
- *  QoC grades the pooled HitTrax+Full Swing override merged over topMetrics;
- *  Mechanical averages the 9 manual coach scores. Mirrors HittingGradeStack. */
+/** The two metric-derived Hitting Snapshot grades. Swing reads the
+ *  pre-computed `metricGrades`; QoC grades the pooled HitTrax + Full Swing
+ *  override merged over topMetrics. Both come from uploaded data — no coach
+ *  input reaches this function any more. */
 export function computeHittingComposites(args: {
   topMetrics: Record<string, { value: number } | undefined>;
   metricGrades: Record<string, number | null>;
   qocOverride?: Record<string, { value: number }> | null;
-  manual: Record<string, number | null | undefined>;
 }): HittingComposites {
-  const { topMetrics, metricGrades, qocOverride, manual } = args;
+  const { topMetrics, metricGrades, qocOverride } = args;
   const qocSource: Record<string, { value: number } | undefined> = qocOverride
     ? { ...topMetrics, ...qocOverride }
     : topMetrics;
@@ -1489,27 +1582,9 @@ export function computeHittingComposites(args: {
       return m ? toScoutingGrade(m.value, k) : null;
     }),
   );
-  const mechanical = averageGrades(HIT_MANUAL_KEYS.map((k) => manual[k] ?? null));
-  return { swing, qoc, mechanical };
+  return { swing, qoc };
 }
 
-/** Read persisted Hitting Snapshot composites off a HITTING report's
- *  content.hittingToolGrades (written by the Hitting tab). Returns null
- *  when the report predates the feature / hasn't been synced yet. */
-export function getHittingToolGrades(report: ReportSummary | null): HittingComposites | null {
-  if (!report?.content) return null;
-  try {
-    const g = JSON.parse(report.content)?.hittingToolGrades;
-    if (g && typeof g === 'object') {
-      return {
-        swing: typeof g.swing === 'number' ? g.swing : null,
-        qoc: typeof g.qoc === 'number' ? g.qoc : null,
-        mechanical: typeof g.mechanical === 'number' ? g.mechanical : null,
-      };
-    }
-  } catch { /* ignore */ }
-  return null;
-}
 
 export function computeAggregateScores(
   player: { positions: string | null; firstName?: string | null; lastName?: string | null },
@@ -1521,11 +1596,6 @@ export function computeAggregateScores(
      legacy CSV-derived metrics. Optional so existing callers (and
      surfaces that don't need Swing Decision detail) can omit it. */
   _liveAtBats?: AtBatDetail[],
-  /* When provided, the Hitting section's three Tool Grades bars (Swing /
-     Quality of Contact / Mechanical Grades) use these persisted Snapshot
-     composites verbatim instead of recomputing — so the Player Summary
-     mirrors the Hitting Snapshot exactly. */
-  hittingToolGrades?: HittingComposites | null,
 ): AggregateScores {
   const positions = (player.positions || '')
     .split(',')
@@ -1545,189 +1615,47 @@ export function computeAggregateScores(
   // here from the real data (topMetrics + latest HITTING report's manual
   // scores) so the Summary view matches what the coach sees on the tab.
   if (hasNonPitcher) {
-    /* Locked sub-metric lists per group — these labels populate the
-       Sub-Grade Breakdown bubbles regardless of whether the player
-       has data for every metric (missing metrics render with no
-       grade). Mirrors the exact taxonomy the user requested. */
-    const SWING_KEYS_LOCAL = [
-      'attack_angle',
-      'plane_angle',
-      'avg_bat_speed',
-      'time_to_contact',
-      'on_plane_efficiency',
-    ];
-    const QOC_KEYS_LOCAL = [
-      'avg_exit_velo',
-      'squared_up_pct',
-      'smash_factor',
-      'launch_angle',
-      'distance',
-    ];
-    /* Swing Decision sub-metrics roll up to four aggregate buckets in the
-       Sub-Grade Breakdown: Barrel %, Whiff %, Chase %, In Zone Swing %.
-       Each bucket averages the FB / OS / Total grades behind it. */
-    const DECISION_BUCKETS: { key: string; label: string; sources: string[] }[] = [
-      { key: 'decision_barrel',  label: 'Barrel %',         sources: ['fb_barrel_pct', 'os_barrel_pct', 'overall_barrel_pct'] },
-      { key: 'decision_whiff',   label: 'Whiff %',          sources: ['fb_whiff_pct',  'os_whiff_pct',  'overall_whiff_pct'] },
-      { key: 'decision_chase',   label: 'Chase %',          sources: ['fb_chase_pct',  'os_chase_pct',  'overall_chase_pct'] },
-      { key: 'decision_zone_sw', label: 'In Zone Swing %',  sources: ['fb_in_zone_swing_pct', 'os_in_zone_swing_pct', 'overall_in_zone_swing_pct'] },
-    ];
+    /* Hitting Tool Grades — the three coach grades, verbatim.
 
-    /* Pull the latest HITTING report's coach-entered manual scores so the
-       Coach Grades bar aggregates the eight 20-80 manual checkpoints. */
-    const latestHitting = getLatestReport(_reports, ['HITTING']);
-    const manual = getManualSwingScores(latestHitting);
-    const COACH_GRADE_DEFS: { key: keyof ManualSwingScores; label: string }[] = [
-      /* Coach Grade label rename + Stride add — keys stay the same so
-         saved data survives, only the display labels rotate:
-           data key `stretch`   → label "Counter"
-           data key `core`      → label "Stability"
-           data key `stability` → label "Slot"
-           data key `slot`      → label "Path"
-         `forwardMove` retired from the UI but the type field stays
-         so older saved reports still load cleanly. `stride` added as
-         a new Coach Grade slot — null on legacy reports, persists
-         alongside the other manual scores once a coach grades it. */
-      { key: 'stride',      label: 'Stride' },
-      { key: 'stretch',     label: 'Counter' },
-      { key: 'posture',     label: 'Tilt' },
-      { key: 'connection',  label: 'Conn' },
-      { key: 'slot',        label: 'Path' },
-      { key: 'core',        label: 'Stable' },
-      { key: 'direction',   label: 'Direct' },
-      { key: 'timing',      label: 'Timing' },
-      { key: 'stability',   label: 'Adjust' },
-    ];
+       Before the coach-grade rework this branch rolled Blast / HitTrax
+       metrics up into Swing and Quality of Contact composites plus a
+       nine-slider Mechanical bar. A coach now enters exactly three
+       numbers on the Hitting report and those ARE the bars.
 
-    /* For metric-keyed bars, build sub-metrics with their per-key grade
-       so the Section detail card renders one entry per leaf metric.
-       Keys without recorded data still surface so each group bubble
-       always shows its full label set (Swing: Attack Angle / Plane
-       Angle / etc.) — missing metrics simply have no grade. */
-    const metricSubs = (keys: string[]): AggregateSubMetric[] =>
-      keys.map((k) => {
-        const m = _topMetrics[k];
-        if (!m) {
-          return { key: k, label: METRIC_LABELS[k] || k };
-        }
-        const grade = toScoutingGrade(m.value, k) ?? undefined;
-        return {
-          key: k,
-          label: METRIC_LABELS[k] || k,
-          value: m.value,
-          unit: m.unit,
-          grade,
-        };
-      });
-
-    const swingSubs    = metricSubs(SWING_KEYS_LOCAL);
-    const qocSubs      = metricSubs(QOC_KEYS_LOCAL);
-    /* Build one aggregate sub-metric per decision bucket. Grade is the
-       average of every contributing FB/OS/Total key that has a value;
-       buckets with zero contributors render with no grade ("—"). */
-    /* Swing Decision now sources from saved Live At-Bats instead
-       of the legacy Full-Swing-CSV fb/os/overall metric buckets.
-       Pitch outcomes the coach tagged in /live/at-bat are rolled
-       up into four percentages (Barrel / Whiff / Chase / In-Zone
-       Swing), each converted to a 20-80 scouting grade via the
-       same `toScoutingGrade` ranges the CSV path used.
-
-       If `_liveAtBats` is empty or unprovided, the four bars stay
-       null (the bar renders as "—") instead of silently falling
-       back to CSV data — keeps the source-of-truth honest. */
-    const coachSubs: AggregateSubMetric[] = COACH_GRADE_DEFS.map(({ key, label }) => ({
-      key: `manual_${key}`,
-      label,
-      grade: manual[key] ?? undefined,
-    }));
-
-    /* Bar scores are the average of every populated sub-metric grade. */
-    const swingScore    = averageGrades(swingSubs.map((s) => s.grade ?? null));
-    const qocScore      = averageGrades(qocSubs.map((s) => s.grade ?? null));
-    const coachScore    = averageGrades(coachSubs.map((s) => s.grade ?? null));
-
+       subMetrics is empty by design: there is nothing underneath one of
+       these grades to drill into, which is the whole point of the new
+       model. The per-metric breakdowns still live on the Hitting page,
+       where the uploaded data they come from lives. */
+    const hittingGrades = getCoachGrades(getLatestReport(_reports, ['HITTING']), 'hitting');
     sections.push({
       key: 'hitting',
       label: 'Hitting',
       color: '#3B82F6',
-      bars: [
-        { key: 'hit_swing',          label: 'Swing',              score: hittingToolGrades?.swing ?? swingScore,      subMetrics: swingSubs },
-        { key: 'hit_qoc',            label: 'Quality of Contact', score: hittingToolGrades?.qoc ?? qocScore,          subMetrics: qocSubs },
-        /* 3rd bar = "Mechanical Grades" — sourced from the Hitting report's
-           coach swing-mechanics grades (Forward Move / Posture / Slot /
-           Direction). These are the same grades the Hitting Snapshot shows
-           as "Mechanical Grades" and the profile shows lower as "Coach
-           Grades", so we surface them as a single bar (replacing the old
-           live-at-bat "Swing Decision" bar, which is often empty). */
-        { key: 'hit_coach',          label: 'Mechanical Grades',  score: hittingToolGrades?.mechanical ?? coachScore, subMetrics: coachSubs },
-      ],
+      bars: HITTING_COACH_GRADE_SECTIONS.map(({ key, title }) => ({
+        key: `hit_${key}`,
+        label: title,
+        score: hittingGrades[key] ?? null,
+        subMetrics: [],
+      })),
     });
   }
 
   // Pitching — any P in positions
   if (isPitcher) {
-    /* Pull pitching grades off the most recent PITCHING report so
-       the three Tool Grades bars (Mechanics / Movement / Execution)
-       roll up from the actual coach inputs. */
-    const latestPitching = getLatestReport(_reports, ['PITCHING']);
-    const pGrades = getPitchingGrades(latestPitching);
-
-    /* Per-section aggregate helper — averages every populated item
-       score within `section.items`. Returns null when no items have
-       a score so the bar renders as "—" instead of a misleading 0. */
-    const sectionAvgFor = (sectionKey: string): number | null => {
-      const section = PITCHING_GRADE_SECTIONS.find((s) => s.key === sectionKey);
-      if (!section) return null;
-      const scores = section.items
-        .map((it) => pGrades[pitchingGradeKey(sectionKey, it.key)]?.score)
-        .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-      if (scores.length === 0) return null;
-      return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-    };
-
-    /* Mechanics = average of the 7 delivery-mechanics section
-       aggregates (Gather / Arm Path / Direction / LHFS / UHFS /
-       Lower Half Rotation / Arm Deceleration). Movement +
-       Execution are EXCLUDED from this composite — they each feed
-       their own dedicated Tool Grades bar below. */
-    const mechanicsSubs: AggregateSubMetric[] = PITCHING_MECHANICS_SECTION_KEYS.map((sectionKey) => {
-      const section = PITCHING_GRADE_SECTIONS.find((s) => s.key === sectionKey);
-      return {
-        key: `mech_${sectionKey}`,
-        label: section?.title ?? sectionKey,
-        grade: sectionAvgFor(sectionKey) ?? undefined,
-      };
-    });
-    const mechanicsScore = averageGrades(mechanicsSubs.map((s) => s.grade ?? null));
-
-    /* Movement + Execution — single-section bars. The aggregate is
-       just that section's own average (one item per section, so the
-       average IS the item's score). Sub-metrics list the single
-       item so the Summary's per-bar drill-down still works. */
-    const movementScore = sectionAvgFor('movement');
-    const executionScore = sectionAvgFor('execution');
-    const movementSection  = PITCHING_GRADE_SECTIONS.find((s) => s.key === 'movement');
-    const executionSection = PITCHING_GRADE_SECTIONS.find((s) => s.key === 'execution');
-    const movementSubs: AggregateSubMetric[] = (movementSection?.items ?? []).map((it) => ({
-      key: `mov_${it.key}`,
-      label: it.label,
-      grade: pGrades[pitchingGradeKey('movement', it.key)]?.score ?? undefined,
-    }));
-    const executionSubs: AggregateSubMetric[] = (executionSection?.items ?? []).map((it) => ({
-      key: `exec_${it.key}`,
-      label: it.label,
-      grade: pGrades[pitchingGradeKey('execution', it.key)]?.score ?? undefined,
-    }));
-
+    /* Same three-grade model as Hitting. Replaces the seven-section
+       delivery tree that used to roll up into Mechanics / Movement /
+       Execution — Execution retires, Velocity takes its place. */
+    const pitchingGrades = getCoachGrades(getLatestReport(_reports, ['PITCHING']), 'pitching');
     sections.push({
       key: 'pitching',
       label: 'Pitching',
       color: '#F59E0B',
-      bars: [
-        { key: 'pit_mechanics', label: 'Mechanics', score: mechanicsScore, subMetrics: mechanicsSubs },
-        { key: 'pit_movement',  label: 'Movement',  score: movementScore,  subMetrics: movementSubs },
-        { key: 'pit_execution', label: 'Execution', score: executionScore, subMetrics: executionSubs },
-      ],
+      bars: PITCHING_COACH_GRADE_SECTIONS.map(({ key, title }) => ({
+        key: `pit_${key}`,
+        label: title,
+        score: pitchingGrades[key] ?? null,
+        subMetrics: [],
+      })),
     });
   }
 

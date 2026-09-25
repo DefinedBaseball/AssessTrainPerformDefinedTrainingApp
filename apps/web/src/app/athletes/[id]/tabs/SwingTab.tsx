@@ -13,10 +13,9 @@ import {
   TabProps, METRIC_LABELS, TAB_METRICS,
   getBadgeLevel, getBadgeText, getTabMetrics,
   toScoutingGrade, GRADE_RANGES, computeHittingComposites,
-  getLatestReport, getManualSwingScores, getManualSwingOptions, averageGrades,
+  getLatestReport, averageGrades,
   metricToGrade, scoreColor,
   getReportUploadIds,
-  type ManualSwingScores, type ManualSwingOptions,
 } from '../helpers';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -828,45 +827,9 @@ const SCORE_LABEL_OVERRIDES: Record<string, string> = {
   rotational_acceleration:'Rotation Score',
 };
 
-/** Manual coach-entered score keys (the "Coach Diagnosis" row) — each
- *  category has a multi-select option list rendered as chips on the card. */
-const MANUAL_KEYS: { key: keyof ManualSwingScores; label: string; hint: string; options: string[] }[] = [
-  /* Order: Stride, Counter, Posture, Stability, Slot, Path, Direction,
-     Timing — same as the Coach Diagnosis chip strip on the Hitting
-     Snapshot so both views read in the same sequence AND the same
-     label text. `forwardMove` was retired from the UI per spec; the
-     ManualSwingScores type still carries the field (existing reports
-     with a saved `forwardMove` grade still load cleanly), it's just
-     no longer rendered as a Coach-grade column / chip. Label
-     rotation — keys unchanged so saved scores survive:
-       stretch     → "Counter"     (was "Stretch")
-       stability   → "Slot"
-       core        → "Stability"
-       slot        → "Path"
-     `stride` is a brand-new Coach Grade slot — pre-launch stride
-     length & direction. Null on legacy reports. Sits at the head of
-     the row since it's the first checkpoint chronologically in the
-     swing sequence (stride → counter → posture → ...). */
-  { key: 'stride',      label: 'Stride',       hint: 'Stride length & direction from load to launch.',            options: ['Short', 'Long', 'Square', 'Open'] },
-  { key: 'stretch',     label: 'Counter',      hint: 'Length & separation between hips and shoulders at launch.', options: ['Rhythmic', 'Good', 'Stuck', 'None'] },
-  { key: 'posture',     label: 'Tilt',         hint: 'Spine angle from set-up through contact.',                  options: ['Tall', 'Hinged', 'Forward', 'Back'] },
-  { key: 'connection',  label: 'Conn',         hint: 'Hand-to-body connection — barrel staying in the slot through contact.', options: ['Connected', 'Early', 'Late', 'Disconnected'] },
-  { key: 'slot',        label: 'Path',         hint: 'Bat-path / barrel route through the zone.',                 options: ['Steep', 'Flat', 'Uphill'] },
-  { key: 'core',        label: 'Stable',       hint: 'Balance and base — head-still through finish.',             options: ['+Stack', '-Stack', '+Lead Leg', '-Lead Leg'] },
-  { key: 'direction',   label: 'Direct',       hint: 'Bat path & body line working through the ball.',            options: ['Pull', 'Center', 'Oppo'] },
-  { key: 'timing',      label: 'Timing',       hint: 'On-time launch — load → stride → swing in rhythm with the pitch.', options: ['Early', 'Late', 'On-Time', 'Inconsistent'] },
-  { key: 'stability',   label: 'Adjust',       hint: 'In-swing adjustability — barrel/slot adjustment to the pitch.', options: ['Steep', 'Flat', 'Uphill'] },
-];
 
 /** State and derived values shared between SwingTab + HittingTab's bubble. */
 export interface SharedHittingState {
-  manual: ManualSwingScores;
-  setManual: React.Dispatch<React.SetStateAction<ManualSwingScores>>;
-  persistedManual: ManualSwingScores;
-  /** Multi-select option tags paired with each manual score. Edited inline
-   *  on each ManualScoreCard; saved alongside scores via saveManual. */
-  manualOptions: ManualSwingOptions;
-  setManualOptions: React.Dispatch<React.SetStateAction<ManualSwingOptions>>;
   diagnosisNotes: string;
   setDiagnosisNotes: React.Dispatch<React.SetStateAction<string>>;
   topMetricsWithMiss: Record<string, { value: number; unit: string; recordedAt: string }>;
@@ -887,22 +850,14 @@ export interface SharedHittingState {
    *  which are Full-Swing-source by definition — from ever showing. */
   activeManualBatted: Record<string, number | null>;
   manualFullSwingOn: boolean;
-  dirty: boolean;
-  saving: boolean;
-  saveOk: boolean;
-  saveError: string | null;
-  saveManual: () => Promise<void>;
 }
 
 export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
   const { player, topMetrics, progressData, reports, isCoach, refreshKey, shared } = props;
   const {
-    manual, setManual, persistedManual,
-    manualOptions, setManualOptions,
     topMetricsWithMiss, metricGrades, reportUploadIds,
     hasActiveFullSwingData, hasActiveBlastData, hasActiveHitTraxData,
     activeManualBatted, manualFullSwingOn,
-    dirty, saving, saveOk, saveError, saveManual,
   } = shared;
   const latestHitting = useMemo(() => getLatestReport(reports, HITTING_REPORT_TYPES), [reports]);
   /* Drives the abbreviated vendor-table labels below. */
@@ -1084,12 +1039,12 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
      active report carries data for that section (CSV upload OR manual
      entry). At-bat XLSX, carry-forward from older reports, and other
      vendors' data CANNOT light up a section. */
-  const hasCoachGrades = MANUAL_KEYS.some(({ key }) => manual[key] != null)
-    || (manualOptions && Object.values(manualOptions).some(arr => (arr?.length ?? 0) > 0));
+  /* Coach Grades used to be a section here. Retired: grades are entered
+     on the report and shown on the dashboard, never on this page. */
   const hasFullSwing = hasActiveFullSwingData;
   const hasBlast     = hasActiveBlastData;
   const hasHitTrax   = hasActiveHitTraxData;
-  const anySection     = hasCoachGrades || hasFullSwing || hasBlast || hasHitTrax;
+  const anySection   = hasFullSwing || hasBlast || hasHitTrax;
 
   /* Track which sections have rendered so the dividers know whether
      there's anything above them to separate from. */
@@ -1114,45 +1069,11 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           <EmptyState
             text="No hitting data yet."
             hint={isCoach
-              ? 'Fill in Coach Grades from the report modal, or upload a Blast Motion / Full Swing / HitTrax CSV to start populating this tab.'
-              : 'Ask your coach to enter Coach Grades or upload swing data.'}
+              ? 'Upload a Blast Motion / Full Swing / HitTrax CSV to start populating this tab.'
+              : 'Ask your coach to upload swing data.'}
           />
         )}
 
-        {/* ── COACH GRADES — only when at least one manual score / option is set */}
-        {hasCoachGrades && (() => { renderedSections++; return (
-        <div style={hittingSectionBubbleStyle}>
-        <SectionHeader
-          icon={<CoachGradesIcon />}
-          iconColor="green"
-          title="Coach Grades"
-          compact
-          align="left"
-        />
-
-        {/* Break-&-Spin-style table — 8 columns, one per coach grade.
-            Header row is the label (Fwd Move / Posture / Slot / etc.)
-            and the data row shows each 20-80 grade in the per-band
-            tone color. `singleLineLabels` matches the Coach Diagnosis
-            GradeRow on the Hitting Snapshot so "Fwd Move" reads on
-            one line here (instead of being split into "Fwd / Move"
-            by the default balanced-splitter behaviour). */}
-        <HittingMetricTable
-          singleRow
-          hideLabelDivider
-          singleLineLabels
-          mobileColumns={4}
-          items={MANUAL_KEYS.map(({ key, label }) => {
-            const value = manual[key];
-            return {
-              label,
-              display: value != null ? String(value) : '—',
-              color: value != null ? scoreColor(value) : undefined,
-            };
-          })}
-        />
-        </div>
-        ); })()}
 
 
         {/* ── Vendor metric bubbles (Full Swing / Blast Motion / HitTrax) ──
@@ -1166,8 +1087,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
             of that too, and the brief was to change presentation only —
             selection, sorting and precedence untouched.
 
-            Coach Grades deliberately stays below, in the Hitting Inputs
-            bubble, in its existing form. */}
+            The Coach Grades section that used to sit below them is gone. */}
         <HittingVendorMetrics>
         {/* ── FULL SWING — only when QoC metrics have data */}
         {hasFullSwing && (() => {
@@ -1593,7 +1513,7 @@ const SHORT_LABELS: Record<string, string> = {
 };
 
 export function HittingGradeStack({
-  topMetrics, manual, metricGrades, isCoach,
+  topMetrics, metricGrades, isCoach,
   diagnosisNotes, setDiagnosisNotes,
   subTabBar,
   subTab = 'swing',
@@ -1601,7 +1521,6 @@ export function HittingGradeStack({
   omitResultsRow = false,
 }: {
   topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>;
-  manual: ManualSwingScores;
   metricGrades: Record<string, number | null>;
   isCoach: boolean;
   diagnosisNotes: string;
@@ -1663,7 +1582,6 @@ export function HittingGradeStack({
     topMetrics,
     metricGrades,
     qocOverride,
-    manual: manual as unknown as Record<string, number | null | undefined>,
   });
   const swingComposite = _composites.swing;
 
@@ -1727,29 +1645,6 @@ export function HittingGradeStack({
   const resultsGroup  = buildGroup(['overall_barrel_pct', 'ground_ball_pct', 'fly_ball_pct', 'line_drive_pct', 'overall_k_pct', 'overall_bb_pct']);
 
   // Coach Diagnosis row — all 8 manual scores. Labels rotate per the
-  // latest spec (data keys unchanged so saved scores stay attached):
-  //   stability → "Slot"
-  //   core      → "Stable"  (was "Core")
-  //   slot      → "Path"    (was "Slot")
-  /* Order (post-Fwd-Move retirement): Counter, Posture, Stability,
-     Slot, Path, Direction, Timing. Same data keys as before — only
-     the visual order changes. `manual_forwardMove` was removed from
-     this chip strip per spec; the `manual.forwardMove` grade still
-     lives on the ManualSwingScores type and persists through save
-     cycles, it's just no longer surfaced in the Coach Diagnosis
-     row. Mirror change in MANUAL_KEYS keeps Coach Grades aligned. */
-  const diagnosisChips: { key: string; label: string; grade: number | null }[] = [
-    { key: 'manual_stride',      label: 'Stride',     grade: manual.stride },
-    { key: 'manual_stretch',     label: 'Counter',    grade: manual.stretch },
-    { key: 'manual_posture',     label: 'Tilt',       grade: manual.posture },
-    { key: 'manual_connection',  label: 'Conn',       grade: manual.connection },
-    { key: 'manual_slot',        label: 'Path',       grade: manual.slot },
-    { key: 'manual_core',        label: 'Stable',     grade: manual.core },
-    { key: 'manual_direction',   label: 'Direct',     grade: manual.direction },
-    { key: 'manual_timing',      label: 'Timing',     grade: manual.timing },
-    { key: 'manual_stability',   label: 'Adjust', grade: manual.stability },
-  ];
-  const diagnosisComposite = _composites.mechanical;
 
   return (
     <div
@@ -1814,7 +1709,6 @@ export function HittingGradeStack({
         <>
           <GradeRow label="Swing"              grade={swingComposite}     chips={swingChips} hideProgressBar />
           <GradeRow label="Quality of Contact" grade={qocComposite}       chips={qocChips} hideProgressBar />
-          <GradeRow label="Mechanical Grades"  grade={diagnosisComposite} chips={diagnosisChips} singleLineLabels hideProgressBar />
           {/* Diagnosis Notes moved out of this bubble — it now lives directly
               under the entire Spray Chart + Grade Stack row in HittingTab so
               it has the full Snapshot width to breathe. */}

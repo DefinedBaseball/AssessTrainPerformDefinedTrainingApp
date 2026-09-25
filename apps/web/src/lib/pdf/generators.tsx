@@ -16,7 +16,7 @@ import * as api from '@/lib/api';
 import type { ReportSummary } from '@/app/athletes/[id]/helpers';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
-  getManualSwingScores, getManualSwingOptions, metricToGrade,
+  metricToGrade,
   getManualSwingMetrics, getManualBattedBall,
 } from '@/app/athletes/[id]/helpers';
 
@@ -84,16 +84,10 @@ export async function generateHittingPdf(
   const uploadIds = getReportUploadIds(hittingReport);
   const ids = uploadIds.length > 0 ? uploadIds : undefined;
 
-  // Manual coach grades + diagnosis notes from latest HITTING report.
-  // Diagnosis notes prefer the report's top-level `notes` field (source of
+  // Hitting notes. Prefer the report's top-level `notes` field (source of
   // truth in the modal + snapshot), falling back to legacy
-  // content.diagnosisNotes for older reports.
-  const manual = getManualSwingScores(hittingReport);
-  // Multi-select option tags ("Drift", "+Stack", etc.) the coach picked
-  // alongside each grade. Persisted in the report content blob; surfacing
-  // them in the PDF keeps the printed report aligned with the in-app
-  // Swing tab where these chips render below each grade card.
-  const manualOptions = getManualSwingOptions(hittingReport);
+  // content.diagnosisNotes for older reports. Coach grades are no longer
+  // read here — they never appear in a forward-facing report.
   let diagnosisNotes = (hittingReport?.notes && hittingReport.notes.trim()) || '';
   if (!diagnosisNotes && hittingReport?.content) {
     try {
@@ -366,8 +360,6 @@ export async function generateHittingPdf(
     player,
     topMetrics: topMetricsAll,
     metricGrades,
-    manual,
-    manualOptions,
     diagnosisNotes,
     sprayDots,
     swingNotes: hittingReport?.notes || null,
@@ -497,19 +489,6 @@ export async function generatePitchingPdf(
     pitcherThrows: p.pitcherThrows,
   }));
 
-  /* Pull saved Coach Grades off the active PITCHING report so the PDF's
-     new Coach Grades page can render per-section aggregates + chips
-     identical to the in-app Pitching tab. Absent on legacy reports —
-     the PDF page only renders when at least one section carries data. */
-  const pitchingGrades = (() => {
-    if (!pitchingReport?.content) return undefined;
-    try {
-      const c = JSON.parse(pitchingReport.content);
-      return c?.pitchingGrades && typeof c.pitchingGrades === 'object'
-        ? c.pitchingGrades
-        : undefined;
-    } catch { return undefined; }
-  })();
 
   const data: PitchingPdfData = {
     player,
@@ -517,7 +496,6 @@ export async function generatePitchingPdf(
     totalPitches,
     pitchNotes,
     pitches: pdfPitches,
-    pitchingGrades,
     reportDate,
   };
 
@@ -730,8 +708,7 @@ export async function generateSummaryPdf(
 
   // Build hitting data — mirrors generateHittingPdf so the summary PDF's
   // hitting page matches the standalone Hitting PDF.
-  const summaryManual = getManualSwingScores(hittingReport);
-  const summaryManualOptions = getManualSwingOptions(hittingReport);
+
   // Same precedence as generateHittingPdf: report.notes first, legacy
   // content.diagnosisNotes fallback.
   let summaryDiagnosisNotes = (hittingReport?.notes && hittingReport.notes.trim()) || '';
@@ -824,8 +801,6 @@ export async function generateSummaryPdf(
     player,
     topMetrics: summaryTopAll,
     metricGrades: summaryGrades,
-    manual: summaryManual,
-    manualOptions: summaryManualOptions,
     diagnosisNotes: summaryDiagnosisNotes,
     sprayDots: summarySprayDots,
     swingNotes: hittingReport?.notes || null,
