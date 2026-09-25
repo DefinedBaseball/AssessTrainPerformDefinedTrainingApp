@@ -1918,38 +1918,22 @@ const ofPopTimeBubbleStyle: React.CSSProperties = {
    muted bordered pill that the Hitting Snapshot and Pitch Report
    headers use. Returns null when the label is null/empty so the
    right slot collapses cleanly. */
-function SnapshotDateChip({ label }: { label: string | null | undefined }) {
-  if (!label) return null;
-  return (
-    <span style={{
-      alignSelf: 'flex-end',
-      /* marginBottom + fontSize matched to the Pitch Report header's date
-         chip (8 / 8.5) so this chip inflates the flex-end header row by the
-         same amount — keeping the Catching/Infield/Outfield Report title at
-         the SAME distance from the bubble top as Hitting/Pitching. */
-      marginBottom: 8,
-      fontSize: rem(8.5),
-      color: 'var(--text-muted)',
-      letterSpacing: '0.10em',
-      padding: '3px 9px',
-      borderRadius: 6,
-      background: 'rgba(255,255,255,0.04)',
-      border: '1px solid var(--border)',
-      whiteSpace: 'nowrap',
-      /* Inherited Satoshi instead of DM Mono — every grey-bubble
-         text element now uses the same Font D family. */
-      fontFamily: 'inherit',
-    }}>
-      {label}
-    </span>
-  );
-}
+/* Positions the report selector in the top-right of a defense report
+   header — the slot the read-only date chip used to hold. The chip
+   trigger already reads the selected report's date, so the date the coach
+   was reading IS now the control that changes it (same move Hitting and
+   Pitching made).
 
-function formatSnapshotDate(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric',
-  });
+   `marginBottom: 8` is inherited from that date chip deliberately: it was
+   calibrated against the Pitch Report header so this row inflates by the
+   same amount, keeping the report title the same distance from the bubble
+   top across all five report types. */
+function SnapshotReportChip({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ alignSelf: 'flex-end', marginBottom: 8 }}>
+      {children}
+    </div>
+  );
 }
 
 function DefensiveSnapshot({
@@ -2622,6 +2606,27 @@ export function CatchingSubTab({
     setLocalZoneColors(newColors);
   };
 
+  /* One selector node, mounted in whichever branch renders below.
+     It must appear in BOTH: mounting is what picks the default report
+     (ReportSelector auto-selects on mount), and the report bubble only
+     renders once a report is selected — so a selector that lived only
+     inside the bubble could never bootstrap it. */
+  const reportSelector = (
+    <ReportSelector
+      compact
+      reports={reports}
+      reportTypes={['CATCHING']}
+      label="Catching"
+      isCoach={isCoach}
+      selectedId={selectedReport?.id ?? null}
+      onSelect={setSelectedReport}
+      onDeleted={onRefresh}
+      onNewReport={onNewReport}
+      onEdit={onEditReport}
+      onDownload={(r) => generateDefensePdf(player, [r])}
+    />
+  );
+
   return (
     <>
       <TabBarActions>
@@ -2637,19 +2642,9 @@ export function CatchingSubTab({
           }}
           disabled={!selectedReport}
         />
-        {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <ReportSelector
-          reports={reports}
-          reportTypes={['CATCHING']}
-          label="Catching"
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-          onNewReport={onNewReport}
-          onEdit={onEditReport}
-          onDownload={(r) => generateDefensePdf(player, [r])}
-        />
+        {/* The report selector used to sit here beside Download PDF. It
+            now lives in the report header's top-right date slot, the way
+            Hitting and Pitching do it — see the headerRightSlot below. */}
       </TabBarActions>
 
       {/* ── Coach Grades panel ── rendered above the snapshot
@@ -2668,6 +2663,11 @@ export function CatchingSubTab({
 
       {!catchingAssessment ? (
         <Section>
+          {/* Header exists purely to carry the report selector: without a
+              catching assessment there is no report bubble to host it, and
+              the coach still needs to switch reports or add one. */}
+          <SectionHeader title="Catching Report"
+            rightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>} />
           <div className={styles.emptyMsg}>
             <div style={{ fontSize: rem(32), marginBottom: 8, opacity: 0.5 }}>
               <span role="img" aria-label="catcher">&#x1F9E4;</span>
@@ -2693,7 +2693,7 @@ export function CatchingSubTab({
           <div data-pdf-section="catching-snapshot">
           <SnapshotBubble
             title="Catching Report"
-            headerRightSlot={<SnapshotDateChip label={formatSnapshotDate(selectedReport?.createdAt)} />}
+            headerRightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>}
             coachGrades={
               <DefenseCoachGradesPanel
                 report={selectedReport}
@@ -3052,6 +3052,27 @@ export function InfieldSubTab({
     }
   };
 
+  /* One selector node, mounted in whichever branch renders below.
+     It must appear in BOTH: mounting is what picks the default report
+     (ReportSelector auto-selects on mount), and the report bubble only
+     renders once a report is selected — so a selector that lived only
+     inside the bubble could never bootstrap it. */
+  const reportSelector = (
+    <ReportSelector
+      compact
+      reports={reports}
+      reportTypes={['INFIELD']}
+      label="Infield"
+      isCoach={isCoach}
+      selectedId={selectedReport?.id ?? null}
+      onSelect={setSelectedReport}
+      onDeleted={onRefresh}
+      onNewReport={onNewReport}
+      onEdit={onEditReport}
+      onDownload={(r) => generateDefensePdf(player, [r])}
+    />
+  );
+
   return (
     <>
       <TabBarActions>
@@ -3067,19 +3088,9 @@ export function InfieldSubTab({
           }}
           disabled={!selectedReport}
         />
-        {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <ReportSelector
-          reports={reports}
-          reportTypes={['INFIELD']}
-          label="Infield"
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-          onNewReport={onNewReport}
-          onEdit={onEditReport}
-          onDownload={(r) => generateDefensePdf(player, [r])}
-        />
+        {/* The report selector used to sit here beside Download PDF. It
+            now lives in the report header's top-right date slot, the way
+            Hitting and Pitching do it — see the headerRightSlot below. */}
       </TabBarActions>
 
       {/* Coach Grades moved INTO the Infielder Snapshot bubble (below the
@@ -3105,7 +3116,7 @@ export function InfieldSubTab({
           <DefensiveSnapshot
             mode="infield"
             title="Infielder Report"
-            headerRightSlot={<SnapshotDateChip label={formatSnapshotDate(selectedReport?.createdAt)} />}
+            headerRightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>}
             /* subtitle retired — Infielder Snapshot now reads with
                title only, mirroring the Hitting / Catching headers. */
             silhouette={INFIELDER_SILHOUETTE}
@@ -3157,7 +3168,8 @@ export function InfieldSubTab({
         );
       })() : (
         <Section>
-          <SectionHeader icon="🧤" iconColor="teal" title="Infield Metrics" subtitle="Arm strength & fielding grades" />
+          <SectionHeader icon="🧤" iconColor="teal" title="Infield Metrics" subtitle="Arm strength & fielding grades"
+            rightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>} />
           {hasData ? (
             <>
               <KpiGrid>
@@ -3421,6 +3433,27 @@ export function OutfieldSubTab({
     }
   };
 
+  /* One selector node, mounted in whichever branch renders below.
+     It must appear in BOTH: mounting is what picks the default report
+     (ReportSelector auto-selects on mount), and the report bubble only
+     renders once a report is selected — so a selector that lived only
+     inside the bubble could never bootstrap it. */
+  const reportSelector = (
+    <ReportSelector
+      compact
+      reports={reports}
+      reportTypes={['OUTFIELD']}
+      label="Outfield"
+      isCoach={isCoach}
+      selectedId={selectedReport?.id ?? null}
+      onSelect={setSelectedReport}
+      onDeleted={onRefresh}
+      onNewReport={onNewReport}
+      onEdit={onEditReport}
+      onDownload={(r) => generateDefensePdf(player, [r])}
+    />
+  );
+
   return (
     <>
       <TabBarActions>
@@ -3436,19 +3469,9 @@ export function OutfieldSubTab({
           }}
           disabled={!selectedReport}
         />
-        {/* Videos jump — next to Download PDF, replaces standalone tab. */}
-        <ReportSelector
-          reports={reports}
-          reportTypes={['OUTFIELD']}
-          label="Outfield"
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-          onNewReport={onNewReport}
-          onEdit={onEditReport}
-          onDownload={(r) => generateDefensePdf(player, [r])}
-        />
+        {/* The report selector used to sit here beside Download PDF. It
+            now lives in the report header's top-right date slot, the way
+            Hitting and Pitching do it — see the headerRightSlot below. */}
       </TabBarActions>
 
       {/* Coach Grades moved INTO the Outfielder Snapshot bubble (below the
@@ -3475,7 +3498,7 @@ export function OutfieldSubTab({
           <DefensiveSnapshot
             mode="outfield"
             title="Outfielder Report"
-            headerRightSlot={<SnapshotDateChip label={formatSnapshotDate(selectedReport?.createdAt)} />}
+            headerRightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>}
             /* subtitle retired — Outfielder Snapshot now reads with
                title only, mirroring the Hitting / Catching headers. */
             silhouette={OUTFIELDER_SILHOUETTE}
@@ -3527,7 +3550,8 @@ export function OutfieldSubTab({
         );
       })() : (
         <Section>
-          <SectionHeader icon="🧤" iconColor="teal" title="Outfield Metrics" subtitle="Arm strength & route grades" />
+          <SectionHeader icon="🧤" iconColor="teal" title="Outfield Metrics" subtitle="Arm strength & route grades"
+            rightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>} />
           {hasData ? (
             <>
               <KpiGrid>
