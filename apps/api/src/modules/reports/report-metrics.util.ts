@@ -35,6 +35,23 @@ export function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Metrics where 0 is physically impossible, so a stored 0 means "the coach
+ *  left it blank", not "the reading was zero".
+ *
+ *  This matters because a manual field WINS over the CSV aggregate below: a
+ *  report carrying `avg_exit_velo: 0` would pin the trend to 0 and suppress
+ *  the real value from the upload. Older reports do carry those zeros — the
+ *  modal writes null for an untouched field now, but it has not always.
+ *
+ *  Angles and rates are deliberately NOT in here: a launch angle or a
+ *  squared-up rate of 0 is a legitimate reading. */
+const ZERO_MEANS_BLANK = new Set([
+  'max_exit_velo', 'avg_exit_velo', 'max_bat_speed', 'avg_bat_speed', 'bat_speed',
+  'distance', 'smash_factor',
+  'infield_velo', 'outfield_velo', 'catcher_velo',
+  'pop_time', 'exchange_time', 'sprint_60', 'sprint_10',
+]);
+
 /** Every metric key a trend chart can plot. CSV uploads emit hundreds of
  *  columns; only these are aggregated into per-report trend points. */
 export const TREND_METRIC_KEYS: string[] = [
@@ -62,14 +79,20 @@ export const UNIT_FOR: Record<string, string> = {
 
 /** How to collapse a CSV upload's many rows into one trend value:
  *  time-based metrics (lower is better) → min; bests / velocities → max;
- *  everything else (rates, angles, percentages) → average. */
+ *  everything else (rates, angles, distances) → average.
+ *
+ *  `distance` is an average, not a max. It used to sit in the max bucket,
+ *  which put the session's longest ball on the trend while the card's own
+ *  headline and the Full Swing / HitTrax panels showed mean carry — one card
+ *  reading 179 ft and plotting 248. Jump height and broad jump stay maxes:
+ *  those genuinely are "best attempt" measurements. */
 export function aggRuleFor(key: string): 'max' | 'min' | 'avg' {
   if (key === 'pop_time' || key === 'exchange_time' || key === 'sprint_60' || key === 'sprint_10') return 'min';
   if (key.includes('avg')) return 'avg';
   if (
     key.includes('max') ||
     key.endsWith('_velo') ||
-    key === 'distance' || key === 'jump_height' || key === 'broad_jump'
+    key === 'jump_height' || key === 'broad_jump'
   ) return 'max';
   return 'avg';
 }
@@ -98,7 +121,11 @@ export function extractReportMetrics(reportType: string, content: any): ReportMe
   const out: ReportMetric[] = [];
   const push = (metricType: string, raw: unknown, unit: string) => {
     const v = toNum(raw);
-    if (v !== null) out.push({ metricType, value: v, unit });
+    if (v === null) return;
+    /* A zero on a can't-be-zero metric is a blank field, not a reading —
+       skip it so the CSV aggregate below can supply the real number. */
+    if (v === 0 && ZERO_MEANS_BLANK.has(metricType)) return;
+    out.push({ metricType, value: v, unit });
   };
   const c = content || {};
 
@@ -183,6 +210,10 @@ export async function syncReportMetricsFor(
   for (const m of extractReportMetrics(report.reportType, content)) {
     byKey.set(m.metricType, { value: m.value, unit: m.unit });
   }
+  /* Which keys the coach supplied by hand. Needed below to tell a manual
+     value apart from a CSV-derived one — the avg-exit-velo derivation may
+     override the latter but must never override the former. */
+  const manualKeys = new Set(byKey.keys());
 
   // 2) CSV uploads → one aggregated value per trend metric (manual wins).
   const uploadIds = collectUploadIds(content);
@@ -200,6 +231,30 @@ export async function syncReportMetricsFor(
       const v = rule === 'max' ? g._max?.value : rule === 'min' ? g._min?.value : g._avg?.value;
       if (v !== null && v !== undefined && Number.isFinite(v)) {
         byKey.set(g.metricType, { value: v, unit: UNIT_FOR[g.metricType] ?? '' });
+      }
+    }
+
+    /* Avg Exit Velocity has no row of its own to aggregate.
+       HitTrax and Full Swing write EVERY SWING's exit velocity under the key
+       `max_exit_velo` (one row per swing), so the loop above turns that group
+       into a max and the avg trend gets nothing at all. Blast Motion, by
+       contrast, emits max_bat_speed AND avg_bat_speed as session aggregates,
+       which is why the bat-speed trends never showed this.
+
+       So derive it the same way the profile's Full Swing / HitTrax panels do:
+       the mean of those per-swing rows.
+
+       This deliberately OVERRIDES an `avg_exit_velo` group when one exists.
+       Some exports carry a handful of per-session "avg exit velocity" summary
+       rows, and averaging those averages is not the mean of the swings — it
+       gave one athlete a trend of 87.5 against a panel reading 91.4. The
+       trend has to agree with the number on the page, and the page averages
+       the swings. A value the coach typed in by hand still wins. */
+    if (!manualKeys.has('avg_exit_velo')) {
+      const swings = grouped.find((g: any) => g.metricType === 'max_exit_velo');
+      const mean = swings?._avg?.value;
+      if (mean !== null && mean !== undefined && Number.isFinite(mean)) {
+        byKey.set('avg_exit_velo', { value: mean, unit: UNIT_FOR.avg_exit_velo });
       }
     }
   }
