@@ -28,13 +28,15 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { uploadVideoFile } from '@/lib/api';
 import { AnnouncementFeed, EditPostModal } from '@/components/announcements/AnnouncementFeed';
+import { CheckInHistory } from '@/components/CheckInHistory';
 import styles from './MessagesLauncher.module.css';
 
 type Panel = null | 'messages' | 'notifications';
 type View = 'list' | 'contacts' | 'thread';
-/* The two tabs inside the bell popover. 'notifications' is always the
-   landing tab — opening the bell never starts on Announcements. */
-type NotifTab = 'notifications' | 'announcements';
+/* The tabs inside the bell popover. 'notifications' is always the landing
+   tab — opening the bell never starts on one of the others. 'checkins' is
+   players-only, like 'announcements'. */
+type NotifTab = 'notifications' | 'announcements' | 'checkins';
 
 function initials(name: string) {
   return name
@@ -89,6 +91,8 @@ function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: nu
 
 export function MessagesLauncher() {
   const { user, isCoach, isAdmin } = useAuth();
+  /* Athletes carry their Player id on the auth user; coaches don't. */
+  const playerId: string | null = (user as any)?.playerId || null;
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -367,7 +371,7 @@ export function MessagesLauncher() {
                widens on that tab; the notification list stays compact. */
             data-tab={notifTab}
             role="dialog"
-            aria-label={notifTab === 'announcements' ? 'Announcements' : 'Notifications'}
+            aria-label={notifTab === 'announcements' ? 'Announcements' : notifTab === 'checkins' ? 'Check-Ins' : 'Notifications'}
           >
             <div className={styles.notifHead}>
               {/* Tab switcher replaces the old static "Notifications" label. */}
@@ -396,6 +400,21 @@ export function MessagesLauncher() {
                     Announcements
                   </button>
                 )}
+                {/* Check-Ins — the athlete's own training log. Players only:
+                    a coach reads check-ins through the dashboard's Athlete
+                    Workouts list, which is a roster view rather than a
+                    personal history. */}
+                {!isCoach && playerId && (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={notifTab === 'checkins'}
+                    className={`${styles.notifTab} ${notifTab === 'checkins' ? styles.notifTabActive : ''}`}
+                    onClick={() => setNotifTab('checkins')}
+                  >
+                    Check-Ins
+                  </button>
+                )}
               </div>
               <div className={styles.notifHeadActions}>
                 {notifTab === 'notifications'
@@ -417,7 +436,11 @@ export function MessagesLauncher() {
             {/* ── Announcements tab ── the feed that used to live on the
                 Dashboard. Coaches get inline edit / delete here; creation
                 still happens from the Dashboard's "+" button. ── */}
-            {notifTab === 'announcements' ? (
+            {notifTab === 'checkins' && playerId ? (
+              <div className={styles.announceScroll}>
+                <CheckInHistory playerId={playerId} />
+              </div>
+            ) : notifTab === 'announcements' ? (
               postsLoading ? (
                 <div className={styles.notifLoadingState}>
                   <span className={styles.spinner} />
