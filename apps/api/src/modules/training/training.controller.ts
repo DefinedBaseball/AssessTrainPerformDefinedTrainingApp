@@ -203,6 +203,64 @@ export class TrainingController {
     return this.trainingService.updateDrill(id, { videoUrl });
   }
 
+  // ─── Check-Ins ─────────────────────────────────────────────────
+
+  @Get('check-in/status')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: "Whether today's session should prompt a check-in (ownership-checked)" })
+  getCheckInStatus(
+    @Request() req: AuthenticatedRequest,
+    @Query('playerId') playerId: string,
+    @Query('date') date: string,
+  ) {
+    assertPlayerOwnership(req, playerId);
+    return this.trainingService.getCheckInStatus(playerId, date);
+  }
+
+  @Post('check-in')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Record a check-in for a training day (ownership-checked)' })
+  checkIn(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { playerId: string; date: string; focus: string },
+  ) {
+    assertPlayerOwnership(req, dto?.playerId);
+    return this.trainingService.checkIn(dto.playerId, dto.date, dto.focus);
+  }
+
+  @Post('check-in/finish')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Close out a session with the reflection answers (ownership-checked)' })
+  finishCheckIn(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { playerId: string; date: string; executedGoal: string; learned: string },
+  ) {
+    assertPlayerOwnership(req, dto?.playerId);
+    return this.trainingService.finishCheckIn(dto.playerId, dto.date, dto.executedGoal, dto.learned);
+  }
+
+  @Get('check-ins/player/:playerId')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: "An athlete's check-in history (ownership-checked)" })
+  listPlayerCheckIns(@Request() req: AuthenticatedRequest, @Param('playerId') playerId: string) {
+    assertPlayerOwnership(req, playerId);
+    return this.trainingService.listCheckInsForPlayer(playerId);
+  }
+
+  @Get('check-ins/day')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Every athlete scheduled on a date, with check-in state (COACH only)' })
+  listDayCheckIns(@Query('date') date: string) {
+    return this.trainingService.listDayCheckIns(date);
+  }
+
+  @Get('check-ins/search')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Search every athlete\'s check-in history by name (COACH only)' })
+  searchCheckIns(@Query('q') q: string) {
+    return this.trainingService.searchCheckIns(q);
+  }
+
   // ─── Scheduled Drills (Calendar) ───────────────────────────────
 
   @Get('schedule/:playerId')

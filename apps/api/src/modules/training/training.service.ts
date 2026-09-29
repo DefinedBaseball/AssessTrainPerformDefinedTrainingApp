@@ -71,6 +71,234 @@ export class TrainingService {
     }
   }
 
+  /* ═══════════════════ CHECK-INS ═══════════════════
+     Eligibility is never stored — an athlete is asked to check in on a date
+     exactly when ScheduledDrill has rows for them on it. Every read below
+     therefore starts from the schedule and left-joins the check-in, so a
+     coach clearing a calendar silently withdraws the prompt and a coach
+     adding one offers it, with no extra bookkeeping. */
+
+  /** Distinct dates this athlete has drills scheduled on, newest first. */
+  private async scheduledDatesFor(playerId: string): Promise<string[]> {
+    const rows = await this.prisma.scheduledDrill.findMany({
+      where: { playerId },
+      select: { date: true },
+      distinct: ['date'],
+      orderBy: { date: 'desc' },
+    });
+    return rows.map((r) => r.date);
+  }
+
+  /** Does this athlete have anything scheduled on this date? */
+  async hasScheduledOn(playerId: string, date: string): Promise<boolean> {
+    const n = await this.prisma.scheduledDrill.count({ where: { playerId, date } });
+    return n > 0;
+  }
+
+  /**
+   * What the athlete's Training tab needs on open: whether to prompt, and
+   * where they are in the flow if they already started.
+   */
+  async getCheckInStatus(playerId: string, date: string) {
+    const [scheduled, checkIn, drills] = await Promise.all([
+      this.hasScheduledOn(playerId, date),
+      this.prisma.drillCheckIn.findUnique({ where: { playerId_date: { playerId, date } } }),
+      this.prisma.scheduledDrill.count({ where: { playerId, date } }),
+    ]);
+    return {
+      date,
+      scheduled,
+      drillCount: drills,
+      /* Only prompt when there is something to train and nothing recorded. */
+      shouldPrompt: scheduled && !checkIn,
+      checkedIn: !!checkIn,
+      finished: !!checkIn?.finishedAt,
+      checkIn: checkIn ?? null,
+    };
+  }
+
+  /** Record the check-in. Idempotent: re-checking in the same day updates
+   *  the focus rather than erroring, so a double-tap cannot 500. */
+  async checkIn(playerId: string, date: string, focus: string) {
+    if (!date) throw new BadRequestException('date is required');
+    const text = (focus || '').trim();
+    if (!text) throw new BadRequestException('An area of focus is required');
+    if (!(await this.hasScheduledOn(playerId, date))) {
+      throw new BadRequestException('Nothing is scheduled for that day');
+    }
+    return this.prisma.drillCheckIn.upsert({
+      where: { playerId_date: { playerId, date } },
+      create: { playerId, date, focus: text },
+      update: { focus: text },
+    });
+  }
+
+  /** Close out the session with the two reflection answers. */
+  async finishCheckIn(playerId: string, date: string, executedGoal: string, learned: string) {
+    const existing = await this.prisma.drillCheckIn.findUnique({
+      where: { playerId_date: { playerId, date } },
+    });
+    if (!existing) throw new BadRequestException('Check in before finishing the session');
+    return this.prisma.drillCheckIn.update({
+      where: { playerId_date: { playerId, date } },
+      data: {
+        executedGoal: (executedGoal || '').trim() || null,
+        learned: (learned || '').trim() || null,
+        /* Preserve the original finish time if they submit twice. */
+        finishedAt: existing.finishedAt ?? new Date(),
+      },
+    });
+  }
+
+  /**
+   * The athlete's own history: every day they had drills scheduled, with
+   * whatever check-in exists for it. Days with no check-in still appear —
+   * a missed day is part of the record.
+   */
+  async listCheckInsForPlayer(playerId: string) {
+    const dates = await this.scheduledDatesFor(playerId);
+    if (dates.length === 0) return [];
+    const rows = await this.prisma.drillCheckIn.findMany({
+      where: { playerId, date: { in: dates } },
+    });
+    const byDate = new Map(rows.map((r) => [r.date, r]));
+    const counts = await this.prisma.scheduledDrill.groupBy({
+      by: ['date'],
+      where: { playerId, date: { in: dates } },
+      _count: { _all: true },
+    });
+    const countByDate = new Map(counts.map((c) => [c.date, c._count._all]));
+    return dates.map((date) => {
+      const c = byDate.get(date);
+      return {
+        date,
+        drillCount: countByDate.get(date) ?? 0,
+        checkedIn: !!c,
+        finished: !!c?.finishedAt,
+        focus: c?.focus ?? null,
+        executedGoal: c?.executedGoal ?? null,
+        learned: c?.learned ?? null,
+        checkedInAt: c?.checkedInAt ?? null,
+        finishedAt: c?.finishedAt ?? null,
+      };
+    });
+  }
+
+  /**
+   * Coach view for one day: every athlete with drills scheduled, and their
+   * check-in / finish state. Drives the dashboard's Athlete Workouts count
+   * and the list behind it, so it is deliberately one query pair rather
+   * than a per-athlete fan-out.
+   */
+  async listDayCheckIns(date: string) {
+    if (!date) throw new BadRequestException('date is required');
+    const scheduled = await this.prisma.scheduledDrill.groupBy({
+      by: ['playerId'],
+      where: { date },
+      _count: { _all: true },
+    });
+    if (scheduled.length === 0) return [];
+    const playerIds = scheduled.map((s) => s.playerId);
+    const [players, checkIns] = await Promise.all([
+      this.prisma.player.findMany({
+        where: { id: { in: playerIds } },
+        select: { id: true, firstName: true, lastName: true, positions: true, profilePhoto: true },
+      }),
+      this.prisma.drillCheckIn.findMany({ where: { date, playerId: { in: playerIds } } }),
+    ]);
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const ciById = new Map(checkIns.map((c) => [c.playerId, c]));
+    return scheduled
+      .map((s) => {
+        const p = byId.get(s.playerId);
+        const c = ciById.get(s.playerId);
+        return {
+          playerId: s.playerId,
+          firstName: p?.firstName ?? '',
+          lastName: p?.lastName ?? '',
+          positions: p?.positions ?? '',
+          profilePhoto: p?.profilePhoto ?? null,
+          drillCount: s._count._all,
+          checkedIn: !!c,
+          finished: !!c?.finishedAt,
+          focus: c?.focus ?? null,
+          executedGoal: c?.executedGoal ?? null,
+          learned: c?.learned ?? null,
+          checkedInAt: c?.checkedInAt ?? null,
+          finishedAt: c?.finishedAt ?? null,
+        };
+      })
+      /* Players deleted mid-day would otherwise render as a blank row. */
+      .filter((r) => r.firstName || r.lastName)
+      .sort((a, b) => (a.firstName + a.lastName).localeCompare(b.firstName + b.lastName));
+  }
+
+  /**
+   * Search every athlete's check-in history by name, newest first.
+   *
+   * Days with no check-in are included: a coach searching a name wants the
+   * whole record, and a missed session is the part they are most likely
+   * looking for. Same reasoning as the athlete's own history view.
+   *
+   * Name matching is done in memory rather than with a `contains` filter
+   * because Prisma's case-insensitive mode is unavailable on SQLite, and
+   * LIKE is case-insensitive on SQLite but case-SENSITIVE on Postgres — so
+   * a DB-side filter would quietly behave differently in dev and prod. The
+   * roster is small enough that this costs nothing.
+   */
+  async searchCheckIns(query: string) {
+    const term = (query || '').trim().toLowerCase();
+    if (!term) return [];
+
+    const roster = await this.prisma.player.findMany({
+      select: { id: true, firstName: true, lastName: true, positions: true, profilePhoto: true },
+    });
+    const matched = roster.filter((p) =>
+      `${p.firstName ?? ''} ${p.lastName ?? ''}`.toLowerCase().includes(term));
+    if (matched.length === 0) return [];
+
+    const playerIds = matched.map((p) => p.id);
+    const [scheduled, checkIns] = await Promise.all([
+      this.prisma.scheduledDrill.groupBy({
+        by: ['playerId', 'date'],
+        where: { playerId: { in: playerIds } },
+        _count: { _all: true },
+      }),
+      this.prisma.drillCheckIn.findMany({ where: { playerId: { in: playerIds } } }),
+    ]);
+
+    const byId = new Map(matched.map((p) => [p.id, p]));
+    const ciKey = (playerId: string, date: string) => `${playerId}|${date}`;
+    const ciMap = new Map(checkIns.map((c) => [ciKey(c.playerId, c.date), c]));
+
+    return scheduled
+      .map((s) => {
+        const p = byId.get(s.playerId)!;
+        const c = ciMap.get(ciKey(s.playerId, s.date));
+        return {
+          playerId: s.playerId,
+          firstName: p.firstName ?? '',
+          lastName: p.lastName ?? '',
+          positions: p.positions ?? '',
+          profilePhoto: p.profilePhoto ?? null,
+          date: s.date,
+          drillCount: s._count._all,
+          checkedIn: !!c,
+          finished: !!c?.finishedAt,
+          focus: c?.focus ?? null,
+          executedGoal: c?.executedGoal ?? null,
+          learned: c?.learned ?? null,
+          checkedInAt: c?.checkedInAt ?? null,
+          finishedAt: c?.finishedAt ?? null,
+        };
+      })
+      /* Newest first; same athlete on the same day can't repeat, so the
+         name is only a tiebreak when two athletes share a date. */
+      .sort((a, b) =>
+        b.date.localeCompare(a.date)
+        || (a.firstName + a.lastName).localeCompare(b.firstName + b.lastName));
+  }
+
   // ─── Drill Library ─────────────────────────────────────────────
 
   async getAllDrills(tab?: string) {

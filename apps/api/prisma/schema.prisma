@@ -136,6 +136,7 @@ model Player {
   trainingPrograms   TrainingProgram[]
   leaderboardEntries LeaderboardEntry[]
   scheduledDrills    ScheduledDrill[]
+  checkIns           DrillCheckIn[]
 
   uploadedVideos Video[] @relation("UploadedBy")
   posts          Post[]
@@ -490,6 +491,40 @@ model MlbVideo {
 }
 
 // ─── Scheduled Drills (Calendar entries per player) ─────────────
+
+/// One athlete's check-in for one training day.
+///
+/// Whether a check-in is even OFFERED is derived, not stored: the athlete is
+/// prompted when ScheduledDrill has rows for them on that date. So there is
+/// no "assigned" flag to keep in sync — clearing someone's calendar simply
+/// stops the prompt, and the coach's day list is a join over the schedule.
+///
+/// The row is created at CHECK-IN and completed at FINISH, which is why the
+/// reflection fields are nullable: a row that exists with finishedAt null is
+/// an athlete mid-session. `date` is a plain "YYYY-MM-DD" string to match
+/// ScheduledDrill.date, so the two join without any timezone conversion —
+/// an athlete's training day is their local calendar day, not a UTC instant.
+model DrillCheckIn {
+  id       String @id @default(uuid())
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// "YYYY-MM-DD", matching ScheduledDrill.date.
+  date     String
+
+  /// "What is one area of focus for today's session?"
+  focus       String
+  checkedInAt DateTime @default(now())
+
+  /// Reflection — captured on Finish, so null until the session is closed out.
+  /// "Did you execute your goal?" / "What did you learn?"
+  executedGoal String?
+  learned      String?
+  finishedAt   DateTime?
+
+  /// One check-in per athlete per day; the upsert key.
+  @@unique([playerId, date])
+  @@index([date])
+}
 
 model ScheduledDrill {
   id           String   @id @default(uuid())

@@ -19,6 +19,7 @@ const ScheduleDownloadModal = nextDynamic(
 import { SaveTemplateModal } from '@/components/TemplatePicker';
 import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
+import { CheckInFlow } from './CheckInFlow';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 /* Tab + category color system lives in a shared module so the Player
@@ -1451,6 +1452,20 @@ export default function TrainingPage() {
       )}
 
       {/* ── Schedule Download (PDF) Modal ── */}
+      {/* ── Check-In ──
+          The athlete's own bookend around today's session: prompt on open,
+          Finish bar under the calendar, reflection on the way out. Gated to
+          players — a coach viewing this calendar isn't the one training —
+          and the component itself renders nothing unless the athlete has
+          drills scheduled today. */}
+      {!isCoach && selectedPlayerId && (
+        <CheckInFlow
+          playerId={selectedPlayerId}
+          viewDate={toDateStr(currentDate)}
+          onChanged={refreshEvents}
+        />
+      )}
+
       {showScheduleDl && selectedPlayerId && (
         <ScheduleDownloadModal
           playerId={selectedPlayerId}

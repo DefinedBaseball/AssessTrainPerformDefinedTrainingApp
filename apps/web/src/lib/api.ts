@@ -1136,6 +1136,99 @@ export async function getScheduledDrills(playerId: string, opts?: { startDate?: 
   return request<ScheduledDrill[]>(`/training/schedule/${playerId}${qs}`);
 }
 
+/* ── Check-Ins ──────────────────────────────────────────────────────
+   An athlete is prompted to check in on any day they have drills
+   scheduled; there is no separate "assigned" record, so every shape below
+   is derived from the calendar. `date` is always a local "YYYY-MM-DD".
+   ────────────────────────────────────────────────────────────────── */
+
+export interface CheckInRecord {
+  id: string;
+  playerId: string;
+  date: string;
+  focus: string;
+  checkedInAt: string;
+  executedGoal: string | null;
+  learned: string | null;
+  finishedAt: string | null;
+}
+
+/** One day in an athlete's own check-in history. */
+export interface CheckInDay {
+  date: string;
+  drillCount: number;
+  checkedIn: boolean;
+  finished: boolean;
+  focus: string | null;
+  executedGoal: string | null;
+  learned: string | null;
+  checkedInAt: string | null;
+  finishedAt: string | null;
+}
+
+/** One athlete's row in the coach's day view. */
+export interface DayCheckInRow extends CheckInDay {
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  positions: string;
+  profilePhoto: string | null;
+}
+
+export interface CheckInStatus {
+  date: string;
+  scheduled: boolean;
+  drillCount: number;
+  /** Scheduled today AND nothing recorded yet — the cue to show the prompt. */
+  shouldPrompt: boolean;
+  checkedIn: boolean;
+  finished: boolean;
+  checkIn: CheckInRecord | null;
+}
+
+export async function getCheckInStatus(playerId: string, date: string) {
+  return request<CheckInStatus>(
+    `/training/check-in/status?playerId=${playerId}&date=${date}`,
+  );
+}
+
+export async function checkIn(data: { playerId: string; date: string; focus: string }) {
+  return request<CheckInRecord>('/training/check-in', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function finishCheckIn(data: {
+  playerId: string;
+  date: string;
+  executedGoal: string;
+  learned: string;
+}) {
+  return request<CheckInRecord>('/training/check-in/finish', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getPlayerCheckIns(playerId: string) {
+  return request<CheckInDay[]>(`/training/check-ins/player/${playerId}`);
+}
+
+/** Coach: every athlete scheduled on `date`, with their check-in state. */
+export async function getDayCheckIns(date: string) {
+  return request<DayCheckInRow[]>(`/training/check-ins/day?date=${date}`);
+}
+
+/**
+ * Coach: search every athlete's check-in history by name, newest first.
+ * Spans all dates — unlike `getDayCheckIns`, which is a single day. Days the
+ * athlete missed are included, so the result is the whole record.
+ */
+export async function searchCheckIns(q: string) {
+  return request<DayCheckInRow[]>(`/training/check-ins/search?q=${encodeURIComponent(q)}`);
+}
+
 export async function createScheduledDrill(data: {
   playerId: string;
   drillId?: string;
