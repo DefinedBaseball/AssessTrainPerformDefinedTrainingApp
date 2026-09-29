@@ -2,33 +2,72 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BunnyService } from '../videos/bunny.service';
+import { S3Service } from '../videos/s3.service';
 import * as fs from 'fs';
 import * as path from 'path';
+
+/** Local-disk URL shapes this API serves videos from, and the directory each
+ *  one maps to. Drill uploads write the first; athlete videos the second.
+ *  Getting this list wrong is what made the old cleanup a no-op. */
+const LOCAL_VIDEO_ROUTES: { prefix: string; dir: string[] }[] = [
+  { prefix: '/api/training/drills/video/', dir: ['uploads', 'drills'] },
+  { prefix: '/api/videos/file/', dir: ['uploads', 'videos'] },
+];
 
 @Injectable()
 export class TrainingService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private bunny: BunnyService,
+    private s3: S3Service,
   ) {}
 
-  /** When a Drill carries a videoUrl that points at our local upload
-   *  directory, delete the underlying file so it doesn't orphan on
-   *  disk after the Drill row is removed. URLs like "/api/videos/file/
-   *  abc.mp4" map to "uploads/videos/abc.mp4" relative to cwd. Falls
-   *  back to a no-op if the URL is external (e.g. YouTube embed) or
-   *  the file is already gone. */
-  private cleanupDrillVideoFile(videoUrl: string | null | undefined) {
+  /**
+   * Delete the media a Drill's videoUrl points at, so replacing or removing a
+   * drill doesn't orphan the old clip.
+   *
+   * Handles every driver the upload route can write to, because the URL shape
+   * differs per driver and matching only one is how this silently stopped
+   * working: local disk (two distinct route prefixes), Bunny (guid recovered
+   * from the CDN URL) and S3 (key recovered from the public URL). Anything
+   * unrecognised — an external YouTube embed, a hand-edited URL — is left
+   * alone rather than guessed at.
+   *
+   * Best-effort by design: a cleanup failure must never fail the save that
+   * triggered it, so everything is caught and logged.
+   */
+  private async cleanupDrillVideoFile(videoUrl: string | null | undefined): Promise<void> {
     if (!videoUrl) return;
-    const FILE_PREFIX = '/api/videos/file/';
-    if (!videoUrl.startsWith(FILE_PREFIX)) return;
-    const filename = videoUrl.slice(FILE_PREFIX.length);
-    if (!filename || filename.includes('/') || filename.includes('..')) return; // guard against path traversal
-    const filePath = path.join(process.cwd(), 'uploads', 'videos', filename);
+
     try {
-      fs.unlinkSync(filePath);
+      for (const { prefix, dir } of LOCAL_VIDEO_ROUTES) {
+        if (!videoUrl.startsWith(prefix)) continue;
+        const filename = videoUrl.slice(prefix.length);
+        // Guard against path traversal before touching the filesystem.
+        if (!filename || filename.includes('/') || filename.includes('..')) return;
+        try {
+          fs.unlinkSync(path.join(process.cwd(), ...dir, filename));
+        } catch {
+          // Already gone or never existed — fine.
+        }
+        return;
+      }
+
+      const guid = this.bunny.guidFromUrl(videoUrl);
+      if (guid) {
+        await this.bunny.deleteVideoObject(guid);
+        return;
+      }
+
+      const key = this.s3.keyFromUrl(videoUrl);
+      if (key) {
+        await this.s3.deleteObject(key);
+        return;
+      }
     } catch {
-      // Already gone or never existed — fine.
+      /* Never let cleanup break the caller. */
     }
   }
 
@@ -83,7 +122,7 @@ export class TrainingService {
     if (data.videoUrl !== undefined) {
       const prev = await this.prisma.drill.findUnique({ where: { id }, select: { videoUrl: true } });
       if (prev && prev.videoUrl && prev.videoUrl !== data.videoUrl) {
-        this.cleanupDrillVideoFile(prev.videoUrl);
+        await this.cleanupDrillVideoFile(prev.videoUrl);
       }
     }
     return this.prisma.drill.update({ where: { id }, data });
@@ -100,7 +139,7 @@ export class TrainingService {
       where: { id }, select: { videoUrl: true },
     });
     const result = await this.prisma.drill.delete({ where: { id } });
-    if (drill?.videoUrl) this.cleanupDrillVideoFile(drill.videoUrl);
+    if (drill?.videoUrl) await this.cleanupDrillVideoFile(drill.videoUrl);
     return result;
   }
 

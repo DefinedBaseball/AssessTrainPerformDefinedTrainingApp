@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException, Logger } from '@nestjs/common';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
@@ -94,6 +94,39 @@ export class S3Service {
    * back to the canonical s3.amazonaws.com URL — only useful when the
    * bucket is public, otherwise consumers must call presignGetUrl.
    */
+  /**
+   * Inverse of `publicUrlFor` — recover the object key from a URL this
+   * service handed out, via either the CDN base or the direct bucket host.
+   * Returns null for anything that isn't one of ours, so an unrelated URL
+   * can't be turned into a delete against the bucket.
+   */
+  keyFromUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
+    if (cdn && url.startsWith(cdn + '/')) {
+      return url.slice(cdn.length + 1) || null;
+    }
+    if (!this.bucket || !this.region) return null;
+    const direct = `https://${this.bucket}.s3.${this.region}.amazonaws.com/`;
+    if (url.startsWith(direct)) return url.slice(direct.length) || null;
+    return null;
+  }
+
+  /** Best-effort object delete. Never throws — a failed cleanup must not
+   *  fail the write that triggered it. */
+  async deleteObject(key: string): Promise<boolean> {
+    if (!this.isConfigured() || !key) return false;
+    try {
+      await this.requireClient().send(
+        new DeleteObjectCommand({ Bucket: this.bucket!, Key: key }),
+      );
+      return true;
+    } catch (e: any) {
+      this.logger.warn(`S3 delete ${key} failed: ${e?.message || e}`);
+      return false;
+    }
+  }
+
   publicUrlFor(key: string): string {
     const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
     if (cdn) return `${cdn}/${key}`;
