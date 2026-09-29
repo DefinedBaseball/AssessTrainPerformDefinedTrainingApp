@@ -149,6 +149,13 @@
 .cardBtn:hover { background: var(--surface2); color: var(--text); }
 .cardBtnEdit:hover { background: var(--accent-dim); color: var(--accent-light); }
 .cardBtnDel:hover { background: var(--red-dim); color: var(--red); }
+/* Row-level video actions. Same 28x28 chrome as edit / delete; the SVG
+   glyphs inherit currentColor so they follow the shared hover tint. */
+.cardBtnVideo:hover { background: var(--accent-dim); color: var(--accent-light); }
+.cardBtnFile:hover  { background: var(--accent-dim); color: var(--accent-light); }
+/* Replaces the button cluster while a clip is uploading. */
+.cardUploading { display: flex; align-items: center; height: 28px; padding: 0 8px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.cardUploadError { display: block; margin-top: 4px; font-size: 11px; color: var(--red); }
 
 /* ── MLB Video ── */
 .mlbFilters {
@@ -568,6 +575,15 @@
 }
 /* File picker and Take Video sit side by side; the picker takes the
    remaining width so long filenames stay readable. */
+/* Inline preview inside the Edit Drill form. Deliberately smaller than
+   the .videoContainer used by the full viewer modal — this sits between
+   two form fields, so it is capped at 220px and rounded to read as part
+   of the form rather than as a player taking over the dialog. */
+.editVideoPreview { position: relative; margin: 6px 0 8px; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid var(--border-light); }
+.editVideoPreviewPlayer { display: block; width: 100%; max-height: 220px; background: #000; }
+.confirmReplaceWarn { display: block; margin-top: 6px; font-size: 11px; color: var(--red); }
+.editVideoPreviewTag { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(0, 0, 0, .62); pointer-events: none; }
+
 .videoSourceRow { display: flex; gap: 8px; align-items: stretch; }
 .videoSourceRow .fileUpload { flex: 1; min-width: 0; }
 .videoSourceRow button { flex-shrink: 0; cursor: pointer; font-family: inherit; }

@@ -572,6 +572,16 @@ function ClassDetailView({ cls }: { cls: EduClass }) {
 function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, setSearch, isCoach, showModal, setShowModal }: any) {
   const [viewingDrill, setViewingDrill] = useState<Drill | null>(null);
   const [editingDrill, setEditingDrill] = useState<Drill | null>(null);
+  /* Attaching a clip straight from the row, without opening the drill.
+     Both paths end in the same api.uploadDrillVideo call the edit modal
+     uses — the row just skips the form. */
+  const [recordingDrill, setRecordingDrill] = useState<Drill | null>(null);
+  /* A file chosen from the row, held back until the coach confirms it in the
+     preview below. Nothing is uploaded — and so nothing is replaced — until
+     Save is clicked. */
+  const [pendingUpload, setPendingUpload] = useState<{ drill: Drill; file: File } | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<{ id: string; msg: string } | null>(null);
   const sportObj = SPORTS.find(s => s.id === sport)!;
   const cats = DRILL_CATS[sport] || [];
 
@@ -598,6 +608,23 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
   const handleDrillUpdated = (updated: Drill) => {
     setDrills((prev: Drill[]) => prev.map(d => d.id === updated.id ? updated : d));
     setEditingDrill(null);
+  };
+
+  /* Shared by the row's Video and File buttons. Uploads against the drill
+     id directly, so nothing about the drill's own fields is touched — a
+     clip can be attached without re-saving name / category / description. */
+  const attachVideo = async (drillId: string, file: File) => {
+    setUploadError(null);
+    setUploadingId(drillId);
+    try {
+      const updated = await api.uploadDrillVideo(drillId, file);
+      setDrills((prev: Drill[]) => prev.map(d => d.id === updated.id ? updated : d));
+    } catch (err) {
+      console.error('Failed to attach drill video:', err);
+      setUploadError({ id: drillId, msg: (err as Error)?.message || 'Upload failed' });
+    } finally {
+      setUploadingId(null);
+    }
   };
 
   return (
@@ -664,10 +691,65 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
                   <div className={styles.cardMeta}>
                     <span className={styles.metaItem}>{d.category}</span>
                     {isCoach && (
-                      <span className={styles.cardActions}>
-                        <button className={`${styles.cardBtn} ${styles.cardBtnEdit}`} onClick={(e) => { e.stopPropagation(); setEditingDrill(d); }} title="Edit drill">&#9998;</button>
-                        <button className={`${styles.cardBtn} ${styles.cardBtnDel}`} onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete drill">×</button>
+                      /* The actions strip is hover-revealed (opacity 0 until
+                         .drillCard:hover). Pin it open while an upload is in
+                         flight so the progress state doesn't vanish the moment
+                         the coach moves the mouse away. */
+                      <span
+                        className={styles.cardActions}
+                        style={uploadingId === d.id ? { opacity: 1 } : undefined}
+                      >
+                        {uploadingId === d.id ? (
+                          <span className={styles.cardUploading} title="Uploading video…">Uploading…</span>
+                        ) : (
+                          <>
+                            {/* Record straight to this drill — same recorder the
+                                edit modal opens, minus the form. */}
+                            <button
+                              className={`${styles.cardBtn} ${styles.cardBtnVideo}`}
+                              onClick={(e) => { e.stopPropagation(); setUploadError(null); setRecordingDrill(d); }}
+                              title={d.videoUrl ? 'Record a video (replaces the current one)' : 'Record a video'}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="2" y="6" width="13" height="12" rx="2" />
+                                <path d="M15 10l6-3v10l-6-3z" />
+                              </svg>
+                            </button>
+                            {/* A label rather than a button: the hidden input opens
+                                the picker natively, no ref plumbing. */}
+                            <label
+                              className={`${styles.cardBtn} ${styles.cardBtnFile}`}
+                              onClick={(e) => { e.stopPropagation(); setUploadError(null); }}
+                              title={d.videoUrl ? 'Upload a video file (replaces the current one)' : 'Upload a video file'}
+                            >
+                              <input
+                                type="file"
+                                accept="video/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  /* Clear the input so picking the SAME file again
+                                     still fires a change event. */
+                                  e.target.value = '';
+                                  /* Staged, not uploaded — the confirm step owns
+                                     the commit. */
+                                  if (f) setPendingUpload({ drill: d, file: f });
+                                }}
+                              />
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M12 16V4" />
+                                <path d="M7 9l5-5 5 5" />
+                                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                              </svg>
+                            </label>
+                            <button className={`${styles.cardBtn} ${styles.cardBtnEdit}`} onClick={(e) => { e.stopPropagation(); setEditingDrill(d); }} title="Edit drill">&#9998;</button>
+                            <button className={`${styles.cardBtn} ${styles.cardBtnDel}`} onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }} title="Delete drill">×</button>
+                          </>
+                        )}
                       </span>
+                    )}
+                    {uploadError?.id === d.id && (
+                      <span className={styles.cardUploadError}>{uploadError.msg}</span>
                     )}
                   </div>
                 </div>
@@ -680,6 +762,41 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
       {showModal && <DrillModal sport={sport} onClose={() => setShowModal(false)} onSaved={(d: Drill) => { setDrills((prev: Drill[]) => [...prev, d]); setShowModal(false); }} />}
       {viewingDrill && <DrillVideoModal drill={viewingDrill} onClose={() => setViewingDrill(null)} />}
       {editingDrill && <EditDrillModal drill={editingDrill} onClose={() => setEditingDrill(null)} onSaved={handleDrillUpdated} />}
+      {/* Confirm step for a file picked from the row. The recorder already
+          ends in its own review → Save, so only the upload path needed one. */}
+      {pendingUpload && (
+        <ConfirmVideoUploadModal
+          drill={pendingUpload.drill}
+          file={pendingUpload.file}
+          onCancel={() => setPendingUpload(null)}
+          onConfirm={() => {
+            const { drill, file } = pendingUpload;
+            setPendingUpload(null);
+            attachVideo(drill.id, file);
+          }}
+        />
+      )}
+      {/* Row-level recorder. Same component the edit modal hosts; on save it
+          uploads against the drill id and closes, so the coach never sees
+          the drill form. */}
+      {recordingDrill && (
+        <div className={styles.modalOverlay} onClick={() => setRecordingDrill(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <span className={styles.modalTitle}>Record Video — {recordingDrill.name}</span>
+              <button className={styles.modalClose} onClick={() => setRecordingDrill(null)}>×</button>
+            </div>
+            <DrillVideoRecorder
+              onSave={(file) => {
+                const target = recordingDrill;
+                setRecordingDrill(null);
+                if (target) attachVideo(target.id, file);
+              }}
+              onDiscard={() => setRecordingDrill(null)}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -778,6 +895,73 @@ function DrillVideoModal({ drill, onClose }: { drill: Drill; onClose: () => void
   );
 }
 
+/* ── Confirm a picked video before it replaces anything ──────────────
+   The coach picked a file from the drill row; show it back to them at a
+   size they can actually judge, and only upload on Save. Without this the
+   picker's own single click was the commit — and since a replace now
+   deletes the previous clip for real, a mis-picked file was unrecoverable.
+   ──────────────────────────────────────────────────────────────────── */
+function ConfirmVideoUploadModal({ drill, file, onCancel, onConfirm }: {
+  drill: Drill;
+  file: File;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  /* Object URL for the local file, revoked on unmount so closing the modal
+     doesn't strand a blob for the life of the page. */
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+
+  return (
+    <div className={styles.modalOverlay} onClick={onCancel}>
+      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <span className={styles.modalTitle}>Confirm Video — {drill.name}</span>
+          <button className={styles.modalClose} onClick={onCancel}>×</button>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              {drill.videoUrl ? 'This will replace the current video' : 'New video'}
+            </label>
+            {url && (
+              <div className={styles.editVideoPreview}>
+                <video
+                  className={styles.editVideoPreviewPlayer}
+                  src={url}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  autoPlay
+                />
+                <span className={styles.editVideoPreviewTag}>Not saved yet</span>
+              </div>
+            )}
+            <span className={styles.fileUploadMeta}>
+              {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+            </span>
+            {drill.videoUrl && (
+              <span className={styles.confirmReplaceWarn}>
+                The drill&rsquo;s current video will be deleted when you save.
+              </span>
+            )}
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.btnCancel} onClick={onCancel}>Cancel</button>
+          <button className={styles.btnSave} onClick={onConfirm}>
+            {drill.videoUrl ? 'Replace Video' : 'Save Video'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ══════════ EDIT DRILL MODAL ══════════ */
 
 function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: () => void; onSaved: (d: Drill) => void }) {
@@ -790,6 +974,17 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
   /* When true the recorder replaces the form. Kept here rather than
      inside the recorder so the modal footer swaps out with it. */
   const [recording, setRecording] = useState(false);
+
+  /* Preview source for the picked-but-not-yet-uploaded file. Created as an
+     object URL and revoked when it changes or the modal closes — without the
+     revoke each re-pick would leak a blob for the life of the page. */
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!videoFile) { setPendingUrl(null); return; }
+    const url = URL.createObjectURL(videoFile);
+    setPendingUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [videoFile]);
 
   const cats = DRILL_CATS[sp] || [];
 
@@ -841,8 +1036,27 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
           <div className={styles.field}><label className={styles.fieldLabel}>Description</label><textarea className={styles.fieldInput} value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="Coaching cues, setup, keys..." style={{ resize: 'vertical' }} /></div>
           <div className={styles.field}>
             <label className={styles.fieldLabel}>Replace Video</label>
-            {drill.videoUrl && !videoFile && (
-              <span className={styles.fileUploadMeta}>Current video attached ✓</span>
+            {/* Preview. Shows the drill's CURRENT clip until a new file is
+                picked, then switches to that file so the coach confirms what
+                they are about to upload rather than trusting a filename.
+                `key` forces the element to remount when the source changes —
+                a plain src swap leaves the previous frame painted. */}
+            {(pendingUrl || drill.videoUrl) ? (
+              <div className={styles.editVideoPreview}>
+                <video
+                  key={pendingUrl || drill.videoUrl || ''}
+                  className={styles.editVideoPreviewPlayer}
+                  src={pendingUrl || drill.videoUrl || undefined}
+                  controls
+                  preload="metadata"
+                  playsInline
+                />
+                <span className={styles.editVideoPreviewTag}>
+                  {pendingUrl ? 'New video — not saved yet' : 'Current video'}
+                </span>
+              </div>
+            ) : (
+              <span className={styles.fileUploadMeta}>No video uploaded for this drill</span>
             )}
             <div className={styles.videoSourceRow}>
               <label className={styles.fileUpload}>
