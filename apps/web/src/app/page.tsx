@@ -247,6 +247,28 @@ export default function DashboardPage() {
     return Array.from(keys);
   }, [summary.reports]);
 
+  /* Athlete Workouts — how many athletes have drills on TODAY's calendar.
+     Replaced the Committed count, which was a roster attribute that rarely
+     moved; this changes every day and is the thing a coach acts on. The
+     number and the list behind it both come from the schedule, so nothing
+     has to be kept in sync. */
+  const todayStr = (() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+  const [workoutRows, setWorkoutRows] = useState<api.DayCheckInRow[] | null>(null);
+  useEffect(() => {
+    if (!isCoach) return;
+    let cancelled = false;
+    api.getDayCheckIns(todayStr)
+      .then((r) => { if (!cancelled) setWorkoutRows(r); })
+      .catch(() => { if (!cancelled) setWorkoutRows([]); });
+  }, [isCoach, todayStr]);
+
+  /* Every hook must sit ABOVE this guard: an early return that skips
+     hooks changes their count between renders, which React treats as a
+     fatal ordering violation rather than a no-op. */
   if (isLoading || !user) return null;
 
   /* ── Player Dashboard ── */
@@ -327,7 +349,6 @@ export default function DashboardPage() {
   }
 
   /* ── Coach Dashboard ── */
-  const committed = players.filter(p => p.collegeCommit).length;
   /* The old "Pro Signings" card counted posts of a tag that no longer
      exists. Unflagged urgent posts is the number that actually matters on
      a staff comms board — and it is MY unflagged count, since seen state
@@ -358,10 +379,16 @@ export default function DashboardPage() {
             <div className={styles.statValue}>{playersError ? '—' : players.length}</div>
             <div className={styles.statLabel}>Total Athletes</div>
           </Link>
-          <div className={styles.statCard}>
-            <div className={styles.statValue}>{playersError ? '—' : committed}</div>
-            <div className={styles.statLabel}>Committed</div>
-          </div>
+          {/* Athlete Workouts — today's count, and the way into the full
+              day view. A destination like Total Athletes rather than a
+              modal: the coach works through the list, and the day is
+              navigable once they are there. */}
+          <Link href="/workouts" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
+            <div className={styles.statValue}>
+              {workoutRows === null ? '—' : workoutRows.length}
+            </div>
+            <div className={styles.statLabel}>Athlete Workouts</div>
+          </Link>
           {/* The last two cards are DESTINATIONS, not counts — same tile
               chrome so the row still reads as one strip, with a glyph
               standing in for the number. */}

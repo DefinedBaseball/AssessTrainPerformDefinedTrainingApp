@@ -1,0 +1,306 @@
+/* Athlete Workouts page — mirrors the Client Directory's table rhythm so
+   the two coach roster pages read as a pair. */
+
+.panel {
+  margin-top: 16px;
+  background: var(--card-elev, var(--surface));
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+/* ── Day bar ── */
+.dayBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: var(--card-elev, var(--surface));
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.navBtn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+.navBtn:hover { background: var(--surface2); color: var(--text); }
+
+.dayText { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; text-align: center; }
+
+/* The date reads as text until hovered — it is a label first and a control
+   second, so it shouldn't compete with the arrows either side of it. */
+.dayLabelBtn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 2px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.dayLabelBtn:hover { background: var(--surface2); border-color: var(--border); }
+.daySummary { font-size: 11.5px; color: var(--text-muted); }
+
+.todayBtn {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+}
+.todayBtn:hover { background: var(--surface2); color: var(--text); }
+
+/* ── Toolbar ── */
+.toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+
+.search {
+  flex: 1;
+  max-width: 320px;
+  background: var(--surface2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 8px 12px;
+  /* pt, not px: iOS force-zooms inputs under 16px and pxtorem rescales px. */
+  font-size: 12pt;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+}
+.search:focus { border-color: var(--accent, #3d8bfd); }
+
+.retry {
+  border: 1px solid var(--accent, #3d8bfd);
+  color: var(--accent, #3d8bfd);
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* ── Table ── */
+.scrollX { overflow-x: auto; }
+
+.head,
+.row {
+  display: grid;
+  grid-template-columns: minmax(160px, 2fr) 70px 120px 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  min-width: 480px;
+}
+
+.head {
+  border-bottom: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-light);
+}
+.head > span {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.row {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.row:hover { background: var(--surface2, rgba(255, 255, 255, 0.04)); }
+
+.name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.cell { font-size: 13px; color: var(--text-muted); }
+.colCenter { display: flex; align-items: center; justify-content: center; }
+
+.box {
+  width: 84px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+.boxOn  { background: var(--green-dim, rgba(34, 197, 94, 0.16)); color: var(--green, #22c55e); border-color: var(--green, #22c55e); }
+.boxOff { background: var(--red-dim, rgba(239, 68, 68, 0.13));   color: var(--red, #ef4444);   border-color: var(--red, #ef4444); }
+
+.state { padding: 40px 18px; text-align: center; color: var(--text-muted); font-size: 13px; }
+.emptyTitle { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.emptyHint { margin: 0; font-size: 12px; color: var(--text-muted); }
+
+/* ── Detail ── */
+.back {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 14px 16px 6px;
+  font-family: inherit;
+}
+.back:hover { color: var(--text); }
+
+.detailHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.detailName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+.detailName:hover { color: var(--accent, #3d8bfd); }
+.detailBoxes { display: flex; gap: 10px; }
+
+.qa { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-bottom: 1px solid var(--border-light); }
+.qa:last-child { border-bottom: none; }
+.q {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.a { font-size: 14px; color: var(--text); line-height: 1.55; white-space: pre-wrap; }
+.none { color: var(--faint, var(--text-muted)); font-style: italic; }
+
+@media (max-width: 560px) {
+  .head, .row { grid-template-columns: minmax(130px, 2fr) 54px 96px 96px; min-width: 420px; }
+  .box { width: 72px; }
+}
+
+/* ── Calendar popover ── */
+.calPop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: 262px;
+  padding: 10px;
+  background: var(--card-elev, var(--surface));
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3);
+}
+
+.calHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.calTitle { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.calNav {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+.calNav:hover { background: var(--surface2); color: var(--text); }
+
+.calGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+
+.calDow {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.calDay {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.calDay:hover { background: var(--surface2); }
+/* Today is outlined; the selected day is filled. Both can be true. */
+.calDayToday { border-color: var(--border); font-weight: 700; }
+.calDaySel {
+  background: var(--accent, #3d8bfd);
+  color: #fff;
+  font-weight: 700;
+  border-color: var(--accent, #3d8bfd);
+}
+.calDaySel:hover { background: var(--accent, #3d8bfd); }
+
+/* ── Search mode adds a Date column ── */
+.headSearch,
+.rowSearch {
+  grid-template-columns: minmax(150px, 2fr) 120px 62px 110px 110px;
+  min-width: 560px;
+}
+
+@media (max-width: 560px) {
+  .headSearch, .rowSearch {
+    grid-template-columns: minmax(120px, 2fr) 96px 48px 88px 88px;
+    min-width: 470px;
+  }
+  .calPop { width: 240px; }
+}
