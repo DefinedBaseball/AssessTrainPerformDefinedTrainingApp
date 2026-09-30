@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Param, Body, Query, Request } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
 import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
@@ -77,6 +78,18 @@ export class PlayersController {
   @ApiOperation({ summary: 'Update player profile (COACH only)' })
   update(@Param('id') id: string, @Body() dto: UpdatePlayerDto) {
     return this.playersService.update(id, dto);
+  }
+
+  @Post(':id/profile-reminder')
+  @Roles('COACH')
+  /* Nudges one athlete to finish their profile. Throttled at the same rate as
+     /auth/invite: it neither creates nor changes anything, it just mails one
+     existing athlete, and a coach working down the Client Directory would
+     otherwise trip a tighter cap. */
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Email an athlete a reminder to complete their profile (COACH only)' })
+  profileReminder(@Param('id') id: string) {
+    return this.playersService.sendProfileReminder(id);
   }
 
   @Patch(':id/lock')

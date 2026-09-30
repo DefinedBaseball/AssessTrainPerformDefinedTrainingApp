@@ -62,10 +62,12 @@
   /* Shared by BOTH: a min-width on the rows alone would let the header
      resolve its columns against the narrower container, shifting every
      label one column away from the data it labels. */
-  min-width: 1010px;
+  min-width: 1068px;
   /* Name wide enough for the avatar + full name; the four contact columns
      carry the longest values, so they get the most room. */
-  grid-template-columns: 1.6fr 0.4fr 1.4fr 1.05fr 1.7fr 1.05fr 1.7fr;
+  /* Last column is the reminder button -- fixed, not fr: it holds one
+     icon, so letting it flex would steal room from the contact columns. */
+  grid-template-columns: 1.6fr 0.4fr 1.4fr 1.05fr 1.7fr 1.05fr 1.7fr 58px;
   gap: 8px;
   align-items: center;
   padding: 13px 20px;

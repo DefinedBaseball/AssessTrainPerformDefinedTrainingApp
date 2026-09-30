@@ -479,6 +479,17 @@ export async function updatePlayer(id: string, data: Partial<Player>) {
   });
 }
 
+/** Email one athlete a reminder to finish filling in their profile (COACH
+ *  only). `emailed` is false when the server has no mail provider
+ *  configured -- the call still succeeds, so callers must check it rather
+ *  than reporting "sent" on a bare 2xx. */
+export async function sendProfileReminder(playerId: string) {
+  return request<{ ok: boolean; emailed: boolean; to: string }>(
+    `/players/${playerId}/profile-reminder`,
+    { method: 'POST' },
+  );
+}
+
 export async function getTopMetrics(playerId: string) {
   return request<Record<string, { value: number; unit: string; recordedAt: string }>>(
     `/players/${playerId}/top-metrics`,

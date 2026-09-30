@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { getAgeFromBirthDate } from '../athletes/[id]/helpers';
 import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
@@ -158,6 +159,7 @@ export default function ClientsPage() {
               <span>Email</span>
               <span>Parent Phone</span>
               <span>Parent Email</span>
+              <span>Remind</span>
             </div>
             {rows.map((p) => {
               const age = getAgeFromBirthDate(p.birthDate);
@@ -181,6 +183,13 @@ export default function ClientsPage() {
                   <span className={styles.cell}><ContactCell value={p.user?.email} href="mailto" /></span>
                   <span className={styles.cell}><ContactCell value={p.parentPhone} href="tel" /></span>
                   <span className={styles.cell}><ContactCell value={p.parentEmail} href="mailto" /></span>
+                  <span className={styles.cell}>
+                    <ProfileReminderButton
+                      playerId={p.id}
+                      playerName={`${p.firstName} ${p.lastName}`.trim()}
+                      email={p.user?.email}
+                    />
+                  </span>
                 </div>
               );
             })}

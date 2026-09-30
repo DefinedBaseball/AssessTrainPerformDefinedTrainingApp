@@ -135,6 +135,35 @@ export function coachReviewEmail(reviewUrl: string, name?: string | null): { sub
   return { subject: 'A coach reviewed your video', html, text };
 }
 
+/** Profile-reminder email -- sent by a COACH, on demand, to nudge one
+ *  athlete into filling in the personal information on their profile.
+ *
+ *  Deliberately NOT routed through the notification system: that is for
+ *  event-driven mail with a per-subject opt-out, whereas this is a coach
+ *  explicitly asking one athlete for missing account details -- the same
+ *  shape as the invite email.
+ *
+ *  `loginUrl` points at the sign-in page rather than deep-linking the
+ *  profile: the athlete is almost certainly signed out, so a deep link
+ *  would bounce them to /login anyway. */
+export function profileReminderEmail(loginUrl: string, name?: string | null): { subject: string; html: string; text: string } {
+  const hi = name?.trim() ? `Hello ${escapeHtml(name.trim())},` : 'Hello,';
+  const html = shell(`
+    <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">Complete your player profile</h1>
+    <p style="margin:0 0 8px;font-size:14px;color:${TEXT};line-height:1.6;">${hi}</p>
+    <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
+      Please complete filling out the personal information on your Defined Training Apps Player Profile.
+    </p>
+    <p style="margin:0 0 22px;">${button(loginUrl, 'Launch the App')}</p>
+    <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
+      If the button doesn&rsquo;t work, paste this link into your browser:<br/>
+      <a href="${loginUrl}" style="color:${ACCENT};word-break:break-all;">${loginUrl}</a>
+    </p>
+  `);
+  const text = `${hi}\n\nPlease complete filling out the personal information on your Defined Training Apps Player Profile.\n\nClick here to launch the app:\n\n${loginUrl}`;
+  return { subject: 'Complete your Defined Baseball player profile', html, text };
+}
+
 /** Minimal HTML-escape for interpolated user-provided names. */
 function escapeHtml(s: string): string {
   return s

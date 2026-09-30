@@ -1,9 +1,46 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { profileReminderEmail } from '../mail/mail.templates';
 
 @Injectable()
 export class PlayersService {
-  constructor(private prisma: PrismaService) {}
+  /* MailModule is @Global, so MailService injects without importing it. */
+  constructor(private prisma: PrismaService, private mail: MailService) {}
+
+  /**
+   * Email one athlete a reminder to finish filling in their profile.
+   *
+   * Reports honestly rather than optimistically: MailService.send() RETURNS
+   * false when Resend is unconfigured or the send fails -- it does not throw
+   * -- so trusting the absence of an exception would tell the coach "sent" on
+   * a box with no mail set up at all. `emailed` is what the button reads.
+   *
+   * The link goes to the sign-in page, not a deep link to the profile: the
+   * athlete is almost certainly signed out, so a deep link would bounce to
+   * /login anyway.
+   */
+  async sendProfileReminder(playerId: string): Promise<{ ok: boolean; emailed: boolean; to: string }> {
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { firstName: true, user: { select: { email: true } } },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+
+    const to = player.user?.email?.trim();
+    if (!to) {
+      throw new BadRequestException(
+        'That athlete has no email address on file, so there is nowhere to send the reminder.',
+      );
+    }
+
+    const { subject, html, text } = profileReminderEmail(
+      `${this.mail.webAppUrl}/login`,
+      player.firstName,
+    );
+    const emailed = await this.mail.send({ to, subject, html, text });
+    return { ok: true, emailed, to };
+  }
 
   async create(data: {
     userId: string;

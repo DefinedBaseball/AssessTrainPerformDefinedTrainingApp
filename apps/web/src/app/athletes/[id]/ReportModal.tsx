@@ -12,6 +12,7 @@ import rs from '@/components/assessment/report-form.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
+import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
@@ -866,6 +867,14 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
               </div>
               <ChangeEmailButton userId={player.userId} currentEmail={player.user?.email} block />
               <ResetPasswordButton userId={player.userId} block />
+              {/* Renders nothing for a player -- the send endpoint is
+                  coach-only, so an athlete would only get a 401. */}
+              <ProfileReminderButton
+                playerId={player.id}
+                playerName={`${player.firstName} ${player.lastName}`.trim()}
+                email={player.user?.email}
+                variant="block"
+              />
             </div>
           </div>
         )}
