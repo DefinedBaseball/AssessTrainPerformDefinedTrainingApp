@@ -549,6 +549,25 @@ export class AuthService {
    * prod-seed admins, so they aren't changed via this route. Validates format
    * and enforces uniqueness (lowercased).
    */
+  /**
+   * Set another account's phone. Coaches edit an athlete's contact number
+   * from the Edit Profile form; `updateAccount` only ever touches the
+   * CALLER's row, so without this there was no path to it.
+   *
+   * Scoped to PLAYER targets for the same reason as setUserEmail: this is
+   * reached from an athlete form, and a coach should not be able to rewrite
+   * another coach's contact details through it.
+   */
+  async setUserPhone(targetUserId: string, rawPhone: string | null) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role !== 'PLAYER')
+      throw new ForbiddenException('Only player account phone numbers can be changed here.');
+    const phone = (rawPhone ?? '').trim() || null;
+    await this.prisma.user.update({ where: { id: targetUserId }, data: { phone } });
+    return { ok: true, phone };
+  }
+
   async setUserEmail(targetUserId: string, rawEmail: string) {
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException('User not found');

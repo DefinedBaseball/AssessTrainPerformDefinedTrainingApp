@@ -1,14 +1,24 @@
 'use client';
 
-/* Coach-only control to change a player account's LOGIN email (their username),
-   shown on the athlete profile next to Reset Password. The backend scopes this
-   to PLAYER targets and enforces a valid, unique email. */
+/* Changes a LOGIN email (the account's username). Lives in the Edit Profile
+   form for both roles:
+
+     coach  → changes the athlete's, via the admin endpoint. The backend
+              scopes that to PLAYER targets, so a coach cannot rename another
+              coach's login out from under the prod seed.
+
+     player → changes their own, via the same self-service endpoint Settings →
+              Account already uses.
+
+   Both paths enforce a valid, unique address server-side. */
 
 import { useState } from 'react';
 import * as api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { rem } from '@/lib/rem';
 
-export function ChangeEmailButton({ userId, currentEmail }: { userId: string; currentEmail?: string }) {
+export function ChangeEmailButton({ userId, currentEmail, block }: { userId: string; currentEmail?: string; block?: boolean }) {
+  const { isCoach } = useAuth();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(currentEmail || '');
   const [saving, setSaving] = useState(false);
@@ -20,7 +30,8 @@ export function ChangeEmailButton({ userId, currentEmail }: { userId: string; cu
     setSaving(true);
     setMsg('');
     try {
-      await api.setUserEmail(userId, v);
+      if (isCoach) await api.setUserEmail(userId, v);
+      else await api.updateAccount({ email: v });
       setMsg('Email updated.');
       setTimeout(() => { setOpen(false); setMsg(''); }, 1500);
     } catch (e: any) {
@@ -52,8 +63,20 @@ export function ChangeEmailButton({ userId, currentEmail }: { userId: string; cu
     whiteSpace: 'nowrap',
   };
 
+  /* `block` fills the grid cell it sits in and matches the metrics of a
+     .summaryInput bubble, so the trigger is the same size as the fields
+     beside it. The expanded form is wider than one cell, so it spans the
+     whole grid row while it is open. */
+  const triggerStyle: React.CSSProperties = block && !open
+    ? { ...btnStyle, width: '100%', padding: '9px 12px', borderRadius: 14, fontSize: rem(14), lineHeight: 'normal', border: '1px solid var(--border)' }
+    : btnStyle;
+
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      ...(block ? { width: '100%' } : null),
+      ...(block && open ? { gridColumn: '1 / -1' } : null),
+    }}>
       {open && (
         <>
           <input
@@ -77,9 +100,9 @@ export function ChangeEmailButton({ userId, currentEmail }: { userId: string; cu
       )}
       <button
         type="button"
-        style={btnStyle}
+        style={triggerStyle}
         onClick={() => { setOpen((o) => !o); setEmail(currentEmail || ''); setMsg(''); }}
-        title="Change this player's login email"
+        title={isCoach ? "Change this player's login email" : 'Change your login email'}
       >
         {open ? 'Cancel' : '✉️ Change Email'}
       </button>

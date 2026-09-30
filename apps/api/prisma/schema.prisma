@@ -101,6 +101,11 @@ model Player {
   // column reads this field.
   college          String?
   clubTeam         String?
+  /// Pro club, for athletes who have signed. Deliberately separate from
+  /// `college`: the Client Directory's Team column and the PDF cover both
+  /// read College specifically, and folding a pro club into it would show a
+  /// signed player as playing for a school.
+  professionalTeam String?
   collegeCommit    String?
   // Guardian contact, surfaced on the coach Client Directory alongside the
   // athlete's own email (which lives on the linked User). Nullable: plenty of

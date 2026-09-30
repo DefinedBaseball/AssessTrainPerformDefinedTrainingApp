@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
+import { requestProfileEdit } from '@/lib/profile-edit';
 import styles from './Sidebar.module.css';
 
 interface NavItem {
@@ -318,7 +319,15 @@ export function Sidebar() {
                     <Link
                       href="/profile?edit=1"
                       className={styles.moreRow}
-                      onClick={() => setMoreOpen(false)}
+                      onClick={(e) => {
+                        setMoreOpen(false);
+                        /* Already here: open it in place. Navigating to the
+                           same route with a new query would not remount the
+                           page, so the href alone does nothing — and it
+                           would strand ?edit=1 in the URL, reopening the
+                           modal on the next refresh. */
+                        if (pathname === '/profile') { e.preventDefault(); requestProfileEdit(); }
+                      }}
                     >
                       Edit Profile
                     </Link>
@@ -431,6 +440,11 @@ export function Sidebar() {
               className={styles.editProfileBtn}
               aria-label="Edit Profile"
               title="Edit Profile"
+              /* See the More-sheet entry above: on /profile the href is a
+                 no-op, so open in place instead. */
+              onClick={(e) => {
+                if (pathname === '/profile') { e.preventDefault(); requestProfileEdit(); }
+              }}
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9" />

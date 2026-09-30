@@ -192,6 +192,18 @@ export class AuthController {
     return this.authService.setUserEmail(userId, dto.email);
   }
 
+  @Post('users/:userId/phone')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Set a player account's phone number (coach)" })
+  setUserPhone(
+    @Param('userId') userId: string,
+    @Body() dto: { phone: string | null },
+  ) {
+    return this.authService.setUserPhone(userId, dto?.phone ?? null);
+  }
+
   @Post('users/:userId/name')
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')

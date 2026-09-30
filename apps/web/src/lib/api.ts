@@ -68,6 +68,9 @@ export interface Player {
    *  recruiting commitment behind the dashboard's Committed count. */
   college?: string | null;
   clubTeam: string | null;
+  /** Pro club, for athletes who have signed. Distinct from `college`: the
+   *  Client Directory's Team column and the PDF cover both read College. */
+  professionalTeam?: string | null;
   birthDate: string | null;
   /** Guardian contact. Distinct from the athlete's own login email, which
    *  lives on the linked `user` below. */
@@ -234,6 +237,15 @@ export async function setUserPassword(userId: string, newPassword: string) {
   return request<{ ok: boolean }>(`/auth/users/${userId}/set-password`, {
     method: 'POST',
     body: JSON.stringify({ newPassword }),
+  });
+}
+
+/** Coach sets an athlete's phone. Players change their own through
+ *  `updateAccount`, which only ever touches the caller's row. */
+export async function setUserPhone(userId: string, phone: string | null) {
+  return request<{ ok: boolean; phone: string | null }>(`/auth/users/${userId}/phone`, {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
   });
 }
 

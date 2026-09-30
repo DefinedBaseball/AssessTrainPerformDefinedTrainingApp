@@ -1,28 +1,43 @@
 'use client';
 
-/* Small coach-only control that sets a new login password for another
-   account (used on the athlete profile next to the back-link; Settings →
-   Staff has its own inline variant for coach accounts). The backend
-   enforces that the primary admin's password is self-only. */
+/* Sets a login password. Lives in the Edit Profile form for both roles,
+   and behaves differently depending on who is looking:
+
+     coach  → sets ANOTHER account's password outright (the athlete has
+              usually forgotten theirs, so there is nothing to confirm
+              against). The backend still refuses coach targets for
+              non-admins and makes the primary admin self-only.
+
+     player → changing their OWN password, so the current one is required.
+              Without that, anyone who found an athlete's session open on a
+              shared facility iPad could lock them out of their account.
+
+   Settings → Staff has its own inline variant for coach accounts. */
 
 import { useState } from 'react';
 import * as api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { rem } from '@/lib/rem';
 
-export function ResetPasswordButton({ userId, label }: { userId: string; label?: string }) {
+export function ResetPasswordButton({ userId, label, block }: { userId: string; label?: string; block?: boolean }) {
+  const { isCoach } = useAuth();
   const [open, setOpen] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
   const [pw, setPw] = useState('');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
   const save = async () => {
     if (pw.length < 6) { setMsg('At least 6 characters'); return; }
+    if (!isCoach && !currentPw) { setMsg('Enter your current password'); return; }
     setSaving(true);
     setMsg('');
     try {
-      await api.setUserPassword(userId, pw);
+      if (isCoach) await api.setUserPassword(userId, pw);
+      else await api.changePassword(currentPw, pw);
       setMsg('Password updated.');
       setPw('');
+      setCurrentPw('');
       setTimeout(() => { setOpen(false); setMsg(''); }, 1500);
     } catch (e: any) {
       setMsg(e?.message || 'Could not update password');
@@ -53,10 +68,35 @@ export function ResetPasswordButton({ userId, label }: { userId: string; label?:
     whiteSpace: 'nowrap',
   };
 
+  /* `block` fills the grid cell it sits in and matches the metrics of a
+     .summaryInput bubble, so the trigger is the same size as the fields
+     beside it. The expanded form is wider than one cell, so it spans the
+     whole grid row while it is open. */
+  const triggerStyle: React.CSSProperties = block && !open
+    ? { ...btnStyle, width: '100%', padding: '9px 12px', borderRadius: 14, fontSize: rem(14), lineHeight: 'normal', border: '1px solid var(--border)' }
+    : btnStyle;
+
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      ...(block ? { width: '100%' } : null),
+      ...(block && open ? { gridColumn: '1 / -1' } : null),
+    }}>
       {open && (
         <>
+          {/* Players confirm the password they already have; coaches are
+              resetting someone else's and have nothing to confirm against. */}
+          {!isCoach && (
+            <input
+              type="password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              placeholder="Current password"
+              autoComplete="current-password"
+              style={inputStyle}
+              onKeyDown={(e) => { if (e.key === 'Enter') void save(); }}
+            />
+          )}
           <input
             type="password"
             value={pw}
@@ -78,11 +118,11 @@ export function ResetPasswordButton({ userId, label }: { userId: string; label?:
       )}
       <button
         type="button"
-        style={btnStyle}
-        onClick={() => { setOpen((o) => !o); setPw(''); setMsg(''); }}
-        title="Set a new login password for this account"
+        style={triggerStyle}
+        onClick={() => { setOpen((o) => !o); setPw(''); setCurrentPw(''); setMsg(''); }}
+        title={isCoach ? 'Set a new login password for this account' : 'Change your login password'}
       >
-        {open ? 'Cancel' : (label || '🔑 Reset Password')}
+        {open ? 'Cancel' : (label || (isCoach ? '🔑 Reset Password' : '🔑 Change Password'))}
       </button>
     </span>
   );

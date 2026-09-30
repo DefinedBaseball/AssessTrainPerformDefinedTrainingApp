@@ -12,7 +12,9 @@ import rs from '@/components/assessment/report-form.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
+import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import { useTheme } from '@/lib/theme-context';
+import { useAuth } from '@/lib/auth-context';
 import styles from './page.module.css';
 import { StrengthConditioningForm, emptyScForm } from './StrengthConditioningForm';
 import type { SCContent } from './tabs/StrengthConditioningTab';
@@ -728,6 +730,11 @@ interface SummaryData {
   collegeCommit: string; logoFile: File | null;
   /** The college they currently play for — distinct from collegeCommit. */
   college: string;
+  /** Pro club, for athletes who have signed. Distinct from `college`. */
+  professionalTeam: string;
+  /** The ATHLETE's own phone. Lives on their User row, not Player, so it
+   *  saves separately from every other field in this form. */
+  phone: string;
   /** Guardian contacts — surfaced on the coach Client Directory. */
   parentEmail: string;
   parentPhone: string;
@@ -735,6 +742,10 @@ interface SummaryData {
 }
 
 function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d: SummaryData) => void; player: Player }) {
+  /* Athlete Type is coach-set; an athlete sees their tags but cannot edit
+     them. See the chip row below and the save payload in the SUMMARY
+     branch of the submit. */
+  const { isCoach: canEditAthleteType } = useAuth();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const update = (fields: Partial<SummaryData>) => setData({ ...data, ...fields });
   const togglePosition = (pos: string) => {
@@ -819,13 +830,59 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             <label className={rs.summaryLabel}>Last Name</label>
             <input type="text" className={rs.summaryInput} value={data.lastName} onChange={e => update({ lastName: e.target.value })} placeholder="Last name" />
           </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Birthday</label>
+            <input type="date" className={rs.summaryInput} value={data.birthDate} onChange={e => update({ birthDate: e.target.value })} />
+          </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Grad Year</label>
+            <select className={rs.summarySelect} value={data.gradYear} onChange={e => update({ gradYear: e.target.value })}>
+              <option value="">Select...</option>
+              {Array.from({ length: 15 }, (_, i) => 2026 + i).map(y => <option key={y} value={String(y)}>{y}</option>)}
+              <option value={String(api.GRAD_COLLEGE)}>College</option>
+              <option value={String(api.GRAD_PRO)}>Professional</option>
+            </select>
+          </div>
         </div>
         {player.userId && (
           <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>Login Password</label>
-            <ResetPasswordButton userId={player.userId} label="🔑 Set Password" />
+            <label className={rs.summaryLabel}>Email</label>
+            {/* On the same grid as the field rows, so the address bubble and
+                both buttons are each exactly one column wide -- the same size
+                as the Parent Phone field below. The address is shown, not
+                typed: it IS the login, so editing runs through the button
+                beside it, which checks uniqueness server-side.
+
+                lineHeight is pinned because a <div> inherits the body's while
+                an <input> uses `normal`; without it the bubble sits a couple
+                of pixels taller than the buttons next to it. */}
+            <div className={rs.summaryGrid}>
+              <div
+                className={rs.summaryInput}
+                style={{ lineHeight: 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                title={player.user?.email || undefined}
+              >
+                {player.user?.email || <em style={{ color: 'var(--text-muted)' }}>No email on file</em>}
+              </div>
+              <ChangeEmailButton userId={player.userId} currentEmail={player.user?.email} block />
+              <ResetPasswordButton userId={player.userId} block />
+            </div>
           </div>
         )}
+        <div className={rs.summaryGrid}>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Phone</label>
+            <input type="tel" className={rs.summaryInput} value={data.phone} onChange={e => update({ phone: e.target.value })} placeholder="(407) 555-0100" />
+          </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Parent Email</label>
+            <input type="email" className={rs.summaryInput} value={data.parentEmail} onChange={e => update({ parentEmail: e.target.value })} placeholder="parent@example.com" />
+          </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Parent Phone</label>
+            <input type="tel" className={rs.summaryInput} value={data.parentPhone} onChange={e => update({ parentPhone: e.target.value })} placeholder="(407) 555-0100" />
+          </div>
+        </div>
         <div className={rs.summaryField}>
           <label className={rs.summaryLabel}>Position(s)</label>
           <div className={rs.posChipRow}>
@@ -842,21 +899,6 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             {Array.from(new Set([...POSITIONS, ...data.positions])).map(pos => (
               <button key={pos} type="button" className={`${rs.posChip} ${data.positions.includes(pos) ? rs.posChipActive : ''}`}
                 onClick={() => togglePosition(pos)}>{pos}</button>
-            ))}
-          </div>
-        </div>
-        {/* Athlete Type — multiselect (same chip pattern as Position(s)).
-            Drives the Athlete Hub filter dropdown. Any combination allowed;
-            a Membership athlete also surfaces under the Program filter (that
-            implication lives in the filter, not here — the chips store exactly
-            what's picked). */}
-        <div className={rs.summaryField}>
-          <label className={rs.summaryLabel}>Athlete Type</label>
-          <div className={rs.posChipRow}>
-            {ATHLETE_TYPES.map(t => (
-              <button key={t.key} type="button"
-                className={`${rs.posChip} ${data.athleteTypes.includes(t.key) ? rs.posChipActive : ''}`}
-                onClick={() => toggleAthleteType(t.key)}>{t.label}</button>
             ))}
           </div>
         </div>
@@ -887,41 +929,8 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
         </div>
         <div className={rs.summaryGrid}>
           <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>Grad Year</label>
-            <select className={rs.summarySelect} value={data.gradYear} onChange={e => update({ gradYear: e.target.value })}>
-              <option value="">Select...</option>
-              {Array.from({ length: 15 }, (_, i) => 2026 + i).map(y => <option key={y} value={String(y)}>{y}</option>)}
-              <option value={String(api.GRAD_COLLEGE)}>College</option>
-              <option value={String(api.GRAD_PRO)}>Professional</option>
-            </select>
-          </div>
-          <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>Birthday</label>
-            <input type="date" className={rs.summaryInput} value={data.birthDate} onChange={e => update({ birthDate: e.target.value })} />
-          </div>
-          <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>High School</label>
             <input type="text" className={rs.summaryInput} value={data.highSchool} onChange={e => update({ highSchool: e.target.value })} placeholder="High school name" />
-          </div>
-          {/* The college they currently play for. Distinct from College
-              Commitment below, which is the recruiting field driving the
-              Committed count and the profile badge — an enrolled senior is
-              not a commit. This is what the Client Directory's Team column
-              prefers. */}
-          <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>College</label>
-            <input type="text" className={rs.summaryInput} value={data.college} onChange={e => update({ college: e.target.value })} placeholder="Current college" />
-          </div>
-          {/* Guardian contacts. Separate from the athlete's own email and
-              phone, which live on their User account — these are the ones a
-              coach reaches for on the Client Directory. */}
-          <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>Parent Phone</label>
-            <input type="tel" className={rs.summaryInput} value={data.parentPhone} onChange={e => update({ parentPhone: e.target.value })} placeholder="(407) 555-0100" />
-          </div>
-          <div className={rs.summaryField}>
-            <label className={rs.summaryLabel}>Parent Email</label>
-            <input type="email" className={rs.summaryInput} value={data.parentEmail} onChange={e => update({ parentEmail: e.target.value })} placeholder="parent@example.com" />
           </div>
           <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>Club Team</label>
@@ -984,6 +993,38 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
                 </div>
               </div>
             )}
+          </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>College</label>
+            <input type="text" className={rs.summaryInput} value={data.college} onChange={e => update({ college: e.target.value })} placeholder="Current college" />
+          </div>
+          <div className={rs.summaryField}>
+            <label className={rs.summaryLabel}>Professional Team</label>
+            <input type="text" className={rs.summaryInput} value={data.professionalTeam} onChange={e => update({ professionalTeam: e.target.value })} placeholder="Pro club" />
+          </div>
+        </div>
+        <div className={rs.summaryField}>
+          <label className={rs.summaryLabel}>
+            Athlete Type
+            {!canEditAthleteType && (
+              <span style={{ marginLeft: 8, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                (set by your coach)
+              </span>
+            )}
+          </label>
+          {/* Rendered as spans, not buttons, for an athlete -- a disabled
+              button still reads as something that ought to be clickable. */}
+          <div className={rs.posChipRow} style={canEditAthleteType ? undefined : { opacity: 0.75 }}>
+            {ATHLETE_TYPES.map(t => {
+              const on = data.athleteTypes.includes(t.key);
+              const cls = `${rs.posChip} ${on ? rs.posChipActive : ''}`;
+              return canEditAthleteType ? (
+                <button key={t.key} type="button" className={cls}
+                  onClick={() => toggleAthleteType(t.key)}>{t.label}</button>
+              ) : (
+                <span key={t.key} className={cls} style={{ cursor: 'default' }}>{t.label}</span>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -3213,6 +3254,9 @@ function CoachNotesSection({ value, onChange }: { value: string; onChange: (v: s
 }
 
 export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly }: ReportModalProps) {
+  /* Picks which save path the Phone field uses — see the phone block in the
+     SUMMARY submit below. */
+  const { isCoach: isCoachViewer } = useAuth();
   const isEdit = !!existingReport;
   const [reportType, setReportType] = useState(existingReport?.reportType || initialReportType || 'HITTING');
   const [csvFiles, setCsvFiles] = useState<Record<string, File[]>>({});
@@ -3330,6 +3374,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
   const emptySummary: SummaryData = {
     firstName: '', lastName: '', positions: [], athleteTypes: [], bats: '', throws: '',
     height: '', weight: '', gradYear: '', birthDate: '', highSchool: '', college: '',
+    professionalTeam: '', phone: '',
     parentEmail: '', parentPhone: '',
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
     collegeCommit: '', logoFile: null,
@@ -3495,6 +3540,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       birthDate: player.birthDate ? player.birthDate.slice(0, 10) : '',
       highSchool: player.highSchool || '', clubTeam: player.clubTeam || '',
       college: player.college || '',
+      professionalTeam: player.professionalTeam || '',
+      phone: player.user?.phone || '',
       parentEmail: player.parentEmail || '',
       parentPhone: player.parentPhone || '',
       pbrNational: player.pbrNational ? String(player.pbrNational) : '',
@@ -3622,13 +3669,17 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
         await api.updatePlayer(player.id, {
           firstName: summaryData.firstName || undefined, lastName: summaryData.lastName || undefined,
           positions: normalizedPositions.join(',') || undefined,
-          /* Always send the current selection (empty string clears all tags). */
-          athleteTypes: summaryData.athleteTypes.join(','),
+          /* Coach-only field. A coach always sends the current selection (an
+             empty string clears all tags); an athlete's own save omits it
+             entirely, so it cannot be changed from the athlete side even if
+             a self-service endpoint is added later. */
+          ...(isCoachViewer ? { athleteTypes: summaryData.athleteTypes.join(',') } : null),
           bats: summaryData.bats || null, throws: summaryData.throws || null,
           heightInches: heightToInches(summaryData.height), weightLbs: summaryData.weight ? parseInt(summaryData.weight) : null,
           gradYear: summaryData.gradYear ? parseInt(summaryData.gradYear) : null,
           birthDate: summaryData.birthDate || null, highSchool: summaryData.highSchool || null,
           college: summaryData.college.trim() || null,
+          professionalTeam: summaryData.professionalTeam.trim() || null,
           parentEmail: summaryData.parentEmail.trim() || null,
           parentPhone: summaryData.parentPhone.trim() || null,
           clubTeam: summaryData.clubTeam || null,
@@ -3640,6 +3691,24 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           playingLevelGoal: summaryData.playingLevelGoal || null,
           goals: summaryData.goals || null,
         } as any);
+
+        /* The athlete's phone lives on their User row, not Player, so it
+           cannot ride along with the update above. Coaches go through the
+           admin endpoint; an athlete editing themselves goes through the
+           self-service one, which only ever touches their own row.
+
+           Fired only when the value actually changed, and deliberately
+           non-fatal: a failure here must not discard a profile save that
+           has already succeeded. */
+        const phoneNow = summaryData.phone.trim();
+        if (player.userId && phoneNow !== (player.user?.phone || '')) {
+          try {
+            if (isCoachViewer) await api.setUserPhone(player.userId, phoneNow || null);
+            else await api.updateAccount({ phone: phoneNow || null });
+          } catch (err) {
+            console.error('Failed to save phone:', err);
+          }
+        }
       } else {
         /* Save a SEPARATE report for every section that has data (new
            reports); edit mode updates just the one existing report. Each loop

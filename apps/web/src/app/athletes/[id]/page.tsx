@@ -2,11 +2,12 @@
 
 import { rem } from '@/lib/rem';
 import { useVideoAttachedListener } from '@/lib/upload-queue';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
+import { PROFILE_EDIT_EVENT } from '@/lib/profile-edit';
 import type { Player, Metric, Video } from '@/lib/api';
 
 import { TabBar, TabPanel, VideosIconButton } from '@/components/assessment';
@@ -156,23 +157,41 @@ export default function PlayerProfilePage() {
    *  shows just the Summary form with no report-type chips. */
   const [profileEditOpen, setProfileEditOpen] = useState(false);
 
-  /* Open the profile-edit modal when routed here as /profile?edit=1 — the
-     entry point players now use (sidebar More sheet on phones, the rail's
-     Edit Profile button on desktop), since that button was removed from the
-     per-tab action bars. Read straight off window.location rather than
-     useSearchParams so this client page needs no Suspense boundary. The
-     param is stripped afterwards so a refresh doesn't reopen the modal. */
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('edit') !== '1') return;
+  /* Open the profile-edit modal. Players reach this from the sidebar (the
+     More sheet on phones, the rail's Edit Profile button on desktop), since
+     the button was removed from the per-tab action bars.
+
+     Two entry points, because one is not enough:
+
+       mount + ?edit=1  covers arriving from another route
+       PROFILE_EDIT_EVENT covers already being here — Next keeps this page
+                        mounted when only the query changes, so the effect
+                        below would never re-run and the click did nothing
+
+     The param is read off window.location rather than useSearchParams so
+     this client page needs no Suspense boundary (/profile is statically
+     rendered), and is stripped afterwards so a refresh doesn't reopen. */
+  const openProfileEdit = useCallback(() => {
     setEditingReport(null);
     setProfileEditOpen(true);
     setShowReportModal(true);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('edit')) return;
     params.delete('edit');
     const qs = params.toString();
     window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('edit') === '1') openProfileEdit();
+  }, [openProfileEdit]);
+
+  useEffect(() => {
+    window.addEventListener(PROFILE_EDIT_EVENT, openProfileEdit);
+    return () => window.removeEventListener(PROFILE_EDIT_EVENT, openProfileEdit);
+  }, [openProfileEdit]);
 
   /* ── Auth guard ── */
   useEffect(() => {
@@ -481,8 +500,8 @@ export default function PlayerProfilePage() {
           <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
           {player.userId && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <ChangeEmailButton userId={player.userId} currentEmail={player.user?.email} />
-              <ResetPasswordButton userId={player.userId} />
+              {/* Change Email / Reset Password moved into Edit Profile,
+                  under the player's name — see SummaryForm in ReportModal. */}
             </span>
           )}
         </div>
