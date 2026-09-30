@@ -29,21 +29,6 @@ function todayStr(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/* "Check in later" is a per-day dismissal held in the browser, not on the
-   server: it is a UI preference about whether to interrupt, not a fact about
-   the session. Keyed by athlete + date so it lapses at midnight on its own
-   and never leaks between accounts sharing a device. */
-function laterKey(playerId: string, date: string) {
-  return `checkin.later.${playerId}.${date}`;
-}
-function readLater(playerId: string, date: string): boolean {
-  try { return window.localStorage.getItem(laterKey(playerId, date)) === '1'; }
-  catch { return false; }
-}
-function writeLater(playerId: string, date: string) {
-  try { window.localStorage.setItem(laterKey(playerId, date), '1'); } catch { /* private mode */ }
-}
-
 export function CheckInFlow({ playerId, viewDate, onChanged }: {
   playerId: string;
   /**
@@ -64,7 +49,11 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
   const viewingToday = viewDate === date;
 
   const [status, setStatus] = useState<api.CheckInStatus | null>(null);
-  const [dismissed, setDismissed] = useState(true); // assume dismissed until read
+  /* Deferred for THIS visit only — deliberately not persisted. Leaving the
+     Training tab and coming back remounts this component, which is what puts
+     the prompt back in front of the athlete. Nothing below renders until the
+     status fetch lands, so starting false cannot flash the modal. */
+  const [dismissed, setDismissed] = useState(false);
   const [focus, setFocus] = useState('');
   const [executedGoal, setExecutedGoal] = useState('');
   const [learned, setLearned] = useState('');
@@ -80,7 +69,6 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
   }, [playerId, date]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setDismissed(readLater(playerId, date)); }, [playerId, date]);
 
   if (!status || !status.scheduled) return null;
 
@@ -120,10 +108,10 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
     }
   };
 
-  const later = () => {
-    writeLater(playerId, date);
-    setDismissed(true);
-  };
+  /* Close the prompt and let the athlete get to their calendar. They will
+     be asked again next time they open the tab, and every time after that,
+     until they check in or the day ends. */
+  const later = () => setDismissed(true);
 
   return (
     <>
