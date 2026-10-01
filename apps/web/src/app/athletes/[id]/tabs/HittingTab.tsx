@@ -1314,6 +1314,10 @@ export function HittingTab(props: TabProps) {
                 playerId={player.id}
                 refreshKey={refreshKey}
                 reportUploadIds={effectiveSwingUploadIds}
+                /* Only the report's own uploads here. Live at-bats belong
+                   to no report, so they'd appear on every Hitting report
+                   (even a blank one); they plot on Live Results instead. */
+                includeLiveAtBats={false}
                 compact
                 onDataRangeChange={setSprayDateLabel}
                 sliceAggregate={aggInfo?.mode === 'average'}

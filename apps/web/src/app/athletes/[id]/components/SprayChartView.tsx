@@ -621,11 +621,16 @@ export function SprayChartView({
   playerId, refreshKey, reportUploadIds, maxWidth, compact = false,
   onDataRangeChange, hideReadout = false, hideFilters = false,
   hideColorBar = false, noOuterChrome = false, sliceAggregate = false,
-  readoutTargetId,
+  readoutTargetId, includeLiveAtBats = true,
 }: {
   playerId: string;
   refreshKey?: number;
   reportUploadIds?: string[];
+  /** Plot the hitter's live-tracker at-bats (/live) alongside the uploaded
+   *  files. Those at-bats aren't attached to any report or date window, so
+   *  only the Live Results view shows them; the Swing view passes false and
+   *  shows just the report's own uploads. Defaults to true. */
+  includeLiveAtBats?: boolean;
   /** Cap the chart's rendered width (px). Defaults to filling the container. */
   maxWidth?: number;
   /** Tighter padding + condensed filter card — for top-of-page placement. */
@@ -716,8 +721,8 @@ export function SprayChartView({
                        section has no CSV uploads attached).
        - `[...]`     → filter CSV queries by these upload IDs.
        Live-tracker AtBats live OUTSIDE this gate — they're not
-       attached to a CSV upload bundle, so we ALWAYS fetch them
-       regardless of `reportUploadIds`. (The previous early-return
+       attached to a CSV upload bundle, so they're fetched whenever
+       `includeLiveAtBats` is on, regardless of `reportUploadIds`. (The previous early-return
        on empty `reportUploadIds` short-circuited the entire effect
        and prevented AtBat dots from rendering on the Decision
        sub-tab when no at-bat CSV had been uploaded yet.) */
@@ -768,10 +773,13 @@ export function SprayChartView({
          becomes a SprayDot, mapped from the normalized [0,1] cartesian
          space the mini field uses to the chart's polar (angle,
          distance) space (angle ±45° at the foul lines, distance up
-         to the 400-ft fence). UNCONDITIONAL — AtBats live on the
-         hitter's Player record, not a CSV upload bundle, so they
-         render whether or not the active report has CSV uploads. */
-      api.listAtBats({ hitterId: playerId, limit: 1000 }).catch(() => [] as any[]),
+         to the 400-ft fence). AtBats live on the hitter's Player
+         record, not a CSV upload bundle, so they render whether or not
+         the active report has CSV uploads -- but only when
+         `includeLiveAtBats` is on (the Live Results view). */
+      includeLiveAtBats
+        ? api.listAtBats({ hitterId: playerId, limit: 1000 }).catch(() => [] as any[])
+        : Promise.resolve([] as any[]),
     ]).then(([htData, fsData, atBats]) => {
       let minTs: string | null = null;
       let maxTs: string | null = null;
@@ -985,7 +993,7 @@ export function SprayChartView({
       setDataRange(minTs && maxTs ? { start: minTs, end: maxTs } : null);
       setLoading(false);
     }).catch(() => { setSprayDots([]); setDataRange(null); setLoading(false); });
-  }, [playerId, refreshKey, JSON.stringify(reportUploadIds || [])]);
+  }, [playerId, refreshKey, JSON.stringify(reportUploadIds || []), includeLiveAtBats]);
 
   const activeDot = selectedDot !== null ? filteredDots[selectedDot] : null;
   const dataRangeLabel = dataRange
