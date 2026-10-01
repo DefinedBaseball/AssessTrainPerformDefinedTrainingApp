@@ -91,30 +91,17 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
    * copy back over their changes.
    */
   const attach = useCallback(async (job: UploadJob, video: api.Video) => {
-    const report = await api.getReport(job.reportId);
-    let content: any = {};
-    try { content = report?.content ? JSON.parse(report.content) : {}; } catch { content = {}; }
-
-    const entry = {
+    /* Server-side append. This used to read the report here and write the
+       whole content back, which could stamp a stale copy over anything
+       saved in between -- notes typed while clips were still uploading.
+       The server skips a clip that is already attached, so a retry of an
+       attach that actually succeeded stays harmless. */
+    await api.attachReportVideo(job.reportId, {
+      id: video.id,
       name: job.file.name,
       size: job.file.size,
-      id: video.id,
       url: video.originalUrl || undefined,
       section: job.section,
-    };
-    const videos = Array.isArray(content.videos) ? content.videos : [];
-    /* Guard against a double-attach (a retry that actually succeeded the first
-       time, or two tabs racing) — the id is what identifies the clip. */
-    const alreadyThere = videos.some((v: any) => v && v.id === video.id);
-    const nextVideos = alreadyThere ? videos : [...videos, entry];
-
-    const existingIds = (report?.videoIds || '')
-      .split(',').map((x: string) => x.trim()).filter(Boolean);
-    const nextIds = existingIds.includes(video.id) ? existingIds : [...existingIds, video.id];
-
-    await api.updateReport(job.reportId, {
-      content: JSON.stringify({ ...content, videos: nextVideos }),
-      videoIds: nextIds.join(','),
     });
   }, []);
 

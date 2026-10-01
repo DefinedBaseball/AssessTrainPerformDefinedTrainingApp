@@ -1086,6 +1086,36 @@ export async function updateReport(
   });
 }
 
+/**
+ * Merge named keys into a report's content, server-side. Each key in `set`
+ * is written as given and a `null` deletes it; keys not named are left as
+ * stored. `notes` / `title` set the top-level fields when present.
+ *
+ * Prefer this over updateReport for any partial save (notes, coach notes,
+ * an upload batch): it can't overwrite a change -- like a video attaching
+ * -- that landed after this page loaded the report.
+ */
+export async function mergeReportContent(
+  id: string,
+  data: { set?: Record<string, unknown>; notes?: string | null; title?: string | null },
+) {
+  return request<any>(`/reports/${id}/content`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Attach one uploaded clip to a report (server-side append; idempotent). */
+export async function attachReportVideo(
+  reportId: string,
+  entry: { id: string; name: string; size: number; url?: string | null; section?: 'swing' | 'decision' },
+) {
+  return request<any>(`/reports/${reportId}/videos`, {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  });
+}
+
 // ---- Training ----
 
 export async function getPlayerPrograms(playerId: string) {

@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { syncReportMetricsFor } from './report-metrics.util';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
@@ -7,6 +8,37 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'videos');
+
+/** Report content keys only coaches may read. Stripped from every report a
+ *  player receives (see `redactForPlayer`). */
+export const COACH_ONLY_CONTENT_KEYS = ['coachNotes'] as const;
+
+/** Keys that must never be written through a content merge -- assigning
+ *  them onto a parsed object would reach the prototype, not the data. */
+const FORBIDDEN_CONTENT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function parseContent(raw: string | null | undefined): Record<string, any> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** A copy of the report with coach-only content removed. Returns the input
+ *  untouched when there is nothing to strip, so unchanged rows aren't
+ *  re-serialized. */
+export function redactForPlayer<T extends { content?: string | null }>(report: T): T {
+  if (!report?.content) return report;
+  const content = parseContent(report.content);
+  let changed = false;
+  for (const key of COACH_ONLY_CONTENT_KEYS) {
+    if (key in content) { delete content[key]; changed = true; }
+  }
+  return changed ? { ...report, content: JSON.stringify(content) } : report;
+}
 
 @Injectable()
 export class ReportsService {
@@ -80,6 +112,108 @@ export class ReportsService {
     await this.syncReportMetrics(report);
     void this.recomputeLeaderboardFor(report.playerId);
     return report;
+  }
+
+  /**
+   * Merge named keys into a report's content, optionally setting the
+   * top-level notes / title in the same write.
+   *
+   * The in-tab report flow saves one piece at a time (notes, coach notes,
+   * an upload batch) while videos attach in the background. A browser-side
+   * read-modify-write of the whole content blob would let any of those
+   * stamp a stale copy over another, so the merge happens here instead.
+   *
+   * `set`: each key is written as given; a `null` value deletes the key.
+   * Keys not named are left exactly as stored.
+   */
+  async mergeContent(
+    id: string,
+    data: { set?: Record<string, unknown> | null; notes?: string | null; title?: string | null },
+  ) {
+    const set = data.set ?? {};
+    if (typeof set !== 'object' || Array.isArray(set)) {
+      throw new BadRequestException('"set" must be an object of content keys');
+    }
+    const report = await this.withReportLock(id, async (tx, current) => {
+      const content = parseContent(current.content);
+      for (const [key, value] of Object.entries(set)) {
+        if (FORBIDDEN_CONTENT_KEYS.has(key)) continue;
+        if (value === null) delete content[key];
+        else content[key] = value;
+      }
+      return tx.report.update({
+        where: { id },
+        data: {
+          content: JSON.stringify(content),
+          ...(data.notes !== undefined ? { notes: data.notes ?? null } : {}),
+          ...(data.title !== undefined ? { title: data.title ?? null } : {}),
+        },
+      });
+    });
+    await this.syncReportMetrics(report);
+    void this.recomputeLeaderboardFor(report.playerId);
+    return report;
+  }
+
+  /**
+   * Attach one uploaded clip to a report: append to content.videos and to
+   * videoIds, skipping either if the clip is already there (a retried
+   * attach that had actually succeeded). Server-side for the same reason as
+   * mergeContent -- the upload queue used to do this read-modify-write in
+   * the browser.
+   */
+  async attachVideo(
+    id: string,
+    entry: { id: string; name: string; size: number; url?: string | null; section?: 'swing' | 'decision' },
+  ) {
+    if (!entry?.id) throw new BadRequestException('Video id is required');
+    return this.withReportLock(id, async (tx, current) => {
+      const content = parseContent(current.content);
+      const videos: any[] = Array.isArray(content.videos) ? content.videos : [];
+      if (!videos.some((v) => v && v.id === entry.id)) {
+        videos.push({
+          name: entry.name,
+          size: entry.size,
+          id: entry.id,
+          ...(entry.url ? { url: entry.url } : {}),
+          section: entry.section === 'decision' ? 'decision' : 'swing',
+        });
+      }
+      content.videos = videos;
+      const ids = (current.videoIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (!ids.includes(entry.id)) ids.push(entry.id);
+      return tx.report.update({
+        where: { id },
+        data: { content: JSON.stringify(content), videoIds: ids.join(',') },
+      });
+    });
+  }
+
+  /**
+   * Run a read-modify-write of one report inside a serializable
+   * transaction. Two writers racing on the same row make one of them fail
+   * with P2034 (write conflict) instead of silently losing the other's
+   * change; that one is retried against the fresh row.
+   */
+  private async withReportLock<T>(
+    id: string,
+    fn: (tx: Prisma.TransactionClient, current: { content: string; videoIds: string | null }) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const current = await tx.report.findUnique({
+            where: { id },
+            select: { content: true, videoIds: true },
+          });
+          if (!current) throw new NotFoundException('Report not found');
+          return fn(tx, current);
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (err: any) {
+        if (err?.code === 'P2034' && attempt < 4) continue;
+        throw err;
+      }
+    }
   }
 
   /**

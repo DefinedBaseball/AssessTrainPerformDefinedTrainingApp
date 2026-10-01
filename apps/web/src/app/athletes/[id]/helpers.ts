@@ -219,6 +219,10 @@ export interface TabProps {
    *  the Download PDF icon, replacing the standalone Videos tab in
    *  the main nav. Works the same way in both player + coach apps. */
   onOpenVideos?: () => void;
+  /** A report the tab should select once it appears in `reports` -- set
+   *  by the page right after "+ Report" creates one, so the coach lands on
+   *  the new, empty report rather than whichever one was showing. */
+  focusReportId?: string | null;
 }
 
 /** Get the latest report matching any of the given types */

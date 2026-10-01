@@ -15,7 +15,7 @@
    a real error, since without the player there's nothing to render.
    ───────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import * as api from '@/lib/api';
 import type { Metric, Player, Video } from '@/lib/api';
 import type { ReportSummary } from './helpers';
@@ -79,12 +79,23 @@ export function usePlayerProfileData(
   const [colleges, setColleges] = useState<api.College[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** The player whose bundle is currently loaded -- see the effect below. */
+  const loadedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!enabled || !playerId) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    /* Only a player's FIRST load shows the loading state. A refresh of the
+       same player (a refreshKey bump after any save) refetches in the
+       background instead: flipping `loading` swaps the page for the
+       loading screen, which unmounts every tab -- throwing away unsaved
+       text in the in-tab notes boxes, the report the coach had selected,
+       and their scroll position. */
+    const background = loadedForRef.current === playerId;
+    if (!background) {
+      setLoading(true);
+      setError(null);
+    }
 
     const progressPromises = PROGRESS_METRICS.map((mt) =>
       api.getMetricProgress(playerId, mt, 'REPORT')
@@ -112,8 +123,15 @@ export function usePlayerProfileData(
       progressResults.forEach(({ mt, data }) => { if (data.length > 0) pd[mt] = data; });
       setProgressData(pd);
       setLoading(false);
+      loadedForRef.current = playerId;
     }).catch((err: Error) => {
       if (cancelled) return;
+      /* A failed BACKGROUND refresh keeps what is on screen -- replacing the
+         profile with an error page would unmount the tabs just the same. */
+      if (background) {
+        console.warn('Profile refresh failed; keeping the loaded data.', err);
+        return;
+      }
       setError(err.message || 'Failed to load player');
       setLoading(false);
     });

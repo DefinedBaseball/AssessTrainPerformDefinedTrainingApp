@@ -43,7 +43,17 @@ const VideosTab = nextDynamic(() => import('./tabs/VideosTab').then(m => m.Video
 const ReportModal = nextDynamic(() => import('./ReportModal').then(m => m.ReportModal), { ssr: false });
 const PdfBuilderModal = nextDynamic(() => import('./PdfBuilderModal').then(m => m.PdfBuilderModal), { ssr: false });
 import type { PdfLayout } from './PdfBuilderModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs } from './helpers';
+import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs, REPORT_TYPE_TO_TAB } from './helpers';
+import { CreateReportDialog, type CreateReportMode } from './CreateReportDialog';
+
+/* Report types filled in on their own tab (data files, notes, coach notes,
+   videos) rather than in the report modal. The pencil on these renames;
+   the remaining types still open the modal to edit their forms until they
+   move in-tab too. */
+const IN_TAB_REPORT_TYPES = new Set(['HITTING', 'PITCHING']);
+const TAB_TO_REPORT_TYPE: Record<string, string> = Object.fromEntries(
+  Object.entries(REPORT_TYPE_TO_TAB).map(([type, tab]) => [tab, type]),
+);
 import type { ReportSummary, TabProps } from './helpers';
 import { usePlayerProfileData } from './usePlayerProfileData';
 
@@ -156,6 +166,10 @@ export default function PlayerProfilePage() {
   /** When true, ReportModal opens in profile-only mode (player edit view) —
    *  shows just the Summary form with no report-type chips. */
   const [profileEditOpen, setProfileEditOpen] = useState(false);
+  /** "+ Report" (create) or the pencil on an in-tab report type (rename). */
+  const [createDialog, setCreateDialog] = useState<CreateReportMode | null>(null);
+  /** The report a tab should select once it shows up after a refetch. */
+  const [focusReportId, setFocusReportId] = useState<string | null>(null);
 
   /* Open the profile-edit modal. Players reach this from the sidebar (the
      More sheet on phones, the rail's Edit Profile button on desktop), since
@@ -349,8 +363,18 @@ export default function PlayerProfilePage() {
     isCoach,
     onRefresh: () => setRefreshKey(k => k + 1),
     refreshKey,
-    onNewReport: () => { setEditingReport(null); setShowReportModal(true); },
-    onEditReport: (r) => { setEditingReport(r); setShowReportModal(true); },
+    focusReportId,
+    /* "+ Report" asks only for a type and a name; the type defaults to the
+       tab the coach is on. */
+    onNewReport: () => setCreateDialog({ kind: 'create', initialType: TAB_TO_REPORT_TYPE[activeTab] }),
+    onEditReport: (r) => {
+      if (IN_TAB_REPORT_TYPES.has(r.reportType)) {
+        setCreateDialog({ kind: 'rename', report: r });
+      } else {
+        setEditingReport(r);
+        setShowReportModal(true);
+      }
+    },
     onEditProfile: () => { setEditingReport(null); setProfileEditOpen(true); setShowReportModal(true); },
     /* Jumps the parent profile to the Videos tab. Used by the icon
        button surfaced in each tab's TabBarActions next to Download PDF. */
@@ -934,6 +958,23 @@ export default function PlayerProfilePage() {
           The button that flips `showReportModal` true is itself gated
           on the page's auth check above, so this should never fire as
           long as `user` is truthy — the guard is belt-and-suspenders. */}
+      {createDialog && user && (
+        <CreateReportDialog
+          player={player}
+          userId={(user as any).id || (user as any).sub}
+          mode={createDialog}
+          onClose={() => setCreateDialog(null)}
+          onCreated={({ id: newId, reportType }) => {
+            /* Open the new report's tab and select it there. */
+            setFocusReportId(newId);
+            const tab = REPORT_TYPE_TO_TAB[reportType];
+            if (tab) setActiveTab(tab);
+            setRefreshKey(k => k + 1);
+          }}
+          onRenamed={() => setRefreshKey(k => k + 1)}
+        />
+      )}
+
       {showReportModal && user && (
         <ReportModal
           player={player}

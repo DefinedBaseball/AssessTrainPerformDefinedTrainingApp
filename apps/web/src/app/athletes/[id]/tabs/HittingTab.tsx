@@ -2,9 +2,14 @@
 
 import { rem } from '@/lib/rem';
 import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, HITTING_VENDOR_METRICS_ID, type SharedHittingState } from './SwingTab';
 import { TabBar, TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
+import {
+  ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
+  useCanEditReports, isBlankNote,
+} from '../components/ReportInlineEditing';
+import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
@@ -253,6 +258,22 @@ export function HittingTab(props: TabProps) {
     });
   }, [reports]);
   const activeHittingReport = selectedHittingReport ?? latestHitting;
+  /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
+  const canEdit = useCanEditReports();
+  const [uploadsOpen, setUploadsOpen] = useState(false);
+
+  /* Select a report just created from "+ Report" once the refetch brings
+     it in. Applied once per id, so a later manual pick isn't undone the
+     next time `reports` refreshes. */
+  const appliedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = props.focusReportId;
+    if (!id || appliedFocusRef.current === id) return;
+    const target = reports.find((r) => r.id === id && r.reportType === 'HITTING');
+    if (!target) return;
+    appliedFocusRef.current = id;
+    setSelectedHittingReport(target);
+  }, [props.focusReportId, reports]);
 
   /* Video IDs the coach has attached to the active HITTING report
      via the bundle modal's Save-with-attach flow. These clips:
@@ -374,6 +395,43 @@ export function HittingTab(props: TabProps) {
   }, [activeHittingReport]);
   const [swingDecisionNotes, setSwingDecisionNotes] = useState(persistedSwingDecisionNotes);
   useEffect(() => { setSwingDecisionNotes(persistedSwingDecisionNotes); }, [persistedSwingDecisionNotes]);
+
+  /* Saving the Hitting Notes box. It was editable but had no Save, so
+     anything typed there was lost on reload. Saves whichever notes the
+     snapshot is showing: Swing -> the report's notes field (and drops the
+     legacy content.diagnosisNotes, which would otherwise resurface as the
+     fallback once the notes are cleared); Live Results ->
+     content.swingDecisionNotes. */
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSavedAt, setNotesSavedAt] = useState<number | null>(null);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const notesOnDecision = subTab === 'decision';
+  const notesDirty = notesOnDecision
+    ? swingDecisionNotes !== persistedSwingDecisionNotes
+    : diagnosisNotes !== persistedDiagnosisNotes;
+  const saveHittingNotes = async () => {
+    if (!activeHittingReport) return;
+    const raw = notesOnDecision ? swingDecisionNotes : diagnosisNotes;
+    const value = isBlankNote(raw) ? '' : raw;
+    setNotesSaving(true);
+    setNotesError(null);
+    try {
+      if (notesOnDecision) {
+        await api.mergeReportContent(activeHittingReport.id, { set: { swingDecisionNotes: value || null } });
+        setSwingDecisionNotes(value);
+      } else {
+        await api.mergeReportContent(activeHittingReport.id, { notes: value || null, set: { diagnosisNotes: null } });
+        setDiagnosisNotes(value);
+      }
+      setNotesSavedAt(Date.now());
+      setTimeout(() => setNotesSavedAt(null), 2200);
+      onRefresh?.();
+    } catch (err: any) {
+      setNotesError(err?.message || 'Save failed — try again.');
+    } finally {
+      setNotesSaving(false);
+    }
+  };
 
   // Miss% from Full Swing CSV (column Q SquaredUp = null → miss).
   // Strict per-active-report: if this report has no upload IDs, Miss%
@@ -1080,6 +1138,14 @@ export function HittingTab(props: TabProps) {
               It carries the whole dropdown — report list, date-range
               presets, edit / download / delete — so nothing was lost by
               moving it out of the tab-bar actions slot. */}
+          {/* Upload -- opens the data-file window for the report shown
+              here (Blast / Full Swing / HitTrax / At-Bat), left of the
+              report date. */}
+          {canEdit && activeHittingReport && (
+            <div style={{ alignSelf: 'flex-end', marginBottom: 0, marginRight: 8 }}>
+              <ReportFilesButton onClick={() => setUploadsOpen(true)} />
+            </div>
+          )}
           <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
             <ReportSelector
               compact
@@ -1460,7 +1526,7 @@ export function HittingTab(props: TabProps) {
               ? 'Swing-decision observations — pitch-recognition, zone discipline, chase tendencies, two-strike approach…'
               : 'Mechanical observations — load, posture, slot, sequencing, body line, swing decisions you noticed…'
             }
-            editable={isCoach}
+            editable={canEdit}
             rows={5}
             /* `largeLabel` swaps the Font-D eyebrow for Font B
                so this label visually matches the "Pitching Notes"
@@ -1468,6 +1534,18 @@ export function HittingTab(props: TabProps) {
                renamed "Diagnosis Notes" → "Hitting Notes" per spec. */
             largeLabel
           />
+          {canEdit && activeHittingReport && (
+            <SaveBar
+              dirty={notesDirty}
+              saving={notesSaving}
+              savedAt={notesSavedAt}
+              error={notesError}
+              onSave={() => void saveHittingNotes()}
+            />
+          )}
+          {/* Private Coach Notes -- right under the notes; renders nothing
+              for players, and the API strips them from players' reports. */}
+          {activeHittingReport && <CoachNotesInline report={activeHittingReport} onSaved={onRefresh} />}
         </div>
         </div>{/* /outer snapshot bubble */}
       </Section>
@@ -1537,7 +1615,12 @@ export function HittingTab(props: TabProps) {
               className={aStyles.profilePanel}
               style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
             >
-              <SectionHeader title="Video" />
+              <SectionHeader
+                title="Video"
+                rightSlot={canEdit && activeHittingReport
+                  ? <ReportVideoUploadButton report={activeHittingReport} playerId={player.id} category="HITTING" />
+                  : undefined}
+              />
               {hasVideos ? (
                 <div style={{
                   display: 'grid',
@@ -1582,6 +1665,16 @@ export function HittingTab(props: TabProps) {
           </Section>
         );
       })()}
+
+      {uploadsOpen && activeHittingReport && user && (
+        <ReportUploadsDialog
+          player={player}
+          userId={(user as any).id || (user as any).sub}
+          report={activeHittingReport}
+          onClose={() => setUploadsOpen(false)}
+          onSaved={() => onRefresh?.()}
+        />
+      )}
     </>
   );
 }

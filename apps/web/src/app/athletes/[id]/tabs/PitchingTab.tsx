@@ -2,7 +2,7 @@
 
 import { rem } from '@/lib/rem';
 import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { averagePitchesByType, zoneAggregate, type ZoneAggregate } from '@/lib/pitchAggregation';
 import {
   SectionHeader, Section,
@@ -17,6 +17,11 @@ import {
 } from '../helpers';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import {
+  ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
+  useCanEditReports, isBlankNote,
+} from '../components/ReportInlineEditing';
+import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { useTheme } from '@/lib/theme-context';
 import type { TrackmanPitch } from '@/lib/api';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
@@ -1214,7 +1219,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Main PitchingTab ── */
 export function PitchingTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile, onOpenVideos,
+  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile, onOpenVideos, focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
@@ -1251,6 +1256,22 @@ export function PitchingTab({
      Mechanical Grades summary. Falls back to the latest pitching
      report if the coach hasn't explicitly picked one. */
   const activePitchingReport = selectedReport ?? latestPitching;
+  /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
+  const canEdit = useCanEditReports();
+  const [uploadsOpen, setUploadsOpen] = useState(false);
+
+  /* Select a report just created from "+ Report" once the refetch brings
+     it in. Applied once per id, so a later manual pick isn't undone the
+     next time `reports` refreshes. */
+  const appliedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = focusReportId;
+    if (!id || appliedFocusRef.current === id) return;
+    const target = reports.find((r) => r.id === id && r.reportType === 'PITCHING');
+    if (!target) return;
+    appliedFocusRef.current = id;
+    setSelectedReport(target);
+  }, [focusReportId, reports]);
 
   /* Coach Reviews attached to the active PITCHING report — surface
      in the dedicated panel under Coach Grades. Excluded from the
@@ -1324,13 +1345,15 @@ export function PitchingTab({
     for (const r of aggInfo.reports) for (const id of getReportUploadIds(r)) set.add(id);
     return [...set];
   }, [aggregating, aggInfo]);
+  /* The report being VIEWED -- this read the newest report even when an
+     older one was selected, so its notes showed against the wrong report. */
   const persistedPitchingNotes = useMemo(() => {
-    if (!latestPitching?.content) return '';
+    if (!activePitchingReport?.content) return '';
     try {
-      const c = JSON.parse(latestPitching.content);
+      const c = JSON.parse(activePitchingReport.content);
       return typeof c.pitchingNotes === 'string' ? c.pitchingNotes : '';
     } catch { return ''; }
-  }, [latestPitching]);
+  }, [activePitchingReport]);
   const [pitchingNotes, setPitchingNotes] = useState(persistedPitchingNotes);
   useEffect(() => { setPitchingNotes(persistedPitchingNotes); }, [persistedPitchingNotes]);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -1339,29 +1362,15 @@ export function PitchingTab({
   const notesDirty = pitchingNotes !== persistedPitchingNotes;
 
   async function savePitchingNotes() {
-    if (!user) { setNotesSaveError('Not signed in.'); return; }
+    if (!activePitchingReport) { setNotesSaveError('No report selected.'); return; }
     setSavingNotes(true);
     setNotesSaveError(null);
     setNotesSaveOk(false);
     try {
-      const userId = (user as any).id || (user as any).sub;
-      let prev: Record<string, any> = {};
-      if (latestPitching?.content) {
-        try { prev = JSON.parse(latestPitching.content) || {}; } catch { /* ignore */ }
-      }
-      const newContent = {
-        ...prev,
-        pitchingNotes,
-        notesUpdatedAt: new Date().toISOString(),
-        notesUpdatedBy: userId,
-      };
-      await api.createReport({
-        playerId: player.id,
-        createdById: userId,
-        reportType: 'PITCHING',
-        title: 'Pitching Notes Update',
-        content: JSON.stringify(newContent),
-        notes: latestPitching?.notes ?? undefined,
+      /* Saves INTO the report being viewed. This used to call createReport,
+         spawning a brand-new "Pitching Notes Update" report on every save. */
+      await api.mergeReportContent(activePitchingReport.id, {
+        set: { pitchingNotes: pitchingNotes.trim() ? pitchingNotes : null },
       });
       setNotesSaveOk(true);
       onRefresh?.();
@@ -1458,6 +1467,119 @@ export function PitchingTab({
   for (const a of arsenal) {
     if (!mainTypes.includes(a.pitchType)) arsenalCards.push(a);
   }
+
+
+  /* Pitching Notes (+ private Coach Notes right under it). Lifted into a
+     variable so a report with no pitch data yet -- e.g. one just created
+     from "+ Report" -- still gets them; with data they render exactly
+     where they always have. */
+  const notesBubble = (
+    <>
+          {/* ── Coaching notes — beneath Movement + Location plots ── */}
+          <div
+            style={{
+              ...pitchReportBubbleStyle,
+              margin: '10px 0 0', padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+            }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                /* Font B treatment — Brown display, upright, 1 rem,
+                   weight 600, -0.025em, uppercase, bright white. The
+                   leading blue dot is preserved so the eyebrow still
+                   reads as a sub-section bullet, just with the unified
+                   grey-bubble title typography. */
+                fontFamily: 'inherit', fontSize: '0.85rem',
+                fontStyle: 'normal', fontWeight: 600,
+                letterSpacing: '-0.025em', textTransform: 'uppercase',
+                color: 'var(--text-bright)', lineHeight: 1.05,
+              }}>
+                {/* Leading blue-dot bullet retired per spec — the
+                   eyebrow now reads as a plain title without the
+                   sub-section indicator dot. */}
+                Pitching Notes
+              </span>
+              {canEdit && activePitchingReport && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: rem(9.35) }}>Saved.</span>}
+                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: rem(9.35) }}>{notesSaveError}</span>}
+                  <button
+                    type="button"
+                    onClick={savePitchingNotes}
+                    disabled={savingNotes || !notesDirty}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 7,
+                      background: notesDirty
+                        ? 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))'
+                        : 'rgba(255,255,255,0.04)',
+                      border: notesDirty
+                        ? '1px solid rgba(74,222,128,0.55)'
+                        : '1px solid var(--border)',
+                      color: notesDirty ? '#ecfdf5' : 'var(--text-muted)',
+                      fontSize: rem(9.35), fontWeight: 700, letterSpacing: '0.04em',
+                      cursor: savingNotes || !notesDirty ? 'not-allowed' : 'pointer',
+                      opacity: savingNotes ? 0.6 : 1,
+                    }}
+                  >
+                    {savingNotes ? 'Saving…' : '💾 Save Notes'}
+                  </button>
+                </div>
+              )}
+            </div>
+            {canEdit && activePitchingReport ? (
+              <textarea
+                value={pitchingNotes}
+                onChange={(e) => setPitchingNotes(e.target.value)}
+                placeholder="Pitching observations — arsenal trends, command, release consistency, sequencing notes…"
+                rows={3}
+                style={{
+                  /* Notes-bubble surface token: dark navy in dark theme,
+                     near-white (--bubble-chrome-bg) in light — matches the
+                     Hitting / Player Summary notes bubbles. */
+                  background: 'var(--notes-bg)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  padding: '10px 12px',
+                  borderRadius: 7,
+                  fontSize: rem(10.2),
+                  lineHeight: 1.55,
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  minHeight: 70,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              />
+            ) : (
+              <div style={{
+                fontSize: rem(10.2), lineHeight: 1.55,
+                color: pitchingNotes ? 'var(--text)' : 'var(--text-muted)',
+                fontStyle: pitchingNotes ? 'normal' : 'italic',
+                padding: '10px 12px',
+                /* Notes-bubble surface token — white in light theme,
+                   dark navy in dark (matches the textarea + other tabs). */
+                background: 'var(--notes-bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 7,
+                minHeight: 50,
+              }}>
+                {pitchingNotes || 'No notes yet.'}
+              </div>
+            )}
+          </div>
+
+      {isCoach && activePitchingReport && (
+        <div style={{ ...pitchReportBubbleStyle, margin: '10px 0 0', padding: '12px 14px' }}>
+          <CoachNotesInline report={activePitchingReport} onSaved={onRefresh} style={{ marginTop: 0 }} />
+        </div>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -1694,6 +1816,13 @@ export function PitchingTab({
                 it on the title's baseline. Carries the full dropdown —
                 report list, date-range presets, edit / download / delete —
                 so nothing was lost moving it out of the tab-bar actions. */}
+            {/* Upload -- TrackMan CSV or session-report PDF for the report
+                shown here, left of the report date. */}
+            {canEdit && activePitchingReport && (
+              <div style={{ alignSelf: 'flex-end', marginBottom: 0, marginRight: 8 }}>
+                <ReportFilesButton onClick={() => setUploadsOpen(true)} />
+              </div>
+            )}
             <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
               <ReportSelector
                 compact
@@ -1882,103 +2011,7 @@ export function PitchingTab({
           )}
 
 
-          {/* ── Coaching notes — beneath Movement + Location plots ── */}
-          <div
-            style={{
-              ...pitchReportBubbleStyle,
-              margin: '10px 0 0', padding: '12px 14px',
-              display: 'flex', flexDirection: 'column', gap: 8,
-            }}
-          >
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-            }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                /* Font B treatment — Brown display, upright, 1 rem,
-                   weight 600, -0.025em, uppercase, bright white. The
-                   leading blue dot is preserved so the eyebrow still
-                   reads as a sub-section bullet, just with the unified
-                   grey-bubble title typography. */
-                fontFamily: 'inherit', fontSize: '0.85rem',
-                fontStyle: 'normal', fontWeight: 600,
-                letterSpacing: '-0.025em', textTransform: 'uppercase',
-                color: 'var(--text-bright)', lineHeight: 1.05,
-              }}>
-                {/* Leading blue-dot bullet retired per spec — the
-                   eyebrow now reads as a plain title without the
-                   sub-section indicator dot. */}
-                Pitching Notes
-              </span>
-              {isCoach && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: rem(9.35) }}>Saved.</span>}
-                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: rem(9.35) }}>{notesSaveError}</span>}
-                  <button
-                    type="button"
-                    onClick={savePitchingNotes}
-                    disabled={savingNotes || !notesDirty}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 7,
-                      background: notesDirty
-                        ? 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))'
-                        : 'rgba(255,255,255,0.04)',
-                      border: notesDirty
-                        ? '1px solid rgba(74,222,128,0.55)'
-                        : '1px solid var(--border)',
-                      color: notesDirty ? '#ecfdf5' : 'var(--text-muted)',
-                      fontSize: rem(9.35), fontWeight: 700, letterSpacing: '0.04em',
-                      cursor: savingNotes || !notesDirty ? 'not-allowed' : 'pointer',
-                      opacity: savingNotes ? 0.6 : 1,
-                    }}
-                  >
-                    {savingNotes ? 'Saving…' : '💾 Save Notes'}
-                  </button>
-                </div>
-              )}
-            </div>
-            {isCoach ? (
-              <textarea
-                value={pitchingNotes}
-                onChange={(e) => setPitchingNotes(e.target.value)}
-                placeholder="Pitching observations — arsenal trends, command, release consistency, sequencing notes…"
-                rows={3}
-                style={{
-                  /* Notes-bubble surface token: dark navy in dark theme,
-                     near-white (--bubble-chrome-bg) in light — matches the
-                     Hitting / Player Summary notes bubbles. */
-                  background: 'var(--notes-bg)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  padding: '10px 12px',
-                  borderRadius: 7,
-                  fontSize: rem(10.2),
-                  lineHeight: 1.55,
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                  minHeight: 70,
-                  width: '100%',
-                  boxSizing: 'border-box',
-                }}
-              />
-            ) : (
-              <div style={{
-                fontSize: rem(10.2), lineHeight: 1.55,
-                color: pitchingNotes ? 'var(--text)' : 'var(--text-muted)',
-                fontStyle: pitchingNotes ? 'normal' : 'italic',
-                padding: '10px 12px',
-                /* Notes-bubble surface token — white in light theme,
-                   dark navy in dark (matches the textarea + other tabs). */
-                background: 'var(--notes-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 7,
-                minHeight: 50,
-              }}>
-                {pitchingNotes || 'No notes yet.'}
-              </div>
-            )}
-          </div>
+          {notesBubble}
 
           {/* ── Coach Reviews — sits directly beneath the Pitching
               Notes bubble inside the same Pitch Metrics block.
@@ -2051,6 +2084,7 @@ export function PitchingTab({
               {loading ? 'Loading pitch data…' : 'No pitch data for this report.'}
             </div>
           )}
+          {!loading && !hasPitchData && activePitchingReport && notesBubble}
 
         </div>
 
@@ -2065,9 +2099,9 @@ export function PitchingTab({
           The previous `!attachedReviewIds.includes(v.id)` exclusion
           was retired so a coach can find a narrated review from
           either spot. */}
-      {hasPitchData && (() => {
-        const videoIds = getReportVideoIds(selectedReport);
-        const reportIdForVideos = (selectedReport)?.id ?? null;
+      {(hasPitchData || activePitchingReport) && (() => {
+        const videoIds = getReportVideoIds(activePitchingReport);
+        const reportIdForVideos = activePitchingReport?.id ?? null;
         const reportVideos = playerVideos.filter(v =>
           (videoIds.includes(v.id) || v.category === 'PITCHING')
         ).sort((a, b) => {
@@ -2075,7 +2109,7 @@ export function PitchingTab({
           const bR = b.title.startsWith('Coach Review') ? 0 : 1;
           return aR - bR;
         });
-        const contentVideos = getReportContentVideos(selectedReport);
+        const contentVideos = getReportContentVideos(activePitchingReport);
         /* Count clips still uploading, or a report whose only videos are
                    mid-flight renders "No video data" over the placeholders. */
         const pendingForReport = uploadQueue.jobs.filter(j => j.reportId === reportIdForVideos);
@@ -2086,7 +2120,12 @@ export function PitchingTab({
               className={aStyles.profilePanel}
               style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
             >
-              <SectionHeader title="Video" />
+              <SectionHeader
+                title="Video"
+                rightSlot={canEdit && activePitchingReport
+                  ? <ReportVideoUploadButton report={activePitchingReport} playerId={player.id} category="PITCHING" />
+                  : undefined}
+              />
               {hasVideos ? (
                 <div style={{
                   display: 'grid',
@@ -2137,7 +2176,7 @@ export function PitchingTab({
         <div className={styles.emptyMsg}>
           No Trackman pitching data available.
           <span className={styles.emptyHint}>
-            {isCoach ? 'Upload a Trackman CSV or XLSX above.' : 'Ask your coach to upload pitching data.'}
+            {isCoach ? 'Use the Upload button next to the report date to add TrackMan data.' : 'Ask your coach to upload pitching data.'}
           </span>
         </div>
       )}
@@ -2146,6 +2185,16 @@ export function PitchingTab({
           inside the Pitch Report HUD bubble as "Pitching Notes". The
           Video section moved up there too so videos sit directly under
           the notes the coach is writing about them. */}
+
+      {uploadsOpen && activePitchingReport && user && (
+        <ReportUploadsDialog
+          player={player}
+          userId={(user as any).id || (user as any).sub}
+          report={activePitchingReport}
+          onClose={() => setUploadsOpen(false)}
+          onSaved={() => onRefresh?.()}
+        />
+      )}
 
       <CustomCharts section="PITCHING" playerId={player.id} />
 

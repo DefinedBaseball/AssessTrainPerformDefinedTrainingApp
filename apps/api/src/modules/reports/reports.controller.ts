@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Request, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { ReportsService } from './reports.service';
+import { ReportsService, redactForPlayer } from './reports.service';
 import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 
 class CreateReportDto {
@@ -35,13 +35,16 @@ export class ReportsController {
   @Get('player/:playerId')
   @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Get all reports for a player' })
-  findByPlayer(
+  async findByPlayer(
     @Request() req: AuthenticatedRequest,
     @Param('playerId') playerId: string,
     @Query('type') reportType?: string,
   ) {
     assertPlayerOwnership(req, playerId);
-    return this.reportsService.findByPlayer(playerId, reportType);
+    const reports = await this.reportsService.findByPlayer(playerId, reportType);
+    /* Coach Notes are coach-only. Hiding them in the UI is not enough --
+       this response is what the athlete's browser receives. */
+    return req.user?.role === 'COACH' ? reports : reports.map(redactForPlayer);
   }
 
   @Get(':id')
@@ -54,7 +57,7 @@ export class ReportsController {
     // Loading the row first is unavoidable since the route is /reports/:id —
     // there's no playerId in the URL to gate on directly.
     assertPlayerOwnership(req, (report as any).playerId);
-    return report;
+    return req.user?.role === 'COACH' ? report : redactForPlayer(report);
   }
 
   @Patch(':id')
@@ -62,6 +65,26 @@ export class ReportsController {
   @ApiOperation({ summary: 'Update report title, content, notes, or videos (COACH only)' })
   update(@Param('id') id: string, @Body() dto: { title?: string; content?: string; notes?: string; videoIds?: string }) {
     return this.reportsService.update(id, dto);
+  }
+
+  @Patch(':id/content')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Merge named keys into report content; null deletes a key (COACH only)' })
+  mergeContent(
+    @Param('id') id: string,
+    @Body() dto: { set?: Record<string, unknown> | null; notes?: string | null; title?: string | null },
+  ) {
+    return this.reportsService.mergeContent(id, dto);
+  }
+
+  @Post(':id/videos')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Attach an uploaded clip to a report (COACH only)' })
+  attachVideo(
+    @Param('id') id: string,
+    @Body() dto: { id: string; name: string; size: number; url?: string | null; section?: 'swing' | 'decision' },
+  ) {
+    return this.reportsService.attachVideo(id, dto);
   }
 
   @Delete(':id')
