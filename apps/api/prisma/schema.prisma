@@ -872,6 +872,8 @@ model Inquiry {
   clubTeam      String?
   positions     String? // comma-separated, e.g. "INF,OF"
   birthDate     String? // ISO date string (calendar field)
+  trainingHistory      String? // free text: past lessons / programs / academies
+  trainingAvailability String? // free text: days + times they can train
   otherSports   String?
   injuryHistory String?
   otherHobbies  String?

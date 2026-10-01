@@ -189,6 +189,8 @@ export default function InquiriesPage() {
          have no Player column of their own, so they're folded into
          developmentNotes with labels rather than dropped. */
       const extraNotes = [
+        selected.trainingHistory ? `Training history: ${selected.trainingHistory}` : '',
+        selected.trainingAvailability ? `Training availability: ${selected.trainingAvailability}` : '',
         selected.otherSports ? `Other sports: ${selected.otherSports}` : '',
         selected.injuryHistory ? `Injury history: ${selected.injuryHistory}` : '',
         selected.otherHobbies ? `Other hobbies: ${selected.otherHobbies}` : '',
@@ -346,6 +348,14 @@ export default function InquiriesPage() {
               <div className={styles.field}>
                 <div className={styles.fieldLabel}>Birthday</div>
                 <div className={styles.fieldValue}>{selected.birthDate ? fmtDate(selected.birthDate) : '—'}</div>
+              </div>
+              <div className={`${styles.field} ${styles.fieldFull}`}>
+                <div className={styles.fieldLabel}>Training History</div>
+                <div className={styles.fieldValue} style={{ whiteSpace: 'pre-wrap' }}>{selected.trainingHistory || '—'}</div>
+              </div>
+              <div className={`${styles.field} ${styles.fieldFull}`}>
+                <div className={styles.fieldLabel}>Training Availability</div>
+                <div className={styles.fieldValue} style={{ whiteSpace: 'pre-wrap' }}>{selected.trainingAvailability || '—'}</div>
               </div>
               <div className={styles.field}>
                 <div className={styles.fieldLabel}>Other Sports</div>

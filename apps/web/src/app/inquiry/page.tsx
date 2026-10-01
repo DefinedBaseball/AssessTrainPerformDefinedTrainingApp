@@ -36,6 +36,8 @@ export default function InquiryPage() {
   const [gradYear, setGradYear] = useState('');
   const [highSchool, setHighSchool] = useState('');
   const [clubTeam, setClubTeam] = useState('');
+  const [trainingHistory, setTrainingHistory] = useState('');
+  const [trainingAvailability, setTrainingAvailability] = useState('');
   const [otherSports, setOtherSports] = useState('');
   const [injuryHistory, setInjuryHistory] = useState('');
   const [otherHobbies, setOtherHobbies] = useState('');
@@ -75,6 +77,8 @@ export default function InquiryPage() {
         gradYear: gradYear ? parseInt(gradYear) : undefined,
         school: highSchool.trim() || undefined,
         clubTeam: clubTeam.trim() || undefined,
+        trainingHistory: trainingHistory.trim() || undefined,
+        trainingAvailability: trainingAvailability.trim() || undefined,
         otherSports: otherSports.trim() || undefined,
         injuryHistory: injuryHistory.trim() || undefined,
         otherHobbies: otherHobbies.trim() || undefined,
@@ -209,6 +213,24 @@ export default function InquiryPage() {
 
               {/* ── Background ── */}
               <div className={rs.sectionLabel}>Background</div>
+              <div className={rs.fieldGroup}>
+                <label className={rs.label}>Training History</label>
+                <textarea
+                  className={styles.textarea}
+                  value={trainingHistory}
+                  onChange={(e) => setTrainingHistory(e.target.value)}
+                  placeholder="Lessons, programs or academies you've trained with, and for how long"
+                />
+              </div>
+              <div className={rs.fieldGroup}>
+                <label className={rs.label}>Training Availability</label>
+                <textarea
+                  className={styles.textarea}
+                  value={trainingAvailability}
+                  onChange={(e) => setTrainingAvailability(e.target.value)}
+                  placeholder="Days and times you can train (e.g. Mon/Wed after 4pm, Saturday mornings)"
+                />
+              </div>
               <div className={rs.fieldGroup}>
                 <label className={rs.label}>Other Sports</label>
                 <input type="text" value={otherSports} onChange={(e) => setOtherSports(e.target.value)} placeholder="e.g. Hockey, Football" />

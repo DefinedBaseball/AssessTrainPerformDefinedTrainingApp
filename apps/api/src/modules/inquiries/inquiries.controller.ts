@@ -14,6 +14,8 @@ class CreateInquiryDto {
   clubTeam?: string | null;
   positions?: string | null;
   birthDate?: string | null;
+  trainingHistory?: string | null;
+  trainingAvailability?: string | null;
   otherSports?: string | null;
   injuryHistory?: string | null;
   otherHobbies?: string | null;

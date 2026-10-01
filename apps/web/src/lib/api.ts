@@ -528,6 +528,8 @@ export interface Inquiry {
   clubTeam: string | null;
   positions: string | null;
   birthDate: string | null;
+  trainingHistory: string | null;
+  trainingAvailability: string | null;
   otherSports: string | null;
   injuryHistory: string | null;
   otherHobbies: string | null;
@@ -560,6 +562,8 @@ export async function createInquiry(input: {
   clubTeam?: string | null;
   positions?: string | null;
   birthDate?: string | null;
+  trainingHistory?: string | null;
+  trainingAvailability?: string | null;
   otherSports?: string | null;
   injuryHistory?: string | null;
   otherHobbies?: string | null;

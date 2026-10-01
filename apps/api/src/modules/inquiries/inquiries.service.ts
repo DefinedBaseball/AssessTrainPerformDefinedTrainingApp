@@ -59,6 +59,8 @@ export class InquiriesService {
     clubTeam?: string | null;
     positions?: string | null;
     birthDate?: string | null;
+    trainingHistory?: string | null;
+    trainingAvailability?: string | null;
     otherSports?: string | null;
     injuryHistory?: string | null;
     otherHobbies?: string | null;
@@ -102,6 +104,8 @@ export class InquiriesService {
         positions: capped(data.positions, MAX_SHORT, 'Positions'),
         birthDate: capped(data.birthDate, MAX_SHORT, 'Birthday'),
         goalLevel: capped(data.goalLevel, MAX_SHORT, 'Goal level'),
+        trainingHistory: capped(data.trainingHistory, MAX_LONG, 'Training history'),
+        trainingAvailability: capped(data.trainingAvailability, MAX_LONG, 'Training availability'),
         otherSports: capped(data.otherSports, MAX_LONG, 'Other sports'),
         injuryHistory: capped(data.injuryHistory, MAX_LONG, 'Injury history'),
         otherHobbies: capped(data.otherHobbies, MAX_LONG, 'Other hobbies'),
