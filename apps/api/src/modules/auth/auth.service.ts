@@ -115,6 +115,13 @@ export class AuthService {
        Connor@ vs connor@) creates two near-identical logins. */
     const email = rawEmail?.trim().toLowerCase();
     if (!email) throw new BadRequestException('Email is required');
+    /* Coach-created accounts (+ Add Athlete, Settings -> Staff, Inquiry
+       conversion) had no password check here at all, so a blank one was
+       hashed and stored as a real credential. Same rule and wording as
+       the forms, so the message reads the same if a client ever skips
+       its own check. */
+    if (!password || !password.trim()) throw new BadRequestException('Create Password to Continue');
+    if (password.length < 6) throw new BadRequestException('Password must be at least 6 characters');
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -162,7 +169,9 @@ export class AuthService {
   async signupPlayer(payload: SignupPlayerPayload) {
     const email = payload.email?.trim().toLowerCase();
     if (!email) throw new BadRequestException('Email is required');
-    if (!payload.password || payload.password.length < 6)
+    if (!payload.password || !payload.password.trim())
+      throw new BadRequestException('Create Password to Continue');
+    if (payload.password.length < 6)
       throw new BadRequestException('Password must be at least 6 characters');
     if (!payload.firstName?.trim() || !payload.lastName?.trim())
       throw new BadRequestException('First and last name are required');
@@ -366,9 +375,10 @@ export class AuthService {
 
   /**
    * Issue a set-password link for an account a COACH created on someone's
-   * behalf (converting an inquiry into a player profile). The account is made
-   * with a random password the athlete never sees, so this mail is the only
-   * way in.
+   * behalf (converting an inquiry into a player profile). The coach sets the
+   * account's password at creation; this only adds a separate single-use
+   * token so the athlete can choose their own. It never changes the stored
+   * password.
    *
    * Unlike `requestPasswordReset` this is NOT anonymous-safe by design — it's
    * coach-only and reports real failures, because the coach needs to know if

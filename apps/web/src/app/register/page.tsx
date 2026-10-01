@@ -28,7 +28,7 @@
    Coaches are NOT created here — this page only makes player accounts.
    ───────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -36,6 +36,15 @@ import * as api from '@/lib/api';
 import { DobPicker } from '@/components/DobPicker';
 import { normalizePositionsForSave } from '../athletes/[id]/helpers';
 import styles from './page.module.css';
+
+/* Errors that are about the password, shown under the Password field too.
+   Exact strings from the submit handler (and the API, which uses the same
+   wording), so a server-side rejection lands in the same place. */
+const PASSWORD_ERRORS = new Set([
+  'Create Password to Continue',
+  'Password must be at least 6 characters',
+  'Passwords do not match',
+]);
 
 /* The SPECIFIC position codes, matching Edit Profile. The old umbrella set
    (INF / OF / UTIL) is what made players print as "INF · OF" on the PDF
@@ -72,6 +81,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [phone, setPhone] = useState('');
   const [parentEmail, setParentEmail] = useState('');
   const [parentPhone, setParentPhone] = useState('');
@@ -108,7 +118,14 @@ export default function RegisterPage() {
     if (!firstName.trim() || !lastName.trim()) return setError('First and last name are required');
     if (positions.length === 0) return setError('Select at least one position');
     if (!email.trim()) return setError('Email is required');
-    if (password.length < 6) return setError('Password must be at least 6 characters');
+    if (!password.trim()) {
+      passwordRef.current?.focus();
+      return setError('Create Password to Continue');
+    }
+    if (password.length < 6) {
+      passwordRef.current?.focus();
+      return setError('Password must be at least 6 characters');
+    }
     if (password !== confirm) return setError('Passwords do not match');
 
     setError('');
@@ -217,10 +234,13 @@ export default function RegisterPage() {
                 type="password"
                 autoComplete="new-password"
                 value={password}
+                ref={passwordRef}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                required
               />
+              {PASSWORD_ERRORS.has(error) && (
+                <div className={styles.error} role="alert" style={{ marginTop: 6 }}>{error}</div>
+              )}
             </div>
             <div className={styles.fieldGroup}>
               <label className={styles.label}>Confirm Password *</label>
@@ -230,7 +250,6 @@ export default function RegisterPage() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Re-enter password"
-                required
               />
             </div>
           </div>

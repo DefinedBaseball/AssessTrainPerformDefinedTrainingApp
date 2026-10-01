@@ -533,6 +533,7 @@ function StaffTab() {
     setSuccess('');
     const em = email.trim();
     if (!em) { setError('Email is required'); return; }
+    if (!password.trim()) { setError('Create Password to Continue'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
     if (password !== confirm) { setError('Passwords do not match'); return; }
     setSubmitting(true);

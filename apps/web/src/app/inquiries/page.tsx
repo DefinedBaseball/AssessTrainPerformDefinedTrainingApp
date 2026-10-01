@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -58,6 +58,15 @@ export default function InquiriesPage() {
   const [createResult, setCreateResult] = useState<
     { ok: true; playerId: string; message: string } | { ok: false; message: string } | null
   >(null);
+  /* The account password the coach sets for the new athlete. Required --
+     same rule and wording as + Add Athlete and Create an Account. */
+  const [pw, setPw] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwError, setPwError] = useState('');
+  const pwRef = useRef<HTMLInputElement>(null);
+  /* A password typed for one inquiry must never carry over to the next one
+     the coach opens. */
+  useEffect(() => { setPw(''); setPwConfirm(''); setPwError(''); }, [selected?.id]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -99,14 +108,32 @@ export default function InquiriesPage() {
        3. PATCH /players   — fills the fields `create` doesn't accept
        4. PATCH status     — archives the inquiry (kept, not deleted, so the
                              original submission and its extra answers survive)
-       5. /auth/invite     — mails a set-password link
+       5. /auth/invite     — mails the athlete a link to their account
 
-     The account is created with a random password nobody sees; step 5 is how
-     the athlete actually gets in. Steps 3-5 are best-effort: once the profile
+     The coach must type the account password (no blank, no random fallback).
+     Step 5 only issues a separate set-password link -- it never changes the
+     stored password -- so the athlete can sign in with the coach's password
+     or choose their own from the email. Steps 3-5 are best-effort: once the profile
      exists the conversion has succeeded, and a failure to (say) send mail
      shouldn't read as "this didn't work" — it's reported separately instead. */
   const handleCreateProfile = async () => {
     if (!selected) return;
+    if (!pw.trim()) {
+      setPwError('Create Password to Continue');
+      pwRef.current?.focus();
+      return;
+    }
+    if (pw.trim().length < 6) {
+      setPwError('Password must be at least 6 characters');
+      pwRef.current?.focus();
+      return;
+    }
+    if (pw !== pwConfirm) {
+      setPwError('Passwords do not match');
+      pwRef.current?.focus();
+      return;
+    }
+    setPwError('');
     setCreating(true);
     setCreateResult(null);
     try {
@@ -123,18 +150,13 @@ export default function InquiriesPage() {
          better than blocking the conversion outright. */
       const positions = (selected.positions || '').trim() || 'ATH';
 
-      /* Random password: the athlete never receives it and sets their own via
-         the invite link. Avoids the shared `player123` default that
-         "+ Add Athlete" still falls back to. */
-      const randomPassword = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2).toUpperCase()}!7`;
-
       let userId: string;
       try {
         /* `register` returns the new account as `id` (same field
            "+ Add Athlete" reads). It also returns a token for that account —
            the client deliberately doesn't store it, so the coach's own
            session is unaffected. */
-        const reg = await api.register(email, randomPassword, 'PLAYER', undefined, `${first} ${last}`);
+        const reg = await api.register(email, pw.trim(), 'PLAYER', undefined, `${first} ${last}`);
         userId = reg.id;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -201,8 +223,8 @@ export default function InquiriesPage() {
         ok: true,
         playerId: player.id,
         message: emailed
-          ? `Profile created. ${first} was emailed a link to set their password.`
-          : `Profile created — but the invite email didn’t send. Use "Reset Password" on their profile to get them in.`,
+          ? `Profile created. ${first} can sign in with ${email} and the password you set, and was emailed a link to their account.`
+          : `Profile created — but the invite email didn’t send. Give ${first} the password you set so they can sign in with ${email}.`,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -353,6 +375,44 @@ export default function InquiriesPage() {
               )}
               {extraFormFields(selected.formData)}
             </div>
+
+            {/* Account password -- required before the profile can be created.
+                Hidden once it has been, along with the Create button. */}
+            {!(createResult && createResult.ok) && (
+              <div className={styles.fieldGrid} style={{ marginTop: 18 }}>
+                <div className={styles.field}>
+                  <div className={styles.fieldLabel}>Password *</div>
+                  <input
+                    ref={pwRef}
+                    type="password"
+                    autoComplete="new-password"
+                    value={pw}
+                    onChange={(e) => setPw(e.target.value)}
+                    placeholder="At least 6 characters"
+                  />
+                  {pwError && (
+                    <div
+                      role="alert"
+                      style={{
+                        marginTop: 6, padding: '8px 12px', borderRadius: 8, fontSize: 13,
+                        border: '1px solid var(--red, #ef4444)',
+                        background: 'rgba(239,68,68,0.08)', color: 'var(--text)',
+                      }}
+                    >{pwError}</div>
+                  )}
+                </div>
+                <div className={styles.field}>
+                  <div className={styles.fieldLabel}>Confirm Password *</div>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={pwConfirm}
+                    onChange={(e) => setPwConfirm(e.target.value)}
+                    placeholder="Re-enter password"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className={styles.modalActions}>
               {confirmDelete ? (

@@ -15,13 +15,15 @@
        filter and program post audiences — so it is absent from the public
        form and belongs here, in the position Edit Profile puts it.
 
-     • Password is optional. The athlete is not present to choose one, so a
-       blank field falls back to the shared default and the coach sends them
-       a set-password link instead. Confirm is only checked when a password
-       is actually typed.
+     • Password is required, as on /register. There is no fallback: a
+       blank field used to create the account with the shared default
+       "player123", which anyone who knew the athlete's email could sign
+       in with. A blank submit now stops with "Create Password to Continue" and focuses the
+       field. The API refuses a blank password too (auth.service
+       register), so this is not only a client-side rule.
    ───────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -29,6 +31,15 @@ import { DobPicker } from '@/components/DobPicker';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import { normalizePositionsForSave } from '../../athletes/[id]/helpers';
 import styles from './page.module.css';
+
+/* Errors that are about the password, shown under the Password field too.
+   Exact strings from the submit handler (and the API, which uses the same
+   wording), so a server-side rejection lands in the same place. */
+const PASSWORD_ERRORS = new Set([
+  'Create Password to Continue',
+  'Password must be at least 6 characters',
+  'Passwords do not match',
+]);
 
 /* The SPECIFIC position codes, matching Edit Profile and /register. The old
    umbrella set (INF / OF / UTIL) this form used to write is what made
@@ -66,6 +77,9 @@ export default function NewPlayerPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  /* The password row sits mid-form; on a blank submit we move the coach
+     to it rather than leave them hunting for what's missing. */
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [phone, setPhone] = useState('');
   const [parentEmail, setParentEmail] = useState('');
   const [parentPhone, setParentPhone] = useState('');
@@ -114,13 +128,17 @@ export default function NewPlayerPage() {
       setError('Select at least one position');
       return;
     }
-    if (password.trim() && password.trim().length < 6) {
-      setError('Password must be at least 6 characters (or leave blank for the default)');
+    if (!password.trim()) {
+      setError('Create Password to Continue');
+      passwordRef.current?.focus();
       return;
     }
-    /* Only meaningful when the coach actually typed one — a blank password
-       means "use the default", and there is nothing to confirm. */
-    if (password.trim() && password !== confirm) {
+    if (password.trim().length < 6) {
+      setError('Password must be at least 6 characters');
+      passwordRef.current?.focus();
+      return;
+    }
+    if (password !== confirm) {
       setError('Passwords do not match');
       return;
     }
@@ -128,7 +146,7 @@ export default function NewPlayerPage() {
     setSubmitting(true);
     try {
       // First register the user account
-      const regResult = await api.register(email, password.trim() || 'player123', 'PLAYER');
+      const regResult = await api.register(email, password.trim(), 'PLAYER');
       const userId = regResult.id;
 
       // Create the player profile with basic fields
@@ -237,17 +255,21 @@ export default function NewPlayerPage() {
             />
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.label}>Password</label>
+            <label className={styles.label}>Password *</label>
             <input
+              ref={passwordRef}
               type="password"
               autoComplete="new-password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Blank for default"
+              placeholder="At least 6 characters"
             />
+            {PASSWORD_ERRORS.has(error) && (
+              <div className={styles.error} role="alert" style={{ marginTop: 6 }}>{error}</div>
+            )}
           </div>
           <div className={styles.fieldGroup}>
-            <label className={styles.label}>Confirm Password</label>
+            <label className={styles.label}>Confirm Password *</label>
             <input
               type="password"
               autoComplete="new-password"
@@ -410,7 +432,7 @@ export default function NewPlayerPage() {
         </div>
 
         <p className={styles.hint}>
-          Leave <strong>Password</strong> blank to use the default <strong>player123</strong>. Athletes log in with their email.
+          Athletes log in with their email and the password set here.
         </p>
 
         {error && <div className={styles.error}>{error}</div>}
