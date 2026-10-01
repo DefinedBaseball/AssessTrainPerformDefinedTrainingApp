@@ -504,6 +504,22 @@ function VendorMetricRowGroup({ items, colCount, last }: {
   const headerStyle: React.CSSProperties = {
     fontSize: rem(7.65), fontWeight: 600, textTransform: 'uppercase',
     letterSpacing: '0.05em', color: 'var(--text-bright)', textAlign: 'center',
+    /* 'pre-line' preserves the explicit newline BLAST_PHONE_LABELS puts
+       between a label's two halves while still collapsing ordinary
+       whitespace runs — so Full Swing / HitTrax labels, which carry no
+       newline, wrap exactly as they did before. Unlike
+       HittingMetricTable this component does NOT auto-split labels;
+       the break is author-controlled, which is the point (the coach
+       chose each break, e.g. "Time to" / "Con", not the most
+       character-balanced one). */
+    whiteSpace: 'pre-line',
+    /* Small gap between the two stacked words. */
+    lineHeight: 1.15,
+    /* Bottom-anchor so a one-line label sharing a row with a two-line
+       one sits on the SECOND line's baseline, keeping every column's
+       label-to-hairline gap equal. No effect when a row's labels are
+       all the same height (the Blast row, where all nine are two-line). */
+    alignSelf: 'end',
   };
   const cellStyle: React.CSSProperties = {
     textAlign: 'center', fontFamily: 'inherit', fontWeight: 700,
@@ -1204,7 +1220,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
           const buildItem = (k: typeof SWING_METRIC_KEYS[number]): HittingMetricCell => {
             const m = topMetricsWithMiss[k];
             const grade = metricGrades[k];
-            const label = (isMobile ? PHONE_TABLE_LABELS[k] : undefined)
+            const label = (isMobile ? BLAST_PHONE_LABELS[k] : undefined)
               || SHORT_LABELS[k] || SCORE_LABEL_OVERRIDES[k] || METRIC_LABELS[k] || k;
             if (!m) return { label, display: '—' };
             const display = k === 'time_to_contact'
@@ -1345,9 +1361,10 @@ const FULLSWING_KEYS = [
    full names both wrap to two lines and shrink past readability. The
    abbreviations buy back the width.
 
-   Keys absent here keep their desktop label at every width (Hand Speed,
-   Vert Bat Angle, Attack Angle, Plane Score were left as-is by the
-   coach). Desktop is untouched — only the `isMobile` branch reads this.
+   Keys absent here keep their desktop label at every width. Desktop is
+   untouched — only the `isMobile` branch reads this. Blast Motion has
+   its own map (BLAST_PHONE_LABELS) because every one of its labels is
+   two-line; this map stays single-token.
 
    Note `squared_up_pct` -> "Barrel %" is a rename, not an abbreviation,
    and it collides in name (not in key) with `overall_barrel_pct`, which
@@ -1362,12 +1379,37 @@ const PHONE_TABLE_LABELS: Record<string, string> = {
   distance:       'Avg Dist',
   launch_angle:   'Avg LA',
   squared_up_pct: 'Barrel %',
-  // Blast Motion
-  max_bat_speed:      'Max BS',
-  avg_bat_speed:      'Avg BS',
-  time_to_contact:    'TTC',
-  rotational_accel_g: 'Rot Accel',
-  early_connection:   'Early Con',
+};
+
+/* Phone-width Blast Motion labels, stacked on two lines per coach spec.
+
+   Nine metrics across a 375px screen leaves ~40px a column, which is too
+   narrow for "Vert Bat Angle" or "Time to Contact" to read at the
+   header's 7.65px type. Rather than abbreviate harder (the previous
+   "TTC" / "Early Con" approach) each label spends two lines, so the
+   words stay recognisable without stealing width.
+
+   The break points are the coach's, not a balanced-split algorithm's —
+   which is why this is a literal map and not a call to
+   `splitLabelBalanced`. That helper would pick "Time" / "to Con"
+   (lengths 4/6) over the intended "Time to" / "Con", and would break
+   "Vert Bat Angle" after "Vert". Keys here must stay in sync with
+   BLAST_ORDER at the render site.
+
+   The newline renders as a real break via `whiteSpace: 'pre-line'` on
+   the vendor header style. Desktop is untouched — only the `isMobile`
+   branch reads this, so wide screens keep the full SHORT_LABELS names
+   on one line. */
+const BLAST_PHONE_LABELS: Record<string, string> = {
+  max_bat_speed:      'Max\nBS',
+  avg_bat_speed:      'Avg\nBS',
+  peak_hand_speed:    'Hand\nSpeed',
+  time_to_contact:    'Time to\nCon',
+  rotational_accel_g: 'Rot\nAccel',
+  early_connection:   'Early\nConn',
+  plane_angle:        'Vert Bat\nAngle',
+  attack_angle:       'Attack\nAngle',
+  on_plane_efficiency:'Plane\nScore',
 };
 
 const VENDOR_TABLE_LABELS: Record<string, string> = {
