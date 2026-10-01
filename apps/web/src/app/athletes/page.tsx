@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import { AddAthleteModal } from '@/components/AddAthleteModal';
 import { getAgeFromBirthDate } from './[id]/helpers';
 import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
 import styles from './page.module.css';
@@ -45,6 +46,8 @@ export default function AthletesPage() {
      be double-fired. */
   const [lockingId, setLockingId] = useState<string | null>(null);
   const [lockError, setLockError] = useState('');
+  /* The Add Athlete chooser (Email / Manual). */
+  const [addOpen, setAddOpen] = useState(false);
 
 
   useEffect(() => {
@@ -165,9 +168,14 @@ export default function AthletesPage() {
               ))}
             </select>
             {isCoach && (
-              <Link href="/players/new" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ whiteSpace: 'nowrap' }}
+                onClick={() => setAddOpen(true)}
+              >
                 + Add Athlete
-              </Link>
+              </button>
             )}
             {/* Locked athletes live on their own page — same table as this
                 one, with Unlock in place of Lock. Sits left of the inquiry
@@ -324,6 +332,8 @@ export default function AthletesPage() {
           })}
         </div>
       )}
+
+      {addOpen && <AddAthleteModal onClose={() => setAddOpen(false)} />}
     </div>
   );
 }

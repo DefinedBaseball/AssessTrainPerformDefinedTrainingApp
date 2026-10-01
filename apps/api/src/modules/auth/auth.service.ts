@@ -13,7 +13,7 @@ import * as bcrypt from 'bcryptjs';
 import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { passwordResetEmail, welcomeEmail, inviteEmail } from '../mail/mail.templates';
+import { passwordResetEmail, welcomeEmail, inviteEmail, registrationInviteEmail } from '../mail/mail.templates';
 
 /** Full payload from the public /register form: profile + credentials. */
 export interface SignupPlayerPayload {
@@ -35,6 +35,14 @@ export interface SignupPlayerPayload {
   pbrState?: number | null;
   pbrPosition?: number | null;
   pgScore?: number | null;
+  /** Lives on the User row, not Player -- set after the nested create. */
+  phone?: string | null;
+  parentEmail?: string | null;
+  parentPhone?: string | null;
+  college?: string | null;
+  professionalTeam?: string | null;
+  playingLevelGoal?: string | null;
+  goals?: string | null;
 }
 
 @Injectable()
@@ -166,12 +174,21 @@ export class AuthService {
 
     const hashed = await this.hashPassword(payload.password);
 
+    /* Blank optional text arrives as '' from the form; store null so an
+       untouched field reads as "not provided" rather than an empty string
+       that the Client Directory would render as a real, empty value. */
+    const str = (v?: string | null) => {
+      const t = v?.trim();
+      return t ? t : null;
+    };
+
     const user = await this.prisma.user.create({
       data: {
         email,
         password: hashed,
         role: 'PLAYER',
         status: 'PENDING',
+        phone: str(payload.phone),
         player: {
           create: {
             firstName: payload.firstName.trim(),
@@ -190,6 +207,12 @@ export class AuthService {
             pbrState: payload.pbrState ?? null,
             pbrPosition: payload.pbrPosition ?? null,
             pgScore: payload.pgScore ?? null,
+            parentEmail: str(payload.parentEmail),
+            parentPhone: str(payload.parentPhone),
+            college: str(payload.college),
+            professionalTeam: str(payload.professionalTeam),
+            playingLevelGoal: str(payload.playingLevelGoal),
+            goals: str(payload.goals),
           },
         },
       },
@@ -389,6 +412,42 @@ export class AuthService {
       this.logger.warn(`Invite link issued for ${user.email} but no email was sent`);
     }
     return { ok: true, emailed };
+  }
+
+  /**
+   * Email someone who has NO account a link to the public registration form.
+   *
+   * Coach-only and, like sendInvite, reports real failures rather than being
+   * anonymous-safe: the coach needs to know whether it actually went out.
+   *
+   * Refuses an address that already has an account -- sending that person to
+   * the Create an Account form would only dead-end at "Email already
+   * registered", and the coach would never know why nothing happened.
+   */
+  async sendRegistrationInvite(rawEmail: string): Promise<{ ok: boolean; emailed: boolean; to: string }> {
+    const to = rawEmail?.trim().toLowerCase();
+    if (!to) throw new BadRequestException('Email is required');
+    if (!/^[^@s]+@[^@s]+.[^@s]+$/.test(to))
+      throw new BadRequestException('Enter a valid email address');
+
+    const existing = await this.prisma.user.findUnique({ where: { email: to } });
+    if (existing) {
+      throw new ConflictException(
+        'That email already has an account. Use the reminder button on their profile instead.',
+      );
+    }
+
+    const { subject, html, text } = registrationInviteEmail(`${this.mail.webAppUrl}/register`);
+    let emailed = false;
+    try {
+      /* send() returns false when Resend is unconfigured or the send fails --
+         it does not throw -- so this flag, not the absence of an exception,
+         is what tells the coach the invite actually left. */
+      emailed = await this.mail.send({ to, subject, html, text });
+    } catch (err) {
+      this.logger.warn(`Registration invite failed for ${to}: ${err}`);
+    }
+    return { ok: true, emailed, to };
   }
 
   /**

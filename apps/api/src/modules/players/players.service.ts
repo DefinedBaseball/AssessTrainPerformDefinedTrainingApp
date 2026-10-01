@@ -101,6 +101,10 @@ export class PlayersService {
     highSchool?: string | null;
     clubTeam?: string | null;
     college?: string | null;
+    /* Pro club, for athletes who have signed. Deliberately separate from
+       `college`: the Client Directory's Team column and the PDF cover both
+       read College. */
+    professionalTeam?: string | null;
     collegeCommit?: string | null;
     parentEmail?: string | null;
     parentPhone?: string | null;

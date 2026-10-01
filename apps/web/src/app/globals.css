@@ -705,6 +705,9 @@ input[type='text'],
 input[type='email'],
 input[type='password'],
 input[type='number'],
+/* Phone fields. Without this they render at the UA's own default height and
+   sit visibly shorter than the text inputs they share a row with. */
+input[type='tel'],
 select,
 textarea {
   background: linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.015) 100%), var(--surface);

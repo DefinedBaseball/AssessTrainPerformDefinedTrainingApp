@@ -1,16 +1,59 @@
 'use client';
 
+/* ─────────────────────────────────────────────────────────────────────
+   /players/new — the "Manual" half of + Add Athlete.
+
+   Mirrors the public Create an Account form (/register) field for field and
+   row for row, which in turn mirrors Edit Profile. A coach typing a profile
+   here and an athlete filling it in themselves produce the same record, so
+   nothing has to be re-keyed afterwards.
+
+   Two deliberate differences from /register, both because the person at the
+   keyboard is a COACH, not the athlete:
+
+     • Athlete Type is present. It is coach-input only — it drives the Hub
+       filter and program post audiences — so it is absent from the public
+       form and belongs here, in the position Edit Profile puts it.
+
+     • Password is optional. The athlete is not present to choose one, so a
+       blank field falls back to the shared default and the coach sends them
+       a set-password link instead. Confirm is only checked when a password
+       is actually typed.
+   ───────────────────────────────────────────────────────────────────── */
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { DobPicker } from '@/components/DobPicker';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
+import { normalizePositionsForSave } from '../../athletes/[id]/helpers';
 import styles from './page.module.css';
 
-const POSITION_OPTIONS = ['C', 'INF', 'OF', 'P', 'UTIL'];
-const BATS_OPTIONS = ['R', 'L', 'S'];
-const THROWS_OPTIONS = ['R', 'L'];
+/* The SPECIFIC position codes, matching Edit Profile and /register. The old
+   umbrella set (INF / OF / UTIL) this form used to write is what made
+   athletes print as "INF · OF" on the PDF cover regardless of what was
+   actually picked; normalizePositionsForSave cleans those on the way out. */
+const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'];
+const PLAYING_LEVELS = ['High School', 'College', 'D3', 'D2', 'D1', 'Professional'];
+
+function buildHeightOptions(): string[] {
+  const opts: string[] = [];
+  for (let ft = 4; ft <= 7; ft++) {
+    for (let inc = 0; inc < 12; inc++) {
+      if (ft === 7 && inc > 0) break;
+      opts.push(`${ft}'${inc}"`);
+    }
+  }
+  return opts;
+}
+const HEIGHT_OPTIONS = buildHeightOptions();
+
+function heightToInches(h: string): number | undefined {
+  const m = h.match(/^(\d+)'(\d+)"$/);
+  if (!m) return undefined;
+  return parseInt(m[1]) * 12 + parseInt(m[2]);
+}
 
 export default function NewPlayerPage() {
   const router = useRouter();
@@ -18,19 +61,26 @@ export default function NewPlayerPage() {
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [gradYear, setGradYear] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [phone, setPhone] = useState('');
+  const [parentEmail, setParentEmail] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
   const [positions, setPositions] = useState<string[]>([]);
-  const [athleteTypes, setAthleteTypes] = useState<string[]>([]);
   const [bats, setBats] = useState('');
   const [throws_, setThrows] = useState('');
-  const [gradYear, setGradYear] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [heightFt, setHeightFt] = useState('');
-  const [heightIn, setHeightIn] = useState('');
+  const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [highSchool, setHighSchool] = useState('');
   const [clubTeam, setClubTeam] = useState('');
+  const [college, setCollege] = useState('');
+  const [professionalTeam, setProfessionalTeam] = useState('');
+  const [athleteTypes, setAthleteTypes] = useState<string[]>([]);
+  const [playingLevelGoal, setPlayingLevelGoal] = useState('');
+  const [goals, setGoals] = useState('');
   const [pbrNational, setPbrNational] = useState('');
   const [pbrState, setPbrState] = useState('');
   const [pbrPosition, setPbrPosition] = useState('');
@@ -68,6 +118,12 @@ export default function NewPlayerPage() {
       setError('Password must be at least 6 characters (or leave blank for the default)');
       return;
     }
+    /* Only meaningful when the coach actually typed one — a blank password
+       means "use the default", and there is nothing to confirm. */
+    if (password.trim() && password !== confirm) {
+      setError('Passwords do not match');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -75,19 +131,15 @@ export default function NewPlayerPage() {
       const regResult = await api.register(email, password.trim() || 'player123', 'PLAYER');
       const userId = regResult.id;
 
-      // Calculate height in inches
-      const heightInches = heightFt && heightIn
-        ? parseInt(heightFt) * 12 + parseInt(heightIn)
-        : undefined;
-
       // Create the player profile with basic fields
       const player = await api.createPlayer({
         userId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        positions: positions.join(','),
+        /* Same normalization /register and Edit Profile apply. */
+        positions: normalizePositionsForSave(positions).join(','),
         gradYear: gradYear ? parseInt(gradYear) : undefined,
-        heightInches,
+        heightInches: heightToInches(height),
         weightLbs: weight ? parseInt(weight) : undefined,
       });
 
@@ -96,8 +148,14 @@ export default function NewPlayerPage() {
       if (bats) updates.bats = bats;
       if (throws_) updates.throws = throws_;
       if (birthDate) updates.birthDate = birthDate;
+      if (parentEmail.trim()) updates.parentEmail = parentEmail.trim();
+      if (parentPhone.trim()) updates.parentPhone = parentPhone.trim();
       if (highSchool.trim()) updates.highSchool = highSchool.trim();
       if (clubTeam.trim()) updates.clubTeam = clubTeam.trim();
+      if (college.trim()) updates.college = college.trim();
+      if (professionalTeam.trim()) updates.professionalTeam = professionalTeam.trim();
+      if (playingLevelGoal) updates.playingLevelGoal = playingLevelGoal;
+      if (goals.trim()) updates.goals = goals.trim();
       if (pbrNational) updates.pbrNational = parseInt(pbrNational);
       if (pbrState) updates.pbrState = parseInt(pbrState);
       if (pbrPosition) updates.pbrPosition = parseInt(pbrPosition);
@@ -107,6 +165,17 @@ export default function NewPlayerPage() {
 
       if (Object.keys(updates).length > 0) {
         await api.updatePlayer(player.id, updates);
+      }
+
+      /* Phone lives on the User row, not Player, so it cannot ride along with
+         updatePlayer. Non-fatal: a failure here must not strand a profile
+         that has already been created. */
+      if (phone.trim()) {
+        try {
+          await api.setUserPhone(userId, phone.trim());
+        } catch (err) {
+          console.error('Failed to save phone:', err);
+        }
       }
 
       router.push(`/athletes/${player.id}`);
@@ -125,10 +194,10 @@ export default function NewPlayerPage() {
       <p className={styles.subtitle}>Create a full player profile</p>
 
       <form onSubmit={handleSubmit} className={styles.form}>
-        {/* ── Section: Identity ── */}
-        <div className={styles.sectionLabel}>Player Info</div>
+        <div className={styles.sectionLabel}>Player Information</div>
 
-        <div className={styles.row3}>
+        {/* Row 1 */}
+        <div className={styles.row4}>
           <div className={styles.fieldGroup}>
             <label className={styles.label}>First Name *</label>
             <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required />
@@ -138,34 +207,78 @@ export default function NewPlayerPage() {
             <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} required />
           </div>
           <div className={styles.fieldGroup}>
+            <label className={styles.label}>Birthday</label>
+            <DobPicker value={birthDate} onChange={setBirthDate} />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Grad Year</label>
+            <select value={gradYear} onChange={e => setGradYear(e.target.value)}>
+              <option value="">--</option>
+              {[2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+              <option value={api.GRAD_COLLEGE}>College</option>
+              <option value={api.GRAD_PRO}>Professional</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Row 2 — credentials, same slot /register uses */}
+        <div className={styles.row3}>
+          <div className={styles.fieldGroup}>
             <label className={styles.label}>Email *</label>
             <input
               type="email"
               autoComplete="off"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="player@example.com"
+              placeholder="athlete@example.com"
               required
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Blank for default"
+            />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Confirm Password</label>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              placeholder="Re-enter password"
             />
           </div>
         </div>
 
-        <div className={styles.fieldGroup}>
-          <label className={styles.label}>Password</label>
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="Leave blank for default (player123)"
-          />
+        {/* Row 3 */}
+        <div className={styles.row3}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Phone</label>
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(407) 555-0100" />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Parent Email</label>
+            <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} placeholder="parent@example.com" />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Parent Phone</label>
+            <input type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="(407) 555-0100" />
+          </div>
         </div>
 
-        {/* ── Section: Positions ── */}
+        {/* Positions */}
         <div className={styles.fieldGroup}>
-          <label className={styles.label}>Positions *</label>
+          <label className={styles.label}>Position(s) *</label>
           <div className={styles.chipRow}>
-            {POSITION_OPTIONS.map(pos => (
+            {POSITIONS.map(pos => (
               <button
                 key={pos}
                 type="button"
@@ -178,8 +291,59 @@ export default function NewPlayerPage() {
           </div>
         </div>
 
-        {/* ── Section: Athlete Type ── (multiselect; drives the Athlete Hub
-            filter. Optional — untagged athletes still appear under "All".) */}
+        {/* Row 5 */}
+        <div className={styles.row4}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Bats</label>
+            <select value={bats} onChange={e => setBats(e.target.value)}>
+              <option value="">Select...</option>
+              <option value="R">R</option>
+              <option value="L">L</option>
+              <option value="S">S</option>
+            </select>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Throws</label>
+            <select value={throws_} onChange={e => setThrows(e.target.value)}>
+              <option value="">Select...</option>
+              <option value="R">R</option>
+              <option value="L">L</option>
+            </select>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Height</label>
+            <select value={height} onChange={e => setHeight(e.target.value)}>
+              <option value="">Select...</option>
+              {HEIGHT_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Weight (lbs)</label>
+            <input type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder="lbs" min={80} max={300} />
+          </div>
+        </div>
+
+        {/* Row 6 */}
+        <div className={styles.row4}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>High School</label>
+            <input type="text" value={highSchool} onChange={e => setHighSchool(e.target.value)} placeholder="High school name" />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Club Team</label>
+            <input type="text" value={clubTeam} onChange={e => setClubTeam(e.target.value)} placeholder="Club name" />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>College</label>
+            <input type="text" value={college} onChange={e => setCollege(e.target.value)} placeholder="Current college" />
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.label}>Professional Team</label>
+            <input type="text" value={professionalTeam} onChange={e => setProfessionalTeam(e.target.value)} placeholder="Pro club" />
+          </div>
+        </div>
+
+        {/* Coach-only, so it is here and NOT on the public /register form. */}
         <div className={styles.fieldGroup}>
           <label className={styles.label}>Athlete Type</label>
           <div className={styles.chipRow}>
@@ -196,88 +360,29 @@ export default function NewPlayerPage() {
           </div>
         </div>
 
-        {/* ── Section: Physical ── */}
-        <div className={styles.sectionLabel}>Physical</div>
-
-        <div className={styles.row4}>
+        <div className={styles.sectionLabel}>Goals &amp; Aspirations</div>
+        <div className={styles.row}>
           <div className={styles.fieldGroup}>
-            <label className={styles.label}>Bats</label>
-            <div className={styles.chipRow}>
-              {BATS_OPTIONS.map(b => (
-                <button
-                  key={b}
-                  type="button"
-                  className={`${styles.chipSm} ${bats === b ? styles.chipActive : ''}`}
-                  onClick={() => setBats(bats === b ? '' : b)}
-                >
-                  {b}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Throws</label>
-            <div className={styles.chipRow}>
-              {THROWS_OPTIONS.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`${styles.chipSm} ${throws_ === t ? styles.chipActive : ''}`}
-                  onClick={() => setThrows(throws_ === t ? '' : t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Height</label>
-            <div className={styles.heightRow}>
-              <input type="number" value={heightFt} onChange={e => setHeightFt(e.target.value)} placeholder="ft" min={4} max={7} />
-              <span className={styles.heightSep}>'</span>
-              <input type="number" value={heightIn} onChange={e => setHeightIn(e.target.value)} placeholder="in" min={0} max={11} />
-              <span className={styles.heightSep}>"</span>
-            </div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Weight (lbs)</label>
-            <input type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder="lbs" min={80} max={300} />
-          </div>
-        </div>
-
-        {/* ── Section: Background ── */}
-        <div className={styles.sectionLabel}>Background</div>
-
-        <div className={styles.row4}>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Grad Year</label>
-            <select value={gradYear} onChange={e => setGradYear(e.target.value)}>
-              <option value="">--</option>
-              {[2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-              <option value={api.GRAD_COLLEGE}>College</option>
-              <option value={api.GRAD_PRO}>Professional</option>
+            <label className={styles.label}>Playing Level Goal</label>
+            <select value={playingLevelGoal} onChange={e => setPlayingLevelGoal(e.target.value)}>
+              <option value="">Select...</option>
+              {PLAYING_LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
             </select>
           </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Birthday</label>
-            <DobPicker value={birthDate} onChange={setBirthDate} />
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>High School</label>
-            <input type="text" value={highSchool} onChange={e => setHighSchool(e.target.value)} placeholder="School name" />
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Club Team</label>
-            <input type="text" value={clubTeam} onChange={e => setClubTeam(e.target.value)} placeholder="Club name" />
-          </div>
+        </div>
+        <div className={styles.fieldGroup}>
+          <label className={styles.label}>Goals</label>
+          <textarea
+            value={goals}
+            onChange={e => setGoals(e.target.value)}
+            placeholder="Personal goals…"
+            rows={4}
+            style={{ resize: 'vertical', minHeight: 80 }}
+          />
         </div>
 
-        {/* ── Section: Rankings ── */}
-        <div className={styles.sectionLabel}>Rankings & Commitment</div>
-
-        <div className={styles.row5}>
+        <div className={styles.sectionLabel}>Rankings &amp; Scores</div>
+        <div className={styles.row4}>
           <div className={styles.fieldGroup}>
             <label className={styles.label}>PBR National</label>
             <input type="number" value={pbrNational} onChange={e => setPbrNational(e.target.value)} placeholder="#" min={1} />
@@ -288,19 +393,22 @@ export default function NewPlayerPage() {
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.label}>PBR Position</label>
-            <input type="number" value={pbrPosition} onChange={e => setPbrPosition(e.target.value)} placeholder="#" min={1} />
+            <input type="number" value={pbrPosition} onChange={e => setPbrPosition(e.target.value)} placeholder="Position ranking" min={1} />
           </div>
           <div className={styles.fieldGroup}>
             <label className={styles.label}>PG Score</label>
             <input type="number" value={pgScore} onChange={e => setPgScore(e.target.value)} placeholder="0.0" min={0} max={10} step={0.1} />
           </div>
+        </div>
+
+        <div className={styles.sectionLabel}>College Commitment</div>
+        <div className={styles.row}>
           <div className={styles.fieldGroup}>
-            <label className={styles.label}>College Commit</label>
+            <label className={styles.label}>Committed To</label>
             <input type="text" value={collegeCommit} onChange={e => setCollegeCommit(e.target.value)} placeholder="University" />
           </div>
         </div>
 
-        {/* ── Hint ── */}
         <p className={styles.hint}>
           Leave <strong>Password</strong> blank to use the default <strong>player123</strong>. Athletes log in with their email.
         </p>

@@ -164,6 +164,31 @@ export function profileReminderEmail(loginUrl: string, name?: string | null): { 
   return { subject: 'Complete your Defined Baseball player profile', html, text };
 }
 
+/** Registration invite -- a coach asks someone with NO account yet to fill
+ *  in their player profile. Links to the public Create an Account form.
+ *
+ *  Not to be confused with `profileReminderEmail` (existing athlete, links
+ *  to /login) or `inviteEmail` (account already created FOR them, links to
+ *  a set-password token). Here no account and no token exist yet, so the
+ *  link is a plain public URL with nothing to expire. */
+export function registrationInviteEmail(registerUrl: string): { subject: string; html: string; text: string } {
+  const html = shell(`
+    <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">Please complete your player profile</h1>
+    <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
+      Your coach at Defined Baseball has asked you to set up your player
+      profile. It takes a couple of minutes, and it is what your reports,
+      video and training plan get built on.
+    </p>
+    <p style="margin:0 0 22px;">${button(registerUrl, 'Create Your Account')}</p>
+    <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
+      If the button doesn&rsquo;t work, paste this link into your browser:<br/>
+      <a href="${registerUrl}" style="color:${ACCENT};word-break:break-all;">${registerUrl}</a>
+    </p>
+  `);
+  const text = `Please complete your player profile.\n\nYour coach at Defined Baseball has asked you to set up your player profile. Create your account here:\n\n${registerUrl}`;
+  return { subject: 'Please complete your player profile', html, text };
+}
+
 /** Minimal HTML-escape for interpolated user-provided names. */
 function escapeHtml(s: string): string {
   return s

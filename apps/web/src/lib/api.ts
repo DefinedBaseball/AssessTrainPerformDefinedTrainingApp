@@ -330,6 +330,25 @@ export interface SignupPlayerInput {
   pbrState?: number | null;
   pbrPosition?: number | null;
   pgScore?: number | null;
+  /** Lives on the User row, not Player -- set after the nested create. */
+  phone?: string | null;
+  parentEmail?: string | null;
+  parentPhone?: string | null;
+  college?: string | null;
+  professionalTeam?: string | null;
+  playingLevelGoal?: string | null;
+  goals?: string | null;
+}
+
+/** Email a prospective athlete a link to the public Create an Account form
+ *  (COACH only). Rejects an address that already has an account, since
+ *  that person would only dead-end on the register form. `emailed` is
+ *  false when the server has no mail provider configured. */
+export async function sendRegistrationInvite(email: string) {
+  return request<{ ok: boolean; emailed: boolean; to: string }>('/auth/invite-registration', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
 }
 
 /** Public player self-registration → pending account + a session token. */

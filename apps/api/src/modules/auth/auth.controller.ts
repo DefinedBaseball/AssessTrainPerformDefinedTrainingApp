@@ -56,6 +56,22 @@ export class AuthController {
     return this.authService.sendInvite(dto.email, dto.name);
   }
 
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @Post('invite-registration')
+  /* Emails a link to the PUBLIC Create an Account form, for someone who has
+   * no account yet -- the "Email" half of Add Athlete. Distinct from
+   * /auth/invite, which mails a set-password token for an account a coach
+   * already created.
+   *
+   * Same 20/10min cap as /auth/invite: it creates nothing, it just sends one
+   * message, and a coach inviting a squad would trip a tighter limit. */
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Email a registration link to a prospective athlete (COACH only)' })
+  inviteRegistration(@Body() dto: { email: string }) {
+    return this.authService.sendRegistrationInvite(dto?.email);
+  }
+
   @Public()
   @Post('signup')
   /* Public player self-registration. Creates a PENDING account + profile and
