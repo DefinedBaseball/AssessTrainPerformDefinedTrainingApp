@@ -87,6 +87,11 @@ model Player {
   // "" default so existing rows are simply untagged. A MEMBERSHIP athlete is
   // treated as also PROGRAM by the filter logic (see lib/athlete-types.ts).
   athleteTypes     String   @default("")
+  // Profile tabs hidden on this athlete's profile -- the coach's eye toggle.
+  // JSON array of tab keys (e.g. ["catching","strength"]). Null = never set,
+  // which means the app default (defense + Physical hidden). Lives on the
+  // athlete, not in a browser, so the athlete's own login sees the same tabs.
+  hiddenTabs       String?
   heightInches     Int?
   weightLbs        Int?
   gradYear         Int?

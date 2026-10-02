@@ -1,4 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+
+/** Profile tabs a coach may hide (matches the web tab keys). Summary and
+ *  Videos are never hideable. */
+const HIDEABLE_TABS = new Set(['hitting', 'pitching', 'catching', 'infield', 'outfield', 'strength']);
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { profileReminderEmail } from '../mail/mail.templates';
@@ -130,6 +134,25 @@ export class PlayersService {
    * must not be "unlocked" into a live account — that would route around the
    * coach approval step entirely — and a DECLINED one must stay declined.
    */
+  /**
+   * Profile tabs hidden on this athlete's profile (the coach's eye toggle).
+   * Unknown keys are dropped rather than rejected, so a stale client can't
+   * fail the whole save over one renamed tab.
+   */
+  async setHiddenTabs(playerId: string, tabs: unknown) {
+    if (!Array.isArray(tabs)) throw new BadRequestException('"tabs" must be an array of tab names');
+    const clean = [...new Set(tabs.filter(
+      (t): t is string => typeof t === 'string' && HIDEABLE_TABS.has(t),
+    ))];
+    const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Player not found');
+    await this.prisma.player.update({
+      where: { id: playerId },
+      data: { hiddenTabs: JSON.stringify(clean) },
+    });
+    return { hiddenTabs: clean };
+  }
+
   async setPlayerLocked(playerId: string, locked: boolean) {
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },

@@ -2,12 +2,17 @@
 
 import { rem } from '@/lib/rem';
 import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, ScalePips, NotesBox, VideoPlaceholder, VideoBundleCard,
   ReportSelector, TabBarActions, DownloadPdfButton, } from '@/components/assessment';
 import { NoteBlock } from './SwingTab';
+import {
+  ReportEditButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
+  useCanEditReports, useInlineField, isBlankNote,
+} from '../components/ReportInlineEditing';
+import { DefenseReportEditor } from '../components/DefenseReportEditor';
 import { INFIELDER_SILHOUETTE, OUTFIELDER_SILHOUETTE } from './defense-silhouettes';
 import { generateDefensePdf } from '@/lib/pdf';
 import { useAuth } from '@/lib/auth-context';
@@ -2498,10 +2503,27 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
 
 export function CatchingSubTab({
   player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
+  focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
+  /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
+  const canEdit = useCanEditReports();
+  /* Edit mode -- the report's form replaces its display, in place.
+     Selecting a different report leaves edit mode. */
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { setEditing(false); }, [selectedReport?.id]);
+  /* Select a report just created from "+ Report" once the refetch brings
+     it in. Applied once per id, so a later manual pick isn't undone. */
+  const appliedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusReportId || appliedFocusRef.current === focusReportId) return;
+    const target = reports.find((r) => r.id === focusReportId && r.reportType === 'CATCHING');
+    if (!target) return;
+    appliedFocusRef.current = focusReportId;
+    setSelectedReport(target);
+  }, [focusReportId, reports]);
 
   /* Re-sync `selectedReport` from the parent's `reports` array whenever
      it updates (e.g. after the report modal saves a CSV removal or
@@ -2574,7 +2596,7 @@ export function CatchingSubTab({
     setSavingNotes(true);
     setNotesError(null);
     try {
-      await api.updateReport(selectedReport.id, { notes: catchingNotes || undefined });
+      await api.mergeReportContent(selectedReport.id, { notes: isBlankNote(catchingNotes) ? null : catchingNotes });
       setNotesSavedAt(Date.now());
       onRefresh?.();
     } catch (err: any) {
@@ -2626,6 +2648,97 @@ export function CatchingSubTab({
       onDownload={(r) => generateDefensePdf(player, [r])}
     />
   );
+  /* Report header controls -- Edit (when a report is selected and not
+     already being edited) beside the report-date selector. */
+  const headerControls = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {canEdit && selectedReport && !editing && (
+        <ReportEditButton onClick={() => setEditing(true)} />
+      )}
+      <SnapshotReportChip>{reportSelector}</SnapshotReportChip>
+    </span>
+  );
+
+
+  /* Catching Notes (+ private Coach Notes under it). A variable so a
+     report with no assessment yet -- one just created from "+ Report" --
+     still shows them; with data they sit inside the snapshot as before. */
+  const catchingNotesBase = (
+              /* Notes block — lives inside the Catching Snapshot bubble,
+                 BETWEEN the two visual panes (heat map + field
+                 diagram). The previous "Coaching Notes" eyebrow label
+                 was retired; the NoteBlock now uses "Catching Notes"
+                 as its own label so the section reads with a single
+                 title instead of a duplicated header. */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <NoteBlock
+                  label="Catching Notes"
+                  value={catchingNotes}
+                  onChange={setCatchingNotes}
+                  placeholder="Catching mechanics, game management, communication, blocking habits, drill recommendations…"
+                  editable={canEdit}
+                  rows={5}
+                />
+                {canEdit && (
+                  <div style={{
+                    marginTop: 8,
+                    display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+                  }}>
+                    <button
+                      type="button"
+                      onClick={saveCatchingNotes}
+                      disabled={savingNotes || !notesDirty}
+                      style={{
+                        padding: '9px 22px',
+                        borderRadius: 9,
+                        background: notesDirty
+                          ? 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))'
+                          : 'rgba(255,255,255,0.04)',
+                        border: notesDirty
+                          ? '1px solid rgba(74,222,128,0.55)'
+                          : '1px solid var(--border)',
+                        color: notesDirty ? '#bbf7d0' : 'var(--text-muted)',
+                        fontSize: rem(12.5),
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        cursor: notesDirty && !savingNotes ? 'pointer' : 'not-allowed',
+                        opacity: notesDirty && !savingNotes ? 1 : 0.6,
+                        transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+                      }}
+                    >
+                      {savingNotes ? 'Saving…' : 'Save Notes'}
+                    </button>
+                    {notesSavedAt && !notesDirty && !notesError && (
+                      <span style={{
+                        fontSize: rem(11.5), fontWeight: 600, color: '#86efac',
+                        letterSpacing: '0.06em', textTransform: 'uppercase',
+                      }}>
+                        ✓ Saved
+                      </span>
+                    )}
+                    {/* Inline save-failure surface — wired up in
+                       saveCatchingNotes' catch block so a server
+                       rejection no longer leaves the coach believing
+                       the notes were persisted. */}
+                    {notesError && (
+                      <span style={{
+                        fontSize: rem(11.5), fontWeight: 600, color: '#fca5a5',
+                        letterSpacing: '0.06em', textTransform: 'uppercase',
+                      }}>
+                        ⚠ {notesError}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+  );
+  const catchingNotesNode = (
+    <>
+      {catchingNotesBase}
+      {selectedReport && <CoachNotesInline report={selectedReport} onSaved={onRefresh} />}
+    </>
+  );
 
   return (
     <>
@@ -2661,13 +2774,20 @@ export function CatchingSubTab({
           `coachGrades` slot — so the order reads panes -> Throwing Grades
           -> notes, matching the Infield/Outfield embed. */}
 
-      {!catchingAssessment ? (
+      {editing && selectedReport ? (
+        <DefenseReportEditor
+          position="catching"
+          report={selectedReport}
+          onCancel={() => setEditing(false)}
+          onSaved={() => { setEditing(false); onRefresh?.(); }}
+        />
+      ) : !catchingAssessment ? (
         <Section>
           {/* Header exists purely to carry the report selector: without a
               catching assessment there is no report bubble to host it, and
               the coach still needs to switch reports or add one. */}
           <SectionHeader title="Catching Report"
-            rightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>} />
+            rightSlot={headerControls} />
           <div className={styles.emptyMsg}>
             <div style={{ fontSize: rem(32), marginBottom: 8, opacity: 0.5 }}>
               <span role="img" aria-label="catcher">&#x1F9E4;</span>
@@ -2675,10 +2795,11 @@ export function CatchingSubTab({
             No catching assessment data available.
             <span className={styles.emptyHint}>
               {isCoach
-                ? 'Create a Catching report with assessment data to populate this tab.'
+                ? (selectedReport ? 'Click Edit to enter this report\u2019s catching assessment.' : 'Create a Catching report with + Report, then click Edit to fill it in.')
                 : 'Ask your coach to complete a catching assessment.'}
             </span>
           </div>
+          {selectedReport && <div style={{ marginTop: 16 }}>{catchingNotesNode}</div>}
         </Section>
       ) : (() => {
         const t = catchingAssessment.throwing;
@@ -2693,7 +2814,7 @@ export function CatchingSubTab({
           <div data-pdf-section="catching-snapshot">
           <SnapshotBubble
             title="Catching Report"
-            headerRightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>}
+            headerRightSlot={headerControls}
             coachGrades={
               <DefenseCoachGradesPanel
                 report={selectedReport}
@@ -2759,76 +2880,7 @@ export function CatchingSubTab({
             }}
             /* Underlying Stats prop retired — the heat map + field
                diagram + Coaching Notes are the entire snapshot now. */
-            notes={
-              /* Notes block — lives inside the Catching Snapshot bubble,
-                 BETWEEN the two visual panes (heat map + field
-                 diagram). The previous "Coaching Notes" eyebrow label
-                 was retired; the NoteBlock now uses "Catching Notes"
-                 as its own label so the section reads with a single
-                 title instead of a duplicated header. */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <NoteBlock
-                  label="Catching Notes"
-                  value={catchingNotes}
-                  onChange={setCatchingNotes}
-                  placeholder="Catching mechanics, game management, communication, blocking habits, drill recommendations…"
-                  editable={isCoach}
-                  rows={5}
-                />
-                {isCoach && (
-                  <div style={{
-                    marginTop: 8,
-                    display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
-                  }}>
-                    <button
-                      type="button"
-                      onClick={saveCatchingNotes}
-                      disabled={savingNotes || !notesDirty}
-                      style={{
-                        padding: '9px 22px',
-                        borderRadius: 9,
-                        background: notesDirty
-                          ? 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))'
-                          : 'rgba(255,255,255,0.04)',
-                        border: notesDirty
-                          ? '1px solid rgba(74,222,128,0.55)'
-                          : '1px solid var(--border)',
-                        color: notesDirty ? '#bbf7d0' : 'var(--text-muted)',
-                        fontSize: rem(12.5),
-                        fontWeight: 700,
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase',
-                        cursor: notesDirty && !savingNotes ? 'pointer' : 'not-allowed',
-                        opacity: notesDirty && !savingNotes ? 1 : 0.6,
-                        transition: 'background 0.15s, border-color 0.15s, color 0.15s',
-                      }}
-                    >
-                      {savingNotes ? 'Saving…' : 'Save Notes'}
-                    </button>
-                    {notesSavedAt && !notesDirty && !notesError && (
-                      <span style={{
-                        fontSize: rem(11.5), fontWeight: 600, color: '#86efac',
-                        letterSpacing: '0.06em', textTransform: 'uppercase',
-                      }}>
-                        ✓ Saved
-                      </span>
-                    )}
-                    {/* Inline save-failure surface — wired up in
-                       saveCatchingNotes' catch block so a server
-                       rejection no longer leaves the coach believing
-                       the notes were persisted. */}
-                    {notesError && (
-                      <span style={{
-                        fontSize: rem(11.5), fontWeight: 600, color: '#fca5a5',
-                        letterSpacing: '0.06em', textTransform: 'uppercase',
-                      }}>
-                        ⚠ {notesError}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            }
+            notes={catchingNotesNode}
           />
           </div>
         );
@@ -2918,7 +2970,12 @@ export function CatchingSubTab({
             >
               {/* Leading 🎬 icon retired — Video section header reads
                   with title text alone. */}
-              <SectionHeader title="Video" />
+              <SectionHeader
+                title="Video"
+                rightSlot={canEdit && selectedReport
+                  ? <ReportVideoUploadButton report={selectedReport} playerId={player.id} category="CATCHING" />
+                  : undefined}
+              />
               {hasVideos ? (
                 /* 5-column grid capped at 3 visible rows — matches
                    the HittingTab gallery. `grid-auto-rows: max-content`
@@ -2980,10 +3037,36 @@ export function CatchingSubTab({
 
 export function InfieldSubTab({
   player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
+  focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
+  /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
+  const canEdit = useCanEditReports();
+  /* Edit mode -- the report's form replaces its display, in place.
+     Selecting a different report leaves edit mode. */
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { setEditing(false); }, [selectedReport?.id]);
+  /* Select a report just created from "+ Report" once the refetch brings
+     it in. Applied once per id, so a later manual pick isn't undone. */
+  const appliedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusReportId || appliedFocusRef.current === focusReportId) return;
+    const target = reports.find((r) => r.id === focusReportId && r.reportType === 'INFIELD');
+    if (!target) return;
+    appliedFocusRef.current = focusReportId;
+    setSelectedReport(target);
+  }, [focusReportId, reports]);
+  /* Notes -- shown and saved in place (the snapshot used to drop them,
+     so saved notes never appeared on this tab). */
+  const notesField = useInlineField(
+    selectedReport?.notes || '',
+    (value) => selectedReport
+      ? api.mergeReportContent(selectedReport.id, { notes: value || null })
+      : Promise.reject(new Error('No report selected.')),
+    onRefresh,
+  );
   /* Sync the selected report with the parent's fresh `reports` array
      after every save. Same rationale as the Catching sub-tab — keeps
      infieldAssessment / notes / video filter from rendering stale
@@ -3072,6 +3155,16 @@ export function InfieldSubTab({
       onDownload={(r) => generateDefensePdf(player, [r])}
     />
   );
+  /* Report header controls -- Edit (when a report is selected and not
+     already being edited) beside the report-date selector. */
+  const headerControls = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {canEdit && selectedReport && !editing && (
+        <ReportEditButton onClick={() => setEditing(true)} />
+      )}
+      <SnapshotReportChip>{reportSelector}</SnapshotReportChip>
+    </span>
+  );
 
   return (
     <>
@@ -3096,7 +3189,14 @@ export function InfieldSubTab({
       {/* Coach Grades moved INTO the Infielder Snapshot bubble (below the
           Defensive Skills + Underlying Metrics columns) — passed as the
           `coachGrades` prop on <DefensiveSnapshot> below. */}
-      {infieldAssessment ? (() => {
+      {editing && selectedReport ? (
+        <DefenseReportEditor
+          position="infield"
+          report={selectedReport}
+          onCancel={() => setEditing(false)}
+          onSaved={() => { setEditing(false); onRefresh?.(); }}
+        />
+      ) : infieldAssessment ? (() => {
         const a = infieldAssessment;
         /* Prefer the coach's manual snapshot entries; fall back to
          * the legacy granular fields + topMetrics for older reports. */
@@ -3116,7 +3216,7 @@ export function InfieldSubTab({
           <DefensiveSnapshot
             mode="infield"
             title="Infielder Report"
-            headerRightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>}
+            headerRightSlot={headerControls}
             /* subtitle retired — Infielder Snapshot now reads with
                title only, mirroring the Hitting / Catching headers. */
             silhouette={INFIELDER_SILHOUETTE}
@@ -3169,8 +3269,11 @@ export function InfieldSubTab({
       })() : (
         <Section>
           <SectionHeader icon="🧤" iconColor="teal" title="Infield Metrics" subtitle="Arm strength & fielding grades"
-            rightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>} />
-          {hasData ? (
+            rightSlot={headerControls} />
+          {/* Athlete-wide metrics only when there's no report to show. A
+              selected report with no assessment yet stays blank -- these
+              numbers aren't from it. */}
+          {hasData && !selectedReport ? (
             <>
               <KpiGrid>
                 {TAB_METRICS.defense.filter(k => k.includes('infield')).map(key => {
@@ -3205,10 +3308,10 @@ export function InfieldSubTab({
             </>
           ) : (
             <div className={styles.emptyMsg}>
-              No infield metrics available.
+              {selectedReport ? 'No infield assessment yet.' : 'No infield metrics available.'}
               <span className={styles.emptyHint}>
                 {isCoach
-                  ? 'Create an Infield report with assessment data, or upload tracking data.'
+                  ? (selectedReport ? 'Click Edit to enter this report\u2019s infield assessment.' : 'Create an Infield report with + Report, then click Edit to fill it in.')
                   : 'Ask your coach to complete an infield assessment.'}
               </span>
             </div>
@@ -3220,6 +3323,34 @@ export function InfieldSubTab({
           surfaced in the Infielder Snapshot's metric groups, and notes
           live inline beneath the snapshot via the Diagnosis Notes
           handler. Both legacy sections were redundant on the dashboard. */}
+
+      {/* ── Notes + Coach Notes ── edited in place; Coach Notes renders
+          nothing for players (and the API strips it from their reports). */}
+      {selectedReport && (
+        <Section>
+          <div className={aStyles.profilePanel} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <NoteBlock
+              label="Infield Notes"
+              value={notesField.draft}
+              onChange={notesField.setDraft}
+              placeholder="Infield defensive assessment notes, areas to develop…"
+              editable={canEdit}
+              rows={5}
+              largeLabel
+            />
+            {canEdit && (
+              <SaveBar
+                dirty={notesField.dirty}
+                saving={notesField.saving}
+                savedAt={notesField.savedAt}
+                error={notesField.error}
+                onSave={() => void notesField.save()}
+              />
+            )}
+            <CoachNotesInline report={selectedReport} onSaved={onRefresh} />
+          </div>
+        </Section>
+      )}
 
       {/* ── Coach Reviews — per-report panel above the main Video
           gallery. Surfaces only clips attached to THIS Infield
@@ -3301,7 +3432,12 @@ export function InfieldSubTab({
             >
               {/* Leading 🎬 icon retired — Video section header reads
                   with title text alone. */}
-              <SectionHeader title="Video" />
+              <SectionHeader
+                title="Video"
+                rightSlot={canEdit && selectedReport
+                  ? <ReportVideoUploadButton report={selectedReport} playerId={player.id} category="INFIELD" />
+                  : undefined}
+              />
               {hasVideos ? (
                 /* 5-column grid capped at 3 visible rows — matches
                    the HittingTab gallery. `grid-auto-rows: max-content`
@@ -3363,10 +3499,36 @@ export function InfieldSubTab({
 
 export function OutfieldSubTab({
   player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
+  focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
+  /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
+  const canEdit = useCanEditReports();
+  /* Edit mode -- the report's form replaces its display, in place.
+     Selecting a different report leaves edit mode. */
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { setEditing(false); }, [selectedReport?.id]);
+  /* Select a report just created from "+ Report" once the refetch brings
+     it in. Applied once per id, so a later manual pick isn't undone. */
+  const appliedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusReportId || appliedFocusRef.current === focusReportId) return;
+    const target = reports.find((r) => r.id === focusReportId && r.reportType === 'OUTFIELD');
+    if (!target) return;
+    appliedFocusRef.current = focusReportId;
+    setSelectedReport(target);
+  }, [focusReportId, reports]);
+  /* Notes -- shown and saved in place (the snapshot used to drop them,
+     so saved notes never appeared on this tab). */
+  const notesField = useInlineField(
+    selectedReport?.notes || '',
+    (value) => selectedReport
+      ? api.mergeReportContent(selectedReport.id, { notes: value || null })
+      : Promise.reject(new Error('No report selected.')),
+    onRefresh,
+  );
   /* Sync the selected report with the parent's fresh `reports` array
      after every save. Same rationale as the other Defense sub-tabs —
      keeps outfieldAssessment / notes / video filter from rendering
@@ -3453,6 +3615,16 @@ export function OutfieldSubTab({
       onDownload={(r) => generateDefensePdf(player, [r])}
     />
   );
+  /* Report header controls -- Edit (when a report is selected and not
+     already being edited) beside the report-date selector. */
+  const headerControls = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {canEdit && selectedReport && !editing && (
+        <ReportEditButton onClick={() => setEditing(true)} />
+      )}
+      <SnapshotReportChip>{reportSelector}</SnapshotReportChip>
+    </span>
+  );
 
   return (
     <>
@@ -3477,7 +3649,14 @@ export function OutfieldSubTab({
       {/* Coach Grades moved INTO the Outfielder Snapshot bubble (below the
           Defensive Skills + Underlying Metrics columns) — passed as the
           `coachGrades` prop on <DefensiveSnapshot> below. */}
-      {outfieldAssessment ? (() => {
+      {editing && selectedReport ? (
+        <DefenseReportEditor
+          position="outfield"
+          report={selectedReport}
+          onCancel={() => setEditing(false)}
+          onSaved={() => { setEditing(false); onRefresh?.(); }}
+        />
+      ) : outfieldAssessment ? (() => {
         const a = outfieldAssessment;
         /* Manual-snapshot fields first; legacy ArmMetric/routesReads
          * fields and topMetrics fall back when nothing's been entered yet. */
@@ -3498,7 +3677,7 @@ export function OutfieldSubTab({
           <DefensiveSnapshot
             mode="outfield"
             title="Outfielder Report"
-            headerRightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>}
+            headerRightSlot={headerControls}
             /* subtitle retired — Outfielder Snapshot now reads with
                title only, mirroring the Hitting / Catching headers. */
             silhouette={OUTFIELDER_SILHOUETTE}
@@ -3551,8 +3730,11 @@ export function OutfieldSubTab({
       })() : (
         <Section>
           <SectionHeader icon="🧤" iconColor="teal" title="Outfield Metrics" subtitle="Arm strength & route grades"
-            rightSlot={<SnapshotReportChip>{reportSelector}</SnapshotReportChip>} />
-          {hasData ? (
+            rightSlot={headerControls} />
+          {/* Athlete-wide metrics only when there's no report to show. A
+              selected report with no assessment yet stays blank -- these
+              numbers aren't from it. */}
+          {hasData && !selectedReport ? (
             <>
               <KpiGrid>
                 {TAB_METRICS.defense.filter(k => k.includes('outfield')).map(key => {
@@ -3587,10 +3769,10 @@ export function OutfieldSubTab({
             </>
           ) : (
             <div className={styles.emptyMsg}>
-              No outfield metrics available.
+              {selectedReport ? 'No outfield assessment yet.' : 'No outfield metrics available.'}
               <span className={styles.emptyHint}>
                 {isCoach
-                  ? 'Create an Outfield report with assessment data, or upload tracking data.'
+                  ? (selectedReport ? 'Click Edit to enter this report\u2019s outfield assessment.' : 'Create an Outfield report with + Report, then click Edit to fill it in.')
                   : 'Ask your coach to complete an outfield assessment.'}
               </span>
             </div>
@@ -3599,7 +3781,9 @@ export function OutfieldSubTab({
       )}
 
       {/* ── Scouting Grades (from CSV metrics) ── */}
-      {gradeKeys.filter(k => k.includes('outfield')).length > 0 && (
+      {/* Athlete-wide (CSV) grades -- hidden on a report with no assessment
+          yet, so a new report starts blank. */}
+      {gradeKeys.filter(k => k.includes('outfield')).length > 0 && !(selectedReport && !outfieldAssessment) && (
         <Section>
           <SectionHeader icon="📊" iconColor="green" title="Outfield Grades" subtitle="20-80 Scale" />
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -3629,6 +3813,34 @@ export function OutfieldSubTab({
 
       {/* Coaching Notes section removed — notes flow through the
           Diagnosis Notes box rendered inside the Outfielder Snapshot. */}
+
+      {/* ── Notes + Coach Notes ── edited in place; Coach Notes renders
+          nothing for players (and the API strips it from their reports). */}
+      {selectedReport && (
+        <Section>
+          <div className={aStyles.profilePanel} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <NoteBlock
+              label="Outfield Notes"
+              value={notesField.draft}
+              onChange={notesField.setDraft}
+              placeholder="Outfield defensive assessment notes, areas to develop…"
+              editable={canEdit}
+              rows={5}
+              largeLabel
+            />
+            {canEdit && (
+              <SaveBar
+                dirty={notesField.dirty}
+                saving={notesField.saving}
+                savedAt={notesField.savedAt}
+                error={notesField.error}
+                onSave={() => void notesField.save()}
+              />
+            )}
+            <CoachNotesInline report={selectedReport} onSaved={onRefresh} />
+          </div>
+        </Section>
+      )}
 
       {/* ── Coach Reviews — per-report panel above the main Video
           gallery. Surfaces only clips attached to THIS Outfield
@@ -3710,7 +3922,12 @@ export function OutfieldSubTab({
             >
               {/* Leading 🎬 icon retired — Video section header reads
                   with title text alone. */}
-              <SectionHeader title="Video" />
+              <SectionHeader
+                title="Video"
+                rightSlot={canEdit && selectedReport
+                  ? <ReportVideoUploadButton report={selectedReport} playerId={player.id} category="OUTFIELD" />
+                  : undefined}
+              />
               {hasVideos ? (
                 /* 5-column grid capped at 3 visible rows — matches
                    the HittingTab gallery. `grid-auto-rows: max-content`

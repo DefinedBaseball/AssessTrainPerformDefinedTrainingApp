@@ -93,6 +93,13 @@ export class PlayersController {
     return this.playersService.sendProfileReminder(id);
   }
 
+  @Patch(':id/hidden-tabs')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Set which profile tabs are hidden on an athlete's profile (COACH only)" })
+  setHiddenTabs(@Param('id') id: string, @Body() dto: { tabs: string[] }) {
+    return this.playersService.setHiddenTabs(id, dto?.tabs);
+  }
+
   @Patch(':id/lock')
   @Roles('COACH')
   @ApiOperation({ summary: "Pause or restore an athlete's account access (COACH only)" })

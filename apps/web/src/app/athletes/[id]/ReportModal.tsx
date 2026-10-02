@@ -8,6 +8,7 @@ import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import { useUploadQueue, type NewUploadJob } from '@/lib/upload-queue';
+import { useGradeInputMode, GradeNumberInput } from './components/GradeNumberInput';
 import {
   type CsvSlot, REPORT_CSV_SLOTS, type UploadResult, type ExistingFile, type ExistingUpload,
   dedupeFiles, existingFilesOf, CsvUploadCard, ManualMetricBubbles,
@@ -63,8 +64,8 @@ const POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'
    the tab is visible and slashed when it's hidden, mirroring the
    familiar password-field show/hide UX.
 
-   Stored in localStorage via `getHiddenTabs` / `setHiddenTabsForPlayer`
-   keyed by playerId, so the toggle persists across modal opens. A
+   Saved on the athlete (Player.hiddenTabs) via `setHiddenTabsForPlayer`,
+   so every login -- the athlete's included -- sees the same tabs. A
    custom `player:hiddenTabsChanged` event fires on every save so the
    tab bar over in page.tsx re-reads the preference live (no full page
    refresh required). */
@@ -109,8 +110,12 @@ export function EyeVisibilityToggle({
     const next = current.includes(tabKey)
       ? current.filter(k => k !== tabKey)
       : [...current, tabKey];
-    setHiddenTabsForPlayer(playerId, next);
     setIsHidden(next.includes(tabKey));
+    /* Saved to the athlete on the server. A failed save is rolled back in
+       the cache; re-read so the eye shows what actually stuck. */
+    void setHiddenTabsForPlayer(playerId, next).catch(() => {
+      setIsHidden(getHiddenTabs(playerId).includes(tabKey));
+    });
   }
 
   return (
@@ -910,7 +915,7 @@ interface GradeRow {
  *  then left column rows 1-3, then right column rows 1-3). */
 type ZoneVal = 0 | 1 | 2;
 
-interface CatchingFormData {
+export interface CatchingFormData {
   throwing: {
     popTime2B: ThrowingRow;
     exchangeTime: ThrowingRow;
@@ -974,7 +979,7 @@ interface CatchingFormData {
 const EMPTY_THROWING_ROW: ThrowingRow = { attempts: ['','','','','','','',''], notes: '' };
 const EMPTY_GRADE_ROW: GradeRow = { grade: '', notes: '' };
 
-function emptyCatchingForm(): CatchingFormData {
+export function emptyCatchingForm(): CatchingFormData {
   return {
     throwing: {
       popTime2B: { ...EMPTY_THROWING_ROW, attempts: [...EMPTY_THROWING_ROW.attempts] },
@@ -1017,7 +1022,7 @@ function emptyCatchingForm(): CatchingFormData {
   };
 }
 
-function buildCatchingContent(data: CatchingFormData) {
+export function buildCatchingContent(data: CatchingFormData) {
   const parseAttempts = (row: ThrowingRow) => {
     const nums = row.attempts.map(a => { const n = parseFloat(a); return isNaN(n) ? null : n; });
     const valid = nums.filter((n): n is number => n !== null);
@@ -1511,6 +1516,23 @@ function DefenseGradeSlider({
   onGradeChange: (s: string) => void;
   onNotesChange?: (s: string) => void;
 }) {
+  /* Typed 20–80 entry when rendered by the in-tab report editor. */
+  const inputMode = useGradeInputMode();
+  if (inputMode === 'number') {
+    return (
+      <div style={{
+        ...reportInnerBubbleStyle,
+        padding: '10px 12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      }}>
+        <span style={{
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--text-muted)',
+        }}>{label}</span>
+        <GradeNumberInput value={grade} onChange={onGradeChange} ariaLabel={`${label} grade`} />
+      </div>
+    );
+  }
   const value: number | null = grade === '' ? null : (() => {
     const n = parseInt(grade, 10);
     return Number.isFinite(n) ? n : null;
@@ -1626,6 +1648,44 @@ function DefenseOverallSlider({
    *  derived value). */
   readOnly?: boolean;
 }) {
+  /* Typed 20–80 entry when rendered by the in-tab report editor. A
+     read-only (auto-averaged) overall stays a display, as with the bar. */
+  const inputMode = useGradeInputMode();
+  if (inputMode === 'number') {
+    const shown = grade === '' ? null : parseInt(grade, 10);
+    return (
+      <div style={{
+        ...reportInnerBubbleStyle,
+        padding: '10px 12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        marginTop: 8,
+      }}>
+        <span style={{
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--text-muted)',
+        }}>{label}</span>
+        {readOnly ? (
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{
+              fontWeight: 800, fontSize: rem(18), lineHeight: 1,
+              color: shown != null && Number.isFinite(shown) ? scoreColor(shown) : 'var(--text-muted)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{shown != null && Number.isFinite(shown) ? shown : '—'}</span>
+            <span
+              title="Auto-computed as the average of this section's sub-skill grades"
+              style={{
+                color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 5,
+                padding: '1px 6px', fontSize: rem(9), fontWeight: 700,
+                letterSpacing: '0.10em', textTransform: 'uppercase', lineHeight: 1.2,
+              }}
+            >AVG</span>
+          </span>
+        ) : (
+          <GradeNumberInput value={grade} onChange={onGradeChange} ariaLabel={`${label} grade`} />
+        )}
+      </div>
+    );
+  }
   const value: number | null = grade === '' ? null : (() => {
     const n = parseInt(grade, 10);
     return Number.isFinite(n) ? n : null;
@@ -1732,7 +1792,7 @@ function DefenseOverallSlider({
   );
 }
 
-function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: CatchingFormData) => void }) {
+export function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: CatchingFormData) => void }) {
   const updateThrowing = (key: keyof CatchingFormData['throwing'], field: Partial<ThrowingRow>) => {
     if (key === 'overallGrade') return;
     setData({
@@ -2096,7 +2156,7 @@ interface DefenseSnapshotGroup {
   notes: string;
 }
 
-interface InfieldFormData {
+export interface InfieldFormData {
   // Legacy granular fields kept for back-compat with older saved
   // reports. New reports use `manualSnapshot` below; the dashboard
   // prefers it when present.
@@ -2138,7 +2198,7 @@ const EMPTY_SNAPSHOT_GROUP: DefenseSnapshotGroup = {
   primary: '', secondary: '', tertiary: '', overallGrade: '', notes: '',
 };
 
-function emptyInfieldForm(): InfieldFormData {
+export function emptyInfieldForm(): InfieldFormData {
   return {
     arm: {
       velocity: { ...EMPTY_ARM_ROW, attempts: [...EMPTY_ARM_ROW.attempts] },
@@ -2170,7 +2230,7 @@ function emptyInfieldForm(): InfieldFormData {
   };
 }
 
-function buildInfieldContent(data: InfieldFormData) {
+export function buildInfieldContent(data: InfieldFormData) {
   const parseArmRow = (row: ArmRow, higherIsBetter: boolean) => {
     const nums = row.attempts.map(a => { const n = parseFloat(a); return isNaN(n) ? null : n; });
     const valid = nums.filter((n): n is number => n !== null);
@@ -2480,7 +2540,7 @@ function DefenseSnapshotFormSection({
   );
 }
 
-function InfieldForm({ data, setData }: { data: InfieldFormData; setData: (d: InfieldFormData) => void }) {
+export function InfieldForm({ data, setData }: { data: InfieldFormData; setData: (d: InfieldFormData) => void }) {
   /* Snapshot-shape body — four cards matching the Infielder Snapshot's
    * headline groups (Arm Strength / Glove / Range / First Step). Each
    * card collects the two underlying-metric inputs the snapshot
@@ -2687,7 +2747,7 @@ function InfieldFormLegacy({ data, setData }: { data: InfieldFormData; setData: 
 
 /* ── Outfield Assessment Form ── */
 
-interface OutfieldFormData {
+export interface OutfieldFormData {
   // Legacy granular fields — kept for back-compat. New reports write
   // to manualSnapshot below.
   arm: {
@@ -2717,7 +2777,7 @@ interface OutfieldFormData {
   };
 }
 
-function emptyOutfieldForm(): OutfieldFormData {
+export function emptyOutfieldForm(): OutfieldFormData {
   return {
     arm: {
       velocity: { ...EMPTY_ARM_ROW, attempts: [...EMPTY_ARM_ROW.attempts] },
@@ -2745,7 +2805,7 @@ function emptyOutfieldForm(): OutfieldFormData {
   };
 }
 
-function buildOutfieldContent(data: OutfieldFormData) {
+export function buildOutfieldContent(data: OutfieldFormData) {
   const parseArmRow = (row: ArmRow, higherIsBetter: boolean) => {
     const nums = row.attempts.map(a => { const n = parseFloat(a); return isNaN(n) ? null : n; });
     const valid = nums.filter((n): n is number => n !== null);
@@ -2801,7 +2861,7 @@ function buildOutfieldContent(data: OutfieldFormData) {
   };
 }
 
-function OutfieldForm({ data, setData }: { data: OutfieldFormData; setData: (d: OutfieldFormData) => void }) {
+export function OutfieldForm({ data, setData }: { data: OutfieldFormData; setData: (d: OutfieldFormData) => void }) {
   /* Snapshot-shape body — same four cards as the Infielder Snapshot
    * but with the outfielder accent color. */
   return (
@@ -4237,7 +4297,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
 /* The nine-slider hitting "Coach Diagnosis" editor and the seven-section
    pitching delivery-grade editor lived here. Both retired: each report
    now carries three coach grades, rendered by CoachGradesSection below. */
-function CoachGradesSection({
+export function CoachGradesSection({
   grades, setGrades, sections, title,
 }: {
   grades: CoachGrades;
@@ -4300,6 +4360,33 @@ function CoachGradeItem({
   value: number | null;
   onChange: (next: number | null) => void;
 }) {
+  /* Typed 20–80 entry when rendered by the in-tab report editor. */
+  const inputMode = useGradeInputMode();
+  if (inputMode === 'number') {
+    return (
+      <div style={{
+        padding: '10px 12px',
+        background: 'var(--defense-inner-bg)',
+        border: '1px solid var(--border-light)',
+        borderRadius: 10,
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      }}>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{ fontSize: rem(13), lineHeight: 1 }}>{section.icon}</span>
+          <span style={{
+          fontSize: rem(10.5), fontWeight: 700, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--text-muted)',
+        }}>{section.title}</span>
+        </span>
+        <GradeNumberInput
+          value={value == null ? '' : String(value)}
+          onChange={(next) => onChange(next === '' ? null : Number(next))}
+          ariaLabel={`${section.title} grade`}
+        />
+      </div>
+    );
+  }
   const tone = value !== null ? scoreColor(value) : '#475569';
   const pct = value !== null ? Math.max(0, Math.min(100, ((value - 20) / 60) * 100)) : 0;
   /* Interactive 20-80 score bar — click or drag anywhere on the

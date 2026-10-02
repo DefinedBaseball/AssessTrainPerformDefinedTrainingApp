@@ -79,6 +79,27 @@ export function ReportFilesButton({ onClick, title }: { onClick: () => void; tit
   );
 }
 
+/** Turns the report shown into its editable form, in place (Infield /
+ *  Outfield / Catching). Sits beside the report date like Upload does. */
+export function ReportEditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={headerChipStyle}
+      title="Edit this report"
+      aria-label="Edit this report"
+    >
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+        strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M11.5 2.5a1.6 1.6 0 0 1 2.3 2.3L5.5 13.1 2.5 14l.9-3z" />
+        <path d="M10.3 3.7l2 2" />
+      </svg>
+      Edit
+    </button>
+  );
+}
+
 /**
  * Video upload for one report: opens the OS file picker and hands every
  * chosen clip to the background upload queue, which uploads them one at a

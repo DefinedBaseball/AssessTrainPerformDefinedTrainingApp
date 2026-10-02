@@ -43,14 +43,14 @@ const VideosTab = nextDynamic(() => import('./tabs/VideosTab').then(m => m.Video
 const ReportModal = nextDynamic(() => import('./ReportModal').then(m => m.ReportModal), { ssr: false });
 const PdfBuilderModal = nextDynamic(() => import('./PdfBuilderModal').then(m => m.PdfBuilderModal), { ssr: false });
 import type { PdfLayout } from './PdfBuilderModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs, REPORT_TYPE_TO_TAB } from './helpers';
+import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs, setHiddenTabsForPlayer, primeHiddenTabs, REPORT_TYPE_TO_TAB } from './helpers';
 import { CreateReportDialog, type CreateReportMode } from './CreateReportDialog';
 
 /* Report types filled in on their own tab (data files, notes, coach notes,
    videos) rather than in the report modal. The pencil on these renames;
    the remaining types still open the modal to edit their forms until they
    move in-tab too. */
-const IN_TAB_REPORT_TYPES = new Set(['HITTING', 'PITCHING']);
+const IN_TAB_REPORT_TYPES = new Set(['HITTING', 'PITCHING', 'INFIELD', 'OUTFIELD', 'CATCHING']);
 const TAB_TO_REPORT_TYPE: Record<string, string> = Object.fromEntries(
   Object.entries(REPORT_TYPE_TO_TAB).map(([type, tab]) => [tab, type]),
 );
@@ -120,7 +120,7 @@ const TABS: Tab[] = [
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user, isCoach, isLoading: authLoading } = useAuth();
+  const { user, isCoach, isViewer, isLoading: authLoading } = useAuth();
 
   // When rendered inline (e.g., player dashboard), use playerId from auth
   const id = params?.id || (user as any)?.playerId || '';
@@ -275,6 +275,14 @@ export default function PlayerProfilePage() {
     window.addEventListener('player:hiddenTabsChanged', handler as EventListener);
     return () => window.removeEventListener('player:hiddenTabsChanged', handler as EventListener);
   }, [id]);
+
+  /* The hidden-tab set comes from the athlete's record (it used to live in
+     one browser). Re-primed whenever the record refetches, so a change made
+     elsewhere shows up on the next refresh. */
+  useEffect(() => {
+    if (!player) return;
+    primeHiddenTabs(player.id, player.hiddenTabs ?? null, isCoach && !isViewer);
+  }, [player?.id, player?.hiddenTabs, isCoach, isViewer]);
 
   /* ── Visible tabs (position + hidden-preference driven) ──
      Defense was split into three position-specific tabs — each shows only
@@ -965,10 +973,18 @@ export default function PlayerProfilePage() {
           mode={createDialog}
           onClose={() => setCreateDialog(null)}
           onCreated={({ id: newId, reportType }) => {
-            /* Open the new report's tab and select it there. */
+            /* Open the new report's tab and select it there. Infield /
+               Outfield / Catching / Physical tabs start hidden (the eye
+               toggle) -- creating a report for one un-hides it, or the
+               coach would land somewhere other than the report they just
+               made. */
             setFocusReportId(newId);
             const tab = REPORT_TYPE_TO_TAB[reportType];
-            if (tab) setActiveTab(tab);
+            if (tab) {
+              const hidden = getHiddenTabs(player.id);
+              if (hidden.includes(tab)) void setHiddenTabsForPlayer(player.id, hidden.filter((t) => t !== tab)).catch(() => {});
+              setActiveTab(tab);
+            }
             setRefreshKey(k => k + 1);
           }}
           onRenamed={() => setRefreshKey(k => k + 1)}

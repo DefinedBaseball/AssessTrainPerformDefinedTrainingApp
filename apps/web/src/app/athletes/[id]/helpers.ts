@@ -1,4 +1,5 @@
 import type { Player, Metric, Video, AtBatDetail, Pitch } from '@/lib/api';
+import * as api from '@/lib/api';
 
 /* ── Live At-Bat → Swing Decision metrics ──────────────────────────────
    Aggregates per-pitch outcomes from this athlete's saved Live At-Bats
@@ -130,10 +131,13 @@ export function computeLiveSwingDecisionStats(atBats: AtBatDetail[]): LiveSwingD
    discipline (e.g. a strict hitter doesn't need Catching / Infield /
    Outfield / S & C surfacing on their profile).
 
-   Stored in localStorage keyed by playerId so the preference persists
-   per-browser. Switching to a different machine resets to the defaults;
-   moving this to the server would require a Prisma migration + API
-   endpoint, which can be done later without changing this surface.
+   Stored on the athlete (Player.hiddenTabs) so every login -- including
+   the athlete's own -- sees the tabs the coach chose. It used to live in
+   one browser's localStorage, so the athlete's device never saw the
+   coach's choice and always fell back to the defaults below. The page
+   primes an in-memory cache from the player record (primeHiddenTabs);
+   getHiddenTabs reads that cache and setHiddenTabsForPlayer saves to the
+   server.
 
    The four position-specific Defense tabs + S & C default to HIDDEN so
    only Hitting / Pitching surface for a fresh player record. Coaches
@@ -152,35 +156,86 @@ export const REPORT_TYPE_TO_TAB: Record<string, string> = {
   CATCHING: 'catching',
 };
 
-function hiddenTabsKey(playerId: string): string {
+/** Where the setting used to live (per browser). Read once to carry an
+ *  existing choice over to the server, then removed. */
+function legacyHiddenTabsKey(playerId: string): string {
   return `player.${playerId}.hiddenTabs`;
 }
 
-/** Read the hidden-tab set for a player from localStorage, falling back
- *  to `DEFAULT_HIDDEN_TABS` when nothing has been saved yet. Returns a
- *  fresh array each call so callers can mutate safely. */
-export function getHiddenTabs(playerId: string): string[] {
-  if (!playerId || typeof window === 'undefined') return [...DEFAULT_HIDDEN_TABS];
+function parseTabList(raw: unknown): string[] | null {
+  if (typeof raw !== 'string' || raw === '') return null;
   try {
-    const raw = window.localStorage.getItem(hiddenTabsKey(playerId));
-    if (raw === null) return [...DEFAULT_HIDDEN_TABS];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...DEFAULT_HIDDEN_TABS];
-    return parsed.filter((s): s is string => typeof s === 'string');
-  } catch { return [...DEFAULT_HIDDEN_TABS]; }
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : null;
+  } catch { return null; }
 }
 
-/** Persist the hidden-tab set and fire a window event so other live
- *  components (the tab bar over in page.tsx) pick up the change without
- *  needing a full re-render cycle. */
-export function setHiddenTabsForPlayer(playerId: string, tabs: string[]): void {
-  if (!playerId || typeof window === 'undefined') return;
+function readLegacyHiddenTabs(playerId: string): string[] | null {
+  if (typeof window === 'undefined') return null;
+  try { return parseTabList(window.localStorage.getItem(legacyHiddenTabsKey(playerId))); } catch { return null; }
+}
+
+function clearLegacyHiddenTabs(playerId: string) {
+  if (typeof window === 'undefined') return;
+  try { window.localStorage.removeItem(legacyHiddenTabsKey(playerId)); } catch { /* storage disabled */ }
+}
+
+/** The server value per player, seeded by primeHiddenTabs. */
+const hiddenTabsCache = new Map<string, string[]>();
+
+function notifyHiddenTabs(playerId: string) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('player:hiddenTabsChanged', { detail: { playerId } }));
+}
+
+/**
+ * Seed the hidden-tab set from the player record (`Player.hiddenTabs`).
+ *
+ * Null on the server means it was never set. If this browser still holds
+ * the old per-browser setting and the viewer is a coach who can write, that
+ * choice is carried over to the server (once) so nothing a coach already
+ * toggled is lost in the move; otherwise the defaults apply.
+ */
+export function primeHiddenTabs(playerId: string, raw: string | null | undefined, canWrite: boolean): void {
+  if (!playerId) return;
+  let tabs = parseTabList(raw);
+  if (tabs === null && canWrite) {
+    const legacy = readLegacyHiddenTabs(playerId);
+    if (legacy) {
+      tabs = legacy;
+      void api.setPlayerHiddenTabs(playerId, legacy)
+        .then(() => clearLegacyHiddenTabs(playerId))
+        .catch(() => { /* keep the local copy; carried over on a later visit */ });
+    }
+  }
+  hiddenTabsCache.set(playerId, tabs ?? [...DEFAULT_HIDDEN_TABS]);
+  notifyHiddenTabs(playerId);
+}
+
+/** The hidden-tab set for a player, falling back to `DEFAULT_HIDDEN_TABS`
+ *  until the player record has primed it. Returns a fresh array each call
+ *  so callers can mutate safely. */
+export function getHiddenTabs(playerId: string): string[] {
+  return [...(hiddenTabsCache.get(playerId) ?? DEFAULT_HIDDEN_TABS)];
+}
+
+/** Save the hidden-tab set to the athlete (coach-only on the server). The
+ *  change shows immediately and is rolled back if the save fails; the
+ *  window event lets the tab bar in page.tsx and any open eye toggle
+ *  re-read without a full re-render. */
+export async function setHiddenTabsForPlayer(playerId: string, tabs: string[]): Promise<void> {
+  if (!playerId) return;
+  const prev = hiddenTabsCache.get(playerId);
+  hiddenTabsCache.set(playerId, [...tabs]);
+  notifyHiddenTabs(playerId);
   try {
-    window.localStorage.setItem(hiddenTabsKey(playerId), JSON.stringify(tabs));
-    window.dispatchEvent(new CustomEvent('player:hiddenTabsChanged', {
-      detail: { playerId },
-    }));
-  } catch { /* ignore quota / disabled storage */ }
+    await api.setPlayerHiddenTabs(playerId, tabs);
+    clearLegacyHiddenTabs(playerId);
+  } catch (err) {
+    if (prev) hiddenTabsCache.set(playerId, prev); else hiddenTabsCache.delete(playerId);
+    notifyHiddenTabs(playerId);
+    throw err;
+  }
 }
 
 /* ── Shared Types ── */

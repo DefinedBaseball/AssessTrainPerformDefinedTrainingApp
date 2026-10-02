@@ -52,6 +52,9 @@ export interface Player {
    *  Drives the Athlete Hub type filter. `updatePlayer` (Partial<Player>) accepts
    *  it automatically. */
   athleteTypes: string;
+  /** JSON array of profile tab keys hidden on this athlete's profile (the
+   *  coach's eye toggle). Null = never set → the app default. */
+  hiddenTabs?: string | null;
   profilePhoto: string | null;
   heightInches: number | null;
   weightLbs: number | null;
@@ -488,6 +491,14 @@ export async function createPlayer(data: {
   return request<Player>('/players', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+/** Save which profile tabs are hidden on an athlete's profile (coach-only). */
+export async function setPlayerHiddenTabs(playerId: string, tabs: string[]) {
+  return request<{ hiddenTabs: string[] }>(`/players/${playerId}/hidden-tabs`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tabs }),
   });
 }
 
