@@ -216,7 +216,11 @@ export class UploadsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get recent CSV uploads' })
+  /* Coach-only: the list spans every athlete's uploads (file names, storage
+     paths, uploader ids, parse errors that can name players). It had no
+     role, so any signed-in athlete could read the 50 most recent. */
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Get recent CSV uploads (COACH only)' })
   getUploads(@Query('uploadedById') uploadedById?: string) {
     return this.uploadsService.getUploads(uploadedById);
   }

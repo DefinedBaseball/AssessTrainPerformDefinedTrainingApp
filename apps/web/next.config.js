@@ -9,6 +9,11 @@
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET || 'http://localhost:3001';
 
 const nextConfig = {
+  /* Image optimization off. The app never uses next/image, but the optimizer
+     endpoint (/_next/image) is live by default -- and it is where Next
+     <15.5.24's critical unauthenticated RCE lived. Images are served as-is,
+     which is what already happens everywhere in this app. */
+  images: { unoptimized: true },
   async rewrites() {
     return [
       {
