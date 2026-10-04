@@ -97,22 +97,21 @@ export function usePlayerProfileData(
       setError(null);
     }
 
-    const progressPromises = PROGRESS_METRICS.map((mt) =>
-      api.getMetricProgress(playerId, mt, 'REPORT')
-        .then((data) => ({ mt, data }))
-        .catch(() => ({ mt, data: [] as { value: number; recordedAt: string }[] })),
-    );
+    /* One request for every trend series (it was one request per metric --
+       33 on each load and on every refresh after a save). */
+    const progressPromise = api.getMetricProgressBatch(playerId, PROGRESS_METRICS, 'REPORT')
+      .catch(() => ({} as PlayerProfileData['progressData']));
 
     Promise.all([
       api.getPlayer(playerId),
       api.getTopMetrics(playerId).catch(() => ({})),
       api.getPlayerVideos(playerId).catch(() => []),
       api.getPlayerReports(playerId).catch(() => []),
-      Promise.all(progressPromises),
+      progressPromise,
       withColleges
         ? api.getColleges().catch(() => [] as api.College[])
         : Promise.resolve([] as api.College[]),
-    ]).then(([p, top, vids, reps, progressResults, colls]) => {
+    ]).then(([p, top, vids, reps, progress, colls]) => {
       if (cancelled) return;
       setPlayer(p);
       setTopMetrics(top);
@@ -120,7 +119,7 @@ export function usePlayerProfileData(
       setReports(reps as ReportSummary[]);
       setColleges(colls);
       const pd: Record<string, { value: number; recordedAt: string }[]> = {};
-      progressResults.forEach(({ mt, data }) => { if (data.length > 0) pd[mt] = data; });
+      for (const [mt, data] of Object.entries(progress)) { if (data?.length) pd[mt] = data; }
       setProgressData(pd);
       setLoading(false);
       loadedForRef.current = playerId;

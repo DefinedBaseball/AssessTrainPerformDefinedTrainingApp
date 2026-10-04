@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MetricsService } from './metrics.service';
 import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
@@ -54,6 +54,23 @@ export class MetricsController {
       to,
       uploadIds: uploadIds ? uploadIds.split(',').map(s => s.trim()).filter(Boolean) : undefined,
     });
+  }
+
+  @Get('progress-batch')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Progress series for several metrics in one request (ownership-checked)' })
+  getProgressBatch(
+    @Request() req: AuthenticatedRequest,
+    @Param('playerId') playerId: string,
+    @Query('types') types?: string,
+    @Query('source') source?: string,
+  ) {
+    assertPlayerOwnership(req, playerId);
+    const metricTypes = (types || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (metricTypes.length === 0 || metricTypes.length > 100) {
+      throw new BadRequestException('types must list 1-100 metric types');
+    }
+    return this.metricsService.getProgressDataBatch(playerId, metricTypes, source);
   }
 
   @Get('progress/:metricType')

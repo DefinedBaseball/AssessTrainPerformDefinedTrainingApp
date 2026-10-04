@@ -16,6 +16,14 @@ export function setAuthToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+/* Identical GETs that are still in flight share one network request.
+   Several sections of a page often ask for the same thing at the same
+   moment (the Hitting tab asked for one metrics list three times at once).
+   Only CONCURRENT requests are shared -- nothing is cached once the
+   response lands, so a later call always sees fresh data. Each caller
+   parses its own copy of the body, so no two callers share an object. */
+const inFlightGets = new Map<string, Promise<string>>();
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -24,20 +32,41 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const shareable = (!options?.method || options.method.toUpperCase() === 'GET')
+    && !options?.body && !options?.signal && !options?.headers;
+  if (!shareable) return send<T>(path, { ...options, headers });
 
-  if (!res.ok) {
-    const body = await res.text();
-    // Extract the human-readable message from NestJS error JSON
-    let msg = body;
-    try {
-      const parsed = JSON.parse(body);
-      if (parsed.message) msg = parsed.message;
-    } catch { /* use raw body */ }
-    throw new Error(msg);
+  const key = `${token ?? ''} ${path}`;
+  let pending = inFlightGets.get(key);
+  if (!pending) {
+    pending = fetchText(path, { ...options, headers })
+      .finally(() => inFlightGets.delete(key));
+    inFlightGets.set(key, pending);
   }
+  return JSON.parse(await pending) as T;
+}
 
+async function send<T>(path: string, init: RequestInit): Promise<T> {
+  const res = await fetch(`/api${path}`, init);
+  if (!res.ok) throw await toError(res);
   return res.json();
+}
+
+async function fetchText(path: string, init: RequestInit): Promise<string> {
+  const res = await fetch(`/api${path}`, init);
+  if (!res.ok) throw await toError(res);
+  return res.text();
+}
+
+async function toError(res: Response): Promise<Error> {
+  const body = await res.text();
+  // Extract the human-readable message from NestJS error JSON
+  let msg = body;
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed.message) msg = parsed.message;
+  } catch { /* use raw body */ }
+  return new Error(msg);
 }
 
 // ---- Types ----
@@ -645,6 +674,20 @@ export async function getMetricProgress(
   const qs = source ? `?source=${encodeURIComponent(source)}` : '';
   return request<{ value: number; recordedAt: string }[]>(
     `/players/${playerId}/metrics/progress/${metricType}${qs}`,
+  );
+}
+
+/** Progress series for several metric types in one request. Types with no
+ *  points are missing from the result. */
+export async function getMetricProgressBatch(
+  playerId: string,
+  metricTypes: readonly string[],
+  source?: string,
+) {
+  const qs = new URLSearchParams({ types: metricTypes.join(',') });
+  if (source) qs.set('source', source);
+  return request<Record<string, { value: number; recordedAt: string }[]>>(
+    `/players/${playerId}/metrics/progress-batch?${qs.toString()}`,
   );
 }
 

@@ -139,6 +139,30 @@ export class MetricsService {
     });
   }
 
+  /**
+   * getProgressData for several metric types in one query. Returns
+   * { [metricType]: [{ value, recordedAt }] } in date order; a type with
+   * no points is left out.
+   */
+  async getProgressDataBatch(playerId: string, metricTypes: string[], source?: string) {
+    const sourceFilter =
+      source === 'REPORT'
+        ? { source: { startsWith: 'REPORT_' } }
+        : source
+          ? { source }
+          : {};
+    const rows = await this.prisma.metric.findMany({
+      where: { playerId, metricType: { in: metricTypes }, ...sourceFilter },
+      orderBy: { recordedAt: 'asc' },
+      select: { metricType: true, value: true, recordedAt: true },
+    });
+    const out: Record<string, { value: number; recordedAt: Date }[]> = {};
+    for (const r of rows) {
+      (out[r.metricType] ||= []).push({ value: r.value, recordedAt: r.recordedAt });
+    }
+    return out;
+  }
+
   async getAvailableDates(playerId: string, source: string) {
     const metrics = await this.prisma.metric.findMany({
       where: { playerId, source },
