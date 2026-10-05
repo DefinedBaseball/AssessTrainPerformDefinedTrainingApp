@@ -178,6 +178,39 @@ export class NotificationsService {
     );
   }
 
+  /**
+   * notifyAllCoaches, but skip any coach who still has an UNREAD
+   * notification of the same type about the same entity from within
+   * `windowMs` -- e.g. an athlete uploading five clips to one report is one
+   * bell entry, not five. Needs payload.entityId. Never throws.
+   */
+  async notifyAllCoachesOnce(payload: NotificationPayload, windowMs: number, exceptId?: string) {
+    try {
+      const coaches = await this.prisma.user.findMany({
+        where: { role: 'COACH', status: 'ACTIVE' },
+        select: { id: true },
+      });
+      let ids = coaches.map((c) => c.id).filter((id) => id !== exceptId);
+      if (payload.entityId && ids.length) {
+        const recent = await this.prisma.notification.findMany({
+          where: {
+            recipientId: { in: ids },
+            type: payload.type,
+            entityId: payload.entityId,
+            readAt: null,
+            createdAt: { gte: new Date(Date.now() - windowMs) },
+          },
+          select: { recipientId: true },
+        });
+        const already = new Set(recent.map((n) => n.recipientId));
+        ids = ids.filter((id) => !already.has(id));
+      }
+      await this.notifyMany(ids, payload);
+    } catch (err) {
+      this.logger.error('Failed to notify coaches', err as Error);
+    }
+  }
+
   /** Notify only ADMIN-level coaches (e.g. account-approval requests, which
    *  only admins can action). Legacy coaches with a null level count as ADMIN. */
   async notifyAdmins(payload: NotificationPayload, exceptId?: string) {

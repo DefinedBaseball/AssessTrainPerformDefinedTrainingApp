@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { syncReportMetricsFor } from './report-metrics.util';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { JwtPayload } from '../auth/jwt.util';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -165,9 +166,41 @@ export class ReportsService {
   async attachVideo(
     id: string,
     entry: { id: string; name: string; size: number; url?: string | null; section?: 'swing' | 'decision' },
+    actor?: JwtPayload,
   ) {
     if (!entry?.id) throw new BadRequestException('Video id is required');
-    return this.withReportLock(id, async (tx, current) => {
+
+    /* An athlete may attach only their own clip to their own report. The
+       clip's URL is taken from the Video row, never from the request, so an
+       athlete can't put an arbitrary link into a report. */
+    let athleteUpload: { playerId: string; reportType: string; title: string | null } | null = null;
+    if (actor?.role === 'PLAYER') {
+      const report = await this.prisma.report.findUnique({
+        where: { id },
+        select: { playerId: true, reportType: true, title: true },
+      });
+      if (!report) throw new NotFoundException('Report not found');
+      if (!actor.playerId || report.playerId !== actor.playerId) {
+        throw new ForbiddenException('You can only add video to your own reports.');
+      }
+      const video = await this.prisma.video.findUnique({
+        where: { id: entry.id },
+        select: { playerId: true, originalUrl: true },
+      });
+      if (!video || video.playerId !== report.playerId) {
+        throw new ForbiddenException('You can only add your own video.');
+      }
+      entry = {
+        id: entry.id,
+        name: String(entry.name || 'Video').slice(0, 200),
+        size: Number.isFinite(Number(entry.size)) ? Number(entry.size) : 0,
+        url: video.originalUrl,
+        section: entry.section,
+      };
+      athleteUpload = report;
+    }
+
+    const updated = await this.withReportLock(id, async (tx, current) => {
       const content = parseContent(current.content);
       const videos: any[] = Array.isArray(content.videos) ? content.videos : [];
       if (!videos.some((v) => v && v.id === entry.id)) {
@@ -187,6 +220,37 @@ export class ReportsService {
         data: { content: JSON.stringify(content), videoIds: ids.join(',') },
       });
     });
+
+    if (athleteUpload) void this.notifyCoachesOfAthleteVideo(id, athleteUpload, actor!);
+    return updated;
+  }
+
+  /** Tell coaches an athlete added video to a report. One notification per
+   *  report per hour while unread, so a batch of clips is one bell entry. */
+  private async notifyCoachesOfAthleteVideo(
+    reportId: string,
+    report: { playerId: string; reportType: string; title: string | null },
+    actor: JwtPayload,
+  ) {
+    try {
+      const player = await this.prisma.player.findUnique({
+        where: { id: report.playerId },
+        select: { firstName: true, lastName: true },
+      });
+      const name = player ? `${player.firstName} ${player.lastName}`.trim() : 'An athlete';
+      const type = report.reportType.charAt(0) + report.reportType.slice(1).toLowerCase();
+      const label = report.title?.trim() ? `${type} report "${report.title.trim()}"` : `${type} report`;
+      await this.notifications.notifyAllCoachesOnce({
+        type: 'VIDEO',
+        title: `${name} uploaded video`,
+        body: `Added to their ${label}.`,
+        linkUrl: `/athletes/${report.playerId}?report=${reportId}`,
+        actorId: actor.sub,
+        entityId: reportId,
+      }, 60 * 60 * 1000);
+    } catch (err) {
+      this.logger.warn(`Athlete video notification failed: ${err}`);
+    }
   }
 
   /**

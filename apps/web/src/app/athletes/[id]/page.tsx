@@ -2,7 +2,7 @@
 
 import { rem } from '@/lib/rem';
 import { useVideoAttachedListener } from '@/lib/upload-queue';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -170,6 +170,25 @@ export default function PlayerProfilePage() {
   const [createDialog, setCreateDialog] = useState<CreateReportMode | null>(null);
   /** The report a tab should select once it shows up after a refetch. */
   const [focusReportId, setFocusReportId] = useState<string | null>(null);
+  /* ?report=<id> (a notification's link) opens that report on its tab.
+     Applied once the reports have loaded, then stripped from the URL. */
+  const deepLinkDoneRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkDoneRef.current || typeof window === 'undefined' || reports.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get('report');
+    deepLinkDoneRef.current = true;
+    if (!wanted) return;
+    const target = reports.find((r) => r.id === wanted);
+    const tab = target ? REPORT_TYPE_TO_TAB[target.reportType] : undefined;
+    if (target && tab) {
+      setFocusReportId(target.id);
+      setActiveTab(tab);
+    }
+    params.delete('report');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [reports]);
 
   /* Open the profile-edit modal. Players reach this from the sidebar (the
      More sheet on phones, the rail's Edit Profile button on desktop), since

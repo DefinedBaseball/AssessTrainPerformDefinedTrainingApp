@@ -7,7 +7,7 @@ import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, moveme
 import { TabBar, TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import {
   ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
-  useCanEditReports, isBlankNote,
+  useCanEditReports, useCanUploadReportVideo, isBlankNote,
 } from '../components/ReportInlineEditing';
 import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
@@ -260,6 +260,7 @@ export function HittingTab(props: TabProps) {
   const activeHittingReport = selectedHittingReport ?? latestHitting;
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
+  const canUploadVideo = useCanUploadReportVideo(player.id);
   const [uploadsOpen, setUploadsOpen] = useState(false);
 
   /* Select a report just created from "+ Report" once the refetch brings
@@ -1621,7 +1622,7 @@ export function HittingTab(props: TabProps) {
             >
               <SectionHeader
                 title="Video"
-                rightSlot={canEdit && activeHittingReport
+                rightSlot={canUploadVideo && activeHittingReport
                   ? <ReportVideoUploadButton report={activeHittingReport} playerId={player.id} category="HITTING" />
                   : undefined}
               />

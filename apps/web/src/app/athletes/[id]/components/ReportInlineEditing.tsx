@@ -31,6 +31,14 @@ export function useCanEditReports(): boolean {
   return isCoach && !isViewer;
 }
 
+/** Who sees Upload Video on a report: coaches who can write, and the
+ *  athlete on their own profile (the API enforces the same rule). */
+export function useCanUploadReportVideo(playerId: string | null | undefined): boolean {
+  const { user, isCoach, isViewer } = useAuth();
+  if (isCoach) return !isViewer;
+  return !!playerId && !!user?.playerId && user.playerId === playerId;
+}
+
 /* Chip-sized header control, matching the resting Live Results button and
    the report date chip it sits beside. */
 const headerChipStyle: React.CSSProperties = {

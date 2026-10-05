@@ -15,6 +15,18 @@ import { v4 as uuid } from 'uuid';
 // Local upload directory (dev only — production uses S3)
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'videos');
 
+/* Athletes may upload clips to their OWN profile (the Upload Video button
+   in their report's Video section). Ownership is checked on every route an
+   athlete can reach, and an athlete's upload is always recorded as theirs
+   -- the uploadedById the client sends is ignored for them. */
+function uploaderFor(req: AuthenticatedRequest, playerId: string, claimed?: string): string | undefined {
+  assertPlayerOwnership(req, playerId);
+  if (req.user?.role === 'PLAYER') return req.user.playerId || undefined;
+  return claimed || undefined;
+}
+
+const BUNNY_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /* Shared multer config for the standalone /upload-file route: 500 MB
    cap; accept video/* mimetypes OR a known video extension (some
    MediaRecorder blobs arrive with a generic octet-stream mimetype). */
@@ -158,15 +170,15 @@ export class VideosController {
    * cleanly fall back to the buffered POST /upload path.
    */
   @Post('bunny-presign')
-  @Roles('COACH')
-  @ApiOperation({ summary: 'Create a Bunny video + signed TUS token for direct browser upload (COACH only)' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Create a Bunny video + signed TUS token for direct browser upload' })
   async bunnyPresign(@Body() dto: { title?: string }) {
     if (!this.bunny.isConfigured()) {
       throw new ServiceUnavailableException(
         'Bunny Stream not configured — use POST /api/videos/upload instead.',
       );
     }
-    const guid = await this.bunny.createVideoObject(dto.title || 'Untitled');
+    const guid = await this.bunny.createVideoObject(String(dto.title || 'Untitled').slice(0, 200));
     const tus = this.bunny.makeTusUpload(guid);
     return { guid, ...tus };
   }
@@ -180,20 +192,22 @@ export class VideosController {
    * TUS upload never leaves an orphan row.
    */
   @Post('bunny-complete')
-  @Roles('COACH')
-  @ApiOperation({ summary: 'Finalize a direct Bunny upload into a READY Video row (COACH only)' })
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Finalize a direct Bunny upload into a READY Video row (athletes: own profile only)' })
   async bunnyComplete(
+    @Request() req: AuthenticatedRequest,
     @Body()
     dto: { guid: string; playerId: string; title?: string; category?: string; uploadedById?: string },
   ) {
-    if (!dto.guid) throw new BadRequestException('guid is required');
+    if (!dto.guid || !BUNNY_GUID.test(dto.guid)) throw new BadRequestException('A valid guid is required');
     if (!dto.playerId) throw new BadRequestException('playerId is required');
+    const uploadedById = uploaderFor(req, dto.playerId, dto.uploadedById);
 
     const mp4Url = this.bunny.mp4Url(dto.guid);
     const hlsUrl = this.bunny.hlsUrl(dto.guid);
     const video = await this.videosService.create({
       playerId: dto.playerId,
-      uploadedById: dto.uploadedById || undefined,
+      uploadedById,
       title: dto.title || 'Untitled',
       category: dto.category || 'HITTING',
       originalUrl: mp4Url,
@@ -210,7 +224,7 @@ export class VideosController {
    * For production: will generate S3 presigned URL instead.
    */
   @Post('upload')
-  @Roles('COACH')
+  @Roles('COACH', 'PLAYER')
   @UseInterceptors(FileInterceptor('file', {
     /* 500 MB cap — enough for typical training-day clips at 1080p, small
      * enough to avoid OOMing the container on a runaway upload. The
@@ -252,9 +266,10 @@ export class VideosController {
       cb(null, true);
     },
   }))
-  @ApiOperation({ summary: 'Upload a video file (COACH only, 500MB max, video/* only)' })
+  @ApiOperation({ summary: 'Upload a video file (athletes: own profile only; 500MB max, video/* only)' })
   @ApiConsumes('multipart/form-data')
   async uploadVideo(
+    @Request() req: AuthenticatedRequest,
     @UploadedFile() file: any,
     @Query('playerId') playerId: string,
     @Query('title') title: string,
@@ -263,6 +278,7 @@ export class VideosController {
   ) {
     if (!file) throw new BadRequestException('No video file provided');
     if (!playerId) throw new BadRequestException('playerId is required');
+    const uploader = uploaderFor(req, playerId, uploadedById);
 
     const ext = path.extname(file.originalname) || '.mp4';
     const filename = `${uuid()}${ext}`;
@@ -311,7 +327,7 @@ export class VideosController {
 
     const video = await this.videosService.create({
       playerId,
-      uploadedById: uploadedById || undefined,
+      uploadedById: uploader,
       title: videoTitle,
       category: category || 'HITTING',
       originalUrl,

@@ -10,7 +10,7 @@ import {
 import { NoteBlock } from './SwingTab';
 import {
   ReportEditButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
-  useCanEditReports, useInlineField, isBlankNote,
+  useCanEditReports, useCanUploadReportVideo, useInlineField, isBlankNote,
 } from '../components/ReportInlineEditing';
 import { DefenseReportEditor } from '../components/DefenseReportEditor';
 import { INFIELDER_SILHOUETTE, OUTFIELDER_SILHOUETTE } from './defense-silhouettes';
@@ -2510,6 +2510,7 @@ export function CatchingSubTab({
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
+  const canUploadVideo = useCanUploadReportVideo(player.id);
   /* Edit mode -- the report's form replaces its display, in place.
      Selecting a different report leaves edit mode. */
   const [editing, setEditing] = useState(false);
@@ -2972,7 +2973,7 @@ export function CatchingSubTab({
                   with title text alone. */}
               <SectionHeader
                 title="Video"
-                rightSlot={canEdit && selectedReport
+                rightSlot={canUploadVideo && selectedReport
                   ? <ReportVideoUploadButton report={selectedReport} playerId={player.id} category="CATCHING" />
                   : undefined}
               />
@@ -3044,6 +3045,7 @@ export function InfieldSubTab({
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
+  const canUploadVideo = useCanUploadReportVideo(player.id);
   /* Edit mode -- the report's form replaces its display, in place.
      Selecting a different report leaves edit mode. */
   const [editing, setEditing] = useState(false);
@@ -3434,7 +3436,7 @@ export function InfieldSubTab({
                   with title text alone. */}
               <SectionHeader
                 title="Video"
-                rightSlot={canEdit && selectedReport
+                rightSlot={canUploadVideo && selectedReport
                   ? <ReportVideoUploadButton report={selectedReport} playerId={player.id} category="INFIELD" />
                   : undefined}
               />
@@ -3506,6 +3508,7 @@ export function OutfieldSubTab({
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
+  const canUploadVideo = useCanUploadReportVideo(player.id);
   /* Edit mode -- the report's form replaces its display, in place.
      Selecting a different report leaves edit mode. */
   const [editing, setEditing] = useState(false);
@@ -3924,7 +3927,7 @@ export function OutfieldSubTab({
                   with title text alone. */}
               <SectionHeader
                 title="Video"
-                rightSlot={canEdit && selectedReport
+                rightSlot={canUploadVideo && selectedReport
                   ? <ReportVideoUploadButton report={selectedReport} playerId={player.id} category="OUTFIELD" />
                   : undefined}
               />

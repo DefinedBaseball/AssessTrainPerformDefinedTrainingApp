@@ -78,13 +78,16 @@ export class ReportsController {
   }
 
   @Post(':id/videos')
-  @Roles('COACH')
-  @ApiOperation({ summary: 'Attach an uploaded clip to a report (COACH only)' })
-  attachVideo(
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Attach an uploaded clip to a report (athletes: their own clip, their own report)' })
+  async attachVideo(
+    @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: { id: string; name: string; size: number; url?: string | null; section?: 'swing' | 'decision' },
   ) {
-    return this.reportsService.attachVideo(id, dto);
+    /* The athlete gets the report back too -- without the coach-only notes. */
+    const report = await this.reportsService.attachVideo(id, dto, req.user);
+    return req.user?.role === 'COACH' ? report : redactForPlayer(report);
   }
 
   @Delete(':id')

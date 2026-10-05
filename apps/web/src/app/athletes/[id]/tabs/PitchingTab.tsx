@@ -19,7 +19,7 @@ import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
   ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
-  useCanEditReports, isBlankNote,
+  useCanEditReports, useCanUploadReportVideo, isBlankNote,
 } from '../components/ReportInlineEditing';
 import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { useTheme } from '@/lib/theme-context';
@@ -1258,6 +1258,7 @@ export function PitchingTab({
   const activePitchingReport = selectedReport ?? latestPitching;
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
+  const canUploadVideo = useCanUploadReportVideo(player.id);
   const [uploadsOpen, setUploadsOpen] = useState(false);
 
   /* Select a report just created from "+ Report" once the refetch brings
@@ -2122,7 +2123,7 @@ export function PitchingTab({
             >
               <SectionHeader
                 title="Video"
-                rightSlot={canEdit && activePitchingReport
+                rightSlot={canUploadVideo && activePitchingReport
                   ? <ReportVideoUploadButton report={activePitchingReport} playerId={player.id} category="PITCHING" />
                   : undefined}
               />
