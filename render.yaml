@@ -55,6 +55,10 @@ services:
         sync: false
       - key: BUNNY_STREAM_MP4_QUALITY
         value: "720p"
+      # Pull-zone URL Token Authentication key. Set it BEFORE turning token
+      # auth on in Bunny -- with it set, the API hands out expiring links.
+      - key: BUNNY_STREAM_TOKEN_KEY
+        sync: false
       # Admin seed passwords — optional. The 3 admin accounts default to
       # "PasswordCoach"; set these to override (then rotate at go-live).
       - key: SEED_PW_CONNOR

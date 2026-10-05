@@ -34,6 +34,7 @@ the idempotent prod seed (admin coach + drill library).
 | `BUNNY_STREAM_API_KEY` | from Bunny |
 | `BUNNY_STREAM_CDN_HOSTNAME` | from Bunny (e.g. `vz-xxxx.b-cdn.net`) |
 | `BUNNY_STREAM_MP4_QUALITY` | `720p` (default; match a resolution enabled on the library) |
+| `BUNNY_STREAM_TOKEN_KEY` | optional: the pull zone's URL Token Authentication key. When set, video links expire after 6-7 hours. Set this first, then turn Token Authentication on in Bunny |
 | `SEED_PW_CONNOR` / `SEED_PW_JACOB` / `SEED_PW_DANIEL` | optional — override the 3 admin seed passwords (they default to `PasswordCoach`). Rotate at go-live. |
 
 The 3 Admin coach accounts (`connor` / `jacob` / `daniel@definedbaseball.com`) are

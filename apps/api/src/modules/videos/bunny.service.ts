@@ -26,6 +26,9 @@ export class BunnyService {
   /** Which MP4 rendition to hand the custom player (must be enabled on the
    *  library + covered by MP4 Fallback). 720p is a safe default. */
   private readonly mp4Quality: string;
+  /** Pull-zone URL Token Authentication key. When set, every Bunny link the
+   *  API hands out is signed and expires (see BunnyUrlInterceptor). */
+  private readonly tokenKey: string | null;
 
   constructor() {
     this.libraryId = process.env.BUNNY_STREAM_LIBRARY_ID || null;
@@ -35,6 +38,10 @@ export class BunnyService {
         .replace(/^https?:\/\//, '')
         .replace(/\/$/, '') || null;
     this.mp4Quality = process.env.BUNNY_STREAM_MP4_QUALITY || '720p';
+    this.tokenKey = process.env.BUNNY_STREAM_TOKEN_KEY?.trim() || null;
+    if (this.tokenKey && this.cdnHostname) {
+      this.logger.log('Bunny link signing enabled (links expire)');
+    }
 
     if (this.isConfigured()) {
       this.logger.log(`Bunny Stream enabled — library=${this.libraryId} host=${this.cdnHostname}`);
@@ -47,6 +54,77 @@ export class BunnyService {
 
   isConfigured(): boolean {
     return !!(this.libraryId && this.apiKey && this.cdnHostname);
+  }
+
+  /* ── Expiring links (Bunny URL token authentication) ──────────────────
+
+     A signed link carries a token that is only valid until `expires`.
+     Directory tokens are used (token_path = the video's folder, put in the
+     path rather than the query string) so one signature covers everything
+     in the folder: the MP4, the thumbnail and every HLS segment a playlist
+     points at -- a query-string token wouldn't follow the player's segment
+     requests.
+
+     Expiry is rounded up to the next hour and then SIGN_TTL_SEC added, so a
+     link is good for 6-7 hours and stays byte-identical for an hour: the
+     browser can keep caching a clip across page loads. */
+  private static readonly SIGN_TTL_SEC = 6 * 60 * 60;
+
+  signingEnabled(): boolean {
+    return !!(this.cdnHostname && this.tokenKey);
+  }
+
+  /** Every link on our CDN host inside `text`, stopping at whitespace,
+   *  quotes, backslashes and angle brackets (so links inside JSON stored in
+   *  a string are found too). */
+  private linkPattern(): RegExp {
+    const host = (this.cdnHostname || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`https://${host}(/[^\\s"'<>\\\\]*)?`, 'g');
+  }
+
+  /** The link with any Bunny signature removed. */
+  canonicalUrl(url: string): string {
+    const prefix = `https://${this.cdnHostname}`;
+    if (!url.startsWith(prefix)) return url;
+    let rest = url.slice(prefix.length).replace(/^\/bcdn_token=[^/]*/, '');
+    const q = rest.indexOf('?');
+    if (q >= 0) {
+      const kept = rest.slice(q + 1).split('&')
+        .filter((kv) => kv && !/^(token|expires|token_path)=/.test(kv));
+      rest = rest.slice(0, q) + (kept.length ? `?${kept.join('&')}` : '');
+    }
+    return prefix + rest;
+  }
+
+  /** A fresh expiring link for `url` (plain or previously signed). */
+  signUrl(url: string, nowMs = Date.now()): string {
+    if (!this.signingEnabled()) return url;
+    const plain = this.canonicalUrl(url);
+    const prefix = `https://${this.cdnHostname}`;
+    const linkPath = plain.slice(prefix.length);
+    /* Only the plain /<folder>/<file> links this service builds are signed;
+       anything else is passed through untouched. */
+    const m = linkPath.match(/^(\/[^/?#]+\/)[^?#]+$/);
+    if (!m) return plain;
+    const tokenPath = m[1];
+    const expires = Math.ceil(nowMs / 3_600_000) * 3600 + BunnyService.SIGN_TTL_SEC;
+    const token = createHash('sha256')
+      .update(`${this.tokenKey}${tokenPath}${expires}token_path=${tokenPath}`)
+      .digest('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return `${prefix}/bcdn_token=${token}&token_path=${encodeURIComponent(tokenPath)}&expires=${expires}${linkPath}`;
+  }
+
+  /** Sign every CDN link inside a string. */
+  signUrlsIn(text: string): string {
+    if (!this.signingEnabled() || !text.includes(this.cdnHostname as string)) return text;
+    return text.replace(this.linkPattern(), (u) => this.signUrl(u));
+  }
+
+  /** Strip the signature from every CDN link inside a string. */
+  canonicalizeUrlsIn(text: string): string {
+    if (!this.cdnHostname || !text.includes(this.cdnHostname)) return text;
+    return text.replace(this.linkPattern(), (u) => this.canonicalUrl(u));
   }
 
   /** Progressive MP4 URL (needs MP4 Fallback on). Drives the native player. */
