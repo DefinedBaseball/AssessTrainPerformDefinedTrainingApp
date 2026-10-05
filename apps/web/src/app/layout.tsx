@@ -4,6 +4,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { ThemeProvider, themeBootstrapScript } from '@/lib/theme-context';
 import { UploadQueueProvider } from '@/lib/upload-queue';
+import { IosInputZoomFix } from '@/components/IosInputZoomFix';
 
 export const metadata: Metadata = {
   title: 'Player Development App',
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body>
+        <IosInputZoomFix />
         <ThemeProvider>
           <AuthProvider>
             {/* Above the router so a background video upload survives closing

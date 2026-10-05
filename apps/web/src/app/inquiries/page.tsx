@@ -452,9 +452,11 @@ export default function InquiriesPage() {
                       disabled={creating}
                       onClick={handleCreateProfile}
                       style={{
-                        border: '1px solid rgba(126,182,255,0.55)',
-                        color: creating ? 'var(--text-muted)' : '#cfe0ff',
-                        background: 'rgba(126,182,255,0.16)',
+                        /* Theme text colour on the blue tint -- the old
+                           pale-blue label vanished in light mode. */
+                        border: '1px solid rgba(61,139,253,0.55)',
+                        color: creating ? 'var(--text-muted)' : 'var(--text-bright, var(--text))',
+                        background: 'rgba(61,139,253,0.16)',
                         borderRadius: 8,
                         padding: '6px 14px',
                         cursor: creating ? 'default' : 'pointer',

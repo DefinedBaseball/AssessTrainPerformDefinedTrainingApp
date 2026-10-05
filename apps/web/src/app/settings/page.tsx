@@ -1398,16 +1398,15 @@ function EntityCrudCard({
   );
 }
 
-/* ─── My Profile (PLAYER, read-only) ─────────────────────────
-   Athletes see their details here but can't change them -- coaches own
-   the profile (the API only lets coaches edit a player). The fields stay
-   as they were, disabled by the wrapping fieldset. */
+/* ─── My Profile (PLAYER self-edit) ──────────────────────── */
 
 const POSITION_CHOICES = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'];
 
 function MyProfileTab({ playerId }: { playerId: string }) {
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState('');
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -1465,6 +1464,37 @@ function MyProfileTab({ playerId }: { playerId: string }) {
     setPositions(cur => cur.includes(pos) ? cur.filter(p => p !== pos) : [...cur, pos]);
   }
 
+  async function save() {
+    setSaving(true);
+    setError('');
+    setFeedback('');
+    try {
+      await api.updatePlayer(playerId, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        positions: positions.join(','),
+        bats: bats || null,
+        throws: throws || null,
+        heightInches: heightInches ? parseInt(heightInches, 10) : null,
+        weightLbs: weightLbs ? parseInt(weightLbs, 10) : null,
+        gradYear: gradYear ? parseInt(gradYear, 10) : null,
+        birthDate: birthDate || null,
+        highSchool: highSchool.trim() || null,
+        college: college.trim() || null,
+        parentEmail: parentEmail.trim() || null,
+        parentPhone: parentPhone.trim() || null,
+        clubTeam: clubTeam || null,
+        collegeCommit: collegeCommit || null,
+      });
+      setFeedback('Profile saved.');
+      setTimeout(() => setFeedback(''), 2500);
+    } catch (e: any) {
+      setError(e?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className={styles.section}>
@@ -1475,10 +1505,9 @@ function MyProfileTab({ playerId }: { playerId: string }) {
 
   return (
     <div className={styles.section}>
-      <fieldset disabled style={{ display: 'contents' }}>
       <div className={styles.card}>
         <h3 className={styles.cardTitle}>Personal Information</h3>
-        <p className={styles.cardDesc}>Your coach keeps these details up to date. Ask them if anything needs to change.</p>
+        <p className={styles.cardDesc}>Update the details that appear on your player profile.</p>
 
         <div className={styles.row}>
           <div className={styles.rowLabel}>
@@ -1647,8 +1676,15 @@ function MyProfileTab({ playerId }: { playerId: string }) {
         )}
       </div>
 
-      </fieldset>
-      {error && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div>}
+      <div className={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button className={styles.btn} onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Profile'}
+          </button>
+        </div>
+        {error && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div>}
+        {feedback && <div className={`${styles.feedback} ${styles.feedbackOk}`}>{feedback}</div>}
+      </div>
     </div>
   );
 }

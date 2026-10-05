@@ -34,8 +34,8 @@ function shell(bodyHtml: string): string {
           </td></tr>
           <tr><td style="padding:16px 6px 4px;">
             <p style="margin:0;font-size:11px;color:${MUTED};line-height:1.6;">
-              Assess · Train · Perform — Defined Baseball player development.<br/>
-              You received this because your email is on file for a Defined Baseball account.
+              Assess · Train · Perform — Defined Baseball Academy player development.<br/>
+              You received this because your email is on file for a Defined Baseball Academy account.
             </p>
           </td></tr>
         </table>
@@ -53,7 +53,7 @@ export function passwordResetEmail(resetUrl: string, name?: string | null): { su
   const html = shell(`
     <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">Reset your password</h1>
     <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
-      We received your request to reset your Defined Baseball Account password. Click below to reset your password. This link is active for <strong>1 hour</strong>.
+      We received your request to reset your Defined Baseball Academy Account password. Click below to reset your password. This link is active for <strong>1 hour</strong>.
     </p>
     <p style="margin:0 0 22px;">${button(resetUrl, 'Reset Password')}</p>
     <p style="margin:0 0 6px;font-size:12px;color:${MUTED};line-height:1.6;">
@@ -64,8 +64,8 @@ export function passwordResetEmail(resetUrl: string, name?: string | null): { su
       Didn't request this? You can safely ignore this email — your password won't change.
     </p>
   `);
-  const text = `We received your request to reset your Defined Baseball Account password. Open this link within 1 hour to reset your password:\n\n${resetUrl}\n\nDidn't request this? Ignore this email — your password won't change.`;
-  return { subject: 'Reset your Defined Baseball password', html, text };
+  const text = `We received your request to reset your Defined Baseball Academy Account password. Open this link within 1 hour to reset your password:\n\n${resetUrl}\n\nDidn't request this? Ignore this email — your password won't change.`;
+  return { subject: 'Reset your Defined Baseball Academy password', html, text };
 }
 
 /** Welcome email sent when a coach approves a pending player. */
@@ -74,15 +74,15 @@ export function welcomeEmail(loginUrl: string, name?: string | null): { subject:
   const html = shell(`
     <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">${hi}</h1>
     <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
-      Your Defined Baseball account has been approved by your coach. You can now log in to view your reports, videos, training schedule, and progress.
+      Your Defined Baseball Academy account has been approved by your coach. You can now log in to view your reports, videos, training schedule, and progress.
     </p>
     <p style="margin:0 0 22px;">${button(loginUrl, 'Log In')}</p>
     <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
       Log in with the email and password you registered with. See you on the field.
     </p>
   `);
-  const text = `${hi}\n\nYour Defined Baseball account has been approved. Log in to view your reports, videos, training schedule, and progress:\n\n${loginUrl}\n\nUse the email and password you registered with.`;
-  return { subject: 'Your Defined Baseball account is approved', html, text };
+  const text = `${hi}\n\nYour Defined Baseball Academy account has been approved. Log in to view your reports, videos, training schedule, and progress:\n\n${loginUrl}\n\nUse the email and password you registered with.`;
+  return { subject: 'Your Defined Baseball Academy account is approved', html, text };
 }
 
 /** Invite email — sent when a COACH creates an account on someone's behalf
@@ -103,7 +103,7 @@ export function inviteEmail(
   const html = shell(`
     <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">${hi}</h1>
     <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
-      Your coach has created a Defined Baseball account for you. Set a password
+      Your coach has created a Defined Baseball Academy account for you. Set a password
       to get in and view your reports, videos, training schedule, and progress.
     </p>
     <p style="margin:0 0 22px;">${button(setPasswordUrl, 'Set Your Password')}</p>
@@ -112,8 +112,8 @@ export function inviteEmail(
       &ldquo;Forgot password?&rdquo; on the sign-in page to get a new one.
     </p>
   `);
-  const text = `${hi}\n\nYour coach has created a Defined Baseball account for you. Set a password to get in and view your reports, videos, training schedule, and progress:\n\n${setPasswordUrl}\n\nThis link is active for ${expiryDays} days. If it expires, use "Forgot password?" on the sign-in page.`;
-  return { subject: 'Set up your Defined Baseball account', html, text };
+  const text = `${hi}\n\nYour coach has created a Defined Baseball Academy account for you. Set a password to get in and view your reports, videos, training schedule, and progress:\n\n${setPasswordUrl}\n\nThis link is active for ${expiryDays} days. If it expires, use "Forgot password?" on the sign-in page.`;
+  return { subject: 'Set up your Defined Baseball Academy account', html, text };
 }
 
 /** Coach-review email — sent to a player when a coach completes a review
@@ -152,7 +152,7 @@ export function profileReminderEmail(loginUrl: string, name?: string | null): { 
     <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">Complete your player profile</h1>
     <p style="margin:0 0 8px;font-size:14px;color:${TEXT};line-height:1.6;">${hi}</p>
     <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
-      Please complete filling out the personal information on your Defined Training Apps Player Profile.
+      Please complete filling out the personal information on your Defined Baseball Academy Player Profile.
     </p>
     <p style="margin:0 0 22px;">${button(loginUrl, 'Launch the App')}</p>
     <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
@@ -160,8 +160,8 @@ export function profileReminderEmail(loginUrl: string, name?: string | null): { 
       <a href="${loginUrl}" style="color:${ACCENT};word-break:break-all;">${loginUrl}</a>
     </p>
   `);
-  const text = `${hi}\n\nPlease complete filling out the personal information on your Defined Training Apps Player Profile.\n\nClick here to launch the app:\n\n${loginUrl}`;
-  return { subject: 'Complete your Defined Baseball player profile', html, text };
+  const text = `${hi}\n\nPlease complete filling out the personal information on your Defined Baseball Academy Player Profile.\n\nClick here to launch the app:\n\n${loginUrl}`;
+  return { subject: 'Complete your Defined Baseball Academy player profile', html, text };
 }
 
 /** Registration invite -- a coach asks someone with NO account yet to fill
@@ -175,7 +175,7 @@ export function registrationInviteEmail(registerUrl: string): { subject: string;
   const html = shell(`
     <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">Please complete your player profile</h1>
     <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
-      Your coach at Defined Baseball has asked you to set up your player
+      Your coach at Defined Baseball Academy has asked you to set up your player
       profile. It takes a couple of minutes, and it is what your reports,
       video and training plan get built on.
     </p>
@@ -185,7 +185,7 @@ export function registrationInviteEmail(registerUrl: string): { subject: string;
       <a href="${registerUrl}" style="color:${ACCENT};word-break:break-all;">${registerUrl}</a>
     </p>
   `);
-  const text = `Please complete your player profile.\n\nYour coach at Defined Baseball has asked you to set up your player profile. Create your account here:\n\n${registerUrl}`;
+  const text = `Please complete your player profile.\n\nYour coach at Defined Baseball Academy has asked you to set up your player profile. Create your account here:\n\n${registerUrl}`;
   return { subject: 'Please complete your player profile', html, text };
 }
 

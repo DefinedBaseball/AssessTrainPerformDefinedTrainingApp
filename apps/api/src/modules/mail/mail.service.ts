@@ -17,7 +17,7 @@ import { Injectable, Logger } from '@nestjs/common';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly apiKey: string | null;
-  /** The verified From address/identity, e.g. "Defined Baseball <noreply@definedbaseball.com>". */
+  /** The verified From identity, e.g. "Defined Baseball Academy <noreply@definedbaseball.com>". */
   private readonly from: string;
   /** Public origin of the web app — used to build links inside emails
    *  (reset-password page, login). Override via WEB_APP_URL when the custom
@@ -26,7 +26,12 @@ export class MailService {
 
   constructor() {
     this.apiKey = process.env.RESEND_API_KEY || null;
-    this.from = process.env.EMAIL_FROM || 'Defined Baseball <noreply@definedbaseball.com>';
+    /* EMAIL_FROM may be a bare address (production's is); inboxes then show
+       "noreply" as the sender. Give a bare address the academy's name. */
+    const configuredFrom = process.env.EMAIL_FROM?.trim();
+    this.from = !configuredFrom
+      ? 'Defined Baseball Academy <noreply@definedbaseball.com>'
+      : configuredFrom.includes('<') ? configuredFrom : `Defined Baseball Academy <${configuredFrom}>`;
     this.webAppUrl = (process.env.WEB_APP_URL || 'https://pdev-web.onrender.com')
       .replace(/\/$/, '');
 

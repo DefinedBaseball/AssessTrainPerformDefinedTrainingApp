@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, Request, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
@@ -12,6 +12,40 @@ class CreatePlayerDto {
   heightInches?: number;
   weightLbs?: number;
   gradYear?: number;
+}
+
+/* What an athlete may change about themselves: the personal information on
+   the Edit Profile form. Everything else on the Player row -- roster tags,
+   the coach's development notes, tab visibility -- stays coach-only, and
+   baseball data (metrics, reports, uploads) lives behind coach-only routes
+   altogether. Unknown keys are dropped; a value of the wrong type is
+   refused rather than handed to the database. */
+const ATHLETE_TEXT_FIELDS = [
+  'firstName', 'lastName', 'positions', 'bats', 'throws', 'birthDate',
+  'highSchool', 'clubTeam', 'college', 'professionalTeam', 'collegeCommit',
+  'parentEmail', 'parentPhone', 'playingLevelGoal', 'goals',
+] as const;
+const ATHLETE_NUMBER_FIELDS = [
+  'heightInches', 'weightLbs', 'gradYear', 'pbrNational', 'pbrState', 'pbrPosition', 'pgScore',
+] as const;
+
+function athleteEditableFields(dto: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of ATHLETE_TEXT_FIELDS) {
+    if (!(k in (dto || {}))) continue;
+    const v = dto[k];
+    if (v !== null && typeof v !== 'string') throw new BadRequestException(`${k} must be text`);
+    if (typeof v === 'string' && v.length > 2000) throw new BadRequestException(`${k} is too long`);
+    if ((k === 'firstName' || k === 'lastName') && !(typeof v === 'string' && v.trim())) continue;
+    out[k] = v;
+  }
+  for (const k of ATHLETE_NUMBER_FIELDS) {
+    if (!(k in (dto || {}))) continue;
+    const v = dto[k];
+    if (v !== null && !(typeof v === 'number' && Number.isFinite(v))) throw new BadRequestException(`${k} must be a number`);
+    out[k] = v;
+  }
+  return out;
 }
 
 class UpdatePlayerDto {
@@ -75,9 +109,13 @@ export class PlayersController {
   }
 
   @Patch(':id')
-  @Roles('COACH')
-  @ApiOperation({ summary: 'Update player profile (COACH only)' })
-  update(@Param('id') id: string, @Body() dto: UpdatePlayerDto) {
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Update player profile (athletes: their own personal information only)' })
+  update(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdatePlayerDto) {
+    assertPlayerOwnership(req, id);
+    if (req.user?.role === 'PLAYER') {
+      return this.playersService.update(id, athleteEditableFields(dto));
+    }
     return this.playersService.update(id, dto);
   }
 
