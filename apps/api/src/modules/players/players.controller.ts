@@ -131,6 +131,18 @@ export class PlayersController {
     return this.playersService.sendProfileReminder(id);
   }
 
+  @Patch(':id/season-stats')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: "Replace an athlete's season stats (athletes: their own)" })
+  setSeasonStats(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: { stats: unknown },
+  ) {
+    assertPlayerOwnership(req, id);
+    return this.playersService.setSeasonStats(id, dto?.stats);
+  }
+
   @Patch(':id/hidden-tabs')
   @Roles('COACH')
   @ApiOperation({ summary: "Set which profile tabs are hidden on an athlete's profile (COACH only)" })

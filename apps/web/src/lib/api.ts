@@ -84,6 +84,8 @@ export interface Player {
   /** JSON array of profile tab keys hidden on this athlete's profile (the
    *  coach's eye toggle). Null = never set → the app default. */
   hiddenTabs?: string | null;
+  /** Season stats JSON (Player Summary → Stats) -- see lib/season-stats. */
+  seasonStats?: string | null;
   profilePhoto: string | null;
   heightInches: number | null;
   weightLbs: number | null;
@@ -520,6 +522,14 @@ export async function createPlayer(data: {
   return request<Player>('/players', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+/** Replace an athlete's season stats (the athlete or a coach). */
+export async function setPlayerSeasonStats(playerId: string, stats: unknown) {
+  return request<{ seasonStats: string | null }>(`/players/${playerId}/season-stats`, {
+    method: 'PATCH',
+    body: JSON.stringify({ stats }),
   });
 }
 

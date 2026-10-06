@@ -1,0 +1,272 @@
+/* Season Stats grids — a stat sheet inside the Player Summary panel.
+   Numbers in the mono face, right-aligned; the Season column stays pinned
+   while the wider grids (Hitting has 26 columns) scroll sideways. */
+
+.grids {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.gridBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gridLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+}
+
+.hairline {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.scroller {
+  overflow-x: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: 7px 10px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.table thead th {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--stats-head-bg, rgba(255, 255, 255, 0.04));
+  cursor: help;
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:nth-child(even) td,
+.table tbody tr:nth-child(even) th {
+  background-color: var(--stats-zebra, rgba(255, 255, 255, 0.025));
+}
+
+.table td {
+  color: var(--text);
+}
+
+/* Season column: pinned left while the stats scroll. Needs a solid fill
+   so scrolled cells don't show through it. */
+.seasonCol {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left !important;
+  font-weight: 700;
+  color: var(--text-bright);
+  background: var(--stats-pin-bg, #12161d) !important;
+  border-right: 1px solid var(--border-light);
+}
+
+.table thead .seasonCol {
+  cursor: default;
+  color: var(--text-muted);
+}
+
+.seasonCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calc {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+.blank {
+  color: var(--text-muted) !important;
+  opacity: 0.55;
+}
+
+.input {
+  width: 4.6em;
+  padding: 4px 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  background: var(--bg, transparent);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+}
+
+.remove {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.addSeason {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px dashed var(--border-light);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.addSeason:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.empty {
+  padding: 14px;
+  border: 1px dashed var(--border-light);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* Header controls — same chip as the report headers' Upload / Edit. */
+.actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bubble-chrome-bg);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chipPrimary {
+  color: var(--text-bright);
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(74, 222, 128, 0.16);
+}
+
+.error {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--red, #ef4444);
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.footnote {
+  margin-top: 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Light theme: flat grey bubble, so the pinned column and header take the
+   bubble's own fill. */
+:global([data-theme="light"]) .seasonCol {
+  background: var(--panel-bg-light, #ededed) !important;
+}
+
+:global([data-theme="light"]) .table thead th {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+:global([data-theme="light"]) .table thead .seasonCol {
+  background: var(--panel-bg-light, #ededed) !important;
+}
+
+:global([data-theme="light"]) .table tbody tr:nth-child(even) td {
+  background-color: rgba(0, 0, 0, 0.025);
+}
+
+:global([data-theme="light"]) .input {
+  background: #fff;
+}

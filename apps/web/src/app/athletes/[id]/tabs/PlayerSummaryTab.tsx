@@ -32,6 +32,7 @@ import {
    identical grouping behavior across the app. */
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
 import styles from './PlayerSummaryTab.module.css';
+import { SeasonStatsSection } from '../components/SeasonStatsSection';
 
 /* ═══════════════════════════════════════════
    PALETTE — section colors matched to master's
@@ -2043,7 +2044,7 @@ export function PlayerSummaryTab({
      content) or "Trends" (a position-aware grid of growth-trend
      mini-charts). The two tabs render in a dark-navy bar at the top
      of the page matching the Tool Grades panel's chrome. */
-  const [summarySubTab, setSummarySubTab] = useState<'current' | 'trends'>('current');
+  const [summarySubTab, setSummarySubTab] = useState<'current' | 'trends' | 'stats'>('current');
   /* Live At-Bats for this athlete — feeds the Hitting → Swing
      Decision Tool Grades bar via `computeAggregateScores`'s fourth
      argument. Fetched here in addition to the parent profile page so
@@ -2361,6 +2362,7 @@ export function PlayerSummaryTab({
         {[
           { key: 'current' as const, label: 'Current Grades' },
           { key: 'trends'  as const, label: 'Trends' },
+          { key: 'stats'   as const, label: 'Stats' },
         ].map((t) => {
           const active = summarySubTab === t.key;
           return (
@@ -2430,7 +2432,9 @@ export function PlayerSummaryTab({
         })}
       </div>
 
-      {summarySubTab === 'trends' ? (
+      {summarySubTab === 'stats' ? (
+        <SeasonStatsSection player={player} onSaved={onRefresh} />
+      ) : summarySubTab === 'trends' ? (
         <TrendsSection
           player={player}
           progressData={mergedProgressData}

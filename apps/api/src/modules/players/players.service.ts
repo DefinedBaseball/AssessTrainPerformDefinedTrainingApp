@@ -7,6 +7,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { profileReminderEmail } from '../mail/mail.templates';
 
+/* Stat keys per grid for the season stats sheet. Mirrors STAT_GRIDS in the
+   web app's lib/season-stats.ts -- keep the two in step. */
+const SEASON_STAT_KEYS: Record<string, Set<string>> = {
+  hitting: new Set(['GP', 'PA', 'AB', 'AVG', 'OBP', 'OPS', 'SLG', 'H', '1B', '2B', '3B', 'HR', 'RBI', 'R',
+    'BB', 'K', 'HBP', 'SB', 'CS', 'SB%', 'LOB', 'BABIP', 'GB%', 'LD%', 'FB%', 'QAB%']),
+  pitching: new Set(['IP', 'GP', 'H', 'HR', 'R', 'ER', 'BB', 'K', 'HBP', 'ERA', 'WHIP', 'BAA', 'FIP',
+    'S%', 'FPS%', 'FB%', 'LD%', 'GB%', 'BABIP']),
+  defense: new Set(['TC', 'A', 'PO', 'FLD%', 'E', 'DP']),
+  catching: new Set(['INN', 'PB', 'WP', 'SB/ATT', 'CS', 'CS%', 'PIK', 'CI']),
+};
+
 @Injectable()
 export class PlayersService {
   /* MailModule is @Global, so MailService injects without importing it. */
@@ -151,6 +162,52 @@ export class PlayersService {
       data: { hiddenTabs: JSON.stringify(clean) },
     });
     return { hiddenTabs: clean };
+  }
+
+  /**
+   * Replace an athlete's season stats (Player Summary → Stats). Only known
+   * grids and stat keys are kept; values are short strings of digits and
+   * . % / - exactly as typed (".313", "45.1", "3/10"). Blank values and
+   * empty seasons are dropped.
+   */
+  async setSeasonStats(playerId: string, stats: unknown) {
+    if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
+      throw new BadRequestException('"stats" must be an object');
+    }
+    const clean: Record<string, Record<string, Record<string, string>>> = {};
+    for (const [grid, seasons] of Object.entries(stats as Record<string, unknown>)) {
+      const allowed = SEASON_STAT_KEYS[grid];
+      if (!allowed) throw new BadRequestException(`Unknown stat group "${grid}"`);
+      if (!seasons || typeof seasons !== 'object' || Array.isArray(seasons)) {
+        throw new BadRequestException(`${grid} must be an object of seasons`);
+      }
+      const entries = Object.entries(seasons as Record<string, unknown>);
+      if (entries.length > 40) throw new BadRequestException(`Too many ${grid} seasons`);
+      for (const [season, row] of entries) {
+        const year = Number(season);
+        if (!/^\d{4}$/.test(season) || year < 1990 || year > 2100) {
+          throw new BadRequestException(`Invalid season "${season}"`);
+        }
+        if (!row || typeof row !== 'object' || Array.isArray(row)) {
+          throw new BadRequestException(`${grid} ${season} must be an object of stats`);
+        }
+        const kept: Record<string, string> = {};
+        for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+          if (!allowed.has(key)) throw new BadRequestException(`Unknown ${grid} stat "${key}"`);
+          if (value === null || value === undefined || value === '') continue;
+          if (typeof value !== 'string' || value.length > 10 || !/^[0-9.%/\-]+$/.test(value)) {
+            throw new BadRequestException(`${grid} ${key} must be a number like 12, .313, 45.1, 48% or 3/10`);
+          }
+          kept[key] = value;
+        }
+        if (Object.keys(kept).length) (clean[grid] ??= {})[season] = kept;
+      }
+    }
+    const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Player not found');
+    const json = Object.keys(clean).length ? JSON.stringify(clean) : null;
+    await this.prisma.player.update({ where: { id: playerId }, data: { seasonStats: json } });
+    return { seasonStats: json };
   }
 
   async setPlayerLocked(playerId: string, locked: boolean) {
