@@ -16,7 +16,7 @@ const ScheduleDownloadModal = nextDynamic(
   () => import('./ScheduleDownloadModal').then(m => m.ScheduleDownloadModal),
   { ssr: false },
 );
-import { SaveTemplateModal } from '@/components/TemplatePicker';
+import { SaveTemplateModal, TemplatePreviewModal } from '@/components/TemplatePicker';
 import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
 import { CheckInFlow } from './CheckInFlow';
@@ -959,6 +959,13 @@ export default function TrainingPage() {
    * contribution. The updaters themselves only add/delete, which is
    * idempotent and safe to run twice.
    */
+  /* Delete a saved template from a column's Template list. Drills it
+     already added to the draft stay -- they are just drills by then. */
+  const deleteTemplate = useCallback(async (t: api.ScheduleTemplate) => {
+    await api.deleteScheduleTemplate(t.id);
+    setTemplates((prev) => prev.filter((x) => x.id !== t.id));
+  }, []);
+
   const toggleTemplate = useCallback((t: api.ScheduleTemplate) => {
     const byDd = templateDrillsByDd(t, allDrills);
 
@@ -1404,6 +1411,7 @@ export default function TrainingPage() {
           templatesByTab={templatesByTab}
           selectedTemplateIds={tplAdded}
           onToggleTemplate={toggleTemplate}
+          onDeleteTemplate={deleteTemplate}
         />
       )}
 
@@ -1680,6 +1688,7 @@ function DayView({
   templatesByTab,
   selectedTemplateIds,
   onToggleTemplate,
+  onDeleteTemplate,
 }: {
   currentDate: Date;
   allDayEvents: ScheduledDrill[];
@@ -1707,6 +1716,8 @@ function DayView({
   selectedTemplateIds: Record<string, unknown>;
   /** Add / remove a whole template's drills from the draft. */
   onToggleTemplate: (t: api.ScheduleTemplate) => void;
+  /** Permanently delete a saved template. */
+  onDeleteTemplate: (t: api.ScheduleTemplate) => Promise<void>;
   /** Drill library, for the in-column category dropdowns. */
   allDrills: Drill[];
   /** Coach's unsaved selections, keyed by dropdown section. */
@@ -2016,6 +2027,7 @@ function DayView({
               templates={templatesByTab[focusedTabMeta.key] || []}
               selectedIds={selectedTemplateIds}
               onToggle={onToggleTemplate}
+              onDelete={onDeleteTemplate}
               color={(TAB_COLORS[focusedTabMeta.key] || TAB_COLORS.hitting).text}
               className={styles.dayActionBtn}
             />
@@ -2227,7 +2239,9 @@ function DayView({
                         templates={templatesByTab[tab.key] || []}
                         selectedIds={selectedTemplateIds}
                         onToggle={onToggleTemplate}
+                        onDelete={onDeleteTemplate}
                         color={tabColor.text}
+                        spanColumn
                       />
                       <button
                         type="button"
@@ -2465,18 +2479,43 @@ function DayView({
    ══════════════════════════════════════════════════════════════════ */
 
 function TemplateMultiSelect({
-  templates, selectedIds, onToggle, color, className,
+  templates, selectedIds, onToggle, onDelete, color, className, spanColumn = false,
 }: {
   templates: api.ScheduleTemplate[];
   /** Presence of a template's id marks it applied. */
   selectedIds: Record<string, unknown>;
   onToggle: (t: api.ScheduleTemplate) => void;
+  /** Delete a saved template (asks first, inline). */
+  onDelete: (t: api.ScheduleTemplate) => Promise<void>;
   color: string;
   /** Lets the focused view borrow the day-action button chrome. */
   className?: string;
+  /** In a day column: the list drops from the column header and spans the
+   *  column's full width instead of hanging off the small Template chip. */
+  spanColumn?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [preview, setPreview] = useState<api.ScheduleTemplate | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  /* Closing the list also backs out of a half-finished delete. */
+  useEffect(() => { if (!open) { setConfirmId(null); setDeleteError(''); } }, [open]);
+
+  const remove = async (t: api.ScheduleTemplate) => {
+    setDeletingId(t.id);
+    setDeleteError('');
+    try {
+      await onDelete(t);
+      setConfirmId(null);
+    } catch (e: any) {
+      setDeleteError(e?.message || 'Could not delete that template.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -2489,7 +2528,7 @@ function TemplateMultiSelect({
   const applied = templates.filter(t => Object.prototype.hasOwnProperty.call(selectedIds, t.id));
 
   return (
-    <div className={styles.tplWrap} ref={wrapRef}>
+    <div className={`${styles.tplWrap} ${spanColumn ? styles.tplWrapSpan : ''}`} ref={wrapRef}>
       <button
         type="button"
         className={className ?? styles.colChip}
@@ -2503,7 +2542,7 @@ function TemplateMultiSelect({
       </button>
 
       {open && (
-        <div className={styles.tplPanel} onClick={(e) => e.stopPropagation()}>
+        <div className={`${styles.tplPanel} ${spanColumn ? styles.tplPanelSpan : ''}`} onClick={(e) => e.stopPropagation()}>
           {templates.length === 0 ? (
             <div className={styles.tplEmpty}>
               No templates for this area yet. Build a day, then press “+Temp”.
@@ -2511,21 +2550,59 @@ function TemplateMultiSelect({
           ) : (
             templates.map(t => {
               const on = Object.prototype.hasOwnProperty.call(selectedIds, t.id);
+              if (confirmId === t.id) {
+                return (
+                  <div key={t.id} className={`${styles.tplItem} ${styles.tplConfirm}`}>
+                    <span className={styles.tplName} title={t.name}>Delete “{t.name}”?</span>
+                    <span className={styles.tplConfirmBtns}>
+                      <button type="button" className={styles.tplYes} disabled={deletingId === t.id} onClick={() => void remove(t)}>
+                        {deletingId === t.id ? '…' : 'Yes'}
+                      </button>
+                      <button type="button" className={styles.tplNo} onClick={() => setConfirmId(null)}>No</button>
+                    </span>
+                  </div>
+                );
+              }
               return (
-                <label key={t.id} className={`${styles.tplItem} ${on ? styles.tplItemOn : ''}`}>
-                  <input
-                    type="checkbox"
-                    className={styles.tplCheckbox}
-                    checked={on}
-                    onChange={() => onToggle(t)}
-                  />
-                  <span className={styles.tplName}>{t.name}</span>
-                </label>
+                <div key={t.id} className={`${styles.tplItem} ${on ? styles.tplItemOn : ''}`}>
+                  <label className={styles.tplPick}>
+                    <input
+                      type="checkbox"
+                      className={styles.tplCheckbox}
+                      checked={on}
+                      onChange={() => onToggle(t)}
+                    />
+                    <span className={styles.tplName} title={t.name}>{t.name}</span>
+                  </label>
+                  <button
+                    type="button"
+                    className={styles.tplIconBtn}
+                    onClick={() => setPreview(t)}
+                    title={`Preview ${t.name}`}
+                    aria-label={`Preview ${t.name}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                      <path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8z" />
+                      <circle cx="8" cy="8" r="2" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.tplIconBtn} ${styles.tplDel}`}
+                    onClick={() => { setDeleteError(''); setConfirmId(t.id); }}
+                    title={`Delete ${t.name}`}
+                    aria-label={`Delete ${t.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
               );
             })
           )}
+          {deleteError && <div className={styles.tplError} role="alert">{deleteError}</div>}
         </div>
       )}
+      <TemplatePreviewModal template={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

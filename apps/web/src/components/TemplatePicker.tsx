@@ -11,6 +11,7 @@
    caller knows the target player/date/tab) via onApply(template, items).
    ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import { parseTemplateItems, type ScheduleTemplate, type ScheduleTemplateItem } from '@/lib/api';
 
@@ -140,6 +141,114 @@ export function SaveTemplateModal({
         )}
       </div>
     </div>
+  );
+}
+
+/* ── TemplatePreviewModal ──
+   Read-only look at what a template holds before applying it: its sections
+   in order, each section's drills in order, with time / duration / notes
+   when the template carries them. Rendered through a portal so it sits
+   above everything regardless of where the opener lives. */
+export function TemplatePreviewModal({
+  template, onClose,
+}: {
+  template: ScheduleTemplate | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!template) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [template, onClose]);
+
+  if (!template || typeof document === 'undefined') return null;
+
+  const items = [...parseTemplateItems(template)].sort(
+    (a, b) => (a.sectionOrder ?? 0) - (b.sectionOrder ?? 0) || (a.order ?? 0) - (b.order ?? 0),
+  );
+  const sections: { name: string; items: ScheduleTemplateItem[] }[] = [];
+  for (const it of items) {
+    const last = sections[sections.length - 1];
+    if (last && last.name === it.category) last.items.push(it);
+    else {
+      const existing = sections.find((s) => s.name === it.category);
+      if (existing) existing.items.push(it);
+      else sections.push({ name: it.category, items: [it] });
+    }
+  }
+  const totalMin = items.reduce((n, it) => n + (Number(it.duration) || 0), 0);
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 400,
+        background: 'rgba(6, 8, 14, 0.62)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+    >
+      <div
+        role="dialog"
+        aria-label={`Preview of ${template.name}`}
+        style={{
+          width: 'min(400px, 94vw)', maxHeight: '76vh', overflowY: 'auto',
+          background: 'var(--surface-bright, var(--surface))',
+          border: '1px solid var(--border-bright, var(--border))',
+          borderRadius: 14, padding: '16px 16px 14px',
+          boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-bright, var(--text))', overflowWrap: 'anywhere' }}>
+            {template.name}
+          </div>
+          <button type="button" onClick={onClose}
+            style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}
+            aria-label="Close preview">×</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12 }}>
+          {TAB_LABELS[template.tab] || template.tab} · {items.length} drill{items.length !== 1 ? 's' : ''}
+          {' · '}{sections.length} section{sections.length !== 1 ? 's' : ''}
+          {totalMin > 0 ? ` · ${totalMin} min` : ''}
+        </div>
+
+        {sections.length === 0 ? (
+          <div style={{ padding: '18px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--text-muted)' }}>
+            This template has no drills.
+          </div>
+        ) : (
+          sections.map((s) => (
+            <div key={s.name} style={{ marginBottom: 12 }}>
+              <div style={{
+                fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: 'var(--text-muted)', padding: '0 2px 5px', borderBottom: '1px solid var(--border)', marginBottom: 6,
+              }}>
+                {s.name}
+              </div>
+              {s.items.map((it, i) => (
+                <div key={`${s.name}-${i}`} style={{ display: 'flex', gap: 8, padding: '4px 2px', fontSize: 12.5 }}>
+                  <span style={{ color: 'var(--text-muted)', minWidth: 16, textAlign: 'right' }}>{i + 1}.</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ color: 'var(--text-bright, var(--text))', fontWeight: 600 }}>{it.name}</span>
+                    {it.notes ? (
+                      <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11.5, marginTop: 1 }}>{it.notes}</span>
+                    ) : null}
+                  </span>
+                  {Number(it.duration) > 0 && (
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11.5, whiteSpace: 'nowrap' }}>{it.duration} min</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
