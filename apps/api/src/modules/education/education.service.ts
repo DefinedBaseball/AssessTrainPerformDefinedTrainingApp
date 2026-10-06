@@ -1,9 +1,139 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import type { JwtPayload } from '../auth/jwt.util';
 import { PrismaService } from '../../prisma/prisma.service';
+
+/* ── Information documents ── */
+export const DOC_CATEGORIES = ['SKILL', 'PHYSICAL', 'RECRUITING', 'MENTAL'] as const;
+export const DOC_MAX_BYTES = 25 * 1024 * 1024;
+
+/* Accepted file types, by extension. The stored content type comes from
+   this table, never from the browser, and only PDFs and images are served
+   for in-browser viewing -- everything else downloads. */
+export const DOC_TYPES: Record<string, { mime: string; inline: boolean }> = {
+  '.pdf':     { mime: 'application/pdf', inline: true },
+  '.png':     { mime: 'image/png', inline: true },
+  '.jpg':     { mime: 'image/jpeg', inline: true },
+  '.jpeg':    { mime: 'image/jpeg', inline: true },
+  '.webp':    { mime: 'image/webp', inline: true },
+  '.doc':     { mime: 'application/msword', inline: false },
+  '.docx':    { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', inline: false },
+  '.xls':     { mime: 'application/vnd.ms-excel', inline: false },
+  '.xlsx':    { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', inline: false },
+  '.csv':     { mime: 'text/csv', inline: false },
+  '.ppt':     { mime: 'application/vnd.ms-powerpoint', inline: false },
+  '.pptx':    { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', inline: false },
+  '.txt':     { mime: 'text/plain', inline: false },
+  '.rtf':     { mime: 'application/rtf', inline: false },
+  '.pages':   { mime: 'application/vnd.apple.pages', inline: false },
+  '.numbers': { mime: 'application/vnd.apple.numbers', inline: false },
+  '.key':     { mime: 'application/vnd.apple.keynote', inline: false },
+};
+
+export function docTypeFor(fileName: string) {
+  const m = /\.[a-z0-9]+$/i.exec(fileName || '');
+  return m ? DOC_TYPES[m[0].toLowerCase()] ?? null : null;
+}
+
+const DOC_LIST_SELECT = {
+  id: true, title: true, description: true, category: true, fileName: true,
+  mimeType: true, size: true, createdAt: true, updatedAt: true,
+} as const;
 
 @Injectable()
 export class EducationService {
   constructor(private prisma: PrismaService) {}
+
+  // ─── Membership gate (Classes + Information) ─────────────────────
+
+  /** Coaches always; athletes only with "Membership" on their profile. */
+  async hasMemberAccess(user: JwtPayload | undefined): Promise<boolean> {
+    if (!user) return false;
+    if (user.role === 'COACH') return true;
+    if (user.role !== 'PLAYER' || !user.playerId) return false;
+    const p = await this.prisma.player.findUnique({
+      where: { id: user.playerId },
+      select: { athleteTypes: true },
+    });
+    return (p?.athleteTypes || '').split(',').map((s) => s.trim()).includes('MEMBERSHIP');
+  }
+
+  async assertMemberAccess(user: JwtPayload | undefined) {
+    if (!(await this.hasMemberAccess(user))) {
+      throw new ForbiddenException('Members only. Ask your coach about Membership.');
+    }
+  }
+
+  // ─── Information documents ─────────────────────────────────────
+
+  listDocuments() {
+    return this.prisma.eduDocument.findMany({ select: DOC_LIST_SELECT, orderBy: { createdAt: 'desc' } });
+  }
+
+  async getDocumentFile(id: string) {
+    const doc = await this.prisma.eduDocument.findUnique({
+      where: { id },
+      select: { fileName: true, mimeType: true, data: true },
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+    return doc;
+  }
+
+  async createDocument(input: {
+    title: string; category: string; description?: string | null;
+    fileName: string; buffer: Buffer; uploadedById?: string | null;
+  }) {
+    const type = docTypeFor(input.fileName);
+    if (!type) throw new BadRequestException('That file type is not supported. Use PDF, Word, Excel, PowerPoint, text or an image.');
+    if (!input.buffer?.length) throw new BadRequestException('The file is empty.');
+    if (input.buffer.length > DOC_MAX_BYTES) throw new BadRequestException('Files can be up to 25 MB.');
+    const meta = this.cleanDocMeta(input, true);
+    return this.prisma.eduDocument.create({
+      data: {
+        title: meta.title!,
+        category: meta.category!,
+        description: meta.description ?? null,
+        fileName: input.fileName.slice(0, 200),
+        mimeType: type.mime,
+        size: input.buffer.length,
+        data: input.buffer,
+        uploadedById: input.uploadedById ?? null,
+      },
+      select: DOC_LIST_SELECT,
+    });
+  }
+
+  async updateDocument(id: string, input: { title?: string; category?: string; description?: string | null }) {
+    const exists = await this.prisma.eduDocument.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Document not found');
+    return this.prisma.eduDocument.update({ where: { id }, data: this.cleanDocMeta(input, false), select: DOC_LIST_SELECT });
+  }
+
+  async deleteDocument(id: string) {
+    const exists = await this.prisma.eduDocument.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Document not found');
+    await this.prisma.eduDocument.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  private cleanDocMeta(input: { title?: unknown; category?: unknown; description?: unknown }, required: boolean) {
+    const out: { title?: string; category?: string; description?: string | null } = {};
+    if (input.title !== undefined || required) {
+      const t = typeof input.title === 'string' ? input.title.trim() : '';
+      if (!t) throw new BadRequestException('A title is required.');
+      out.title = t.slice(0, 200);
+    }
+    if (input.category !== undefined || required) {
+      if (typeof input.category !== 'string' || !(DOC_CATEGORIES as readonly string[]).includes(input.category)) {
+        throw new BadRequestException('Pick a category: Skill Training, Physical Training, Recruiting or Mental/Visual.');
+      }
+      out.category = input.category;
+    }
+    if (input.description !== undefined) {
+      const d = typeof input.description === 'string' ? input.description.trim() : '';
+      out.description = d ? d.slice(0, 2000) : null;
+    }
+    return out;
+  }
 
   // ─── Classes ───────────────────────────────────────────────────
 

@@ -445,6 +445,28 @@ model Drill {
   @@index([name])
 }
 
+// ─── Education: Information (member documents) ───────────────────
+// Files coaches share with Membership athletes: recruiting guides, nutrition
+// and strength programs, etc. The file itself is kept in the database (25 MB
+// cap) so it is only ever served through the members-only API route --
+// there is no public URL to leak.
+model EduDocument {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  category     String // SKILL | PHYSICAL | RECRUITING | MENTAL
+  fileName     String
+  mimeType     String
+  size         Int
+  data         Bytes
+  uploadedById String? // the coach's User id
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([createdAt])
+}
+
 // ─── Education: Classes ──────────────────────────────────────────
 
 model EduClass {

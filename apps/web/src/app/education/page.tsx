@@ -5,11 +5,12 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import type { EduClass, Drill, MlbPlayer, MlbVideo } from '@/lib/api';
+import type { EduClass, Drill, MlbPlayer, MlbVideo, EduDocument } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 import DrillVideoRecorder from './DrillVideoRecorder';
+import { InformationView } from './InformationView';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 
 /* Unified app-wide section identity palette:
@@ -75,7 +76,11 @@ function videoCategoriesForPositions(positions?: string | null): string[] {
   return unique.length ? unique : ['Highlight'];
 }
 
-type Page = 'landing' | 'classes' | 'classDetail' | 'drills' | 'mlb' | 'player';
+type Page = 'landing' | 'classes' | 'classDetail' | 'drills' | 'mlb' | 'player' | 'info';
+
+/* Classes + Information are members-only (coaches, and athletes with
+   Membership on their profile); the API enforces it, this just shows it. */
+const MEMBER_PAGES: Page[] = ['classes', 'classDetail', 'info'];
 
 export default function EducationPage() {
   const { user, isCoach, isLoading } = useAuth();
@@ -89,6 +94,10 @@ export default function EducationPage() {
   const [mlbPlayers, setMlbPlayers] = useState<MlbPlayer[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<MlbPlayer | null>(null);
   const [currentClass, setCurrentClass] = useState<EduClass | null>(null);
+  const [documents, setDocuments] = useState<EduDocument[]>([]);
+  /** null until known. */
+  const [memberAccess, setMemberAccess] = useState<boolean | null>(null);
+  const [lockedNotice, setLockedNotice] = useState(false);
 
   // Filters
   const [classSport, setClassSport] = useState('hitting');
@@ -116,7 +125,14 @@ export default function EducationPage() {
   // Load data on mount
   useEffect(() => {
     if (!user) return;
-    api.getClasses().then(setClasses).catch(() => {});
+    api.getEducationAccess()
+      .then(({ members }) => {
+        setMemberAccess(members);
+        if (!members) return;
+        api.getClasses().then(setClasses).catch(() => {});
+        api.getEduDocuments().then(setDocuments).catch(() => {});
+      })
+      .catch(() => setMemberAccess(false));
     api.getDrills().then(setDrills).catch(() => {});
     api.getMlbPlayers().then(setMlbPlayers).catch(() => {});
   }, [user]);
@@ -139,6 +155,12 @@ export default function EducationPage() {
   }, []);
 
   const goTo = (p: Page, id?: string) => {
+    if (MEMBER_PAGES.includes(p) && memberAccess !== true) {
+      /* Locked (or not known yet): stay on the hub and say why. */
+      if (memberAccess === false) setLockedNotice(true);
+      return;
+    }
+    setLockedNotice(false);
     setPage(p);
     setSearch('');
     if (p === 'player' && id) {
@@ -182,7 +204,7 @@ export default function EducationPage() {
             </>
           ) : (
             <span className={styles.bcCurrent}>
-              {page === 'classes' ? 'Classes' : page === 'drills' ? 'Drill Library' : 'Major League Video'}
+              {page === 'classes' ? 'Classes' : page === 'drills' ? 'Drill Library' : page === 'info' ? 'Information' : 'Major League Video'}
             </span>
           )}
         </div>
@@ -194,6 +216,9 @@ export default function EducationPage() {
           classCount={classes.length}
           drillCount={drills.length}
           playerCount={mlbPlayers.length}
+          docCount={documents.length}
+          memberAccess={memberAccess}
+          lockedNotice={lockedNotice}
           goTo={goTo}
         />
       )}
@@ -211,6 +236,15 @@ export default function EducationPage() {
           showModal={showClassModal}
           setShowModal={setShowClassModal}
           goToClass={(id: string) => goTo('classDetail', id)}
+        />
+      )}
+      {page === 'info' && memberAccess === true && (
+        <InformationView
+          documents={documents}
+          setDocuments={setDocuments}
+          isCoach={isCoach}
+          search={search}
+          setSearch={setSearch}
         />
       )}
       {page === 'classDetail' && currentClass && (
@@ -266,15 +300,24 @@ export default function EducationPage() {
 
 /* ══════════ LANDING ══════════ */
 
-function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount: number; drillCount: number; playerCount: number; goTo: (p: Page) => void }) {
+function LandingView({ classCount, drillCount, playerCount, docCount, memberAccess, lockedNotice, goTo }: {
+  classCount: number; drillCount: number; playerCount: number; docCount: number;
+  memberAccess: boolean | null; lockedNotice: boolean; goTo: (p: Page) => void;
+}) {
+  const locked = memberAccess === false;
   return (
     <>
       <PageHeader
         eyebrow="Player Development"
         title="Education"
         titleAccent="Hub"
-        readout={`${classCount + drillCount + playerCount} resources`}
+        readout={`${classCount + drillCount + playerCount + docCount} resources`}
       />
+      {locked && lockedNotice && (
+        <div role="status" className={styles.lockedNotice}>
+          🔒 Classes and Information are for Membership athletes. Ask your coach about Membership.
+        </div>
+      )}
       <div className={styles.hubGrid}>
         <div className={styles.hubCard} style={{ borderColor: 'rgba(221,105,116,.3)' }} onClick={() => goTo('mlb')}>
           <div className={styles.hubIcon} style={{ background: 'var(--red-dim)' }}>🎬</div>
@@ -288,11 +331,35 @@ function LandingView({ classCount, drillCount, playerCount, goTo }: { classCount
           <div className={styles.hubCardDesc}>Complete drill database organized by sport and category. The same drills used in training calendars.</div>
           <div className={styles.hubCardCount} style={{ color: 'var(--accent-light)' }}>{drillCount} drills <span className={styles.hubCardArrow}>→</span></div>
         </div>
-        <div className={styles.hubCard} style={{ borderColor: 'rgba(232,175,52,.3)' }} onClick={() => goTo('classes')}>
-          <div className={styles.hubIcon} style={{ background: 'var(--gold-dim)' }}>🎓</div>
+        <div
+          className={`${styles.hubCard} ${locked ? styles.hubCardLocked : ''}`}
+          style={{ borderColor: 'rgba(232,175,52,.3)' }}
+          onClick={() => goTo('classes')}
+          aria-disabled={locked || undefined}
+        >
+          <div className={styles.hubIcon} style={{ background: 'var(--gold-dim)' }}>{locked ? '🔒' : '🎓'}</div>
           <div className={styles.hubCardTitle}>Classes</div>
           <div className={styles.hubCardDesc}>Structured courses from Beginner to Expert across Hitting, Pitching, Defense, S&C, and Vision.</div>
-          <div className={styles.hubCardCount} style={{ color: 'var(--gold-readable)' }}>{classCount} classes <span className={styles.hubCardArrow}>→</span></div>
+          {locked ? (
+            <div className={styles.hubCardCount}>🔒 Members only. Ask your coach about Membership.</div>
+          ) : (
+            <div className={styles.hubCardCount} style={{ color: 'var(--gold-readable)' }}>{classCount} classes <span className={styles.hubCardArrow}>→</span></div>
+          )}
+        </div>
+        <div
+          className={`${styles.hubCard} ${locked ? styles.hubCardLocked : ''}`}
+          style={{ borderColor: 'rgba(124,141,255,.3)' }}
+          onClick={() => goTo('info')}
+          aria-disabled={locked || undefined}
+        >
+          <div className={styles.hubIcon} style={{ background: 'rgba(124,141,255,.14)' }}>{locked ? '🔒' : '📚'}</div>
+          <div className={styles.hubCardTitle}>Information</div>
+          <div className={styles.hubCardDesc}>Recruiting guides, nutrition and strength programs, and other documents to read or download.</div>
+          {locked ? (
+            <div className={styles.hubCardCount}>🔒 Members only. Ask your coach about Membership.</div>
+          ) : (
+            <div className={styles.hubCardCount} style={{ color: '#8f9bff' }}>{docCount} document{docCount === 1 ? '' : 's'} <span className={styles.hubCardArrow}>→</span></div>
+          )}
         </div>
       </div>
     </>

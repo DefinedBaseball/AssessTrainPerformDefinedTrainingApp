@@ -1109,6 +1109,82 @@ export async function uploadVideoFile(file: File): Promise<{ url: string }> {
   return res.json();
 }
 
+// ---- Education: Information (members-only documents) ----
+
+export type EduDocCategory = 'SKILL' | 'PHYSICAL' | 'RECRUITING' | 'MENTAL';
+
+export interface EduDocument {
+  id: string;
+  title: string;
+  description: string | null;
+  category: EduDocCategory;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Whether this account may open Classes + Information (coaches, and
+ *  athletes with Membership). */
+export async function getEducationAccess() {
+  return request<{ members: boolean }>('/education/access');
+}
+
+export async function getEduDocuments() {
+  return request<EduDocument[]>('/education/documents');
+}
+
+export async function uploadEduDocument(
+  file: File,
+  meta: { title: string; category: EduDocCategory; description?: string },
+): Promise<EduDocument> {
+  const token = getAuthToken();
+  const form = new FormData();
+  form.append('file', file);
+  form.append('title', meta.title);
+  form.append('category', meta.category);
+  if (meta.description) form.append('description', meta.description);
+  const res = await fetch('/api/education/documents', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    let msg = body;
+    try { const p = JSON.parse(body); if (p.message) msg = p.message; } catch { /* raw */ }
+    throw new Error(res.status === 413 ? 'Files can be up to 25 MB.' : msg);
+  }
+  return res.json();
+}
+
+export async function updateEduDocument(
+  id: string,
+  data: { title?: string; category?: EduDocCategory; description?: string | null },
+) {
+  return request<EduDocument>(`/education/documents/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteEduDocument(id: string) {
+  return request<{ deleted: boolean }>(`/education/documents/${id}`, { method: 'DELETE' });
+}
+
+/** The document's file, fetched with the signed-in token (the route is
+ *  members-only, so a bare link wouldn't open). */
+export async function fetchEduDocumentBlob(id: string): Promise<Blob> {
+  const token = getAuthToken();
+  const res = await fetch(`/api/education/documents/${id}/file`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = 'Could not open that document.';
+    try { const p = JSON.parse(await res.text()); if (p.message) msg = p.message; } catch { /* keep default */ }
+    throw new Error(msg);
+  }
+  return res.blob();
+}
+
 // ---- Reports ----
 
 export async function getPlayerReports(playerId: string, reportType?: string) {
