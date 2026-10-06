@@ -2,6 +2,14 @@
 
 import { rem } from '@/lib/rem';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { TextSizeMenu, DictationButton } from '@/components/NoteEditorTools';
+
+const NOTE_SIZES = [
+  { value: '2', label: 'Small' },
+  { value: '3', label: 'Normal' },
+  { value: '5', label: 'Large' },
+  { value: '6', label: 'XL' },
+];
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -1907,17 +1915,15 @@ function RichEditableNote({
     onChange(el.innerHTML);
   };
 
-  /* Text-size control — mirrors the report modal's RichTextEditor Size
-     dropdown. execCommand('fontSize', 1-7) wraps the current selection
-     (or the next typed text if nothing is selected) in a sized tag.
-     2 = Small, 3 = Normal, 5 = Large, 6 = XL. Persists in the note HTML
-     so it renders at the chosen size on the read-only display too. */
-  const applyFontSize = (size: string) => {
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    document.execCommand('fontSize', false, size);
-    onChange(el.innerHTML);
+  /* Size menu + dictation write into the surface directly; this saves it. */
+  const syncFromSurface = () => { if (ref.current) onChange(ref.current.innerHTML); };
+  const toolStyle: React.CSSProperties = {
+    width: 28, height: 24, borderRadius: 4,
+    border: '1px solid var(--border)',
+    background: 'rgba(255,255,255,0.04)',
+    color: 'var(--text)', fontSize: rem(12), lineHeight: 1, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'inherit',
   };
 
   const ToolbarBtn = ({
@@ -1946,29 +1952,14 @@ function RichEditableNote({
       flex: fill ? '1 1 auto' : '0 0 auto',
       minHeight: 0,
     }}>
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
         <ToolbarBtn cmd="bold"      label="B" style={{ fontWeight: 800 }} />
         <ToolbarBtn cmd="italic"    label="I" style={{ fontStyle: 'italic' }} />
         <ToolbarBtn cmd="underline" label="U" style={{ textDecoration: 'underline' }} />
-        {/* Text-size control — Small / Normal / Large / XL. Applies to the
-            selection, or to the next text typed if nothing is selected. */}
-        <select
-          aria-label="Text size"
-          defaultValue=""
-          onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); }}
-          onChange={(e) => { if (e.target.value) applyFontSize(e.target.value); e.currentTarget.value = ''; }}
-          style={{
-            height: 24, borderRadius: 4, padding: '0 4px', marginLeft: 2,
-            border: '1px solid var(--border)', background: 'rgba(255,255,255,0.04)',
-            color: 'var(--text)', fontSize: rem(12), cursor: 'pointer', fontFamily: 'inherit',
-          }}
-        >
-          <option value="" disabled>Size</option>
-          <option value="2">Small</option>
-          <option value="3">Normal</option>
-          <option value="5">Large</option>
-          <option value="6">XL</option>
-        </select>
+        {/* Size — Small / Normal / Large / XL for the highlighted text, or
+            for what is typed next. Then the mic: speak instead of type. */}
+        <TextSizeMenu editorRef={ref} options={NOTE_SIZES} onApplied={syncFromSurface} buttonStyle={toolStyle} />
+        <DictationButton editorRef={ref} onInserted={syncFromSurface} buttonStyle={toolStyle} />
       </div>
       <div style={{ position: 'relative', flex: fill ? '1 1 auto' : '0 0 auto' }}>
         <div

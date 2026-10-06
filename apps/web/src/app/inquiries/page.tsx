@@ -185,25 +185,24 @@ export default function InquiriesPage() {
         gradYear: selected.gradYear ?? undefined,
       });
 
-      /* Everything `createPlayer` doesn't take. The four free-text answers
-         have no Player column of their own, so they're folded into
-         developmentNotes with labels rather than dropped. */
-      const extraNotes = [
-        selected.trainingHistory ? `Training history: ${selected.trainingHistory}` : '',
-        selected.trainingAvailability ? `Training availability: ${selected.trainingAvailability}` : '',
-        selected.otherSports ? `Other sports: ${selected.otherSports}` : '',
-        selected.injuryHistory ? `Injury history: ${selected.injuryHistory}` : '',
-        selected.otherHobbies ? `Other hobbies: ${selected.otherHobbies}` : '',
-        selected.message ? `Message: ${selected.message}` : '',
-      ].filter(Boolean).join('\n\n');
+      /* Everything `createPlayer` doesn't take. The background answers land
+         in their own profile fields (Edit Profile → under Goals). Other
+         hobbies and the message have no profile field; they stay on the
+         inquiry, which is archived below rather than deleted.
 
+         These used to be folded into developmentNotes as plain text, which
+         the Player Summary notes never displayed (it expects per-section
+         JSON) and overwrote on the coach's first save. */
       const updates: Record<string, unknown> = {};
+      if (selected.trainingHistory) updates.trainingHistory = selected.trainingHistory;
+      if (selected.trainingAvailability) updates.trainingAvailability = selected.trainingAvailability;
+      if (selected.otherSports) updates.otherSports = selected.otherSports;
+      if (selected.injuryHistory) updates.injuryHistory = selected.injuryHistory;
       if (selected.birthDate) updates.birthDate = selected.birthDate;
       if (selected.school) updates.highSchool = selected.school;
       if (selected.clubTeam) updates.clubTeam = selected.clubTeam;
       if (selected.goals) updates.goals = selected.goals;
       if (selected.goalLevel) updates.playingLevelGoal = selected.goalLevel;
-      if (extraNotes) updates.developmentNotes = extraNotes;
       if (Object.keys(updates).length > 0) {
         try { await api.updatePlayer(player.id, updates); } catch { /* profile exists; coach can fill the rest */ }
       }

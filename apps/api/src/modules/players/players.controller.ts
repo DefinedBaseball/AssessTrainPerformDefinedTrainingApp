@@ -24,6 +24,7 @@ const ATHLETE_TEXT_FIELDS = [
   'firstName', 'lastName', 'positions', 'bats', 'throws', 'birthDate',
   'highSchool', 'clubTeam', 'college', 'professionalTeam', 'collegeCommit',
   'parentEmail', 'parentPhone', 'playingLevelGoal', 'goals',
+  'trainingHistory', 'trainingAvailability', 'otherSports', 'injuryHistory',
 ] as const;
 const ATHLETE_NUMBER_FIELDS = [
   'heightInches', 'weightLbs', 'gradYear', 'pbrNational', 'pbrState', 'pbrPosition', 'pgScore',

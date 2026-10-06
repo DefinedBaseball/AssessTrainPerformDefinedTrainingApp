@@ -86,6 +86,11 @@ export interface Player {
   hiddenTabs?: string | null;
   /** Season stats JSON (Player Summary → Stats) -- see lib/season-stats. */
   seasonStats?: string | null;
+  /** Background answers shown under Goals in Edit Profile. */
+  trainingHistory?: string | null;
+  trainingAvailability?: string | null;
+  otherSports?: string | null;
+  injuryHistory?: string | null;
   profilePhoto: string | null;
   heightInches: number | null;
   weightLbs: number | null;

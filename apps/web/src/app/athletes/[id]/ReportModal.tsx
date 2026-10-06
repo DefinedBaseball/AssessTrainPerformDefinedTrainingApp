@@ -483,6 +483,10 @@ interface SummaryData {
   parentEmail: string;
   parentPhone: string;
   playingLevelGoal: string; goals: string;
+  /** Background, under Goals. Pre-filled from an inquiry when the athlete
+   *  came in through the inquiry form. */
+  trainingHistory: string; trainingAvailability: string;
+  otherSports: string; injuryHistory: string;
 }
 
 function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d: SummaryData) => void; player: Player }) {
@@ -803,6 +807,25 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             style={{ resize: 'vertical', minHeight: 80 }}
           />
         </div>
+        {([
+          ['trainingHistory', 'Training History', 'Past lessons, programs, camps, coaches…'],
+          ['trainingAvailability', 'Training Availability', 'Days and times you can train…'],
+          ['otherSports', 'Other Sports', 'Other sports you play, and when…'],
+          ['injuryHistory', 'Injury History', 'Past or current injuries, surgeries, restrictions…'],
+        ] as const).map(([key, label, placeholder]) => (
+          <div key={key} className={rs.summaryField}>
+            <label className={rs.summaryLabel}>{label}</label>
+            <textarea
+              className={rs.summaryInput}
+              value={data[key]}
+              onChange={e => update({ [key]: e.target.value } as Partial<SummaryData>)}
+              placeholder={placeholder}
+              rows={3}
+              maxLength={2000}
+              style={{ resize: 'vertical', minHeight: 64 }}
+            />
+          </div>
+        ))}
       </div>
 
       <div className={rs.section}>
@@ -3186,6 +3209,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
     collegeCommit: '', logoFile: null,
     playingLevelGoal: '', goals: '',
+    trainingHistory: '', trainingAvailability: '', otherSports: '', injuryHistory: '',
   };
   const [summaryData, setSummaryData] = useState<SummaryData>(emptySummary);
   /* Catching / Infield / Outfield form data — edit-mode prefill from
@@ -3357,6 +3381,10 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       pgScore: player.pgScore ? String(player.pgScore) : '',
       collegeCommit: player.collegeCommit || '', logoFile: null,
       playingLevelGoal: (player as any).playingLevelGoal || '', goals: (player as any).goals || '',
+      trainingHistory: player.trainingHistory || '',
+      trainingAvailability: player.trainingAvailability || '',
+      otherSports: player.otherSports || '',
+      injuryHistory: player.injuryHistory || '',
     });
   }, [player]);
 
@@ -3497,6 +3525,10 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           collegeCommit: summaryData.collegeCommit || null,
           playingLevelGoal: summaryData.playingLevelGoal || null,
           goals: summaryData.goals || null,
+          trainingHistory: summaryData.trainingHistory.trim() || null,
+          trainingAvailability: summaryData.trainingAvailability.trim() || null,
+          otherSports: summaryData.otherSports.trim() || null,
+          injuryHistory: summaryData.injuryHistory.trim() || null,
         } as any);
 
         /* The athlete's phone lives on their User row, not Player, so it

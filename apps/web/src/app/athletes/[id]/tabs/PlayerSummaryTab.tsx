@@ -32,6 +32,8 @@ import {
    identical grouping behavior across the app. */
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
 import styles from './PlayerSummaryTab.module.css';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
 import { SeasonStatsSection } from '../components/SeasonStatsSection';
 
 /* ═══════════════════════════════════════════
@@ -2652,7 +2654,7 @@ export function PlayerSummaryTab({
           );
           if (notesSections.length === 0) return null;
           const playerHasAnyNote = notesSections.some(
-            (s) => (persistedDevNotes[s.key] ?? '').trim().length > 0,
+            (s) => !isBlankNoteHtml(persistedDevNotes[s.key]),
           );
           if (!isCoach && !playerHasAnyNote) return null;
           return (
@@ -2687,7 +2689,7 @@ export function PlayerSummaryTab({
                   // On the player view, hide individual sections that
                   // have no saved text so the row only shows the
                   // sections the coach has actually annotated.
-                  if (!isCoach && persisted.trim().length === 0) return null;
+                  if (!isCoach && isBlankNoteHtml(persisted)) return null;
                   return (
                     <div key={s.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div
@@ -2706,38 +2708,34 @@ export function PlayerSummaryTab({
                         {s.label} Notes
                       </div>
                       {isCoach ? (
-                        /* Coach textarea wears `--notes-bg` (the same
-                           token NoteBlock + RichEditableNote use). In
-                           light theme this is `--bubble-chrome-bg`
-                           (#eaeaea near-white) so the inner card
-                           matches the Hitting Tool Grades card +
-                           every Hitting Snapshot interior bubble. */
-                        <textarea
+                        /* Same toolbar as the report notes: B / I / U,
+                           Size and the dictation mic. The surface keeps
+                           `--notes-bg` (the token NoteBlock uses) so the
+                           card still matches the Tool Grades bubbles.
+                           Notes are stored as HTML now; older plain-text
+                           notes load and display unchanged. A cleared box
+                           saves as '' rather than a stray "<br>". */
+                        <RichTextEditor
                           value={value}
-                          onChange={(e) =>
-                            setDevNotes((m) => ({ ...m, [s.key]: e.target.value }))
+                          onChange={(html) =>
+                            setDevNotes((m) => ({ ...m, [s.key]: isBlankNoteHtml(html) ? '' : html }))
                           }
                           placeholder={`What we're working on for ${s.label}…`}
-                          rows={4}
-                          style={{
-                            width: '100%',
-                            minHeight: 96,
-                            resize: 'vertical',
+                          minHeight={96}
+                          editorStyle={{
                             background: 'var(--notes-bg)',
-                            color: 'var(--text)',
                             border: '1px solid var(--border)',
                             borderRadius: 8,
                             padding: '10px 12px',
-                            fontFamily: 'inherit',
                             fontSize: rem(13.5),
-                            lineHeight: 1.5,
-                            boxSizing: 'border-box',
+                            wordBreak: 'break-word',
                           }}
                         />
                       ) : (
                         <div
                           style={{
                             whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
                             color: 'var(--text)',
                             fontSize: rem(13.5),
                             lineHeight: 1.55,
@@ -2746,9 +2744,8 @@ export function PlayerSummaryTab({
                             borderRadius: 8,
                             padding: '10px 12px',
                           }}
-                        >
-                          {persisted}
-                        </div>
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(persisted) }}
+                        />
                       )}
                     </div>
                   );

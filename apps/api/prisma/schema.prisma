@@ -95,6 +95,11 @@ model Player {
   /// Season stats typed in by the athlete or a coach (Player Summary → Stats).
   /// JSON: { hitting|pitching|defense|catching: { "<season start year>": { "<stat>": "<typed value>" } } }
   seasonStats      String?
+  /// Background answers (from the inquiry form, or typed in Edit Profile).
+  trainingHistory      String?
+  trainingAvailability String?
+  otherSports          String?
+  injuryHistory        String?
   heightInches     Int?
   weightLbs        Int?
   gradYear         Int?

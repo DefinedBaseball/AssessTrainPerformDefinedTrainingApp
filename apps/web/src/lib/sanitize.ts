@@ -17,6 +17,13 @@ import DOMPurify from 'dompurify';
  * return empty rather than emit HTML — note/post content is auth-gated and
  * loaded client-side, so it renders (sanitized) after hydration.
  */
+/** True for a note with no visible text: empty, or only tags / &nbsp; /
+ *  whitespace (what a cleared rich-text box leaves behind, e.g. "<br>"). */
+export function isBlankNoteHtml(html: string | null | undefined): boolean {
+  if (!html) return true;
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+}
+
 export function sanitizeHtml(html: string | null | undefined): string {
   if (!html) return '';
   if (typeof window === 'undefined') return '';

@@ -3,7 +3,8 @@
  *
  * Toolbar provides:
  *   • Bold / Italic / Underline (toggles, mirror the current caret state)
- *   • Font size dropdown (Small / Normal / Large / XL)
+ *   • Font size menu (Small / Normal / Large / XL)
+ *   • 🎤 dictation (browser speech recognition, where available)
  *
  * Storage format: HTML string (the editor's `innerHTML`). Callers persist
  * the HTML alongside any other report/post field and render it back with
@@ -23,6 +24,7 @@
 import { rem } from '@/lib/rem';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { TextSizeMenu, DictationButton } from '@/components/NoteEditorTools';
 
 const FONT_SIZES = [
   { label: 'Small',  value: '2' },
@@ -40,10 +42,12 @@ export interface RichTextEditorProps {
   className?: string;
   /** Disable interaction (read-only display). Toolbar hides in this mode. */
   disabled?: boolean;
+  /** Overrides for the editing surface (background, border, type size). */
+  editorStyle?: CSSProperties;
 }
 
 export function RichTextEditor({
-  value, onChange, placeholder, minHeight = 100, className, disabled,
+  value, onChange, placeholder, minHeight = 100, className, disabled, editorStyle,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState({ bold: false, italic: false, underline: false });
@@ -132,28 +136,13 @@ export function RichTextEditor({
             active={active.underline}
             extraStyle={{ textDecoration: 'underline' }}
           />
-          <select
-            aria-label="Font size"
-            onChange={(e) => {
-              if (e.target.value) exec('fontSize', e.target.value);
-              e.target.value = '';
-            }}
-            onMouseDown={(e) => {
-              /* prevent stealing focus from the editor when opening
-                 the dropdown — keeps the current selection intact so
-                 the fontSize command applies to the right text. */
-              e.preventDefault();
-              const el = editorRef.current;
-              if (el) el.focus();
-            }}
-            defaultValue=""
-            style={{ ...toolbarBtnStyle, padding: '4px 6px', cursor: 'pointer' }}
-          >
-            <option value="" disabled>Size</option>
-            {FONT_SIZES.map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
+          <TextSizeMenu
+            editorRef={editorRef}
+            options={FONT_SIZES}
+            onApplied={() => { handleInput(); refreshActive(); }}
+            buttonStyle={toolbarBtnStyle}
+          />
+          <DictationButton editorRef={editorRef} onInserted={handleInput} buttonStyle={toolbarBtnStyle} />
         </div>
       )}
 
@@ -180,6 +169,7 @@ export function RichTextEditor({
             lineHeight: 1.5,
             cursor: disabled ? 'default' : 'text',
             whiteSpace: 'pre-wrap',
+            ...editorStyle,
           }}
         />
         {/* Placeholder — contentEditable has no native placeholder
@@ -229,7 +219,8 @@ function ToolbarButton({
         ...toolbarBtnStyle,
         ...(extraStyle ?? {}),
         background: active ? 'rgba(255,255,255,0.12)' : toolbarBtnStyle.background,
-        borderColor: active ? 'rgba(255,255,255,0.28)' : toolbarBtnStyle.borderColor,
+        /* Whole border, not borderColor -- the base style uses the shorthand. */
+        border: active ? '1px solid rgba(255,255,255,0.28)' : toolbarBtnStyle.border,
       }}
     >
       {label}

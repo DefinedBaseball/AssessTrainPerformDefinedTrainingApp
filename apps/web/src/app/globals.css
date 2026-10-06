@@ -843,3 +843,15 @@ tr:hover td { background: rgba(255,255,255,0.015); }
   0%, 80% { opacity: 0.3; }
   10%     { opacity: 1; }
 }
+
+/* Notes text sizes (the editors' Size menu writes <font size="N">).
+   Relative to the surrounding text so Small is always smaller and Large
+   always larger -- the browser default sizes are fixed px, which next to
+   the app's fluid type made "Small" bigger than normal text on phones. */
+font[size="1"] { font-size: 0.75em; }
+font[size="2"] { font-size: 0.85em; }
+font[size="3"] { font-size: 1em; }
+font[size="4"] { font-size: 1.15em; }
+font[size="5"] { font-size: 1.35em; }
+font[size="6"] { font-size: 1.7em; }
+font[size="7"] { font-size: 2.1em; }

@@ -130,6 +130,10 @@ export class PlayersService {
     developmentNotes?: string | null;
     playingLevelGoal?: string | null;
     goals?: string | null;
+    trainingHistory?: string | null;
+    trainingAvailability?: string | null;
+    otherSports?: string | null;
+    injuryHistory?: string | null;
   }) {
     return this.prisma.player.update({ where: { id }, data });
   }

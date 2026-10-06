@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, ScheduledDrill } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
 import styles from './page.module.css';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 import { TemplatePicker } from '@/components/TemplatePicker';
@@ -572,7 +573,10 @@ function AthleteColumn({
      nothing. */
   const sectionNote = useMemo(() => {
     const key = SCHEDULE_TO_NOTES_KEY[schedule];
-    return (parseDevelopmentNotes(player.developmentNotes)[key] ?? '').trim();
+    /* Notes are rich text (HTML) since the Player Summary editor gained its
+       toolbar; plain-text notes saved earlier render the same either way. */
+    const note = parseDevelopmentNotes(player.developmentNotes)[key] ?? '';
+    return isBlankNoteHtml(note) ? '' : note;
   }, [player.developmentNotes, schedule]);
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
 
@@ -678,7 +682,7 @@ function AthleteColumn({
           {sectionNote && (
             <div className={styles.athleteNotes}>
               <div className={styles.athleteNotesHead}>{scheduleLabel} Notes</div>
-              <div className={styles.athleteNotesBody}>{sectionNote}</div>
+              <div className={styles.athleteNotesBody} dangerouslySetInnerHTML={{ __html: sanitizeHtml(sectionNote) }} />
             </div>
           )}
           </>
