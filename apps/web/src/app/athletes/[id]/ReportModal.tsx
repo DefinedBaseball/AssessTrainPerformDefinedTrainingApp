@@ -3058,6 +3058,10 @@ interface ReportModalProps {
    *  to "Edit Profile" — used by the player-side entry point so non-coaches
    *  can edit their personal details without seeing the report flow. */
   profileOnly?: boolean;
+  /** Render the form in place on the page (Settings → My Profile) instead
+   *  of as a pop-up: no overlay, no title bar or close button, and saving
+   *  keeps the form open. */
+  inline?: boolean;
 }
 
 /* Coach Notes — a private second notes box added to every report type. Saved
@@ -3083,7 +3087,7 @@ function CoachNotesSection({ value, onChange }: { value: string; onChange: (v: s
   );
 }
 
-export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly }: ReportModalProps) {
+export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly, inline = false }: ReportModalProps) {
   /* Picks which save path the Phone field uses — see the phone block in the
      SUMMARY submit below. */
   const { isCoach: isCoachViewer } = useAuth();
@@ -3879,7 +3883,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       }
       setSuccess(true);
       onSaved();
-      setTimeout(() => { setSuccess(false); onClose(); }, 1500);
+      /* In place on a page there is nothing to close -- just clear the
+         "Saved" note. */
+      setTimeout(() => { setSuccess(false); if (!inline) onClose(); }, 1500);
     } catch (err: any) {
       alert(err?.message || 'Failed to save');
     } finally {
@@ -3888,7 +3894,10 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
   };
 
   return (
-    <div className={styles.modalOverlay} onClick={e => { if (e.target === e.currentTarget) requestClose(); }}>
+    <div
+      className={inline ? undefined : styles.modalOverlay}
+      onClick={inline ? undefined : (e => { if (e.target === e.currentTarget) requestClose(); })}
+    >
       {confirmClose && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.6)',
@@ -3930,7 +3939,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           </div>
         </div>
       )}
-      <div className={styles.modalContent}>
+      <div className={inline ? undefined : styles.modalContent}>
+        {!inline && (
         <div className={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h2 className={styles.modalTitle}>
@@ -3997,8 +4007,14 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             <button type="button" className={styles.modalClose} onClick={requestClose}>x</button>
           </div>
         </div>
+        )}
 
-        <form onSubmit={handleSubmit} className={styles.modalBody}>
+        <form
+          onSubmit={handleSubmit}
+          className={styles.modalBody}
+          /* In place, the page scrolls -- not a fixed-height inner box. */
+          style={inline ? { maxHeight: 'none', overflowY: 'visible', padding: 0 } : undefined}
+        >
           {/* Report type chips — cleaner, segmented row.
               Hidden entirely in profileOnly mode so the player only sees
               the SUMMARY form fields. */}

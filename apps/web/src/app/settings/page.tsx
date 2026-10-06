@@ -7,7 +7,15 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
+
+/* The athlete's My Profile tab IS the profile's Edit Profile window (same
+   form, every field), loaded only when an athlete opens the tab. */
+const ReportModal = nextDynamic(
+  () => import('@/app/athletes/[id]/ReportModal').then((m) => m.ReportModal),
+  { ssr: false },
+);
 
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
 
@@ -31,7 +39,9 @@ export default function SettingsPage() {
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: 'account', label: 'Account' },
     ...(!isCoach && playerId ? ([{ key: 'myProfile' as TabKey, label: 'My Profile' }]) : []),
-    { key: 'notifications', label: 'Notifications' },
+    /* Athletes have no notification settings: report, video and Coach
+       Review notifications always reach them. */
+    ...(isCoach ? ([{ key: 'notifications' as TabKey, label: 'Notifications' }]) : []),
     /* Data & Integrations is coach-only — players don't import vendor CSVs.
        Hidden from viewers (read-only). */
     ...(isEditorCoach ? ([{ key: 'data' as TabKey, label: 'Data & Integrations' }]) : []),
@@ -66,7 +76,7 @@ export default function SettingsPage() {
 
       {tab === 'account' && <AccountTab user={user} onLogout={logout} isCoach={isCoach} />}
       {tab === 'myProfile' && !isCoach && playerId && <MyProfileTab playerId={playerId} />}
-      {tab === 'notifications' && <NotificationsTab isCoach={isCoach} />}
+      {tab === 'notifications' && isCoach && <NotificationsTab isCoach={isCoach} />}
       {tab === 'data' && isEditorCoach && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isEditorCoach && <TeamsAndCollegesTab />}
       {tab === 'staff' && isAdmin && <StaffTab />}
@@ -244,7 +254,10 @@ function CamerasTab() {
 /* ─── Account ──────────────────────────────────────────────── */
 
 function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => void; isCoach: boolean }) {
-  const { refresh } = useAuth();
+  const { refresh, isAdmin, isViewer } = useAuth();
+  /* Three account types. Viewer-level coaches are Coaches with view-only
+     access, noted underneath. */
+  const accountType = !isCoach ? 'Athlete' : isAdmin ? 'Coach Admin' : 'Coach';
   const [profile, setProfile] = useState<api.AccountProfile | null>(null);
   const [email, setEmail] = useState(user.email || '');
   const [firstName, setFirstName] = useState('');
@@ -283,10 +296,11 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
     setProfileErr('');
     try {
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
+      /* An athlete's name is edited in My Profile (the player profile), not
+         here -- so their save leaves the account name alone. */
       const updated = await api.updateAccount({
-        name: fullName,
+        ...(isCoach ? { name: fullName, position } : { email }),
         phone,
-        ...(isCoach ? { position } : { email }),
       });
       setProfile(updated);
       // Players can change their login email here — refresh the session so the
@@ -365,27 +379,31 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Role</span>
+            <span className={styles.rowTitle}>Account type</span>
+            {isViewer && <span className={styles.rowSub}>View-only access</span>}
           </div>
-          <span className={styles.rowSub}>{user.role}{isPrimaryAdmin ? ' · Primary Admin' : ''}</span>
+          <span className={styles.rowSub}>{accountType}{isPrimaryAdmin ? ' · Primary Admin' : ''}</span>
         </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>First name</span>
-            <span className={styles.rowSub}>Shown in place of your email where supported</span>
-          </div>
-          <input className={styles.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Connor" />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Last name</span>
-          </div>
-          <input className={styles.input} value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Olson" />
-        </div>
+        {isCoach && (
+          <>
+            <div className={styles.row}>
+              <div className={styles.rowLabel}>
+                <span className={styles.rowTitle}>First name</span>
+                <span className={styles.rowSub}>Shown in place of your email where supported</span>
+              </div>
+              <input className={styles.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Connor" />
+            </div>
+            <div className={styles.row}>
+              <div className={styles.rowLabel}>
+                <span className={styles.rowTitle}>Last name</span>
+              </div>
+              <input className={styles.input} value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Olson" />
+            </div>
+          </>
+        )}
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Phone</span>
-            <span className={styles.rowSub}>For text notifications once SMS is enabled</span>
           </div>
           <input className={styles.input} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
         </div>
@@ -781,7 +799,6 @@ function StaffTab() {
 const NOTIF_CHANNELS: { key: keyof api.NotifChannelPrefs; label: string; sub: string }[] = [
   { key: 'app', label: 'App', sub: 'In-app bell notifications' },
   { key: 'email', label: 'Email', sub: 'Your login email' },
-  { key: 'phone', label: 'Phone', sub: 'Text messages \u00b7 delivery coming soon' },
 ];
 const NOTIF_CHANNEL_DEFAULTS: api.NotifChannelPrefs = { app: true, email: true, phone: false };
 const NOTIF_SUBJECTS_PLAYER = [
@@ -794,7 +811,6 @@ const NOTIF_SUBJECTS_PLAYER = [
 const NOTIF_SUBJECTS_COACH = [
   { key: 'ANNOUNCEMENT', label: 'Dashboard Posts' },
   { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests' },
-  { key: 'COMMITMENT', label: 'College Commitments' },
 ];
 /* Subjects with LIVE email delivery (must match the API's
    EMAIL_DELIVERED_SUBJECTS). Every other subject's Email toggle renders as a
@@ -908,51 +924,109 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
 
 /* ─── Data & Integrations ────────────────────────────────── */
 
-function DataTab({ isCoach }: { isCoach: boolean }) {
-  const router = useRouter();
-  const sources = [
-    { key: 'TRACKMAN', label: 'Trackman', desc: 'Pitching + batted ball (radar)' },
-    { key: 'FULL_SWING', label: 'Full Swing', desc: 'Swing mechanics + launch data' },
-    { key: 'BLAST_MOTION', label: 'Blast Motion', desc: 'Swing sensor metrics' },
-    { key: 'VALD', label: 'VALD', desc: 'Force plate + dynamometer' },
-    { key: 'HITTRAX', label: 'HitTrax', desc: 'Indoor cage hit tracking' },
-  ];
+/* Data & Integrations is now a contact hub: the sales rep for each
+   technology the academy uses, shared by every coach. Data files are
+   uploaded on each report (its Upload button), and Data Analytics lives
+   in the sidebar. */
+function DataTab(_props: { isCoach: boolean }) {
+  const [contacts, setContacts] = useState<api.VendorContact[] | null>(null);
+  const [draft, setDraft] = useState<api.VendorContact[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getVendorContacts()
+      .then(setContacts)
+      .catch((e) => { setContacts([]); setError(e?.message || 'Could not load contacts'); });
+  }, []);
+
+  const editing = draft !== null;
+  const rows = draft ?? contacts ?? [];
+
+  const setField = (source: string, field: 'contactName' | 'contactEmail' | 'contactPhone', value: string) => {
+    setDraft((d) => (d ? d.map((c) => (c.source === source ? { ...c, [field]: value } : c)) : d));
+  };
+
+  const save = async () => {
+    if (!draft) return;
+    setSaving(true);
+    setError('');
+    try {
+      const next = await api.saveVendorContacts(draft.map(({ source, contactName, contactEmail, contactPhone }) => ({
+        source, contactName, contactEmail, contactPhone,
+      })));
+      setContacts(next);
+      setDraft(null);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.message || 'Could not save contacts');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className={styles.section}>
       <div className={styles.card}>
-        <h3 className={styles.cardTitle}>CSV Upload</h3>
-        <p className={styles.cardDesc}>Import vendor CSVs to populate metrics across the app</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className={styles.btn} onClick={() => router.push('/upload')}>Go to Upload</button>
-        </div>
-      </div>
-
-      {isCoach && (
-        <div className={styles.card}>
-          <h3 className={styles.cardTitle}>Data Analytics</h3>
-          <p className={styles.cardDesc}>
-            Build custom charts, bubbles, and percent-increase widgets from imported data.
-            Moved to its own workspace with a live chart preview.
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button className={styles.btn} onClick={() => router.push('/analytics')}>Open Data Analytics</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 className={styles.cardTitle}>Supported Sources</h3>
+            <p className={styles.cardDesc} style={{ marginBottom: 0 }}>
+              Sales rep contacts for each technology we use.
+              {saved && <span style={{ marginLeft: 8, color: '#34D399', fontWeight: 600 }}>Saved</span>}
+            </p>
           </div>
-        </div>
-      )}
-
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Supported sources</h3>
-        <p className={styles.cardDesc}>Vendors whose data the app can ingest today</p>
-        {sources.map((s) => (
-          <div key={s.key} className={styles.row}>
-            <div className={styles.rowLabel}>
-              <span className={styles.rowTitle}>{s.label}</span>
-              <span className={styles.rowSub}>{s.desc}</span>
+          {contacts && (editing ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={styles.btnSecondary} onClick={() => { setDraft(null); setError(''); }} disabled={saving}>Cancel</button>
+              <button className={styles.btn} onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
-            <span className={styles.configTag}>CSV</span>
+          ) : (
+            <button className={styles.btnSecondary} onClick={() => setDraft(contacts.map((c) => ({ ...c })))}>Edit</button>
+          ))}
+        </div>
+
+        {error && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div>}
+
+        {contacts === null ? (
+          <div className={styles.empty}>Loading…</div>
+        ) : (
+          <div className={styles.vendorTable} role="table" aria-label="Technology contacts">
+            <div className={`${styles.vendorRow} ${styles.vendorHead}`} role="row">
+              <span role="columnheader">Source</span>
+              <span role="columnheader">Source Contact</span>
+              <span role="columnheader">Contact Email</span>
+              <span role="columnheader">Contact Phone</span>
+            </div>
+            {rows.map((c) => (
+              <div key={c.source} className={styles.vendorRow} role="row">
+                <span role="cell" className={styles.vendorSource}>{c.label}</span>
+                {editing ? (
+                  <>
+                    <input className={styles.input} aria-label={`${c.label} contact name`} value={c.contactName}
+                      onChange={(e) => setField(c.source, 'contactName', e.target.value)} placeholder="Sales rep name" maxLength={100} />
+                    <input className={styles.input} type="email" aria-label={`${c.label} contact email`} value={c.contactEmail}
+                      onChange={(e) => setField(c.source, 'contactEmail', e.target.value)} placeholder="rep@company.com" maxLength={200} />
+                    <input className={styles.input} type="tel" aria-label={`${c.label} contact phone`} value={c.contactPhone}
+                      onChange={(e) => setField(c.source, 'contactPhone', e.target.value)} placeholder="(555) 123-4567" maxLength={40} />
+                  </>
+                ) : (
+                  <>
+                    <span role="cell" data-label="Contact">{c.contactName || <span className={styles.rowSub}>—</span>}</span>
+                    <span role="cell" data-label="Email">
+                      {c.contactEmail ? <a href={`mailto:${c.contactEmail}`} className={styles.vendorLink}>{c.contactEmail}</a> : <span className={styles.rowSub}>—</span>}
+                    </span>
+                    <span role="cell" data-label="Phone">
+                      {c.contactPhone ? <a href={`tel:${c.contactPhone.replace(/[^\d+]/g, '')}`} className={styles.vendorLink}>{c.contactPhone}</a> : <span className={styles.rowSub}>—</span>}
+                    </span>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -1398,293 +1472,50 @@ function EntityCrudCard({
   );
 }
 
-/* ─── My Profile (PLAYER self-edit) ──────────────────────── */
-
-const POSITION_CHOICES = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'Utility'];
-
+/* ─── My Profile (athlete) ─────────────────────────────────────
+   The profile's own Edit Profile form -- every field (personal info,
+   Goals, Training History / Availability, Other Sports, Injury History,
+   rankings ...) -- shown right in the tab, so Settings and the profile
+   can never drift apart. */
 function MyProfileTab({ playerId }: { playerId: string }) {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
+  const [player, setPlayer] = useState<api.Player | null>(null);
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [positions, setPositions] = useState<string[]>([]);
-  const [bats, setBats] = useState('');
-  const [throws, setThrows] = useState('');
-  const [heightInches, setHeightInches] = useState<string>('');
-  const [weightLbs, setWeightLbs] = useState<string>('');
-  const [gradYear, setGradYear] = useState<string>('');
-  const [birthDate, setBirthDate] = useState('');
-  const [highSchool, setHighSchool] = useState('');
-  const [college, setCollege] = useState('');
-  const [parentEmail, setParentEmail] = useState('');
-  const [parentPhone, setParentPhone] = useState('');
-  const [clubTeam, setClubTeam] = useState('');
-  const [collegeCommit, setCollegeCommit] = useState('');
+  const load = () => {
+    api.getPlayer(playerId)
+      .then((p) => setPlayer(p as api.Player))
+      .catch((e) => setError(e?.message || 'Failed to load your profile'));
+  };
+  useEffect(load, [playerId]);
 
-  const [clubTeams, setClubTeams] = useState<ClubTeam[]>([]);
-  const [colleges, setColleges] = useState<College[]>([]);
+  const userId = (user as any)?.id || (user as any)?.sub || '';
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [p, ct, co] = await Promise.all([
-          api.getPlayer(playerId),
-          api.getClubTeams().catch(() => [] as ClubTeam[]),
-          api.getColleges().catch(() => [] as College[]),
-        ]);
-        setFirstName(p.firstName || '');
-        setLastName(p.lastName || '');
-        setPositions((p.positions || '').split(',').map(s => s.trim()).filter(Boolean));
-        setBats(p.bats || '');
-        setThrows(p.throws || '');
-        setHeightInches(p.heightInches != null ? String(p.heightInches) : '');
-        setWeightLbs(p.weightLbs != null ? String(p.weightLbs) : '');
-        setGradYear(p.gradYear != null ? String(p.gradYear) : '');
-        setBirthDate(p.birthDate || '');
-        setHighSchool(p.highSchool || '');
-        setCollege(p.college || '');
-        setParentEmail(p.parentEmail || '');
-        setParentPhone(p.parentPhone || '');
-        setClubTeam(p.clubTeam || '');
-        setCollegeCommit(p.collegeCommit || '');
-        setClubTeams(ct);
-        setColleges(co);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load your profile');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [playerId]);
-
-  function togglePosition(pos: string) {
-    setPositions(cur => cur.includes(pos) ? cur.filter(p => p !== pos) : [...cur, pos]);
+  if (error) {
+    return (
+      <div className={styles.section}>
+        <div className={styles.card}><div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div></div>
+      </div>
+    );
   }
-
-  async function save() {
-    setSaving(true);
-    setError('');
-    setFeedback('');
-    try {
-      await api.updatePlayer(playerId, {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        positions: positions.join(','),
-        bats: bats || null,
-        throws: throws || null,
-        heightInches: heightInches ? parseInt(heightInches, 10) : null,
-        weightLbs: weightLbs ? parseInt(weightLbs, 10) : null,
-        gradYear: gradYear ? parseInt(gradYear, 10) : null,
-        birthDate: birthDate || null,
-        highSchool: highSchool.trim() || null,
-        college: college.trim() || null,
-        parentEmail: parentEmail.trim() || null,
-        parentPhone: parentPhone.trim() || null,
-        clubTeam: clubTeam || null,
-        collegeCommit: collegeCommit || null,
-      });
-      setFeedback('Profile saved.');
-      setTimeout(() => setFeedback(''), 2500);
-    } catch (e: any) {
-      setError(e?.message || 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) {
+  if (!player) {
     return (
       <div className={styles.section}>
         <div className={styles.card}><div className={styles.empty}>Loading your profile…</div></div>
       </div>
     );
   }
-
   return (
     <div className={styles.section}>
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Personal Information</h3>
-        <p className={styles.cardDesc}>Update the details that appear on your player profile.</p>
-
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>First name</span>
-          </div>
-          <input className={styles.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Last name</span>
-          </div>
-          <input className={styles.input} value={lastName} onChange={(e) => setLastName(e.target.value)} />
-        </div>
-
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Positions</span>
-            <span className={styles.rowSub}>Tap all that apply</span>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', maxWidth: 420 }}>
-            {POSITION_CHOICES.map(pos => {
-              const active = positions.includes(pos);
-              return (
-                <button
-                  key={pos}
-                  type="button"
-                  onClick={() => togglePosition(pos)}
-                  style={{
-                    padding: '6px 11px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border)',
-                    background: active ? 'var(--accent)' : 'rgba(255,255,255,0.04)',
-                    color: active ? '#000' : 'var(--text)',
-                    fontSize: rem(12),
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {pos}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>Bats</span></div>
-          <select className={styles.select} value={bats} onChange={(e) => setBats(e.target.value)}>
-            <option value="">—</option>
-            <option value="R">R</option>
-            <option value="L">L</option>
-            <option value="S">S</option>
-          </select>
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>Throws</span></div>
-          <select className={styles.select} value={throws} onChange={(e) => setThrows(e.target.value)}>
-            <option value="">—</option>
-            <option value="R">R</option>
-            <option value="L">L</option>
-          </select>
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>Height (inches)</span></div>
-          <input className={styles.input} type="number" min={48} max={96} value={heightInches} onChange={(e) => setHeightInches(e.target.value)} />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>Weight (lbs)</span></div>
-          <input className={styles.input} type="number" min={80} max={400} value={weightLbs} onChange={(e) => setWeightLbs(e.target.value)} />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>Grad Year</span></div>
-          <select className={styles.input} value={gradYear} onChange={(e) => setGradYear(e.target.value)}>
-            <option value="">--</option>
-            {Array.from({ length: 26 }, (_, i) => 2020 + i).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-            <option value={api.GRAD_COLLEGE}>College</option>
-            <option value={api.GRAD_PRO}>Professional</option>
-          </select>
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>Birthday</span></div>
-          <input className={styles.input} type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>High School</span></div>
-          <input className={styles.input} value={highSchool} onChange={(e) => setHighSchool(e.target.value)} />
-        </div>
-        {/* The college currently played for. Distinct from the College
-            Commitment field on the profile, which is the recruiting one. */}
-        <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>College</span></div>
-          <input className={styles.input} value={college} onChange={(e) => setCollege(e.target.value)} placeholder="Current college" />
-        </div>
-        {/* Guardian contacts — separate from the athlete's own email and
-            phone, which are managed under Account. Coaches read these off
-            the Client Directory. */}
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Parent Phone</span>
-            <span className={styles.rowSub}>Guardian contact, shown to coaches on the client list.</span>
-          </div>
-          <input
-            className={styles.input}
-            type="tel"
-            value={parentPhone}
-            onChange={(e) => setParentPhone(e.target.value)}
-            placeholder="(407) 555-0100"
-          />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Parent Email</span>
-            <span className={styles.rowSub}>Guardian contact, shown to coaches on the client list.</span>
-          </div>
-          <input
-            className={styles.input}
-            type="email"
-            value={parentEmail}
-            onChange={(e) => setParentEmail(e.target.value)}
-            placeholder="parent@example.com"
-          />
-        </div>
-      </div>
-
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>Club Team</h3>
-        <p className={styles.cardDesc}>Pick from the list your coaches curated. If yours isn't here, ask your coach to add it in Settings.</p>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Current club team</span>
-          </div>
-          <select className={styles.select} value={clubTeam} onChange={(e) => setClubTeam(e.target.value)}>
-            <option value="">None</option>
-            {clubTeams.map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        {clubTeam && !clubTeams.some(c => c.name === clubTeam) && (
-          <div className={styles.rowSub} style={{ marginTop: 4 }}>
-            Legacy value "{clubTeam}" — pick from the list when your club is added.
-          </div>
-        )}
-      </div>
-
-      <div className={styles.card}>
-        <h3 className={styles.cardTitle}>College Commitment</h3>
-        <p className={styles.cardDesc}>Tell us where you've committed. Leave empty if you're uncommitted.</p>
-        <div className={styles.row}>
-          <div className={styles.rowLabel}>
-            <span className={styles.rowTitle}>Committed to</span>
-          </div>
-          <select className={styles.select} value={collegeCommit} onChange={(e) => setCollegeCommit(e.target.value)}>
-            <option value="">Uncommitted</option>
-            {colleges.map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        {collegeCommit && !colleges.some(c => c.name === collegeCommit) && (
-          <div className={styles.rowSub} style={{ marginTop: 4 }}>
-            Legacy value "{collegeCommit}" — pick from the list when your school is added.
-          </div>
-        )}
-      </div>
-
-      <div className={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button className={styles.btn} onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Profile'}
-          </button>
-        </div>
-        {error && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div>}
-        {feedback && <div className={`${styles.feedback} ${styles.feedbackOk}`}>{feedback}</div>}
-      </div>
+      <ReportModal
+        player={player}
+        userId={userId}
+        initialReportType="SUMMARY"
+        profileOnly
+        inline
+        onClose={() => {}}
+        onSaved={load}
+      />
     </div>
   );
 }

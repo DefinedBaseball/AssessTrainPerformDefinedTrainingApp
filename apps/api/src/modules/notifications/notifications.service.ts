@@ -82,15 +82,20 @@ export class NotificationsService {
    */
   async create(recipientId: string, payload: NotificationPayload) {
     try {
-      const u = await this.prisma.user.findUnique({
+      const found = await this.prisma.user.findUnique({
         where: { id: recipientId },
         select: {
+          role: true,
           notificationPrefs: true,
           email: true,
           name: true,
           player: { select: { firstName: true } },
         },
       });
+      /* Athletes have no notification settings (the Settings tab was
+         removed): everything sent to them is delivered, in-app and by
+         email where wired. Any preferences saved before are ignored. */
+      const u = found ? { ...found, notificationPrefs: found.role === 'PLAYER' ? null : found.notificationPrefs } : found;
 
       // Email + app channels are independent — a player can want the email but
       // not the bell, or vice versa. Fire the email (best-effort) before the
@@ -144,10 +149,11 @@ export class NotificationsService {
     try {
       const users = await this.prisma.user.findMany({
         where: { id: { in: ids } },
-        select: { id: true, notificationPrefs: true },
+        select: { id: true, role: true, notificationPrefs: true },
       });
       const allowed = users
-        .filter((u) => this.appEnabled(u.notificationPrefs, payload.type))
+        /* Athletes always receive (see create()). */
+        .filter((u) => u.role === 'PLAYER' || this.appEnabled(u.notificationPrefs, payload.type))
         .map((u) => u.id);
       if (allowed.length === 0) return;
       await this.prisma.notification.createMany({

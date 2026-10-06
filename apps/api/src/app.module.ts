@@ -23,6 +23,7 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MailModule } from './modules/mail/mail.module';
 import { InquiriesModule } from './modules/inquiries/inquiries.module';
+import { VendorContactsModule } from './modules/vendor-contacts/vendor-contacts.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { InquiriesModule } from './modules/inquiries/inquiries.module';
     MessagesModule,
     NotificationsModule,
     InquiriesModule,
+    VendorContactsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

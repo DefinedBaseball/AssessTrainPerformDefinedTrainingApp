@@ -450,6 +450,15 @@ model Drill {
   @@index([name])
 }
 
+// ─── App settings (academy-wide key/value) ────────────────────────
+// Small shared settings that don't merit their own table, stored as JSON
+// text by key -- e.g. "vendorContacts" (Settings → Data & Integrations).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // ─── Education: Information (member documents) ───────────────────
 // Files coaches share with Membership athletes: recruiting guides, nutrition
 // and strength programs, etc. The file itself is kept in the database (25 MB

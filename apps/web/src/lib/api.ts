@@ -1114,6 +1114,24 @@ export async function uploadVideoFile(file: File): Promise<{ url: string }> {
   return res.json();
 }
 
+// ---- Technology sales-rep contacts (Settings → Data & Integrations) ----
+
+export interface VendorContact {
+  source: string;
+  label: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+}
+
+export async function getVendorContacts() {
+  return request<VendorContact[]>('/vendor-contacts');
+}
+
+export async function saveVendorContacts(contacts: Pick<VendorContact, 'source' | 'contactName' | 'contactEmail' | 'contactPhone'>[]) {
+  return request<VendorContact[]>('/vendor-contacts', { method: 'PUT', body: JSON.stringify({ contacts }) });
+}
+
 // ---- Education: Information (members-only documents) ----
 
 export type EduDocCategory = 'SKILL' | 'PHYSICAL' | 'RECRUITING' | 'MENTAL';

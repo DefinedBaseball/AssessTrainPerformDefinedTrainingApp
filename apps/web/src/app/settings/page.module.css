@@ -447,3 +447,41 @@
 @media (max-width: 720px) {
   .builderForm { grid-template-columns: 1fr; }
 }
+
+/* ── Data & Integrations: technology contact table ── */
+.vendorTable { display: flex; flex-direction: column; margin-top: 14px; }
+.vendorRow {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.vendorRow:last-child { border-bottom: none; }
+.vendorHead {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-top: 0;
+}
+.vendorSource { font-weight: 700; }
+.vendorLink { color: var(--accent, #3d8bfd); text-decoration: none; }
+.vendorLink:hover { text-decoration: underline; }
+.vendorRow .input { width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* Phones: each source becomes a small stacked card. */
+@media (max-width: 640px) {
+  .vendorHead { display: none; }
+  .vendorRow { grid-template-columns: 1fr; gap: 6px; }
+  .vendorRow [data-label]::before {
+    content: attr(data-label) ' · ';
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+}
