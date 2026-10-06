@@ -56,6 +56,7 @@ const TAB_TO_REPORT_TYPE: Record<string, string> = Object.fromEntries(
 );
 import type { ReportSummary, TabProps } from './helpers';
 import { usePlayerProfileData } from './usePlayerProfileData';
+import { AthleteSwitcher } from './components/AthleteSwitcher';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
 const iconProps = {
@@ -353,6 +354,22 @@ export default function PlayerProfilePage() {
     });
   }, [player, reports, hiddenTabs, capturingPdf]);
 
+  /* ?tab=<key> (set by the athlete switcher) opens that tab once this
+     athlete's tabs are known, if they have it; otherwise the athlete
+     opens as usual. Read once, then stripped from the URL. */
+  const tabParamDoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!player || typeof window === 'undefined' || tabParamDoneRef.current === player.id) return;
+    tabParamDoneRef.current = player.id;
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get('tab');
+    if (!wanted) return;
+    if (visibleTabs.some((t) => t.key === wanted)) setActiveTab(wanted);
+    params.delete('tab');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [player, visibleTabs]);
+
   // If the current tab is filtered out (e.g. positions changed), fall back to Summary.
   // Skipped while `capturingPdf` is true so the Summary PDF capture flow can
   // briefly switch to position-specific tabs (Infield / Catching / Outfield)
@@ -548,7 +565,16 @@ export default function PlayerProfilePage() {
           player's account (backend keeps the primary admin self-only). ── */}
       {isCoach && params?.id && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
+            <Link href="/athletes" className={styles.backLink}>← Athletes</Link>
+            {/* Jump to another athlete, landing on the same tab when they
+                have it (?tab= is read by the effect after visibleTabs). */}
+            <AthleteSwitcher
+              currentId={player.id}
+              currentName={`${player.firstName} ${player.lastName}`}
+              onSwitch={(nextId) => router.push(`/athletes/${nextId}?tab=${encodeURIComponent(activeTab)}`)}
+            />
+          </span>
           {player.userId && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {/* Change Email / Reset Password moved into Edit Profile,
