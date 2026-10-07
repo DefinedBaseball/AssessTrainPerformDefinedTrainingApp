@@ -69,16 +69,40 @@ function ensureCanvasGlobals(): any | null {
   return _canvasMod;
 }
 
+/* pdf.js 4+ ships only as ES modules (v3 had a known code-execution flaw
+   with malicious PDFs). This API compiles to CommonJS, where TypeScript would
+   turn a plain import() into require() -- so the import is built at runtime,
+   from an absolute file URL so it resolves the same from any entry point.
+   Cached; canvas globals are installed first (see above). */
+let _pdfjs: Promise<any> | null = null;
+function loadPdfjs(): Promise<any> {
+  ensureCanvasGlobals();
+  if (!_pdfjs) {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const dynamicImport = new Function('s', 'return import(s)') as (s: string) => Promise<any>;
+    const { pathToFileURL } = require('url') as typeof import('url');
+    _pdfjs = dynamicImport(pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.mjs')).href)
+      .catch((err) => { _pdfjs = null; throw err; });
+  }
+  return _pdfjs;
+}
+
+/** pdf.js 4 takes a canvas-factory CLASS (getDocument's CanvasFactory). */
+function napiCanvasFactory(createCanvas: (w: number, h: number) => any) {
+  return class {
+    constructor(_opts?: unknown) {}
+    create(w: number, h: number) { const canvas = createCanvas(w, h); return { canvas, context: canvas.getContext('2d') }; }
+    reset(cc: any, w: number, h: number) { cc.canvas.width = w; cc.canvas.height = h; }
+    destroy(cc: any) { if (cc?.canvas) { cc.canvas.width = 0; cc.canvas.height = 0; } }
+  };
+}
+
 export async function extractPdfTextItems(buffer: Buffer): Promise<PdfTextItem[]> {
   // Install the canvas globals BEFORE the first pdfjs require (see above) — even
   // text extraction must do this, since this is usually the first PDF call and
   // it's the require that binds pdf.js to its DOMMatrix source process-wide.
-  ensureCanvasGlobals();
-  // pdfjs v3 legacy build is CommonJS-requireable (v4 is ESM-only, which the
-  // Nest CommonJS bundle can't `require`). Lazy-require so boot stays fast and
-  // a missing dep surfaces only on use.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+  // Lazy-loaded so boot stays fast and a missing dep surfaces only on use.
+  const pdfjs = await loadPdfjs();
   const data = new Uint8Array(buffer);
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
   try {
@@ -141,16 +165,11 @@ export async function extractTrackmanLocations(buffer: Buffer): Promise<Location
   const napi = ensureCanvasGlobals();
   if (!napi) return [];   // no canvas globals → skip render; table data still saved
   const { createCanvas } = napi;
-  const canvasFactory = {
-    create(w: number, h: number) { const canvas = createCanvas(w, h); return { canvas, context: canvas.getContext('2d') }; },
-    reset(cc: any, w: number, h: number) { cc.canvas.width = w; cc.canvas.height = h; },
-    destroy(_cc: any) {},
-  };
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+  const CanvasFactory = napiCanvasFactory(createCanvas);
+  const pdfjs = await loadPdfjs();
   let doc: any;
   try {
-    doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), canvasFactory, useSystemFonts: true, isEvalSupported: false }).promise;
+    doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), CanvasFactory, useSystemFonts: true, isEvalSupported: false }).promise;
     const page = await doc.getPage(1);
     const H = page.getViewport({ scale: 1 }).height;
 
@@ -173,7 +192,7 @@ export async function extractTrackmanLocations(buffer: Buffer): Promise<Location
     const S = PDF_RENDER_SCALE; const vp = page.getViewport({ scale: S });
     const canvas = createCanvas(vp.width, vp.height); const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp, canvasFactory }).promise;
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
 
     // 3) Scan a generous margin around the box; classify pixels → cluster → dots.
     const bw = box.x1 - box.x0, bh = box.y1 - box.y0;
@@ -252,16 +271,11 @@ export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementD
   const napi = ensureCanvasGlobals();
   if (!napi) return [];   // no canvas globals → skip render; table data still saved
   const { createCanvas } = napi;
-  const canvasFactory = {
-    create(w: number, h: number) { const canvas = createCanvas(w, h); return { canvas, context: canvas.getContext('2d') }; },
-    reset(cc: any, w: number, h: number) { cc.canvas.width = w; cc.canvas.height = h; },
-    destroy(_cc: any) {},
-  };
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+  const CanvasFactory = napiCanvasFactory(createCanvas);
+  const pdfjs = await loadPdfjs();
   let doc: any;
   try {
-    doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), canvasFactory, useSystemFonts: true, isEvalSupported: false }).promise;
+    doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), CanvasFactory, useSystemFonts: true, isEvalSupported: false }).promise;
     const page = await doc.getPage(1);
     const H = page.getViewport({ scale: 1 }).height;
 
@@ -288,7 +302,7 @@ export async function extractTrackmanMovement(buffer: Buffer): Promise<MovementD
     const S = PDF_RENDER_SCALE; const vp = page.getViewport({ scale: S });
     const canvas = createCanvas(vp.width, vp.height); const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport: vp, canvasFactory }).promise;
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
     const pxMin = Math.min(...pts.map(p => p.px)), pxMax = Math.max(...pts.map(p => p.px));
     const rx0 = Math.max(0, Math.floor((pxMin - 14) * S)), rx1 = Math.min(canvas.width, Math.ceil((pxMax + 14) * S));
     // Skip the top legend strip (colour swatches) — it otherwise reads as

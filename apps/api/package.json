@@ -37,7 +37,7 @@
     "helmet": "^8.1.0",
     "multer": "^2.4.0",
     "papaparse": "^5.5.3",
-    "pdfjs-dist": "3.11.174",
+    "pdfjs-dist": "4.10.38",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "uuid": "^13.0.2",

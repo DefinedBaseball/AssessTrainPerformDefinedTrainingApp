@@ -126,7 +126,7 @@ export class AuthService {
        the forms, so the message reads the same if a client ever skips
        its own check. */
     if (!password || !password.trim()) throw new BadRequestException('Create Password to Continue');
-    if (password.length < AuthService.MIN_PASSWORD) throw new BadRequestException(`Password must be at least ${AuthService.MIN_PASSWORD} characters`);
+    AuthService.assertNewPassword(password);
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -179,8 +179,7 @@ export class AuthService {
     if (!email) throw new BadRequestException('Email is required');
     if (!payload.password || !payload.password.trim())
       throw new BadRequestException('Create Password to Continue');
-    if (payload.password.length < AuthService.MIN_PASSWORD)
-      throw new BadRequestException(`Password must be at least ${AuthService.MIN_PASSWORD} characters`);
+    AuthService.assertNewPassword(payload.password);
     if (!payload.firstName?.trim() || !payload.lastName?.trim())
       throw new BadRequestException('First and last name are required');
     if (!payload.positions?.trim())
@@ -323,8 +322,7 @@ export class AuthService {
 
   /** Change the current user's password (requires the current one). */
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    if (!newPassword || newPassword.length < AuthService.MIN_PASSWORD)
-      throw new BadRequestException(`New password must be at least ${AuthService.MIN_PASSWORD} characters`);
+    AuthService.assertNewPassword(newPassword, 'New password');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     if (!(await this.verifyPassword(currentPassword || '', user.password)))
@@ -380,6 +378,18 @@ export class AuthService {
 
   /** Minimum length for any NEW password (existing ones keep working). */
   static readonly MIN_PASSWORD = 8;
+
+  /** Passwords that are public (in the repo / docs) and so can never be a
+   *  real password: the starter admin password and the local demo one. */
+  private static readonly PUBLIC_PASSWORDS = new Set(['PasswordCoach', 'player123']);
+
+  /** Reject a NEW password that's too short or publicly known. */
+  private static assertNewPassword(pw: string | undefined | null, label = 'Password') {
+    if (!pw || pw.length < AuthService.MIN_PASSWORD)
+      throw new BadRequestException(`${label} must be at least ${AuthService.MIN_PASSWORD} characters`);
+    if (AuthService.PUBLIC_PASSWORDS.has(pw))
+      throw new BadRequestException('That password is publicly known — choose a different one.');
+  }
 
   /**
    * Issue a set-password link for an account a COACH created on someone's
@@ -479,8 +489,7 @@ export class AuthService {
    * token yields the same generic error (no leak about which condition failed).
    */
   async resetPassword(token: string, newPassword: string): Promise<{ ok: true }> {
-    if (!newPassword || newPassword.length < AuthService.MIN_PASSWORD)
-      throw new BadRequestException(`New password must be at least ${AuthService.MIN_PASSWORD} characters`);
+    AuthService.assertNewPassword(newPassword, 'New password');
     if (!token) throw new BadRequestException('This reset link is invalid or has expired.');
     const row = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash: this.hashToken(token) },
@@ -661,6 +670,17 @@ export class AuthService {
     }
     this.failedLogins.delete(attemptKey);
 
+    /* The starter admin password is public (it's in the repo). On the live
+       site an account still using it is refused until it's changed through
+       "Forgot password?" (emailed link) -- so an unrotated admin account can
+       never be taken over by someone who read the code. Local dev keeps the
+       demo logins working. */
+    if (process.env.NODE_ENV === 'production' && AuthService.PUBLIC_PASSWORDS.has(password)) {
+      throw new ForbiddenException(
+        'This account still uses the starter password. Use "Forgot password?" below to set a new one.',
+      );
+    }
+
     /* Refuse a non-ACTIVE account HERE, not just at the guard.
     
        Login used to hand out a token regardless of status, so a locked (or
@@ -737,8 +757,7 @@ export class AuthService {
    * (via this route or the self change-password flow).
    */
   async setUserPassword(actor: JwtPayload, targetUserId: string, newPassword: string) {
-    if (!newPassword || newPassword.length < AuthService.MIN_PASSWORD)
-      throw new BadRequestException(`Password must be at least ${AuthService.MIN_PASSWORD} characters`);
+    AuthService.assertNewPassword(newPassword);
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException('User not found');
     // Resetting another COACH's password is an admin action; resetting a

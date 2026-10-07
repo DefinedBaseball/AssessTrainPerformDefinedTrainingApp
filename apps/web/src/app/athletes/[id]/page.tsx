@@ -10,8 +10,12 @@ import * as api from '@/lib/api';
 import { PROFILE_EDIT_EVENT } from '@/lib/profile-edit';
 import type { Player, Metric, Video } from '@/lib/api';
 
-import { TabBar, TabPanel, VideosIconButton } from '@/components/assessment';
-import type { Tab } from '@/components/assessment';
+/* Direct imports, not the '@/components/assessment' barrel -- the barrel also
+   re-exports the video player/bundle modals, which then ride along in this
+   page's first load. */
+import { TabBar, TabPanel } from '@/components/assessment/TabBar';
+import type { Tab } from '@/components/assessment/TabBar';
+import { VideosIconButton } from '@/components/assessment/VideosIconButton';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import aStyles from '@/components/assessment/assessment.module.css';

@@ -248,6 +248,10 @@ model Video {
   // resolve a video's source without joining on every read.
   atBatVideos        AtBat[]        @relation("AtBatVideo")
   trainingClipVideos TrainingClip[] @relation("TrainingClipVideo")
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([playerId, createdAt])
+  @@index([uploadedById])
 }
 
 // ─── Video Annotations (Drawing on video) ────────────────────────
@@ -277,6 +281,9 @@ model VoiceOver {
   startTimestamp Float // seconds into video where audio starts
   durationSec    Float
   createdAt      DateTime @default(now())
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([videoId])
 }
 
 // ─── Player Reports ──────────────────────────────────────────────
@@ -307,6 +314,10 @@ model Report {
   // profile can also be attached to a specific Report.
   atBats        AtBat[]
   trainingClips TrainingClip[] @relation("TrainingClipReport")
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([playerId, createdAt])
+  @@index([createdById])
 }
 
 // ─── Live Sessions ──────────────────────────────────────────────
@@ -435,6 +446,9 @@ model TrainingClip {
 
   @@index([liveSessionId])
   @@index([playerId])
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([videoId])
 }
 
 // ─── Drill Library (Master list of all drills) ──────────────────
@@ -690,6 +704,9 @@ model TrainingProgram {
   createdAt DateTime @default(now())
 
   days TrainingDay[]
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([playerId])
 }
 
 model TrainingDay {
@@ -700,6 +717,9 @@ model TrainingDay {
   createdAt DateTime        @default(now())
 
   exercises TrainingExercise[]
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([programId])
 }
 
 model TrainingExercise {
@@ -712,6 +732,9 @@ model TrainingExercise {
   demoVideoUrl String? // link to demo video
   sortOrder    Int         @default(0)
   createdAt    DateTime    @default(now())
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([dayId])
 }
 
 // ─── Game Reports ────────────────────────────────────────────────
@@ -728,6 +751,9 @@ model GameReport {
   season    String? // e.g., '2026-spring'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([playerId])
 }
 
 // ─── Leaderboards (Pre-computed) ─────────────────────────────────
@@ -762,6 +788,9 @@ model CsvUpload {
   successRows  Int?
   errorDetails String? // JSON error info
   createdAt    DateTime @default(now())
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([uploadedById])
 }
 
 // ─── Custom Chart Configs (Coach-built analytics) ───────────────
@@ -838,6 +867,9 @@ model Post {
   @@index([type])
   @@index([createdAt])
   @@index([taggedPlayerId])
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([authorId])
 }
 
 // Per-coach "Flag as Seen" on an urgent post. A row exists only once THAT
@@ -902,6 +934,9 @@ model Notification {
 
   @@index([recipientId])
   @@index([createdAt])
+
+  // Lookup index (Postgres does not index relation fields automatically).
+  @@index([entityId])
 }
 
 // ─── Inquiries ───────────────────────────────────────────────────

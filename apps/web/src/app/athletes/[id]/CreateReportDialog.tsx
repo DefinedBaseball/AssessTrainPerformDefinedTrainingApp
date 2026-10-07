@@ -15,7 +15,7 @@ import type { Player } from '@/lib/api';
 import type { ReportSummary } from '@/components/assessment/ReportSelector';
 import rs from '@/components/assessment/report-form.module.css';
 import styles from './page.module.css';
-import { REPORT_TYPES, EyeVisibilityToggle } from './ReportModal';
+import { REPORT_TYPES, EyeVisibilityToggle } from './reportTypes';
 import { REPORT_TYPE_TO_TAB } from './helpers';
 
 export type CreateReportMode =
