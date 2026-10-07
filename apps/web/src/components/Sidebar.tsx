@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useAcademy } from '@/lib/academy';
 import { useTheme } from '@/lib/theme-context';
-import { requestProfileEdit } from '@/lib/profile-edit';
 import styles from './Sidebar.module.css';
 
 interface NavItem {
@@ -311,29 +310,6 @@ export function Sidebar() {
                   onClick={() => setMoreOpen(false)}
                 />
                 <div className={styles.morePanel}>
-                  {/* Players edit their profile from here now — the button
-                      used to sit in every profile tab's action bar. Routes
-                      to /profile?edit=1, which the profile page picks up and
-                      opens the edit modal for (the modal lives there, not in
-                      this global chrome). Coaches edit an athlete from that
-                      athlete's Summary tab instead. */}
-                  {!isCoach && (
-                    <Link
-                      href="/profile?edit=1"
-                      className={styles.moreRow}
-                      onClick={(e) => {
-                        setMoreOpen(false);
-                        /* Already here: open it in place. Navigating to the
-                           same route with a new query would not remount the
-                           page, so the href alone does nothing — and it
-                           would strand ?edit=1 in the URL, reopening the
-                           modal on the next refresh. */
-                        if (pathname === '/profile') { e.preventDefault(); requestProfileEdit(); }
-                      }}
-                    >
-                      Edit Profile
-                    </Link>
-                  )}
                   {/* Coaches: Data + Program live here rather than in the
                       bar (see MOVES_TO_MORE) — their nav is too long to fit
                       every entry as a cell. Players don't have these routes. */}
@@ -432,28 +408,8 @@ export function Sidebar() {
               </svg>
             )}
           </button>
-          {/* Edit Profile — players only. The More sheet carries this on
-              phones, but that sheet doesn't exist on desktop, so the rail
-              needs its own entry point or desktop players lose the button
-              that used to live in every profile tab. */}
-          {!isCoach && (
-            <Link
-              href="/profile?edit=1"
-              className={styles.editProfileBtn}
-              aria-label="Edit Profile"
-              title="Edit Profile"
-              /* See the More-sheet entry above: on /profile the href is a
-                 no-op, so open in place instead. */
-              onClick={(e) => {
-                if (pathname === '/profile') { e.preventDefault(); requestProfileEdit(); }
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
-              </svg>
-            </Link>
-          )}
+          {/* No Edit Profile button here: athletes edit their profile in
+              Settings → My Profile. */}
           <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
           <button
             className={styles.logoutBtn}

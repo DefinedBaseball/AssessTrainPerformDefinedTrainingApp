@@ -191,9 +191,8 @@ export default function PlayerProfilePage() {
     window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
   }, [reports]);
 
-  /* Open the profile-edit modal. Players reach this from the sidebar (the
-     More sheet on phones, the rail's Edit Profile button on desktop), since
-     the button was removed from the per-tab action bars.
+  /* Open the profile-edit modal via /profile?edit=1. Athletes normally edit
+     their profile in Settings → My Profile; the sidebar no longer links here.
 
      Two entry points, because one is not enough:
 
