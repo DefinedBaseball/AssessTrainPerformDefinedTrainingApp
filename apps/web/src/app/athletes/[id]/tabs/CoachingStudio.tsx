@@ -6,6 +6,7 @@ import { Section, SectionHeader } from '@/components/assessment';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { TabProps } from '../helpers';
+import { tzOpt } from '@/lib/academy';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    COACHING STUDIO
@@ -1109,7 +1110,7 @@ function BrowseVideosModal({
 
   function fmtDate(iso: string) {
     try {
-      return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
+      return new Date(iso).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric', year: '2-digit' });
     } catch { return ''; }
   }
 
@@ -2034,7 +2035,7 @@ function OtherAthleteBrowserModal({
                     <StudioVideoCard
                       key={v.id}
                       title={v.title}
-                      subtitle={new Date(v.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
+                      subtitle={new Date(v.createdAt).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric', year: '2-digit' })}
                       badge={v.category}
                       thumbnail={v.thumbnailUrl}
                       durationSec={v.durationSec}

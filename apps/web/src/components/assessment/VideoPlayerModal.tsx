@@ -7,6 +7,7 @@ import { PlaybackSpeedControl } from '../PlaybackSpeedControl';
 import { VideoStopwatch } from '../VideoStopwatch';
 import { VideoDrawingOverlay } from '../VideoDrawingOverlay';
 import * as api from '@/lib/api';
+import { tzOpt } from '@/lib/academy';
 
 interface VideoPlayerModalProps {
   videoUrl: string;
@@ -254,7 +255,7 @@ export function VideoPlayerModal({ videoUrl, title, onClose, playerId, category 
          `startsWith('Coach Review')` which matches BOTH the new
          prefix and the legacy "Coach Reviewed" prefix so older
          clips still surface as coach-reviewed. */
-      const narrationTitle = `Coach Review — ${new Date().toLocaleDateString()} (${pendingClip.durationSec}s)`;
+      const narrationTitle = `Coach Review — ${new Date().toLocaleDateString(undefined, tzOpt())} (${pendingClip.durationSec}s)`;
       await api.uploadVideo(file, playerId, narrationTitle, category);
       URL.revokeObjectURL(pendingClip.previewUrl);
       setPendingClip(null);

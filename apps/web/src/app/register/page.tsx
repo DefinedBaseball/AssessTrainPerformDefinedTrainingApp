@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { useAcademy, AcademyContactLine } from '@/lib/academy';
 import * as api from '@/lib/api';
 import { DobPicker } from '@/components/DobPicker';
 import { normalizePositionsForSave } from '../athletes/[id]/helpers';
@@ -73,6 +74,14 @@ function heightToInches(h: string): number | undefined {
 export default function RegisterPage() {
   const router = useRouter();
   const { user, isLoading, login } = useAuth();
+  const { academy, appLogoUrl } = useAcademy();
+  /* ?invite= from a coach-sent registration email -- opens the form even
+     while new athletes are switched off. Read on the client (no Suspense
+     boundary needed, same as /reset-password). */
+  const [inviteCode, setInviteCode] = useState('');
+  useEffect(() => {
+    setInviteCode(new URLSearchParams(window.location.search).get('invite') || '');
+  }, []);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -159,6 +168,7 @@ export default function RegisterPage() {
         pbrState: pbrState ? parseInt(pbrState) : undefined,
         pbrPosition: pbrPosition ? parseInt(pbrPosition) : undefined,
         pgScore: pgScore ? parseFloat(pgScore) : undefined,
+        inviteCode: inviteCode || undefined,
       });
 
       // Establish the session (pending login is allowed) → holding screen.
@@ -173,11 +183,30 @@ export default function RegisterPage() {
 
   if (!isLoading && user) return null;
 
+  /* Switched off in Settings → Academy, and not a coach-sent link. */
+  if (!academy.acceptingAthletes && !inviteCode) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.card}>
+          <div className={styles.brandRow}>
+            <img src={appLogoUrl} alt="" width={34} height={34} />
+          </div>
+          <h1 className={styles.title}>{academy.name}</h1>
+          <p className={styles.subtitle} style={{ whiteSpace: 'pre-line' }}>{academy.closedMessage}</p>
+          <AcademyContactLine style={{ marginTop: 12 }} />
+          <p className={styles.footerLink}>
+            Already have an account? <Link href="/login">Sign in</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.brandRow}>
-          <img src="/logo.png" alt="" width={34} height={34} />
+          <img src={appLogoUrl} alt="" width={34} height={34} />
         </div>
         <h1 className={styles.title}>Create your athlete account</h1>
         <p className={styles.subtitle}>
@@ -402,6 +431,7 @@ export default function RegisterPage() {
           <p className={styles.footerLink}>
             Already have an account? <Link href="/login">Sign in</Link>
           </p>
+          <AcademyContactLine />
         </form>
       </div>
     </div>

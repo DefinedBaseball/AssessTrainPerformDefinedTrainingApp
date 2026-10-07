@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Section, SectionHeader, VideoPlaceholder } from '@/components/assessment';
 import type { TabProps, ReportSummary } from '../helpers';
 import * as api from '@/lib/api';
+import { tzOpt } from '@/lib/academy';
 
 interface CoachingMeta {
   title?: string;
@@ -102,7 +103,7 @@ export function CoachingLibrary({
             {coachingReports.map(r => {
               const meta = parseCoachingMeta(r);
               const created = new Date(r.createdAt).toLocaleDateString(undefined,
-                { month: 'short', day: 'numeric', year: 'numeric' });
+                { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' });
               return (
                 <div key={r.id} style={{
                   background: 'rgba(255,255,255,0.025)',
@@ -199,7 +200,7 @@ export function CoachingLibrary({
                 key={v.id}
                 tag={v.category}
                 title={v.title}
-                subtitle={new Date(v.createdAt).toLocaleDateString()}
+                subtitle={new Date(v.createdAt).toLocaleDateString(undefined, tzOpt())}
                 videoUrl={v.originalUrl || v.hlsUrl}
               />
             ))}

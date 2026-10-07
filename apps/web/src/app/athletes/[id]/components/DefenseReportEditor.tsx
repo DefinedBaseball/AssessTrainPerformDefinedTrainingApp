@@ -33,6 +33,7 @@ import {
   type DefenseCoachGrades, type DefensePosition,
 } from '../helpers';
 import { GradeInputModeContext } from './GradeNumberInput';
+import { tzOpt } from '@/lib/academy';
 
 const TITLE: Record<DefensePosition, string> = {
   infield: 'Infield', outfield: 'Outfield', catching: 'Catching',
@@ -161,7 +162,7 @@ export function DefenseReportEditor({
             Editing {TITLE[position]} Report
           </div>
           <div style={{ fontSize: rem(12), color: 'var(--text-muted)', marginTop: 2 }}>
-            {report.title?.trim() || `${TITLE[position]} Report`} · {new Date(report.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            {report.title?.trim() || `${TITLE[position]} Report`} · {new Date(report.createdAt).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' })}
           </div>
         </div>
         {actions}

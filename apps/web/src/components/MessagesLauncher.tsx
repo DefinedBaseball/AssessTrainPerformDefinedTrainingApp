@@ -30,6 +30,7 @@ import { uploadVideoFile } from '@/lib/api';
 import { AnnouncementFeed, EditPostModal } from '@/components/announcements/AnnouncementFeed';
 import { CheckInHistory } from '@/components/CheckInHistory';
 import styles from './MessagesLauncher.module.css';
+import { tzOpt, tzDayKey } from '@/lib/academy';
 
 type Panel = null | 'messages' | 'notifications';
 type View = 'list' | 'contacts' | 'thread';
@@ -50,10 +51,10 @@ function initials(name: string) {
 function timeLabel(iso: string) {
   const d = new Date(iso);
   const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
+  const sameDay = tzDayKey(d) === tzDayKey(now);
   return sameDay
-    ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    ? d.toLocaleTimeString([], { ...tzOpt(), hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleDateString([], { ...tzOpt(), month: 'short', day: 'numeric' });
 }
 
 /* Emoji glyph per notification type — keeps the popover readable without a

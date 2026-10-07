@@ -29,6 +29,7 @@ import {
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
 } from './helpers';
+import { tzOpt } from '@/lib/academy';
 
 const SOURCE_BY_VENDOR: Record<string, string> = {
   'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'HitTrax': 'HITTRAX',
@@ -54,7 +55,7 @@ function parseContent(raw: string | null | undefined): Record<string, any> {
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function ReportUploadsDialog({

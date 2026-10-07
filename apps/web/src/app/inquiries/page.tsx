@@ -9,13 +9,14 @@ import type { Inquiry } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 function initials(f: string, l: string) {
   return `${(f[0] || '').toUpperCase()}${(l[0] || '').toUpperCase()}`;
 }
 function fmtDate(iso: string) {
   try {
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(iso).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' });
   } catch {
     return '';
   }

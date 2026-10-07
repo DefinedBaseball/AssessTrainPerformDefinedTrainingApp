@@ -58,6 +58,7 @@ import { PageHeader } from '@/components/PageHeader';
 import pageStyles from '../page.module.css';
 import trainingStyles from '../training/page.module.css';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 /* ── Position split for the roster ──
    Pitchers list = players whose `positions` includes 'P'.
@@ -978,7 +979,7 @@ export default function LiveAtBatPage() {
           playerId:    clip.hitterId,
           createdById: user.id,
           reportType:  'HITTING',
-          title:       `Training — ${new Date().toLocaleDateString()}`,
+          title:       `Training — ${new Date().toLocaleDateString(undefined, tzOpt())}`,
           content:     '{}',
         });
         reportId = created.id;
@@ -1148,7 +1149,7 @@ export default function LiveAtBatPage() {
                             <option value={REPORT_NONE}>At-Bat only (no report)</option>
                             {hitterReports.map(r => (
                               <option key={r.id} value={r.id}>
-                                {r.title || `Hitting Report — ${new Date(r.createdAt).toLocaleDateString()}`}
+                                {r.title || `Hitting Report — ${new Date(r.createdAt).toLocaleDateString(undefined, tzOpt())}`}
                               </option>
                             ))}
                             <option value={REPORT_CREATE}>+ Create new Hitting Report</option>
@@ -1496,7 +1497,7 @@ export default function LiveAtBatPage() {
                     {recentAtBats.map(ab => (
                       <li key={ab.id} className={styles.recentRow}>
                         <span className={styles.recentDate}>
-                          {new Date(ab.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {new Date(ab.startedAt).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric' })}
                         </span>
                         <span className={styles.recentVs}>
                           vs {ab.pitcher ? `${ab.pitcher.lastName}` : '—'}

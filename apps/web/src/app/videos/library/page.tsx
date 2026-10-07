@@ -12,6 +12,7 @@ import { bundleVideos, normalizeVideoTitle } from '@/lib/video-titles';
 import { getVideoCategoryColors } from '@/lib/training-colors';
 import { VideoBundleModal, VideoBundleCard } from '@/components/assessment';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 // Coaching Studio retired - its features (mic-narrated Coach Review
 // recording, drawing tools, sync/unsync grid playback,
@@ -423,7 +424,7 @@ function VideoCard({
         </div>
         <div className={styles.videoFooter}>
           <span className={styles.videoDate}>
-            {new Date(video.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {new Date(video.createdAt).toLocaleDateString('en-US', { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
           <button
             className={styles.downloadBtn}

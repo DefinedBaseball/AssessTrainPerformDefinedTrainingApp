@@ -11,6 +11,7 @@ import type {
 } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 const SECTIONS = [
   { value: 'HITTING', label: 'Hitting' },
@@ -524,7 +525,7 @@ function BuilderPane({ userId }: { userId: string }) {
                 <div className={styles.selectedPills}>
                   {selectedReportIds.map((id) => {
                     const r = playerReports.find((rr) => rr.id === id);
-                    const label = r ? (r.title || `${r.reportType} · ${new Date(r.createdAt).toLocaleDateString()}`) : id.slice(0, 8);
+                    const label = r ? (r.title || `${r.reportType} · ${new Date(r.createdAt).toLocaleDateString(undefined, tzOpt())}`) : id.slice(0, 8);
                     return (
                       <span key={id} className={styles.selectedPill}>
                         {label}
@@ -559,7 +560,7 @@ function BuilderPane({ userId }: { userId: string }) {
                         />
                         <span>{r.title || r.reportType}</span>
                         <span className={styles.columnUnit}>
-                          ({r.reportType} · {new Date(r.createdAt).toLocaleDateString()})
+                          ({r.reportType} · {new Date(r.createdAt).toLocaleDateString(undefined, tzOpt())})
                         </span>
                       </label>
                     );

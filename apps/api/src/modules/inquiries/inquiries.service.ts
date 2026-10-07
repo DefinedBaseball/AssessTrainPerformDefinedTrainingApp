@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AcademyService } from '../academy/academy.service';
 
 /* ── Input caps for the PUBLIC inquiry form ──
    `POST /inquiries` is the only unauthenticated write in the API. The global
@@ -31,6 +32,7 @@ export class InquiriesService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private academy: AcademyService,
   ) {}
 
   /** All inquiries, newest first — the coach roster. */
@@ -69,6 +71,9 @@ export class InquiriesService {
     message?: string | null;
     formData?: string | null;
   }) {
+    /* Closed to new athletes (Settings → Academy) → the closed message. */
+    await this.academy.assertAccepting();
+
     /* Every field is trimmed and length-capped before it reaches the DB — see
        the note on MAX_SHORT above for why this endpoint needs it. */
     const firstName = capped(data.firstName, MAX_SHORT, 'First name');

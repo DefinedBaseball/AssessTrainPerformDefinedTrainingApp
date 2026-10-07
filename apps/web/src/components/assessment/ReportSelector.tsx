@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import * as api from '@/lib/api';
 import styles from './assessment.module.css';
+import { tzOpt } from '@/lib/academy';
 
 export interface ReportSummary {
   id: string;
@@ -261,12 +262,12 @@ export function ReportSelector({
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('en-US', { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const formatTime = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleTimeString('en-US', { ...tzOpt(), hour: 'numeric', minute: '2-digit' });
   };
 
   const getEmailName = (email: string) => email.split('@')[0];

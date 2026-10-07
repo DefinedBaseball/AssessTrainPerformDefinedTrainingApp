@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { coachReviewEmail } from '../mail/mail.templates';
 
 /**
  * Notification subjects wired for EMAIL delivery. Everything else stays
@@ -136,8 +135,7 @@ export class NotificationsService {
   private sendNotificationEmail(payload: NotificationPayload, to: string, name: string | null): void {
     const link = `${this.mail.webAppUrl}${payload.linkUrl || '/'}`;
     if (payload.type === 'COACH_REVIEW') {
-      const { subject, html, text } = coachReviewEmail(link, name);
-      void this.mail.send({ to, subject, html, text });
+      void this.mail.sendTemplate('COACH_REVIEW', to, { name, url: link });
     }
   }
 

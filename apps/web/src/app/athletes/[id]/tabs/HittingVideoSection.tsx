@@ -20,6 +20,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import type { Video } from '@/lib/api';
 import styles from './hitting-video-section.module.css';
+import { tzOpt } from '@/lib/academy';
 
 export interface HittingVideoSectionProps {
   /** All videos that belong to the focal player. Filtered down to the
@@ -152,7 +153,7 @@ export function HittingVideoSection({
           {sessionVideos.map((v, i) => {
             const url = v.originalUrl || v.hlsUrl;
             const date = v.createdAt
-              ? new Date(v.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              ? new Date(v.createdAt).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric' })
               : '';
             return (
               <button

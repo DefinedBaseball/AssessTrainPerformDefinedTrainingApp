@@ -24,6 +24,12 @@ const SECRET = (() => {
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
+/** HMAC of a fixed label under the app secret -- for short, stable codes
+ *  (e.g. the registration-invite bypass) that should not be guessable. */
+export function hmacHex(value: string): string {
+  return createHmac('sha256', SECRET).update(value).digest('hex');
+}
+
 export type CoachLevel = 'ADMIN' | 'COACH' | 'VIEWER';
 
 export interface JwtPayload {

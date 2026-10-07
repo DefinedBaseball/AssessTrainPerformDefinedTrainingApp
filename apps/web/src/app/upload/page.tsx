@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 import type { CsvUploadResult, UploadHistoryEntry } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 const SOURCES = [
   { key: 'auto', label: 'Auto-Detect' },
@@ -214,7 +215,7 @@ export default function UploadPage() {
             <tbody>
               {history.slice(0, 15).map(h => (
                 <tr key={h.id}>
-                  <td>{new Date(h.createdAt).toLocaleString()}</td>
+                  <td>{new Date(h.createdAt).toLocaleString(undefined, tzOpt())}</td>
                   <td><span className={styles.sourceTag}>{h.source}</span></td>
                   <td className={styles.fileCell}>{h.fileUrl}</td>
                   <td>

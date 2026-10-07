@@ -26,6 +26,16 @@
   margin-bottom: 14px;
 }
 
+/* The app logo is a white mark (Settings → Academy) -- give it the same
+   black plate as the sign-in page so it reads on the white card. */
+.brandRow img {
+  box-sizing: content-box;
+  padding: 6px;
+  border-radius: 10px;
+  background: #000;
+  object-fit: contain;
+}
+
 .title {
   margin: 0;
   text-align: center;

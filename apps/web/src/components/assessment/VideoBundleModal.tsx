@@ -28,6 +28,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Video, MlbPlayer } from '@/lib/api';
+import { tzOpt } from '@/lib/academy';
 
 interface BundleVideo {
   id: string;
@@ -775,7 +776,7 @@ export function VideoBundleModal({
       const filename = `coach-narration-bundle-${Date.now()}.${ext}`;
       const file = new File([pendingClip.blob], filename, { type: pendingClip.mime });
       const cat = recordingCategory || videos[0]?.category || 'HITTING';
-      const title = `Coach Review — ${label} — ${new Date().toLocaleDateString()}`;
+      const title = `Coach Review — ${label} — ${new Date().toLocaleDateString(undefined, tzOpt())}`;
       const uploaded = await api.uploadVideo(file, playerId, title, cat);
 
       /* If the coach picked a report from the Attach dropdown,
@@ -2016,7 +2017,7 @@ export function VideoBundleModal({
                 >
                   <option value="">Don&apos;t attach — save to gallery only</option>
                   {reportsFiltered.map((r) => {
-                    const dt = new Date(r.createdAt).toLocaleDateString();
+                    const dt = new Date(r.createdAt).toLocaleDateString(undefined, tzOpt());
                     const lbl = r.title?.trim() || `${r.reportType} — ${dt}`;
                     return (
                       <option key={r.id} value={r.id}>{lbl}</option>

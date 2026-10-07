@@ -14,6 +14,7 @@ import type { EduDocument, EduDocCategory } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 export const DOC_CATEGORIES: { id: EduDocCategory; label: string }[] = [
   { id: 'SKILL', label: 'Skill Training' },
@@ -147,7 +148,7 @@ export function InformationView({
                     <div className={styles.docMeta}>
                       <span className={styles.docBadge}>{categoryLabel(d.category)}</span>
                       <span>{k.label} · {formatSize(d.size)}</span>
-                      <span>{new Date(d.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span>{new Date(d.createdAt).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
                   </div>
                   <div className={styles.docActions}>

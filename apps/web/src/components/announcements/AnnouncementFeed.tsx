@@ -23,6 +23,7 @@ import type { PostItem, Player } from '@/lib/api';
 import { RichTextEditor, RichTextView } from '@/components/RichTextEditor';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import styles from '@/app/page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -43,7 +44,7 @@ export function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return new Date(dateStr).toLocaleDateString(undefined, tzOpt());
 }
 
 /* ── Post type config ──

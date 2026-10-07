@@ -49,6 +49,7 @@ import type { Player, Video, Drill, MlbPlayer } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { VideoDrawingOverlay } from '@/components/VideoDrawingOverlay';
 import s from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 /* ── Types ── */
 
@@ -435,7 +436,7 @@ export default function VideoEditorPage() {
     setRecError(null);
     try {
       const file = new File([pendingBlob], `video-editor-${Date.now()}.webm`, { type: pendingBlob.type || 'video/webm' });
-      const title = `Coach Review — Editor — ${new Date().toLocaleDateString()}`;
+      const title = `Coach Review — Editor — ${new Date().toLocaleDateString(undefined, tzOpt())}`;
       const category = timeline.find(c => c.media.category)?.media.category || 'HITTING';
       await api.uploadVideo(file, saveTarget, title, category);
       setPendingBlob(null);

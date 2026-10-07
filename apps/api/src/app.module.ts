@@ -24,6 +24,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { MailModule } from './modules/mail/mail.module';
 import { InquiriesModule } from './modules/inquiries/inquiries.module';
 import { VendorContactsModule } from './modules/vendor-contacts/vendor-contacts.module';
+import { AcademyModule } from './modules/academy/academy.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { VendorContactsModule } from './modules/vendor-contacts/vendor-contacts.
       { name: 'long', ttl: 60_000, limit: 600 },
     ]),
     PrismaModule,
+    AcademyModule,
     MailModule,
     HealthModule,
     AuthModule,

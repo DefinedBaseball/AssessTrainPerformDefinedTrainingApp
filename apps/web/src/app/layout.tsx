@@ -5,9 +5,11 @@ import { AppShell } from '@/components/AppShell';
 import { ThemeProvider, themeBootstrapScript } from '@/lib/theme-context';
 import { UploadQueueProvider } from '@/lib/upload-queue';
 import { IosInputZoomFix } from '@/components/IosInputZoomFix';
+import { AcademyProvider } from '@/lib/academy';
 
 export const metadata: Metadata = {
-  title: 'Player Development App',
+  /* The academy name from Settings → Academy replaces this once loaded. */
+  title: 'Defined Baseball Academy',
   description: 'Baseball player development platform for coaches and players',
 };
 
@@ -26,6 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <IosInputZoomFix />
         <ThemeProvider>
+          {/* Academy name / logo / time zone (Settings → Academy). Public, so
+              it sits outside auth -- the sign-in pages use it too. */}
+          <AcademyProvider>
           <AuthProvider>
             {/* Above the router so a background video upload survives closing
                 the report modal and navigating around the app. */}
@@ -33,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <AppShell>{children}</AppShell>
             </UploadQueueProvider>
           </AuthProvider>
+          </AcademyProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -22,6 +22,7 @@ import type { AtBatDetail } from '@/lib/api';
 import styles from './LiveAtBatsList.module.css';
 import { PlaybackSpeedControl } from './PlaybackSpeedControl';
 import { VideoDrawingOverlay } from './VideoDrawingOverlay';
+import { tzOpt } from '@/lib/academy';
 
 interface Props {
   /** Required — pass exactly one of `hitterId` or `pitcherId`. The
@@ -471,7 +472,7 @@ export function LiveAtBatsList({
                   gap: 10, alignItems: 'center',
                 } : { display: 'contents' }}>
                   <span className={styles.rowDate}>
-                    {new Date(ab.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    {new Date(ab.startedAt).toLocaleDateString(undefined, { ...tzOpt(), month: 'short', day: 'numeric' })}
                   </span>
                   <span className={styles.rowOpponent}>
                     {pitcherId ? 'vs' : 'vs'} {opponent}

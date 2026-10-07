@@ -6,7 +6,6 @@ const HIDEABLE_TABS = new Set(['hitting', 'pitching', 'catching', 'infield', 'ou
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { profileReminderEmail } from '../mail/mail.templates';
 
 /* Stat keys per grid for the season stats sheet. Mirrors STAT_GRIDS in the
    web app's lib/season-stats.ts -- keep the two in step. */
@@ -72,11 +71,10 @@ export class PlayersService {
       );
     }
 
-    const { subject, html, text } = profileReminderEmail(
-      `${this.mail.webAppUrl}/login`,
-      player.firstName,
-    );
-    const emailed = await this.mail.send({ to, subject, html, text });
+    const emailed = await this.mail.sendTemplate('PROFILE_REMINDER', to, {
+      name: player.firstName,
+      url: `${this.mail.webAppUrl}/login`,
+    });
     return { ok: true, emailed, to };
   }
 

@@ -384,6 +384,8 @@ export async function setCoachLevel(userId: string, level: 'ADMIN' | 'COACH' | '
 // ---- Player self-registration + approval ----
 
 export interface SignupPlayerInput {
+  /** From a coach-sent registration link; opens sign-up while closed. */
+  inviteCode?: string;
   email: string;
   password: string;
   firstName: string;
@@ -1165,6 +1167,88 @@ export async function getVendorContacts() {
 
 export async function saveVendorContacts(contacts: Pick<VendorContact, 'source' | 'contactName' | 'contactEmail' | 'contactPhone'>[]) {
   return request<VendorContact[]>('/vendor-contacts', { method: 'PUT', body: JSON.stringify({ contacts }) });
+}
+
+// ---- Academy settings (Settings → Academy; admins) ----
+
+export interface AcademyContact {
+  phone: string;
+  email: string;
+  address: string;
+  website: string;
+  instagram: string;
+  x: string;
+}
+
+/** What every page (signed in or not) may see. */
+export interface PublicAcademy {
+  name: string;
+  contact: AcademyContact;
+  acceptingAthletes: boolean;
+  closedMessage: string;
+  /** IANA zone; '' = each device's own time. */
+  timeZone: string;
+  /** Upload times of the custom logos; null = the default logo. */
+  logos: { app: number | null; email: number | null };
+}
+
+export interface AcademySettings extends PublicAcademy {
+  replyTo: string;
+}
+
+export type AcademySettingsInput = Omit<AcademySettings, 'logos'>;
+
+export interface EmailContent { subject: string; heading: string; body: string }
+
+export interface AcademyEmail {
+  key: string;
+  label: string;
+  when: string;
+  button: string;
+  placeholders: Array<'name' | 'academy'>;
+  defaults: EmailContent;
+  current: EmailContent;
+  customized: boolean;
+}
+
+export async function getPublicAcademy() {
+  return request<PublicAcademy>('/academy/public');
+}
+
+export async function getAcademySettings() {
+  return request<AcademySettings>('/academy');
+}
+
+export async function saveAcademySettings(input: AcademySettingsInput) {
+  return request<AcademySettings>('/academy', { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export async function uploadAcademyLogo(kind: 'app' | 'email', dataUrl: string) {
+  return request<AcademySettings>(`/academy/logo/${kind}`, { method: 'PUT', body: JSON.stringify({ dataUrl }) });
+}
+
+export async function removeAcademyLogo(kind: 'app' | 'email') {
+  return request<AcademySettings>(`/academy/logo/${kind}`, { method: 'DELETE' });
+}
+
+export async function getAcademyEmails() {
+  return request<AcademyEmail[]>('/academy/emails');
+}
+
+export async function saveAcademyEmail(key: string, content: EmailContent) {
+  return request<EmailContent>(`/academy/emails/${key}`, { method: 'PUT', body: JSON.stringify(content) });
+}
+
+export async function resetAcademyEmail(key: string) {
+  return request<EmailContent>(`/academy/emails/${key}`, { method: 'DELETE' });
+}
+
+export async function previewAcademyEmail(key: string, content: EmailContent) {
+  return request<{ subject: string; html: string }>(`/academy/emails/${key}/preview`, { method: 'POST', body: JSON.stringify(content) });
+}
+
+export async function testAcademyEmail(key: string, content: EmailContent) {
+  return request<{ emailed: boolean; to: string }>(`/academy/emails/${key}/test`, { method: 'POST', body: JSON.stringify(content) });
 }
 
 // ---- Education: Information (members-only documents) ----

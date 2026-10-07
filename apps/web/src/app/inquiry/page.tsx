@@ -17,6 +17,7 @@
 
 import { useState } from 'react';
 import * as api from '@/lib/api';
+import { useAcademy, AcademyContactLine } from '@/lib/academy';
 import { DobPicker } from '@/components/DobPicker';
 import rs from '../register/page.module.css';
 import styles from './page.module.css';
@@ -27,6 +28,7 @@ const GRAD_YEARS = Array.from({ length: 10 }, (_, i) => 2026 + i);
 const GOAL_LEVELS = ['High School', 'College', 'Professional'];
 
 export default function InquiryPage() {
+  const { academy, appLogoUrl } = useAcademy();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -97,7 +99,7 @@ export default function InquiryPage() {
     <div className={rs.container}>
       <div className={rs.card}>
         <div className={rs.brandRow}>
-          <img src="/logo.png" alt="Defined Baseball Academy" width={34} height={34} />
+          <img src={appLogoUrl} alt={academy.name} width={34} height={34} />
         </div>
 
         {submitted ? (
@@ -109,12 +111,19 @@ export default function InquiryPage() {
             </div>
             <h1 className={styles.confirmTitle}>Inquiry received</h1>
             <p className={styles.confirmText}>
-              Thank you for your interest in Defined Baseball Academy, we will reach out to you soon.
+              Thank you for your interest in {academy.name}, we will reach out to you soon.
             </p>
           </div>
+        ) : !academy.acceptingAthletes ? (
+          /* Switched off in Settings → Academy. */
+          <>
+            <h1 className={rs.title}>{academy.name}</h1>
+            <p className={rs.subtitle} style={{ whiteSpace: 'pre-line' }}>{academy.closedMessage}</p>
+            <AcademyContactLine style={{ marginTop: 12 }} />
+          </>
         ) : (
           <>
-            <h1 className={rs.title}>Defined Baseball Academy Inquiry</h1>
+            <h1 className={rs.title}>{academy.name} Inquiry</h1>
             <p className={rs.subtitle}>Tell us a bit about the athlete and we&apos;ll be in touch.</p>
 
             <form onSubmit={handleSubmit} className={rs.form}>
@@ -270,6 +279,7 @@ export default function InquiryPage() {
               <button type="submit" className={rs.submit} disabled={submitting}>
                 {submitting ? 'Submitting…' : 'Submit Inquiry'}
               </button>
+              <AcademyContactLine />
             </form>
           </>
         )}

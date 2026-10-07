@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { useAcademy } from '@/lib/academy';
 import styles from './page.module.css';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, user, isLoading } = useAuth();
+  const { academy, appLogoUrl } = useAcademy();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -64,7 +66,7 @@ export default function LoginPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.logoIcon}>
-          <img src="/logo.png" alt="" width={36} height={36} />
+          <img src={appLogoUrl} alt="" width={36} height={36} />
         </div>
         <h1 className={styles.title}>Assess, Train, Perform</h1>
         <p className={styles.subtitle}>Sign in to your account</p>
@@ -113,9 +115,12 @@ export default function LoginPage() {
           </>
         )}
 
-        <p className={styles.signupPrompt}>
-          New athlete? <Link href="/register">Create an account</Link>
-        </p>
+        {/* Hidden while new athletes are switched off (Settings → Academy). */}
+        {academy.acceptingAthletes && (
+          <p className={styles.signupPrompt}>
+            New athlete? <Link href="/register">Create an account</Link>
+          </p>
+        )}
       </div>
     </div>
   );

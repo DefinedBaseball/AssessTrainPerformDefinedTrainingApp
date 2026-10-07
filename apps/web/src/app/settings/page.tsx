@@ -8,6 +8,7 @@ import * as api from '@/lib/api';
 import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
+import { AcademyTab } from './AcademyTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
 
@@ -19,8 +20,9 @@ const ReportModal = nextDynamic(
 );
 
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
+import { tzOpt } from '@/lib/academy';
 
-type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myProfile' | 'staff';
+type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myProfile' | 'staff' | 'academy';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -49,6 +51,9 @@ export default function SettingsPage() {
     ...(isEditorCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
     /* Admin-only "Staff" tab — create + manage coach accounts and access levels. */
     ...(isAdmin ? ([{ key: 'staff' as TabKey, label: 'Staff' }]) : []),
+    /* Admin-only "Academy" tab — name, logos, contact info, email wording,
+       reply-to, new-athlete switch, time zone. */
+    ...(isAdmin ? ([{ key: 'academy' as TabKey, label: 'Academy' }]) : []),
     /* Coach "Cameras" tab — OBS-style friendly names for each attached video
        input, used by Live Training's multi-angle recording. Hidden from viewers. */
     ...(isEditorCoach ? ([{ key: 'cameras' as TabKey, label: 'Cameras' }]) : []),
@@ -81,6 +86,7 @@ export default function SettingsPage() {
       {tab === 'data' && isEditorCoach && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isEditorCoach && <TeamsAndCollegesTab />}
       {tab === 'staff' && isAdmin && <StaffTab />}
+      {tab === 'academy' && isAdmin && <AcademyTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}
     </div>
   );
@@ -848,7 +854,7 @@ function StaffTab() {
                       )}
                     </span>
                     <span className={styles.rowSub}>
-                      {c.email}{c.position ? ` · ${c.position}` : ''} · Added {new Date(c.createdAt).toLocaleDateString()}
+                      {c.email}{c.position ? ` · ${c.position}` : ''} · Added {new Date(c.createdAt).toLocaleDateString(undefined, tzOpt())}
                     </span>
                   </div>
                   <div className={styles.staffActions}>

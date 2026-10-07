@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useAcademy } from '@/lib/academy';
 import { useTheme } from '@/lib/theme-context';
 import { requestProfileEdit } from '@/lib/profile-edit';
 import styles from './Sidebar.module.css';
@@ -179,6 +180,7 @@ const MOVES_TO_MORE = new Set(['/analytics', '/program']);
 export function Sidebar() {
   const pathname = usePathname();
   const { user, isCoach, logout } = useAuth();
+  const { academy, appLogoUrl } = useAcademy();
   const { theme, toggle: toggleTheme } = useTheme();
   /* "More" sheet (phone bottom-bar only) — see the data-nav note below. */
   const [moreOpen, setMoreOpen] = React.useState(false);
@@ -261,7 +263,7 @@ export function Sidebar() {
       {/* ── Brand (logo only in compact rail) ── */}
       <div className={styles.brand}>
         <div className={styles.logoIcon}>
-          <img src="/logo.png" alt="Defined Baseball Academy" width={44} height={44} />
+          <img src={appLogoUrl} alt={academy.name} width={44} height={44} />
         </div>
       </div>
 

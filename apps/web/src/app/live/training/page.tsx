@@ -42,6 +42,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { getCameraLabel } from '@/lib/camera-labels';
 import pageStyles from '../page.module.css';
 import styles from './page.module.css';
+import { tzOpt } from '@/lib/academy';
 
 /* ── Position config ──
    Defines what "Hitting" / "Pitching" / etc. mean in terms of:
@@ -979,7 +980,7 @@ export default function LiveTrainingPage() {
               playerId:    player.id,
               createdById: user.id,
               reportType:  positionDef.videoCategory,
-              title:       `Training — ${positionDef.label} — ${new Date().toLocaleDateString()}`,
+              title:       `Training — ${positionDef.label} — ${new Date().toLocaleDateString(undefined, tzOpt())}`,
               content:     '{}',
             });
             reportIdToAttach = created.id;
@@ -1476,7 +1477,7 @@ export default function LiveTrainingPage() {
                      pattern. */
                   const tsMatch = bundleKey.match(/-(\d{10,})$/);
                   const bundleTs = tsMatch
-                    ? new Date(Number(tsMatch[1])).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+                    ? new Date(Number(tsMatch[1])).toLocaleTimeString([], { ...tzOpt(), hour: 'numeric', minute: '2-digit', second: '2-digit' })
                     : null;
                   /* Per-bundle action helpers — fire the single-clip
                      handler for every pending clip in this bundle.
@@ -1610,7 +1611,7 @@ export default function LiveTrainingPage() {
                               <option value={REPORT_NONE}>No report (save to profile only)</option>
                               {playerReports.map(r => (
                                 <option key={r.id} value={r.id}>
-                                  {r.title || `${positionDef.label} Report — ${new Date(r.createdAt).toLocaleDateString()}`}
+                                  {r.title || `${positionDef.label} Report — ${new Date(r.createdAt).toLocaleDateString(undefined, tzOpt())}`}
                                 </option>
                               ))}
                               <option value={REPORT_CREATE}>+ Create new {positionDef.label} Report</option>

@@ -20,6 +20,7 @@ import { getVideoCategoryColors } from '@/lib/training-colors';
 import { formatBubbleLabel, normalizeVideoTitle } from '@/lib/video-titles';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
+import { tzOpt } from '@/lib/academy';
 
 /* SSR-safe mobile flag (same pattern as the profile tabs). On phones the
  * per-thumbnail download button is hidden — download lives inside the open
@@ -101,7 +102,7 @@ export function VideoBundleCard({
 
   const first = videos[0];
   const displayLabel = label || formatBubbleLabel({ title: first.title || '', category: first.category });
-  const dateStr = new Date(first.createdAt).toLocaleDateString();
+  const dateStr = new Date(first.createdAt).toLocaleDateString(undefined, tzOpt());
   const colors = getVideoCategoryColors(first.category);
   const count = videos.length;
   const maxWidth = size === 'sm' ? 180 : size === 'lg' ? 280 : 240;
