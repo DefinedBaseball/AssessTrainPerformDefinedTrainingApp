@@ -124,8 +124,8 @@ export default function InquiriesPage() {
       pwRef.current?.focus();
       return;
     }
-    if (pw.trim().length < 6) {
-      setPwError('Password must be at least 6 characters');
+    if (pw.trim().length < 8) {
+      setPwError('Password must be at least 8 characters');
       pwRef.current?.focus();
       return;
     }
@@ -398,7 +398,7 @@ export default function InquiriesPage() {
                     autoComplete="new-password"
                     value={pw}
                     onChange={(e) => setPw(e.target.value)}
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters"
                   />
                   {pwError && (
                     <div

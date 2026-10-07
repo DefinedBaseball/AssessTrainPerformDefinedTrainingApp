@@ -28,7 +28,7 @@ export function ResetPasswordButton({ userId, label, block }: { userId: string; 
   const [msg, setMsg] = useState('');
 
   const save = async () => {
-    if (pw.length < 6) { setMsg('At least 6 characters'); return; }
+    if (pw.length < 8) { setMsg('At least 8 characters'); return; }
     if (!isCoach && !currentPw) { setMsg('Enter your current password'); return; }
     setSaving(true);
     setMsg('');

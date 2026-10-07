@@ -327,7 +327,7 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
     e.preventDefault();
     setPwErr('');
     setPwMsg('');
-    if (newPw.length < 6) { setPwErr('New password must be at least 6 characters'); return; }
+    if (newPw.length < 8) { setPwErr('New password must be at least 8 characters'); return; }
     if (newPw !== confirmPw) { setPwErr('Passwords do not match'); return; }
     setSavingPw(true);
     try {
@@ -437,7 +437,7 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
           <input className={styles.input} type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} autoComplete="current-password" />
         </div>
         <div className={styles.row}>
-          <div className={styles.rowLabel}><span className={styles.rowTitle}>New password</span><span className={styles.rowSub}>At least 6 characters</span></div>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>New password</span><span className={styles.rowSub}>At least 8 characters</span></div>
           <input className={styles.input} type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
         </div>
         <div className={styles.row}>
@@ -501,7 +501,7 @@ function StaffTab() {
   const [pwMsg, setPwMsg] = useState('');
 
   const savePassword = async (coachId: string) => {
-    if (pwValue.length < 6) { setPwMsg('At least 6 characters'); return; }
+    if (pwValue.length < 8) { setPwMsg('At least 8 characters'); return; }
     setPwSaving(true);
     setPwMsg('');
     try {
@@ -639,7 +639,7 @@ function StaffTab() {
     const em = email.trim();
     if (!em) { setError('Email is required'); return; }
     if (!password.trim()) { setError('Create Password to Continue'); return; }
-    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
     if (password !== confirm) { setError('Passwords do not match'); return; }
     setSubmitting(true);
     try {
@@ -731,7 +731,7 @@ function StaffTab() {
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Password</span>
-            <span className={styles.rowSub}>At least 6 characters</span>
+            <span className={styles.rowSub}>At least 8 characters</span>
           </div>
           <input
             className={styles.input}

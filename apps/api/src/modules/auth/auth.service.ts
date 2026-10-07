@@ -6,6 +6,8 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash, timingSafeEqual, randomBytes } from 'crypto';
@@ -124,7 +126,7 @@ export class AuthService {
        the forms, so the message reads the same if a client ever skips
        its own check. */
     if (!password || !password.trim()) throw new BadRequestException('Create Password to Continue');
-    if (password.length < 6) throw new BadRequestException('Password must be at least 6 characters');
+    if (password.length < AuthService.MIN_PASSWORD) throw new BadRequestException(`Password must be at least ${AuthService.MIN_PASSWORD} characters`);
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -177,8 +179,8 @@ export class AuthService {
     if (!email) throw new BadRequestException('Email is required');
     if (!payload.password || !payload.password.trim())
       throw new BadRequestException('Create Password to Continue');
-    if (payload.password.length < 6)
-      throw new BadRequestException('Password must be at least 6 characters');
+    if (payload.password.length < AuthService.MIN_PASSWORD)
+      throw new BadRequestException(`Password must be at least ${AuthService.MIN_PASSWORD} characters`);
     if (!payload.firstName?.trim() || !payload.lastName?.trim())
       throw new BadRequestException('First and last name are required');
     if (!payload.positions?.trim())
@@ -321,8 +323,8 @@ export class AuthService {
 
   /** Change the current user's password (requires the current one). */
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    if (!newPassword || newPassword.length < 6)
-      throw new BadRequestException('New password must be at least 6 characters');
+    if (!newPassword || newPassword.length < AuthService.MIN_PASSWORD)
+      throw new BadRequestException(`New password must be at least ${AuthService.MIN_PASSWORD} characters`);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
     if (!(await this.verifyPassword(currentPassword || '', user.password)))
@@ -375,6 +377,9 @@ export class AuthService {
    *  unread over a weekend, and the recipient has no password to fall back on
    *  if it lapses. Still bounded, and still single-use. */
   private static readonly INVITE_TTL_DAYS = 7;
+
+  /** Minimum length for any NEW password (existing ones keep working). */
+  static readonly MIN_PASSWORD = 8;
 
   /**
    * Issue a set-password link for an account a COACH created on someone's
@@ -474,8 +479,8 @@ export class AuthService {
    * token yields the same generic error (no leak about which condition failed).
    */
   async resetPassword(token: string, newPassword: string): Promise<{ ok: true }> {
-    if (!newPassword || newPassword.length < 6)
-      throw new BadRequestException('New password must be at least 6 characters');
+    if (!newPassword || newPassword.length < AuthService.MIN_PASSWORD)
+      throw new BadRequestException(`New password must be at least ${AuthService.MIN_PASSWORD} characters`);
     if (!token) throw new BadRequestException('This reset link is invalid or has expired.');
     const row = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash: this.hashToken(token) },
@@ -602,15 +607,59 @@ export class AuthService {
     return { ok: true, emailed, email, coachLevel: level };
   }
 
+  /* Wrong-password limit PER ACCOUNT, on top of the per-visitor request
+     limit: 10 misses in 15 minutes locks that email out for the rest of the
+     window, however many addresses the guesses come from. Counted for
+     unknown emails too, so the reply never reveals which emails exist.
+     In memory -- the API runs as a single instance. */
+  private static readonly MAX_FAILED_LOGINS = 10;
+  private static readonly FAILED_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+  private readonly failedLogins = new Map<string, { count: number; first: number }>();
+
+  private assertNotLockedOut(key: string) {
+    const f = this.failedLogins.get(key);
+    if (!f) return;
+    if (Date.now() - f.first >= AuthService.FAILED_LOGIN_WINDOW_MS) {
+      this.failedLogins.delete(key);
+      return;
+    }
+    if (f.count >= AuthService.MAX_FAILED_LOGINS) {
+      throw new HttpException(
+        'Too many wrong passwords for this account. Try again in 15 minutes, or use "Forgot password?".',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private recordFailedLogin(key: string) {
+    const now = Date.now();
+    if (this.failedLogins.size > 5000) {
+      for (const [k, v] of this.failedLogins) {
+        if (now - v.first >= AuthService.FAILED_LOGIN_WINDOW_MS) this.failedLogins.delete(k);
+      }
+    }
+    const f = this.failedLogins.get(key);
+    if (!f || now - f.first >= AuthService.FAILED_LOGIN_WINDOW_MS) this.failedLogins.set(key, { count: 1, first: now });
+    else f.count += 1;
+  }
+
   async login(email: string, password: string) {
+    const attemptKey = (email || '').trim().toLowerCase();
+    this.assertNotLockedOut(attemptKey);
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: { player: true },
     });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
-
-    if (!(await this.verifyPassword(password, user.password)))
+    if (!user) {
+      this.recordFailedLogin(attemptKey);
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (!(await this.verifyPassword(password, user.password))) {
+      this.recordFailedLogin(attemptKey);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    this.failedLogins.delete(attemptKey);
 
     /* Refuse a non-ACTIVE account HERE, not just at the guard.
     
@@ -688,8 +737,8 @@ export class AuthService {
    * (via this route or the self change-password flow).
    */
   async setUserPassword(actor: JwtPayload, targetUserId: string, newPassword: string) {
-    if (!newPassword || newPassword.length < 6)
-      throw new BadRequestException('Password must be at least 6 characters');
+    if (!newPassword || newPassword.length < AuthService.MIN_PASSWORD)
+      throw new BadRequestException(`Password must be at least ${AuthService.MIN_PASSWORD} characters`);
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException('User not found');
     // Resetting another COACH's password is an admin action; resetting a

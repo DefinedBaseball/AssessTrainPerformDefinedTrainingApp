@@ -37,7 +37,7 @@ import styles from './page.module.css';
    wording), so a server-side rejection lands in the same place. */
 const PASSWORD_ERRORS = new Set([
   'Create Password to Continue',
-  'Password must be at least 6 characters',
+  'Password must be at least 8 characters',
   'Passwords do not match',
 ]);
 
@@ -133,8 +133,8 @@ export default function NewPlayerPage() {
       passwordRef.current?.focus();
       return;
     }
-    if (password.trim().length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.trim().length < 8) {
+      setError('Password must be at least 8 characters');
       passwordRef.current?.focus();
       return;
     }
@@ -262,7 +262,7 @@ export default function NewPlayerPage() {
               autoComplete="new-password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
             />
             {PASSWORD_ERRORS.has(error) && (
               <div className={styles.error} role="alert" style={{ marginTop: 6 }}>{error}</div>

@@ -43,7 +43,7 @@ import styles from './page.module.css';
    wording), so a server-side rejection lands in the same place. */
 const PASSWORD_ERRORS = new Set([
   'Create Password to Continue',
-  'Password must be at least 6 characters',
+  'Password must be at least 8 characters',
   'Passwords do not match',
 ]);
 
@@ -131,9 +131,9 @@ export default function RegisterPage() {
       passwordRef.current?.focus();
       return setError('Create Password to Continue');
     }
-    if (password.length < 6) {
+    if (password.length < 8) {
       passwordRef.current?.focus();
-      return setError('Password must be at least 6 characters');
+      return setError('Password must be at least 8 characters');
     }
     if (password !== confirm) return setError('Passwords do not match');
 
@@ -265,7 +265,7 @@ export default function RegisterPage() {
                 value={password}
                 ref={passwordRef}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
               />
               {PASSWORD_ERRORS.has(error) && (
                 <div className={styles.error} role="alert" style={{ marginTop: 6 }}>{error}</div>
