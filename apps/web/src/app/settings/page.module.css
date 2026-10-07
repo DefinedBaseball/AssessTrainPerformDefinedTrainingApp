@@ -485,3 +485,57 @@
     font-size: 11px;
   }
 }
+
+/* ── Staff: pause / delete controls ── */
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.iconBtn:hover { border-color: var(--text-muted); color: var(--text); }
+.iconBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.iconBtnDanger { font-size: 18px; }
+.iconBtnDanger:hover { border-color: #ef4444; color: #ef4444; }
+.deleteConfirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  font-size: 13px;
+  color: var(--text);
+}
+.pausedPanel {
+  margin: 4px 0 14px;
+  padding: 4px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+/* Staff coach rows: details and controls wrap instead of overlapping on
+   narrower screens (long emails, six controls). */
+.staffRow { flex-wrap: wrap; }
+.staffRow .rowLabel { flex: 1 1 220px; }
+.staffRow .rowSub { overflow-wrap: anywhere; }
+.staffActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

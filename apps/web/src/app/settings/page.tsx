@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
+import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
 
@@ -299,13 +300,14 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
       /* An athlete's name is edited in My Profile (the player profile), not
          here -- so their save leaves the account name alone. */
       const updated = await api.updateAccount({
-        ...(isCoach ? { name: fullName, position } : { email }),
+        ...(isCoach ? { name: fullName, position } : {}),
+        email,
         phone,
       });
       setProfile(updated);
-      // Players can change their login email here — refresh the session so the
-      // stored email (and what they sign in with) reflects the new value.
-      if (!isCoach) await refresh();
+      // The login email may have changed -- refresh the session so the stored
+      // email (and what they sign in with) reflects it.
+      await refresh();
       setProfileMsg('Saved.');
       setTimeout(() => setProfileMsg(''), 2000);
     } catch (e: any) {
@@ -341,6 +343,9 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
       <div className={styles.card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
           <h3 className={styles.cardTitle} style={{ margin: 0 }}>Account Information</h3>
+          {/* Coaches sign themselves out everywhere here; athletes have the
+              same button on My Profile. */}
+          {isCoach && <span style={{ marginLeft: 'auto' }}><SignOutEverywhereButton /></span>}
           {isPrimaryAdmin && (
             <span
               style={{
@@ -358,24 +363,16 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Email</span>
-            <span className={styles.rowSub}>
-              {isCoach
-                ? 'Your login email (managed by an admin)'
-                : 'The email you sign in with — update it here'}
-            </span>
+            <span className={styles.rowSub}>The email you sign in with — update it here</span>
           </div>
-          {isCoach ? (
-            <span className={styles.rowSub}>{user.email}</span>
-          ) : (
-            <input
-              className={styles.input}
-              type="email"
-              autoComplete="off"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
-          )}
+          <input
+            className={styles.input}
+            type="email"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
         </div>
         <div className={styles.row}>
           <div className={styles.rowLabel}>
@@ -519,6 +516,87 @@ function StaffTab() {
   const [nameLast, setNameLast] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMsg, setNameMsg] = useState('');
+  /* ── Pause / remove / change email (admin) ── */
+  const [pausedOpen, setPausedOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowMsg, setRowMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
+  const [emailForId, setEmailForId] = useState<string | null>(null);
+  const [emailValue, setEmailValue] = useState('');
+
+  const flash = (id: string, text: string, ok: boolean) => {
+    setRowMsg({ id, text, ok });
+    window.setTimeout(() => setRowMsg((m) => (m && m.id === id && m.text === text ? null : m)), 2600);
+  };
+
+  const setPaused = async (c: api.CoachAccount, paused: boolean) => {
+    setBusyId(c.id);
+    try {
+      await api.setCoachStatus(c.id, paused ? 'LOCKED' : 'ACTIVE');
+      await loadCoaches();
+      flash(c.id, paused ? 'Paused — they can’t sign in.' : 'Unpaused.', true);
+    } catch (e: any) {
+      flash(c.id, e?.message || 'Could not update', false);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeCoach = async (c: api.CoachAccount) => {
+    setBusyId(c.id);
+    try {
+      await api.deleteCoach(c.id);
+      setConfirmDeleteId(null);
+      await loadCoaches();
+    } catch (e: any) {
+      flash(c.id, e?.message || 'Could not delete', false);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveEmail = async (c: api.CoachAccount) => {
+    setBusyId(c.id);
+    try {
+      await api.setUserEmail(c.id, emailValue.trim());
+      setEmailForId(null);
+      await loadCoaches();
+      flash(c.id, 'Email updated.', true);
+    } catch (e: any) {
+      flash(c.id, e?.message || 'Could not update email', false);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /* ── Invite by email ── */
+  const [invFirst, setInvFirst] = useState('');
+  const [invLast, setInvLast] = useState('');
+  const [invEmail, setInvEmail] = useState('');
+  const [invLevel, setInvLevel] = useState<'ADMIN' | 'COACH' | 'VIEWER'>('COACH');
+  const [inviting, setInviting] = useState(false);
+  const [invMsg, setInvMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const sendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInvMsg(null);
+    const em = invEmail.trim();
+    if (!em) { setInvMsg({ text: 'Email is required', ok: false }); return; }
+    setInviting(true);
+    try {
+      const name = [invFirst.trim(), invLast.trim()].filter(Boolean).join(' ') || undefined;
+      const res = await api.inviteCoach({ email: em, name, coachLevel: invLevel });
+      setInvMsg(res.emailed
+        ? { text: `Invite sent to ${res.email}. They'll set their own password from the email.`, ok: true }
+        : { text: `Account created for ${res.email}, but the email could not be sent. Use "Set password" on their row instead.`, ok: false });
+      setInvFirst(''); setInvLast(''); setInvEmail(''); setInvLevel('COACH');
+      loadCoaches();
+    } catch (err: any) {
+      setInvMsg({ text: err?.message || 'Could not send the invite', ok: false });
+    } finally {
+      setInviting(false);
+    }
+  };
+
   const saveName = async (coachId: string) => {
     setNameSaving(true);
     setNameMsg('');
@@ -544,6 +622,9 @@ function StaffTab() {
     }
   };
   useEffect(() => { loadCoaches(); }, []);
+
+  const activeCoaches = coaches.filter((c) => c.status !== 'LOCKED');
+  const pausedCoaches = coaches.filter((c) => c.status === 'LOCKED');
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -575,6 +656,38 @@ function StaffTab() {
 
   return (
     <div className={styles.section}>
+      {/* Invite by email: the coach sets their own password from the link. */}
+      <form className={styles.card} onSubmit={sendInvite} autoComplete="off">
+        <h3 className={styles.cardTitle}>Invite coach by email</h3>
+        <p className={styles.cardDesc}>We create their account and email them a link to set their own password (good for 7 days).</p>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>First name</span></div>
+          <input className={styles.input} type="text" value={invFirst} onChange={(e) => setInvFirst(e.target.value)} placeholder="First name" autoComplete="off" />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>Last name</span></div>
+          <input className={styles.input} type="text" value={invLast} onChange={(e) => setInvLast(e.target.value)} placeholder="Last name" autoComplete="off" />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>Email</span><span className={styles.rowSub}>Where the invite goes, and their login</span></div>
+          <input className={styles.input} type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="coach@example.com" autoComplete="off" />
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowLabel}><span className={styles.rowTitle}>Access level</span></div>
+          <select className={styles.input} value={invLevel} onChange={(e) => setInvLevel(e.target.value as 'ADMIN' | 'COACH' | 'VIEWER')}>
+            <option value="ADMIN">Admin</option>
+            <option value="COACH">Coach</option>
+            <option value="VIEWER">Viewer</option>
+          </select>
+        </div>
+        {invMsg && (
+          <div className={`${styles.feedback} ${invMsg.ok ? styles.feedbackOk : ''}`} style={invMsg.ok ? undefined : { color: '#E11D48' }}>{invMsg.text}</div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+          <button className={styles.btn} type="submit" disabled={inviting}>{inviting ? 'Sending…' : 'Send Invite'}</button>
+        </div>
+      </form>
+
       <form className={styles.card} onSubmit={handleCreate} autoComplete="off">
         <h3 className={styles.cardTitle}>Create coach account</h3>
         <p className={styles.cardDesc}>Add another coach to the facility. They sign in at the login page with the email + password you set here.</p>
@@ -666,20 +779,60 @@ function StaffTab() {
       </form>
 
       <div className={styles.card} style={{ order: -1 }}>
-        <h3 className={styles.cardTitle}>Coaches</h3>
-        <p className={styles.cardDesc}>Everyone with a coach login.</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <h3 className={styles.cardTitle}>Coaches</h3>
+            <p className={styles.cardDesc}>Everyone with a coach login.</p>
+          </div>
+          {/* Paused coaches live behind this lock until unpaused. */}
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={() => setPausedOpen((o) => !o)}
+            aria-expanded={pausedOpen}
+            title="Paused coach accounts"
+          >
+            🔒 Paused ({pausedCoaches.length})
+          </button>
+        </div>
+        {pausedOpen && (
+          <div className={styles.pausedPanel}>
+            {pausedCoaches.length === 0 ? (
+              <div className={styles.rowSub}>No paused coaches.</div>
+            ) : pausedCoaches.map((c) => (
+              <div key={c.id} className={styles.row}>
+                <div className={styles.rowLabel}>
+                  <span className={styles.rowTitle}>{c.name || c.email.split('@')[0]}</span>
+                  <span className={styles.rowSub}>{c.email} · Paused — can’t sign in</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {rowMsg?.id === c.id && (
+                    <span className={styles.rowSub} style={{ color: rowMsg.ok ? '#34D399' : '#E11D48' }}>{rowMsg.text}</span>
+                  )}
+                  <button type="button" className={styles.btn} disabled={busyId === c.id} onClick={() => void setPaused(c, false)}>
+                    {busyId === c.id ? '…' : 'Unpause'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {loadingCoaches ? (
           <div className={styles.rowSub}>Loading…</div>
-        ) : coaches.length === 0 ? (
+        ) : activeCoaches.length === 0 ? (
           <div className={styles.rowSub}>No coach accounts yet.</div>
         ) : (
-          coaches.map((c) => {
+          activeCoaches.map((c) => {
             /* The primary admin's password is self-only (enforced
                server-side too) — hide the control for everyone else. */
             const canSetPw = !c.isPrimaryAdmin || c.id === me?.id;
+            /* Pause / delete: never yourself, never the primary admin
+               (both enforced server-side too). */
+            const manageable = c.id !== me?.id && !c.isPrimaryAdmin;
+            const canSetEmail = !c.isPrimaryAdmin || c.id === me?.id;
             return (
               <div key={c.id}>
-                <div className={styles.row}>
+                <div className={`${styles.row} ${styles.staffRow}`}>
                   <div className={styles.rowLabel}>
                     <span className={styles.rowTitle}>
                       {c.name || c.email.split('@')[0]}
@@ -698,7 +851,7 @@ function StaffTab() {
                       {c.email}{c.position ? ` · ${c.position}` : ''} · Added {new Date(c.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div className={styles.staffActions}>
                     {/* Access level — admin can change any coach except the
                         primary admin (who can only be changed by themselves). */}
                     <select
@@ -739,8 +892,73 @@ function StaffTab() {
                     >
                       {nameForId === c.id ? 'Cancel' : 'Edit name'}
                     </button>
+                    {canSetEmail && (
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        onClick={() => {
+                          setEmailForId(emailForId === c.id ? null : c.id);
+                          setEmailValue(c.email);
+                        }}
+                      >
+                        {emailForId === c.id ? 'Cancel' : 'Edit email'}
+                      </button>
+                    )}
+                    {manageable && (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          onClick={() => void setPaused(c, true)}
+                          disabled={busyId === c.id}
+                          title={`Pause ${c.name || c.email} — they can't sign in until unpaused`}
+                          aria-label={`Pause ${c.name || c.email}`}
+                        >🔒</button>
+                        <button
+                          type="button"
+                          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                          onClick={() => setConfirmDeleteId(confirmDeleteId === c.id ? null : c.id)}
+                          disabled={busyId === c.id}
+                          title={`Delete ${c.name || c.email} permanently`}
+                          aria-label={`Delete ${c.name || c.email}`}
+                        >×</button>
+                      </>
+                    )}
                   </div>
                 </div>
+                {rowMsg?.id === c.id && (
+                  <div className={styles.rowSub} style={{ padding: '0 0 10px', color: rowMsg.ok ? '#34D399' : '#E11D48' }}>{rowMsg.text}</div>
+                )}
+                {confirmDeleteId === c.id && (
+                  <div className={styles.deleteConfirm}>
+                    <span>
+                      Delete <strong>{c.name || c.email}</strong> permanently? Their account, posts, messages and
+                      notifications are erased. Athletes&rsquo; reports and at-bats they recorded stay with the athletes.
+                    </span>
+                    <span style={{ display: 'inline-flex', gap: 8 }}>
+                      <button type="button" className={styles.btnDanger} disabled={busyId === c.id} onClick={() => void removeCoach(c)}>
+                        {busyId === c.id ? 'Deleting…' : 'Yes, delete'}
+                      </button>
+                      <button type="button" className={styles.btnSecondary} onClick={() => setConfirmDeleteId(null)}>No</button>
+                    </span>
+                  </div>
+                )}
+                {emailForId === c.id && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0 12px', flexWrap: 'wrap' }}>
+                    <input
+                      className={styles.input}
+                      type="email"
+                      value={emailValue}
+                      onChange={(e) => setEmailValue(e.target.value)}
+                      placeholder="coach@example.com"
+                      autoComplete="off"
+                      style={{ maxWidth: 280 }}
+                    />
+                    <button type="button" className={styles.btn} disabled={busyId === c.id} onClick={() => void saveEmail(c)}>
+                      {busyId === c.id ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                )}
                 {pwForId === c.id && (
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0 12px', flexWrap: 'wrap' }}>
                     <input
@@ -811,6 +1029,10 @@ const NOTIF_SUBJECTS_PLAYER = [
 const NOTIF_SUBJECTS_COACH = [
   { key: 'ANNOUNCEMENT', label: 'Dashboard Posts' },
   { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests' },
+  { key: 'VIDEO', label: 'Athlete Video Uploads' },
+  { key: 'INQUIRY', label: 'New Inquiries' },
+  { key: 'MESSAGE', label: 'New Messages' },
+  { key: 'PROFILE_UPDATE', label: 'Athlete Profile & Stats Updates' },
 ];
 /* Subjects with LIVE email delivery (must match the API's
    EMAIL_DELIVERED_SUBJECTS). Every other subject's Email toggle renders as a
@@ -1507,6 +1729,9 @@ function MyProfileTab({ playerId }: { playerId: string }) {
   }
   return (
     <div className={styles.section}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <SignOutEverywhereButton />
+      </div>
       <ReportModal
         player={player}
         userId={userId}

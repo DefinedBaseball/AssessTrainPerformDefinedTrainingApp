@@ -1,4 +1,4 @@
-import { Controller, Post, Patch, Put, Body, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Put, Delete, Body, Get, Param, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -200,12 +200,62 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Roles('COACH')
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Change a player account's login email (coach)" })
+  @ApiOperation({ summary: "Change a login email (any coach for athletes; admin for coaches)" })
   setUserEmail(
+    @Req() req: AuthenticatedRequest,
     @Param('userId') userId: string,
     @Body() dto: { email: string },
   ) {
-    return this.authService.setUserEmail(userId, dto.email);
+    return this.authService.setUserEmail(req.user!, userId, dto.email);
+  }
+
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  @ViewerAllowed()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sign the caller out on every device (this one included)' })
+  logoutAll(@Req() req: AuthenticatedRequest) {
+    return this.authService.signOutEverywhere(req.user!.sub);
+  }
+
+  @Post('users/:userId/logout-all')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Sign an athlete out on every device (coach); a coach only by an admin" })
+  logoutUserAll(@Req() req: AuthenticatedRequest, @Param('userId') userId: string) {
+    return this.authService.signOutUserEverywhere(req.user!, userId);
+  }
+
+  @Post('users/:userId/coach-status')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Pause (LOCKED) or restore (ACTIVE) a coach account (admin only)' })
+  setCoachStatus(@Req() req: AuthenticatedRequest, @Param('userId') userId: string, @Body() dto: { status: string }) {
+    return this.authService.setCoachStatus(req.user!, userId, dto?.status);
+  }
+
+  @Delete('coaches/:userId')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Permanently delete a coach account (admin only)' })
+  deleteCoach(@Req() req: AuthenticatedRequest, @Param('userId') userId: string) {
+    return this.authService.deleteCoach(req.user!, userId);
+  }
+
+  @Post('invite-coach')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @AdminOnly()
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a coach account and email them a set-password link (admin only)' })
+  inviteCoach(@Req() req: AuthenticatedRequest, @Body() dto: { email?: string; name?: string; coachLevel?: CoachLevel }) {
+    return this.authService.inviteCoach(req.user!, dto);
   }
 
   @Post('users/:userId/phone')

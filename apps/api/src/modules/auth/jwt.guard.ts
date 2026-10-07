@@ -97,7 +97,7 @@ export class JwtAuthGuard implements CanActivate {
     // above, so they never pay for it).
     const dbUser = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { role: true, coachLevel: true, status: true },
+      select: { role: true, coachLevel: true, status: true, sessionsValidAfter: true },
     });
     if (!dbUser) {
       // Account was deleted (declined registrations delete the row entirely).
@@ -109,9 +109,20 @@ export class JwtAuthGuard implements CanActivate {
       // locked athlete is not told their account is awaiting approval.
       throw new UnauthorizedException(
         dbUser.status === 'LOCKED'
-          ? 'Your account is paused. Contact your coach.'
+          ? (dbUser.role === 'COACH'
+            ? 'Your account is paused. Contact your admin.'
+            : 'Your account is paused. Contact your coach.')
           : 'Account is not active',
       );
+    }
+    // "Sign out of all devices": a token issued before the cut-off is dead.
+    // (iat is whole seconds, so compare at second resolution.)
+    if (
+      dbUser.sessionsValidAfter
+      && typeof payload.iat === 'number'
+      && payload.iat < Math.floor(dbUser.sessionsValidAfter.getTime() / 1000)
+    ) {
+      throw new UnauthorizedException('You were signed out. Please sign in again.');
     }
     // Overwrite the stale token snapshot with the live role/level so every
     // check below (role gate, admin-only, viewer read-only) uses current

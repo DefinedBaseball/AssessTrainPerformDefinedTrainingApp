@@ -19,7 +19,9 @@ export type NotificationType =
   | 'REPORT'
   | 'VIDEO'
   | 'SCHEDULE'
-  | 'INQUIRY';
+  | 'INQUIRY'
+  | 'MESSAGE'
+  | 'PROFILE_UPDATE';
 
 export interface NotificationPayload {
   type: NotificationType;
@@ -214,6 +216,33 @@ export class NotificationsService {
       await this.notifyMany(ids, payload);
     } catch (err) {
       this.logger.error('Failed to notify coaches', err as Error);
+    }
+  }
+
+  /**
+   * create(), but skipped when this recipient still has an UNREAD
+   * notification of the same type about the same entity from within
+   * `windowMs` -- a back-and-forth message thread is one bell entry.
+   */
+  async createOnce(recipientId: string, payload: NotificationPayload, windowMs: number) {
+    try {
+      if (payload.entityId) {
+        const recent = await this.prisma.notification.findFirst({
+          where: {
+            recipientId,
+            type: payload.type,
+            entityId: payload.entityId,
+            readAt: null,
+            createdAt: { gte: new Date(Date.now() - windowMs) },
+          },
+          select: { id: true },
+        });
+        if (recent) return null;
+      }
+      return this.create(recipientId, payload);
+    } catch (err) {
+      this.logger.error(`Failed to create notification for ${recipientId}`, err as Error);
+      return null;
     }
   }
 

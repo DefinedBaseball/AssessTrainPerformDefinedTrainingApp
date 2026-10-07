@@ -13,7 +13,7 @@ import * as bcrypt from 'bcryptjs';
 import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
-import { passwordResetEmail, welcomeEmail, inviteEmail, registrationInviteEmail } from '../mail/mail.templates';
+import { passwordResetEmail, welcomeEmail, inviteEmail, registrationInviteEmail, coachInviteEmail } from '../mail/mail.templates';
 
 /** Full payload from the public /register form: profile + credentials. */
 export interface SignupPlayerPayload {
@@ -289,14 +289,12 @@ export class AuthService {
     if (dto.name !== undefined) data.name = dto.name?.trim() || null;
     if (dto.phone !== undefined) data.phone = dto.phone?.trim() || null;
     if (dto.position !== undefined) data.position = dto.position?.trim() || null;
-    // Email is the login username. Only PLAYER accounts may self-change it here:
-    // coach emails are how the prod seed keys the seeded admins, so renaming one
-    // would let the next deploy re-create a duplicate admin.
+    // Email is the login username; anyone may change their own. (The prod
+    // seed used to key the starter admins by email and would re-create one
+    // after a rename -- it now only runs on an empty database.)
     if (dto.email !== undefined) {
       const me = await this.prisma.user.findUnique({ where: { id: userId } });
       if (!me) throw new NotFoundException('User not found');
-      if (me.role !== 'PLAYER')
-        throw new ForbiddenException('Only player accounts can change their email here.');
       const email = dto.email?.trim().toLowerCase();
       if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
         throw new BadRequestException('Enter a valid email address');
@@ -385,7 +383,7 @@ export class AuthService {
    * the invite didn't go out. A missing mail provider is surfaced rather than
    * swallowed for the same reason.
    */
-  async sendInvite(rawEmail: string, name?: string | null): Promise<{ ok: boolean; emailed: boolean }> {
+  async sendInvite(rawEmail: string, name?: string | null, kind: 'athlete' | 'coach' = 'athlete'): Promise<{ ok: boolean; emailed: boolean }> {
     const email = rawEmail?.trim().toLowerCase();
     if (!email) throw new BadRequestException('Email is required');
 
@@ -407,7 +405,7 @@ export class AuthService {
        set the send is a no-op. Report that back instead of implying the
        athlete was emailed, so the coach knows to share the link another way. */
     const setPasswordUrl = `${this.mail.webAppUrl}/reset-password?token=${token}`;
-    const { subject, html, text } = inviteEmail(setPasswordUrl, name, AuthService.INVITE_TTL_DAYS);
+    const { subject, html, text } = (kind === 'coach' ? coachInviteEmail : inviteEmail)(setPasswordUrl, name, AuthService.INVITE_TTL_DAYS);
     let emailed = false;
     try {
       /* send() RETURNS false when Resend isn't configured or the send fails —
@@ -505,6 +503,92 @@ export class AuthService {
     return { ok: true };
   }
 
+  /* ── Sign out of all devices ─────────────────────────────────────────
+     Moves the account's cut-off to now: every token issued before it --
+     including the caller's own -- stops working on its next request. */
+  async signOutEverywhere(userId: string) {
+    await this.prisma.user.update({ where: { id: userId }, data: { sessionsValidAfter: new Date() } });
+    return { ok: true };
+  }
+
+  /** A coach signs an athlete out everywhere (e.g. a lost phone). Coach
+   *  accounts are signed out by an admin or by themselves. */
+  async signOutUserEverywhere(actor: JwtPayload, targetUserId: string) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, role: true, isPrimaryAdmin: true } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role === 'COACH' && actor.sub !== target.id) {
+      const actorLevel = actor.role === 'COACH' ? (actor.coachLevel || 'ADMIN') : null;
+      if (actorLevel !== 'ADMIN' || target.isPrimaryAdmin)
+        throw new ForbiddenException('Only admins can sign out another coach.');
+    }
+    return this.signOutEverywhere(target.id);
+  }
+
+  /* ── Coach accounts (Settings → Staff, admin only) ─────────────────── */
+
+  private async assertManageableCoach(actor: JwtPayload, targetUserId: string) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('Coach not found');
+    if (target.role !== 'COACH') throw new BadRequestException('That is not a coach account.');
+    if (target.id === actor.sub) throw new ForbiddenException('You can’t pause or remove your own account.');
+    if (target.isPrimaryAdmin) throw new ForbiddenException('The primary admin can’t be paused or removed.');
+    return target;
+  }
+
+  /** Pause (LOCKED) or restore (ACTIVE) a coach. Paused coaches can't sign
+   *  in and are refused on their next request; nothing they made changes. */
+  async setCoachStatus(actor: JwtPayload, targetUserId: string, status: string) {
+    if (status !== 'ACTIVE' && status !== 'LOCKED') throw new BadRequestException('Status must be ACTIVE or LOCKED');
+    await this.assertManageableCoach(actor, targetUserId);
+    await this.prisma.user.update({ where: { id: targetUserId }, data: { status } });
+    return { ok: true, status };
+  }
+
+  /**
+   * Permanently delete a coach account and what is theirs alone: their
+   * posts, messages and notifications. Athletes' records are NOT deleted:
+   * reports they wrote stay on the athlete (the coach name is cleared), and
+   * live at-bat sessions they ran move to the admin doing the deletion so
+   * the athletes' at-bat history survives.
+   */
+  async deleteCoach(actor: JwtPayload, targetUserId: string) {
+    const target = await this.assertManageableCoach(actor, targetUserId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.liveSession.updateMany({ where: { createdById: target.id }, data: { createdById: actor.sub } });
+      await tx.notification.deleteMany({ where: { recipientId: target.id } });
+      await tx.message.deleteMany({ where: { OR: [{ senderId: target.id }, { recipientId: target.id }] } });
+      await tx.postSeen.deleteMany({ where: { userId: target.id } });
+      await tx.post.deleteMany({ where: { authorId: target.id } });
+      await tx.user.delete({ where: { id: target.id } });
+    });
+    return { ok: true, deleted: target.email };
+  }
+
+  /** Create a coach account with no usable password and email them a
+   *  set-password link (the "Invite by email" option in Staff). */
+  async inviteCoach(actor: JwtPayload, dto: { email?: string; name?: string | null; coachLevel?: CoachLevel }) {
+    const actorLevel = actor.role === 'COACH' ? (actor.coachLevel || 'ADMIN') : null;
+    if (actorLevel !== 'ADMIN') throw new ForbiddenException('Only admins can invite coaches.');
+    const email = dto.email?.trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new BadRequestException('Enter a valid email address');
+    const level = dto.coachLevel && ['ADMIN', 'COACH', 'VIEWER'].includes(dto.coachLevel) ? dto.coachLevel : 'COACH';
+    if (await this.prisma.user.findUnique({ where: { email } })) throw new ConflictException('Email already registered');
+    const name = dto.name?.trim() || null;
+    /* A random password nobody knows -- the invite link is the way in. */
+    await this.prisma.user.create({
+      data: {
+        email,
+        password: await this.hashPassword(randomBytes(24).toString('hex')),
+        role: 'COACH',
+        coachLevel: level,
+        status: 'ACTIVE',
+        name,
+      },
+    });
+    const { emailed } = await this.sendInvite(email, name, 'coach');
+    return { ok: true, emailed, email, coachLevel: level };
+  }
+
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -526,7 +610,7 @@ export class AuthService {
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException(
         user.status === 'LOCKED'
-          ? 'Your account is paused. Contact your coach.'
+          ? (user.role === 'COACH' ? 'Your account is paused. Contact your admin.' : 'Your account is paused. Contact your coach.')
           : user.status === 'PENDING'
             ? 'Your account is awaiting coach approval.'
             : 'This account is not active.',
@@ -564,7 +648,7 @@ export class AuthService {
   async listCoaches() {
     return this.prisma.user.findMany({
       where: { role: 'COACH' },
-      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true, createdAt: true },
+      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true, status: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -637,11 +721,15 @@ export class AuthService {
     return { ok: true, phone };
   }
 
-  async setUserEmail(targetUserId: string, rawEmail: string) {
+  async setUserEmail(actor: JwtPayload, targetUserId: string, rawEmail: string) {
     const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundException('User not found');
-    if (target.role !== 'PLAYER')
-      throw new ForbiddenException('Only player account emails can be changed here.');
+    /* Any coach may fix an athlete's login email; a coach's email is changed
+       by an admin (Settings → Staff) or by that coach themselves. */
+    if (target.role === 'COACH' && actor.sub !== target.id) {
+      const actorLevel = actor.role === 'COACH' ? (actor.coachLevel || 'ADMIN') : null;
+      if (actorLevel !== 'ADMIN') throw new ForbiddenException('Only admins can change another coach’s email.');
+    }
     const email = rawEmail?.trim().toLowerCase();
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
       throw new BadRequestException('Enter a valid email address');

@@ -5,6 +5,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 const HIDEABLE_TABS = new Set(['hitting', 'pitching', 'catching', 'infield', 'outfield', 'strength']);
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { profileReminderEmail } from '../mail/mail.templates';
 
 /* Stat keys per grid for the season stats sheet. Mirrors STAT_GRIDS in the
@@ -21,7 +22,29 @@ const SEASON_STAT_KEYS: Record<string, Set<string>> = {
 @Injectable()
 export class PlayersService {
   /* MailModule is @Global, so MailService injects without importing it. */
-  constructor(private prisma: PrismaService, private mail: MailService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+    private notifications: NotificationsService,
+  ) {}
+
+  /** Tell coaches an athlete changed their own profile or Season Stats
+   *  (Settings → Notifications → Athlete Profile & Stats Updates). One per
+   *  athlete per hour while unread. Never throws. */
+  async notifyCoachesOfAthleteEdit(playerId: string, what: 'profile' | 'stats') {
+    try {
+      const p = await this.prisma.player.findUnique({ where: { id: playerId }, select: { firstName: true, lastName: true } });
+      if (!p) return;
+      const name = `${p.firstName} ${p.lastName}`.trim();
+      await this.notifications.notifyAllCoachesOnce({
+        type: 'PROFILE_UPDATE',
+        title: what === 'stats' ? `${name} updated their Season Stats` : `${name} updated their profile`,
+        body: what === 'stats' ? 'Player Summary → Stats' : 'Their personal information changed.',
+        linkUrl: `/athletes/${playerId}`,
+        entityId: playerId,
+      }, 60 * 60 * 1000);
+    } catch { /* an alert must never fail the save */ }
+  }
 
   /**
    * Email one athlete a reminder to finish filling in their profile.

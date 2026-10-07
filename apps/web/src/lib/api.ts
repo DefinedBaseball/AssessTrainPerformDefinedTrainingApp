@@ -332,7 +332,40 @@ export interface CoachAccount {
   position: string | null;
   isPrimaryAdmin: boolean;
   coachLevel: string | null; // "ADMIN" | "COACH" | "VIEWER"
+  /** "ACTIVE", or "LOCKED" while paused by an admin. */
+  status?: string;
   createdAt: string;
+}
+
+/** Admin: pause (LOCKED) or restore (ACTIVE) a coach account. */
+export async function setCoachStatus(userId: string, status: 'ACTIVE' | 'LOCKED') {
+  return request<{ ok: boolean; status: string }>(`/auth/users/${userId}/coach-status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+}
+
+/** Admin: permanently delete a coach account. */
+export async function deleteCoach(userId: string) {
+  return request<{ ok: boolean; deleted: string }>(`/auth/coaches/${userId}`, { method: 'DELETE' });
+}
+
+/** Admin: create a coach account and email them a set-password link. */
+export async function inviteCoach(data: { email: string; name?: string; coachLevel: 'ADMIN' | 'COACH' | 'VIEWER' }) {
+  return request<{ ok: boolean; emailed: boolean; email: string; coachLevel: string }>('/auth/invite-coach', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Sign the current account out on every device (this one included). */
+export async function logoutEverywhere() {
+  return request<{ ok: boolean }>('/auth/logout-all', { method: 'POST' });
+}
+
+/** Coach: sign an athlete out on every device. */
+export async function logoutUserEverywhere(userId: string) {
+  return request<{ ok: boolean }>(`/auth/users/${userId}/logout-all`, { method: 'POST' });
 }
 
 /** List all coach accounts (coach-only endpoint). */
@@ -434,7 +467,9 @@ export type NotificationType =
   | 'REPORT'
   | 'VIDEO'
   | 'SCHEDULE'
-  | 'INQUIRY';
+  | 'INQUIRY'
+  | 'MESSAGE'
+  | 'PROFILE_UPDATE';
 
 export interface AppNotification {
   id: string;

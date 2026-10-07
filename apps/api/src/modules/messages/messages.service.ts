@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Shape returned to the client for any "other user" in a conversation. */
 export interface MessageContact {
@@ -22,7 +23,7 @@ type UserWithPlayer = {
 
 @Injectable()
 export class MessagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notifications: NotificationsService) {}
 
   /** Build the display contact (name/avatar/role) for a hydrated user row. */
   private toContact(u: UserWithPlayer): MessageContact {
@@ -171,8 +172,34 @@ export class MessagesService {
       throw new ForbiddenException('Players can only message coaches.');
     }
 
-    return this.prisma.message.create({
+    const message = await this.prisma.message.create({
       data: { senderId: meId, recipientId, body, videoUrl },
     });
+
+    /* Coaches get a bell alert for new messages (Settings → Notifications →
+       New Messages). One per sender while unread, so a conversation doesn't
+       flood the bell. Athletes already see their Messages badge. */
+    if (recipient.role === 'COACH') {
+      void this.alertCoach(meId, recipientId);
+    }
+    return message;
+  }
+
+  private async alertCoach(senderId: string, recipientId: string) {
+    const sender = await this.prisma.user.findUnique({
+      where: { id: senderId },
+      select: { name: true, email: true, player: { select: { firstName: true, lastName: true } } },
+    });
+    const who = sender?.player
+      ? `${sender.player.firstName} ${sender.player.lastName}`.trim()
+      : sender?.name || sender?.email || 'Someone';
+    await this.notifications.createOnce(recipientId, {
+      type: 'MESSAGE',
+      title: `New message from ${who}`,
+      body: 'Open Messages to read and reply.',
+      linkUrl: null,
+      actorId: senderId,
+      entityId: senderId,
+    }, 60 * 60 * 1000);
   }
 }

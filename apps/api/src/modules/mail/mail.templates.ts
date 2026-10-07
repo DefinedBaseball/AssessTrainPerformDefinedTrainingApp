@@ -116,6 +116,30 @@ export function inviteEmail(
   return { subject: 'Set up your Defined Baseball Academy account', html, text };
 }
 
+/** Coach invite — an admin added this coach from Settings → Staff. Same
+ *  single-use set-password link as the athlete invite. */
+export function coachInviteEmail(
+  setPasswordUrl: string,
+  name?: string | null,
+  expiryDays = 7,
+): { subject: string; html: string; text: string } {
+  const hi = name?.trim() ? `Welcome, ${escapeHtml(name.trim())}!` : 'Welcome!';
+  const html = shell(`
+    <h1 style="margin:0 0 12px;font-size:19px;color:${TEXT};">${hi}</h1>
+    <p style="margin:0 0 20px;font-size:14px;color:${TEXT};line-height:1.6;">
+      You've been added as a coach on the Defined Baseball Academy app. Set a
+      password to sign in and start working with your athletes.
+    </p>
+    <p style="margin:0 0 22px;">${button(setPasswordUrl, 'Set Your Password')}</p>
+    <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">
+      This link is active for ${expiryDays} days. If it expires, use
+      &ldquo;Forgot password?&rdquo; on the sign-in page to get a new one.
+    </p>
+  `);
+  const text = `${hi}\n\nYou've been added as a coach on the Defined Baseball Academy app. Set a password to sign in:\n\n${setPasswordUrl}\n\nThis link is active for ${expiryDays} days. If it expires, use "Forgot password?" on the sign-in page.`;
+  return { subject: 'You have been added as a coach at Defined Baseball Academy', html, text };
+}
+
 /** Coach-review email — sent to a player when a coach completes a review
  *  video on their profile. `reviewUrl` deep-links to their profile. */
 export function coachReviewEmail(reviewUrl: string, name?: string | null): { subject: string; html: string; text: string } {

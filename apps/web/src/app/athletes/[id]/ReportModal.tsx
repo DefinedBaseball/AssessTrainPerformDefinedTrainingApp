@@ -19,6 +19,7 @@ import { sanitizeHtml } from '@/lib/sanitize';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
+import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import styles from './page.module.css';
@@ -4003,6 +4004,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                 tabKey={REPORT_TYPE_TO_TAB[reportType]}
                 tabLabel={REPORT_TYPES.find(t => t.id === reportType)?.label ?? reportType}
               />
+            )}
+            {/* Coach in an athlete's Edit Profile: end every session that
+                athlete has open (lost phone, shared device). */}
+            {isCoachViewer && reportType === 'SUMMARY' && player.userId && (
+              <SignOutEverywhereButton userId={player.userId} subjectName={`${player.firstName} ${player.lastName}`} />
             )}
             <button type="button" className={styles.modalClose} onClick={requestClose}>x</button>
           </div>

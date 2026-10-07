@@ -42,9 +42,18 @@ const ADMIN_ACCOUNTS = [
 const DEFAULT_ADMIN_PASSWORD = 'PasswordCoach';
 
 async function main() {
-  // 1. The three Admin coach accounts — create if missing; on re-runs ensure
-  //    role/level/flags are right but never overwrite an existing password.
-  for (const a of ADMIN_ACCOUNTS) {
+  // 1. The three starter Admin coach accounts — ONLY on a brand-new database
+  //    (no coach accounts at all). This seed runs on every deploy, and it used
+  //    to re-create any starter admin it couldn't find by email and force the
+  //    rest back to ACTIVE / ADMIN. Once coaches can change their email and
+  //    admins can pause or delete coaches, that would quietly undo a pause,
+  //    resurrect a deleted coach, or create a second "connor@" admin with the
+  //    default password after a rename. Existing databases are left alone.
+  const existingCoaches = await prisma.user.count({ where: { role: 'COACH' } });
+  if (existingCoaches > 0) {
+    console.log(`[seed.prod] ${existingCoaches} coach account(s) exist — starter admins left untouched`);
+  }
+  for (const a of existingCoaches > 0 ? [] : ADMIN_ACCOUNTS) {
     const email = a.email.toLowerCase();
     const password = process.env[a.envKey] || DEFAULT_ADMIN_PASSWORD;
     const existing = await prisma.user.findUnique({ where: { email } });

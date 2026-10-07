@@ -67,6 +67,8 @@ const NOTIF_GLYPH: Record<api.NotificationType, string> = {
   VIDEO: '📹',
   SCHEDULE: '📅',
   INQUIRY: '📩',
+  MESSAGE: '💬',
+  PROFILE_UPDATE: '✏️',
 };
 
 function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: number }) {
@@ -240,12 +242,18 @@ export function MessagesLauncher() {
         );
         refreshNotifUnread();
       }
+      /* A message alert opens that conversation (entityId = the sender). */
+      if (n.type === 'MESSAGE' && n.entityId) {
+        openMessages();
+        openThread(n.entityId);
+        return;
+      }
       if (n.linkUrl) {
         setPanel(null);
         router.push(n.linkUrl);
       }
     },
-    [router, refreshNotifUnread],
+    [router, refreshNotifUnread, openMessages, openThread],
   );
 
   const handleMarkAllRead = useCallback(async () => {
@@ -476,7 +484,8 @@ export function MessagesLauncher() {
                 {notifList.map((n) => {
                   // Only admins act on account requests (the API enforces it too).
                   const isRequest = n.type === 'ACCOUNT_REQUEST' && isAdmin;
-                  const clickable = !isRequest && !!n.linkUrl;
+                  /* Message alerts open the conversation instead of a page. */
+                  const clickable = !isRequest && (!!n.linkUrl || (n.type === 'MESSAGE' && !!n.entityId));
                   return (
                     <div
                       key={n.id}

@@ -112,10 +112,12 @@ export class PlayersController {
   @Patch(':id')
   @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: 'Update player profile (athletes: their own personal information only)' })
-  update(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdatePlayerDto) {
+  async update(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdatePlayerDto) {
     assertPlayerOwnership(req, id);
     if (req.user?.role === 'PLAYER') {
-      return this.playersService.update(id, athleteEditableFields(dto));
+      const saved = await this.playersService.update(id, athleteEditableFields(dto));
+      void this.playersService.notifyCoachesOfAthleteEdit(id, 'profile');
+      return saved;
     }
     return this.playersService.update(id, dto);
   }
@@ -135,13 +137,15 @@ export class PlayersController {
   @Patch(':id/season-stats')
   @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: "Replace an athlete's season stats (athletes: their own)" })
-  setSeasonStats(
+  async setSeasonStats(
     @Request() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() dto: { stats: unknown },
   ) {
     assertPlayerOwnership(req, id);
-    return this.playersService.setSeasonStats(id, dto?.stats);
+    const saved = await this.playersService.setSeasonStats(id, dto?.stats);
+    if (req.user?.role === 'PLAYER') void this.playersService.notifyCoachesOfAthleteEdit(id, 'stats');
+    return saved;
   }
 
   @Patch(':id/hidden-tabs')
