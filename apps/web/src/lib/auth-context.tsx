@@ -67,11 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       setUser(authUser);
       localStorage.setItem('auth_user', JSON.stringify(authUser));
-    } catch {
-      // Token invalid/expired → clear the session.
-      setAuthToken(null);
-      localStorage.removeItem('auth_user');
-      setUser(null);
+    } catch (e) {
+      /* Only a 401 means the session is really over (expired, revoked,
+         signed out everywhere). A network blip, a 5xx or the API restarting
+         during a deploy must NOT sign the person out -- keep the cached
+         session and let the next request try again. */
+      if ((e as { status?: number })?.status === 401) {
+        setAuthToken(null);
+        localStorage.removeItem('auth_user');
+        setUser(null);
+      }
     }
   }, []);
 

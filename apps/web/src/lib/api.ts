@@ -66,7 +66,11 @@ async function toError(res: Response): Promise<Error> {
     const parsed = JSON.parse(body);
     if (parsed.message) msg = parsed.message;
   } catch { /* use raw body */ }
-  return new Error(msg);
+  /* Carry the HTTP status so callers can tell "not signed in" (401) from a
+     server that is down or restarting. */
+  const err = new Error(msg) as Error & { status?: number };
+  err.status = res.status;
+  return err;
 }
 
 // ---- Types ----
