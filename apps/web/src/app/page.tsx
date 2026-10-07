@@ -365,7 +365,8 @@ export default function DashboardPage() {
         eyebrow="Coach Dashboard"
         title="Assess, Train,"
         titleAccent="Perform"
-        readout="Live"
+        compact
+        actionsOnTitleLine
         actions={<MessagesLauncher />}
       />
 
@@ -423,10 +424,7 @@ export default function DashboardPage() {
             post; the posts themselves are the lighter cards inside it. */}
         <section className={styles.announceBubble} aria-label="Announcements and Spotlights">
           <div className={styles.feedHeader}>
-            <div className={styles.feedTitle}>
-              Announcements &amp; Spotlights
-              <span className={styles.feedBadge}>{posts.length}</span>
-            </div>
+            <div className={styles.feedTitle}>Announcements &amp; Spotlights</div>
           </div>
 
           {/* ── Urgent, unflagged ──
@@ -441,6 +439,7 @@ export default function DashboardPage() {
               onEdit={setEditingPost}
               onFlagSeen={handleFlagSeen}
               title="Urgent"
+              hideCount
             />
           )}
 

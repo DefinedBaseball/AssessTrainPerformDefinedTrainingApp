@@ -19,6 +19,11 @@ interface PageHeaderProps {
   readout?: string;
   /** Variant: 'bar' (default, compact) | 'hero' (larger display title). */
   size?: 'bar' | 'hero';
+  /** Hero only: tighter vertical padding (coach dashboard). */
+  compact?: boolean;
+  /** Put the actions on the title's line, vertically centred on it, instead
+   *  of in the top-right stack. They don't add to the row's height. */
+  actionsOnTitleLine?: boolean;
 }
 
 export function PageHeader({
@@ -29,35 +34,46 @@ export function PageHeader({
   actions,
   readout,
   size = 'bar',
+  compact = false,
+  actionsOnTitleLine = false,
 }: PageHeaderProps) {
+  const inlineActions = actionsOnTitleLine && !!actions;
+  const heading = (
+    <h1 className={styles.title}>
+      {title}
+      {titleAccent && (
+        <>
+          {' '}
+          <span className={styles.titleAccent}>{titleAccent}</span>
+        </>
+      )}
+    </h1>
+  );
   return (
     <header
-      className={`${styles.pageHeader} ${size === 'hero' ? styles.hero : ''}`}
+      className={`${styles.pageHeader} ${size === 'hero' ? styles.hero : ''} ${compact ? styles.compact : ''}`}
     >
       {/* Decorative corner glow */}
       <span className={styles.cornerGlow} aria-hidden="true" />
 
       <div className={styles.headerRow}>
-        <div className={styles.titleBlock}>
+        <div className={`${styles.titleBlock} ${inlineActions ? styles.titleBlockFull : ''}`}>
           {eyebrow && (
             <div className={styles.eyebrow}>
               <i className={styles.tick} aria-hidden="true" />
               <span>{eyebrow}</span>
             </div>
           )}
-          <h1 className={styles.title}>
-            {title}
-            {titleAccent && (
-              <>
-                {' '}
-                <span className={styles.titleAccent}>{titleAccent}</span>
-              </>
-            )}
-          </h1>
+          {inlineActions ? (
+            <div className={styles.titleLine}>
+              {heading}
+              <div className={styles.inlineActions}>{actions}</div>
+            </div>
+          ) : heading}
           {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
         </div>
 
-        {(readout || actions) && (
+        {(readout || (actions && !inlineActions)) && (
           <div className={styles.sideStack}>
             {readout && (
               <div className={styles.readout} aria-hidden="true">
@@ -65,7 +81,7 @@ export function PageHeader({
                 <span>{readout}</span>
               </div>
             )}
-            {actions && <div className={styles.actions}>{actions}</div>}
+            {actions && !inlineActions && <div className={styles.actions}>{actions}</div>}
           </div>
         )}
       </div>

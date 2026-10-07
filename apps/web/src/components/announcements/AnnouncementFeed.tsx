@@ -223,6 +223,7 @@ export function AnnouncementFeed({
   title = 'Announcements & Spotlights',
   emptyHint = true,
   hideHeader = false,
+  hideCount = false,
 }: {
   posts: PostItem[];
   isCoach: boolean;
@@ -236,6 +237,8 @@ export function AnnouncementFeed({
   emptyHint?: boolean;
   /** Skip the heading -- the coach dashboard's bubble carries its own. */
   hideHeader?: boolean;
+  /** Heading without the post count. */
+  hideCount?: boolean;
 }) {
   if (posts.length === 0) {
     return (
@@ -263,7 +266,7 @@ export function AnnouncementFeed({
         <div className={styles.feedHeader}>
           <div className={styles.feedTitle}>
             {title}
-            <span className={styles.feedBadge}>{posts.length}</span>
+            {!hideCount && <span className={styles.feedBadge}>{posts.length}</span>}
           </div>
         </div>
       )}

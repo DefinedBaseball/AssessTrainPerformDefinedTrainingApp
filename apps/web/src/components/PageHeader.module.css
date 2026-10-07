@@ -268,3 +268,27 @@
   .pageHeader.hero .sideStack { align-items: flex-end; width: auto; }
   .pageHeader.hero .actions { width: auto; }
 }
+
+/* ── Compact hero + actions on the title line (coach dashboard) ──
+   Shorter top/bottom padding, and the actions (bell + messages) centred on
+   the title's line. .inlineActions is zero-height so the buttons centre on
+   the title without making the row taller. */
+.pageHeader.hero.compact { padding: 18px 32px 15px; }
+.titleBlockFull { flex: 1 1 auto; }
+.titleLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.inlineActions {
+  height: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .pageHeader.hero.compact { padding: 14px 18px 12px; }
+}

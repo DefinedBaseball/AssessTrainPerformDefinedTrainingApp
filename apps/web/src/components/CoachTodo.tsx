@@ -124,7 +124,6 @@ export function CoachTodo() {
 
   const visible = rows.filter((r) => (view === 'finished' ? r.finished : !r.finished));
   const finishedCount = rows.filter((r) => r.finished).length;
-  const currentCount = rows.length - finishedCount;
 
   const toggleDone = async (id: string, done: boolean) => {
     setBusyId(id);
@@ -154,7 +153,6 @@ export function CoachTodo() {
       <div className={styles.head}>
         <div className={styles.titleWrap}>
           <h2 className={styles.title}>To Do</h2>
-          <span className={styles.count}>{view === 'current' ? currentCount : finishedCount}</span>
         </div>
         <div className={styles.headActions}>
           {isAdmin && (
