@@ -25,6 +25,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { InquiriesModule } from './modules/inquiries/inquiries.module';
 import { VendorContactsModule } from './modules/vendor-contacts/vendor-contacts.module';
 import { AcademyModule } from './modules/academy/academy.module';
+import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { AcademyModule } from './modules/academy/academy.module';
     NotificationsModule,
     InquiriesModule,
     VendorContactsModule,
+    CoachTasksModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

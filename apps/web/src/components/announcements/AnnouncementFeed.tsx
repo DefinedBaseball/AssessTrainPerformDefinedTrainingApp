@@ -222,6 +222,7 @@ export function AnnouncementFeed({
   onFlagSeen,
   title = 'Announcements & Spotlights',
   emptyHint = true,
+  hideHeader = false,
 }: {
   posts: PostItem[];
   isCoach: boolean;
@@ -233,15 +234,19 @@ export function AnnouncementFeed({
   /** Heading — the pinned row overrides it with its own. */
   title?: string;
   emptyHint?: boolean;
+  /** Skip the heading -- the coach dashboard's bubble carries its own. */
+  hideHeader?: boolean;
 }) {
   if (posts.length === 0) {
     return (
       <div className={styles.feedSection}>
-        <div className={styles.feedHeader}>
-          <div className={styles.feedTitle}>
-            {title}
+        {!hideHeader && (
+          <div className={styles.feedHeader}>
+            <div className={styles.feedTitle}>
+              {title}
+            </div>
           </div>
-        </div>
+        )}
         <div className={styles.feedEmpty}>
           No announcements yet.
           {isCoach && emptyHint && <span style={{ display: 'block', fontSize: 12, marginTop: 4, color: 'var(--faint)' }}>
@@ -254,12 +259,14 @@ export function AnnouncementFeed({
 
   return (
     <div className={styles.feedSection}>
-      <div className={styles.feedHeader}>
-        <div className={styles.feedTitle}>
-          {title}
-          <span className={styles.feedBadge}>{posts.length}</span>
+      {!hideHeader && (
+        <div className={styles.feedHeader}>
+          <div className={styles.feedTitle}>
+            {title}
+            <span className={styles.feedBadge}>{posts.length}</span>
+          </div>
         </div>
-      </div>
+      )}
       <div className={styles.feedList}>
         {posts.map(post => {
           const typeLabel = postTypeLabel(post.type);

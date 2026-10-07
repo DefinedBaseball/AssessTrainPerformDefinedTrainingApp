@@ -1169,6 +1169,43 @@ export async function saveVendorContacts(contacts: Pick<VendorContact, 'source' 
   return request<VendorContact[]>('/vendor-contacts', { method: 'PUT', body: JSON.stringify({ contacts }) });
 }
 
+// ---- Coach To Do list (coach dashboard) ----
+
+export type CoachTaskColumn = 'URGENT' | 'LONG_TERM' | 'DAILY' | 'WEEKLY';
+
+export interface CoachTask {
+  id: string;
+  title: string;
+  column: CoachTaskColumn;
+  allCoaches: boolean;
+  assigneeIds: string[];
+  /** One per coach who has checked it off (latest check). */
+  completions: Array<{ userId: string; completedAt: string }>;
+  createdAt: string;
+}
+
+export interface CoachTaskBoard {
+  tasks: CoachTask[];
+  /** Active coaches -- who "All Coaches" covers. */
+  coaches: Array<{ id: string; name: string | null; email: string }>;
+}
+
+export async function getCoachTasks() {
+  return request<CoachTaskBoard>('/coach-tasks');
+}
+
+export async function createCoachTask(input: { title: string; column: CoachTaskColumn; allCoaches: boolean; assigneeIds: string[] }) {
+  return request<CoachTaskBoard>('/coach-tasks', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function deleteCoachTask(id: string) {
+  return request<CoachTaskBoard>(`/coach-tasks/${id}`, { method: 'DELETE' });
+}
+
+export async function setCoachTaskDone(id: string, done: boolean) {
+  return request<CoachTaskBoard>(`/coach-tasks/${id}/done`, { method: done ? 'POST' : 'DELETE' });
+}
+
 // ---- Academy settings (Settings → Academy; admins) ----
 
 export interface AcademyContact {

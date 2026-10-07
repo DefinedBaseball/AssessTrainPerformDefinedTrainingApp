@@ -9,6 +9,7 @@ import * as api from '@/lib/api';
 import type { Player, PostItem } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { MessagesLauncher } from '@/components/MessagesLauncher';
+import { CoachTodo } from '@/components/CoachTodo';
 import { RichTextEditor } from '@/components/RichTextEditor';
 /* The feed + edit modal now live in the bell's Announcements tab; the
    dashboard keeps only post CREATION, which still needs these two. */
@@ -368,8 +369,8 @@ export default function DashboardPage() {
         actions={<MessagesLauncher />}
       />
 
-      {/* ── Content ── */}
-      <div className={styles.content}>
+      {/* ── Content ── (coachContent halves the gap under the hero) */}
+      <div className={`${styles.content} ${styles.coachContent}`}>
         {/* Stat KPIs — the three roster-derived cards show "—" (not a scary 0)
             if the roster couldn't load; Pro Signings is posts-derived. */}
         <div className={styles.statsGrid}>
@@ -377,7 +378,7 @@ export default function DashboardPage() {
               Directory — the full contact list for every athlete. */}
           <Link href="/clients" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
             <div className={styles.statValue}>{playersError ? '—' : players.length}</div>
-            <div className={styles.statLabel}>Total Athletes</div>
+            <div className={styles.statLabel}>Athletes</div>
           </Link>
           {/* Athlete Workouts — today's count, and the way into the full
               day view. A destination like Total Athletes rather than a
@@ -387,7 +388,7 @@ export default function DashboardPage() {
             <div className={styles.statValue}>
               {workoutRows === null ? '—' : workoutRows.length}
             </div>
-            <div className={styles.statLabel}>Athlete Workouts</div>
+            <div className={styles.statLabel}>Attendance</div>
           </Link>
           {/* The last two cards are DESTINATIONS, not counts — same tile
               chrome so the row still reads as one strip, with a glyph
@@ -414,12 +415,25 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Urgent, unflagged ──
-            Pinned directly under the stat cards and held there until THIS
-            coach clicks the flag. Seen state is per coach, so one person
-            clearing it cannot hide it from the rest of the staff. */}
-        {pinnedPosts.length > 0 && (
-          <div style={{ marginTop: 18 }}>
+        {/* ── To Do list ── right under the four tiles. Admins add tasks;
+            each coach checks off their own. */}
+        <CoachTodo />
+
+        {/* ── Announcements & Spotlights ── one darker bubble holding every
+            post; the posts themselves are the lighter cards inside it. */}
+        <section className={styles.announceBubble} aria-label="Announcements and Spotlights">
+          <div className={styles.feedHeader}>
+            <div className={styles.feedTitle}>
+              Announcements &amp; Spotlights
+              <span className={styles.feedBadge}>{posts.length}</span>
+            </div>
+          </div>
+
+          {/* ── Urgent, unflagged ──
+              Pinned at the top and held there until THIS coach clicks the
+              flag. Seen state is per coach, so one person clearing it
+              cannot hide it from the rest of the staff. */}
+          {pinnedPosts.length > 0 && (
             <AnnouncementFeed
               posts={pinnedPosts}
               isCoach
@@ -428,22 +442,23 @@ export default function DashboardPage() {
               onFlagSeen={handleFlagSeen}
               title="Urgent"
             />
-          </div>
-        )}
+          )}
 
-        {/* ── Everything else ──
-            Suppressed while the only posts there are sit pinned above, so
-            the page never says "No announcements yet" directly under one. */}
-        {(normalPosts.length > 0 || pinnedPosts.length === 0) && (
-        <div style={{ marginTop: 18 }}>
-          <AnnouncementFeed
-            posts={normalPosts}
-            isCoach
-            onDelete={handleDeletePost}
-            onEdit={setEditingPost}
-          />
-        </div>
-        )}
+          {/* ── Everything else ──
+              Suppressed while the only posts there are sit pinned above, so
+              the page never says "No announcements yet" directly under one. */}
+          {(normalPosts.length > 0 || pinnedPosts.length === 0) && (
+            <div style={{ marginTop: pinnedPosts.length > 0 ? 18 : 0 }}>
+              <AnnouncementFeed
+                posts={normalPosts}
+                isCoach
+                onDelete={handleDeletePost}
+                onEdit={setEditingPost}
+                hideHeader
+              />
+            </div>
+          )}
+        </section>
       </div>
 
       {/* ── FAB (Coach only) ── */}

@@ -55,6 +55,9 @@ model User {
   messagesReceived    Message[]            @relation("MessagesReceived")
   notifications       Notification[]       @relation("NotificationsReceived")
   passwordResetTokens PasswordResetToken[] @relation("PasswordResetTokens")
+  coachTasksCreated   CoachTask[]           @relation("CoachTaskCreatedBy")
+  coachTaskAssigned   CoachTaskAssignee[]   @relation("CoachTaskAssignee")
+  coachTaskDone       CoachTaskCompletion[] @relation("CoachTaskCompletion")
 }
 
 // ─── Password Reset Tokens ───────────────────────────────────────
@@ -932,4 +935,48 @@ model Inquiry {
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ─── Coach To Do list (coach dashboard) ─────────────────────────────
+// Admins create tasks in one of four columns and assign them to one coach,
+// several, or every coach (allCoaches -- includes coaches added later).
+// Completion is PER COACH: a coach checking a task only finishes it for
+// them. DAILY / WEEKLY completions count only for the current day / week
+// (the web app compares completedAt in the academy time zone), so those
+// tasks come back on their own.
+model CoachTask {
+  id          String   @id @default(uuid())
+  title       String
+  column      String // "URGENT" | "LONG_TERM" | "DAILY" | "WEEKLY"
+  allCoaches  Boolean  @default(false)
+  createdById String?
+  createdBy   User?    @relation("CoachTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignees   CoachTaskAssignee[]
+  completions CoachTaskCompletion[]
+
+  @@index([column])
+}
+
+model CoachTaskAssignee {
+  taskId String
+  userId String
+  task   CoachTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User      @relation("CoachTaskAssignee", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model CoachTaskCompletion {
+  taskId      String
+  userId      String
+  completedAt DateTime  @default(now())
+  task        CoachTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User      @relation("CoachTaskCompletion", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
 }

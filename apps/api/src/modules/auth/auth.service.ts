@@ -570,6 +570,9 @@ export class AuthService {
       await tx.postSeen.deleteMany({ where: { userId: target.id } });
       await tx.post.deleteMany({ where: { authorId: target.id } });
       await tx.user.delete({ where: { id: target.id } });
+      /* Their To Do assignments went with them (cascade); a task that was
+         theirs alone now belongs to no one, so drop it. */
+      await tx.coachTask.deleteMany({ where: { allCoaches: false, assignees: { none: {} } } });
     });
     return { ok: true, deleted: target.email };
   }
