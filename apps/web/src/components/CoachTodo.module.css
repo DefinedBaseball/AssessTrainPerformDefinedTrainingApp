@@ -277,3 +277,12 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* Web (wider than a phone): task bubbles ~30% shorter -- tighter top/bottom
+   padding and line spacing; same text sizes. Phones keep the roomier size. */
+@media (min-width: 769px) {
+  .task { padding-top: 4px; padding-bottom: 4px; }
+  .task .taskText { gap: 0; }
+  .task .taskTitle { line-height: 1.15; }
+  .task .taskMeta { line-height: 1.3; }
+}

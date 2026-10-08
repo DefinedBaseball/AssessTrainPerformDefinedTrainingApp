@@ -67,7 +67,7 @@ export function CoachTodo() {
   const load = useCallback(() => {
     api.getCoachTasks()
       .then((b) => { setBoard(b); setError(''); })
-      .catch((e) => setError(e?.message || 'Could not load the To Do list'));
+      .catch((e) => setError(e?.message || 'Could not load tasks'));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -112,10 +112,10 @@ export function CoachTodo() {
   };
 
   return (
-    <section className={styles.card} aria-label="To Do list">
+    <section className={styles.card} aria-label="Tasks">
       <div className={styles.head}>
         <div className={styles.titleWrap}>
-          <h2 className={styles.title}>To Do</h2>
+          <h2 className={styles.title}>Tasks</h2>
         </div>
         <div className={styles.headActions}>
           {isAdmin && (

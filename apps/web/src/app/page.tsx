@@ -422,9 +422,9 @@ export default function DashboardPage() {
 
         {/* ── Announcements & Spotlights ── one darker bubble holding every
             post; the posts themselves are the lighter cards inside it. */}
-        <section className={styles.announceBubble} aria-label="Announcements and Spotlights">
+        <section className={styles.announceBubble} aria-label="Announcements">
           <div className={styles.feedHeader}>
-            <div className={styles.feedTitle}>Announcements &amp; Spotlights</div>
+            <div className={styles.feedTitle}>Announcements</div>
           </div>
 
           {/* ── Urgent, unflagged ──

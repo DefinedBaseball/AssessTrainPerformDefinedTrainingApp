@@ -220,7 +220,7 @@ export function AnnouncementFeed({
   onDelete,
   onEdit,
   onFlagSeen,
-  title = 'Announcements & Spotlights',
+  title = 'Announcements',
   emptyHint = true,
   hideHeader = false,
   hideCount = false,
