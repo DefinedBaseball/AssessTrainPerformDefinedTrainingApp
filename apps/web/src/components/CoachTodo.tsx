@@ -2,46 +2,32 @@
 
 /* Coach To Do list -- the coach dashboard, right under the four tiles.
 
-   Four columns: Urgent, Long Term, Daily, Weekly. Admins add tasks (+) and
-   assign them to one coach, several, or All Coaches; everyone sees every
-   task, coloured by who it's for.
+   One column per coach (Jacob, Connor, Daniel, Cameron, then anyone added
+   later). Admins add tasks (+) for All Coaches, one coach or several; a
+   task shows in the column of every coach it's assigned to, and each
+   column shows THAT coach's own copy -- checking it moves it to Finished
+   for that coach only (only the coach can check their own). Everyone sees
+   every column.
 
-   Finishing is PER COACH: checking a task moves it to Finished on your
-   dashboard only -- the other assigned coaches still have it until they
-   check it too. A coach who isn't assigned sees it finished once every
-   assigned coach has. Daily tasks come back each day and Weekly each
-   Monday (academy time zone): a check only counts for the current day /
-   week. */
+   Colour = task type: Urgent red, Priority orange, General Task green,
+   Reminder blue. */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { tzDayKey, tzOpt } from '@/lib/academy';
 import styles from './CoachTodo.module.css';
 
-const COLUMNS: Array<{ key: api.CoachTaskColumn; label: string; hint: string }> = [
-  { key: 'URGENT', label: 'Urgent', hint: 'Do these first' },
-  { key: 'LONG_TERM', label: 'Long Term', hint: 'Bigger projects' },
-  { key: 'DAILY', label: 'Daily', hint: 'Comes back every day' },
-  { key: 'WEEKLY', label: 'Weekly', hint: 'Comes back every Monday' },
+export const TASK_TYPES: Array<{ key: api.CoachTaskType; label: string; bg: string }> = [
+  { key: 'URGENT', label: 'Urgent', bg: '#c8102e' },
+  { key: 'PRIORITY', label: 'Priority', bg: '#e8700f' },
+  { key: 'GENERAL', label: 'General Task', bg: '#15803d' },
+  { key: 'REMINDER', label: 'Reminder', bg: '#2563eb' },
 ];
+const TYPE_ORDER = TASK_TYPES.map((t) => t.key);
+const typeOf = (key: string) => TASK_TYPES.find((t) => t.key === key) ?? TASK_TYPES[2];
 
-/* ── Colours ─────────────────────────────────────────────────────────── */
-
-interface TaskTheme { bg: string; fg: string; label: string }
-
-const BLACK = { bg: '#000000', fg: '#ffffff' };
-const GREY = { bg: '#6b7280', fg: '#ffffff' };
-const SOLO: Record<string, { bg: string; fg: string }> = {
-  connor: { bg: '#1b2a4e', fg: '#ffffff' }, // navy
-  daniel: { bg: '#7b1e2e', fg: '#ffffff' }, // maroon
-  cameron: { bg: '#6b2fa3', fg: '#ffffff' }, // purple
-  jacob: { bg: '#c8102e', fg: '#ffffff' }, // red
-};
-const HITTING = ['connor', 'daniel'];
-const PITCHING = ['jacob', 'cameron'];
-const ROYAL = { bg: '#2a5bd7', fg: '#ffffff' };
-const ORANGE = { bg: '#e8700f', fg: '#ffffff' };
+/* Column order the academy asked for; anyone else follows alphabetically. */
+const COACH_ORDER = ['jacob', 'connor', 'daniel', 'cameron'];
 
 type Coach = api.CoachTaskBoard['coaches'][number];
 
@@ -49,39 +35,24 @@ function displayName(c: Coach): string {
   return c.name?.trim().split(/\s+/)[0] || c.email.split('@')[0];
 }
 
-export function taskTheme(allCoaches: boolean, assigneeIds: string[], coaches: Coach[]): TaskTheme {
-  if (allCoaches) return { ...BLACK, label: 'All Coaches' };
-  const people = assigneeIds
+function orderCoaches(coaches: Coach[]): Coach[] {
+  const rank = (c: Coach) => {
+    const i = COACH_ORDER.indexOf(displayName(c).toLowerCase());
+    return i === -1 ? COACH_ORDER.length : i;
+  };
+  return [...coaches].sort((a, b) => rank(a) - rank(b) || displayName(a).localeCompare(displayName(b)));
+}
+
+/** Who else shares a task, for the small line under its name. */
+function sharedLabel(task: api.CoachTask, columnCoachId: string, coaches: Coach[]): string {
+  if (task.allCoaches) return 'All Coaches';
+  const others = task.assigneeIds
+    .filter((id) => id !== columnCoachId)
     .map((id) => coaches.find((c) => c.id === id))
-    .filter((c): c is Coach => !!c);
-  const keys = people.map((c) => displayName(c).toLowerCase());
-  if (people.length === 0) return { ...GREY, label: 'Unassigned' };
-  if (people.length === 1) return { ...(SOLO[keys[0]] ?? GREY), label: displayName(people[0]) };
-  if (keys.every((k) => HITTING.includes(k))) return { ...ROYAL, label: 'Hitting Coaches' };
-  if (keys.every((k) => PITCHING.includes(k))) return { ...ORANGE, label: 'Pitching Coaches' };
-  return { ...GREY, label: people.map(displayName).join(' & ') };
+    .filter((c): c is Coach => !!c)
+    .map(displayName);
+  return others.length ? `With ${others.join(', ')}` : '';
 }
-
-/* ── Daily / weekly reset ────────────────────────────────────────────── */
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-/** YYYY-MM-DD of the Monday starting the week `d` falls in (academy zone). */
-function weekKey(d: Date): string {
-  const [y, m, day] = tzDayKey(d).split('-').map(Number);
-  const offset = Math.max(0, WEEKDAYS.indexOf(d.toLocaleDateString('en-US', { ...tzOpt(), weekday: 'short' })));
-  return new Date(Date.UTC(y, m - 1, day - offset)).toISOString().slice(0, 10);
-}
-
-/** Does a check made at `completedAt` still count right now? */
-function stillCounts(column: api.CoachTaskColumn, completedAt: string, now: Date): boolean {
-  const at = new Date(completedAt);
-  if (column === 'DAILY') return tzDayKey(at) === tzDayKey(now);
-  if (column === 'WEEKLY') return weekKey(at) === weekKey(now);
-  return true;
-}
-
-/* ── Component ───────────────────────────────────────────────────────── */
 
 export function CoachTodo() {
   const { user, isAdmin } = useAuth();
@@ -92,13 +63,6 @@ export function CoachTodo() {
   const [adding, setAdding] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  /* Re-evaluated every minute so Daily / Weekly tasks reappear at the
-     turnover without a reload. */
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(t);
-  }, []);
 
   const load = useCallback(() => {
     api.getCoachTasks()
@@ -107,23 +71,22 @@ export function CoachTodo() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const rows = useMemo(() => {
+  /* One column per coach, each holding that coach's copy of every task
+     assigned to them, sorted Urgent → Priority → General → Reminder. */
+  const columns = useMemo(() => {
     if (!board) return [];
-    const activeIds = board.coaches.map((c) => c.id);
-    return board.tasks.map((t) => {
-      const assigned = t.allCoaches ? activeIds : t.assigneeIds;
-      const doneBy = new Set(
-        t.completions.filter((c) => stillCounts(t.column, c.completedAt, now)).map((c) => c.userId),
-      );
-      const mine = t.allCoaches || t.assigneeIds.includes(me);
-      const doneCount = assigned.filter((id) => doneBy.has(id)).length;
-      const finished = mine ? doneBy.has(me) : assigned.length > 0 && doneCount === assigned.length;
-      return { task: t, mine, finished, doneCount, total: assigned.length, theme: taskTheme(t.allCoaches, t.assigneeIds, board.coaches) };
+    return orderCoaches(board.coaches).map((coach) => {
+      const items = board.tasks
+        .filter((t) => t.allCoaches || t.assigneeIds.includes(coach.id))
+        .map((t) => ({ task: t, done: t.completions.some((c) => c.userId === coach.id) }))
+        .sort((a, b) =>
+          TYPE_ORDER.indexOf(a.task.column) - TYPE_ORDER.indexOf(b.task.column)
+          || a.task.createdAt.localeCompare(b.task.createdAt));
+      return { coach, items };
     });
-  }, [board, me, now]);
+  }, [board]);
 
-  const visible = rows.filter((r) => (view === 'finished' ? r.finished : !r.finished));
-  const finishedCount = rows.filter((r) => r.finished).length;
+  const finishedCount = columns.reduce((n, col) => n + col.items.filter((i) => i.done).length, 0);
 
   const toggleDone = async (id: string, done: boolean) => {
     setBusyId(id);
@@ -183,63 +146,82 @@ export function CoachTodo() {
         </div>
       </div>
 
+      {/* Colour key */}
+      <div className={styles.legend} aria-label="Task types">
+        {TASK_TYPES.map((t) => (
+          <span key={t.key} className={styles.legendItem}>
+            <i className={styles.legendDot} style={{ background: t.bg }} aria-hidden="true" />
+            {t.label}
+          </span>
+        ))}
+      </div>
+
       {error && <div className={styles.error} role="alert">{error}</div>}
 
       {!board ? (
         <div className={styles.empty}>{error ? '' : 'Loading…'}</div>
+      ) : columns.length === 0 ? (
+        <div className={styles.empty}>No active coaches yet.</div>
       ) : (
-        <div className={styles.columns}>
-          {COLUMNS.map((col) => {
-            const items = visible.filter((r) => r.task.column === col.key);
+        <div className={styles.columns} style={{ '--cols': Math.min(columns.length, 4) } as React.CSSProperties}>
+          {columns.map(({ coach, items }) => {
+            const shown = items.filter((i) => (view === 'finished' ? i.done : !i.done));
+            const isMe = coach.id === me;
             return (
-              <div key={col.key} className={styles.column}>
+              <div key={coach.id} className={styles.column}>
                 <div className={styles.columnHead}>
-                  <span className={styles.columnTitle}>{col.label}</span>
-                  <span className={styles.columnHint}>{col.hint}</span>
+                  <span className={styles.columnTitle}>{displayName(coach)}{isMe ? ' (you)' : ''}</span>
+                  <span className={styles.columnHint}>
+                    {items.filter((i) => !i.done).length} open
+                  </span>
                 </div>
-                {items.length === 0 ? (
+                {shown.length === 0 ? (
                   <div className={styles.columnEmpty}>{view === 'current' ? 'All clear' : 'Nothing finished yet'}</div>
                 ) : (
                   <ul className={styles.list}>
-                    {items.map(({ task, mine, finished, doneCount, total, theme }) => (
-                      <li key={task.id} className={styles.task} style={{ background: theme.bg, color: theme.fg }}>
-                        <button
-                          type="button"
-                          className={`${styles.check} ${finished ? styles.checkOn : ''}`}
-                          style={{ borderColor: theme.fg, color: theme.bg, background: finished ? theme.fg : 'transparent' }}
-                          onClick={() => mine && void toggleDone(task.id, !finished)}
-                          disabled={!mine || busyId === task.id}
-                          aria-label={finished ? `Move "${task.title}" back to current` : `Mark "${task.title}" finished`}
-                          title={mine ? (finished ? 'Move back to current' : 'Mark finished') : `Assigned to ${theme.label}`}
-                        >
-                          {finished ? '✓' : ''}
-                        </button>
-                        <div className={styles.taskText}>
-                          <span className={styles.taskTitle}>{task.title}</span>
-                          <span className={styles.taskMeta}>
-                            {theme.label}
-                            {total > 1 && ` · ${doneCount}/${total} done`}
-                          </span>
-                        </div>
-                        {isAdmin && (confirmDeleteId === task.id ? (
-                          <span className={styles.confirm}>
-                            <button type="button" onClick={() => void remove(task.id)} disabled={busyId === task.id}>Delete</button>
-                            <button type="button" onClick={() => setConfirmDeleteId(null)}>Keep</button>
-                          </span>
-                        ) : (
+                    {shown.map(({ task, done }) => {
+                      const type = typeOf(task.column);
+                      const shared = sharedLabel(task, coach.id, board.coaches);
+                      const key = `${coach.id}:${task.id}`;
+                      return (
+                        <li key={key} className={styles.task} style={{ background: type.bg, color: '#ffffff' }}>
                           <button
                             type="button"
-                            className={styles.deleteBtn}
-                            style={{ color: theme.fg }}
-                            onClick={() => setConfirmDeleteId(task.id)}
-                            aria-label={`Delete "${task.title}"`}
-                            title="Delete task"
+                            className={`${styles.check} ${done ? styles.checkOn : ''}`}
+                            style={{ borderColor: '#ffffff', color: type.bg, background: done ? '#ffffff' : 'transparent' }}
+                            onClick={() => isMe && void toggleDone(task.id, !done)}
+                            disabled={!isMe || busyId === task.id}
+                            aria-label={done ? `Move "${task.title}" back to current` : `Mark "${task.title}" finished`}
+                            title={isMe ? (done ? 'Move back to current' : 'Mark finished') : `Only ${displayName(coach)} can check this off`}
                           >
-                            ×
+                            {done ? '✓' : ''}
                           </button>
-                        ))}
-                      </li>
-                    ))}
+                          <div className={styles.taskText}>
+                            <span className={styles.taskTitle}>{task.title}</span>
+                            <span className={styles.taskMeta}>
+                              {type.label}{shared ? ` · ${shared}` : ''}
+                            </span>
+                          </div>
+                          {isAdmin && (confirmDeleteId === key ? (
+                            <span className={styles.confirm}>
+                              <button type="button" onClick={() => void remove(task.id)} disabled={busyId === task.id}>Delete</button>
+                              <button type="button" onClick={() => setConfirmDeleteId(null)}>Keep</button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.deleteBtn}
+                              style={{ color: '#ffffff' }}
+                              onClick={() => setConfirmDeleteId(key)}
+                              aria-label={`Delete "${task.title}"`}
+                              title={task.allCoaches || task.assigneeIds.length > 1 ? 'Delete task (for every coach)' : 'Delete task'}
+                            >
+                              ×
+                            </button>
+                          ))}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
@@ -250,7 +232,7 @@ export function CoachTodo() {
 
       {adding && board && (
         <AddTaskDialog
-          coaches={board.coaches}
+          coaches={orderCoaches(board.coaches)}
           onClose={() => setAdding(false)}
           onCreated={(b) => { setBoard(b); setAdding(false); setView('current'); }}
         />
@@ -268,7 +250,7 @@ function AddTaskDialog({
   onClose: () => void;
   onCreated: (b: api.CoachTaskBoard) => void;
 }) {
-  const [column, setColumn] = useState<api.CoachTaskColumn>('URGENT');
+  const [type, setType] = useState<api.CoachTaskType>('URGENT');
   const [title, setTitle] = useState('');
   const [allCoaches, setAllCoaches] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -286,8 +268,11 @@ function AddTaskDialog({
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   };
 
-  const theme = taskTheme(allCoaches, picked, coaches);
+  const t = typeOf(type);
   const ready = title.trim().length > 0 && (allCoaches || picked.length > 0);
+  const who = allCoaches
+    ? 'All Coaches'
+    : picked.map((id) => coaches.find((c) => c.id === id)).filter((c): c is Coach => !!c).map(displayName).join(', ');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,7 +280,7 @@ function AddTaskDialog({
     setSaving(true);
     setError('');
     try {
-      onCreated(await api.createCoachTask({ title: title.trim(), column, allCoaches, assigneeIds: allCoaches ? [] : picked }));
+      onCreated(await api.createCoachTask({ title: title.trim(), column: type, allCoaches, assigneeIds: allCoaches ? [] : picked }));
     } catch (err: any) {
       setError(err?.message || 'Could not add the task');
       setSaving(false);
@@ -310,16 +295,17 @@ function AddTaskDialog({
           <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Close">×</button>
         </div>
 
-        <div className={styles.fieldLabel}>Column</div>
+        <div className={styles.fieldLabel}>Type</div>
         <div className={styles.segment}>
-          {COLUMNS.map((c) => (
+          {TASK_TYPES.map((tt) => (
             <button
-              key={c.key}
+              key={tt.key}
               type="button"
-              className={`${styles.segmentBtn} ${column === c.key ? styles.segmentOn : ''}`}
-              onClick={() => setColumn(c.key)}
+              className={`${styles.segmentBtn} ${type === tt.key ? styles.segmentOn : ''}`}
+              style={type === tt.key ? { background: tt.bg, borderColor: tt.bg, color: '#ffffff' } : undefined}
+              onClick={() => setType(tt.key)}
             >
-              {c.label}
+              <i className={styles.legendDot} style={{ background: tt.bg }} aria-hidden="true" /> {tt.label}
             </button>
           ))}
         </div>
@@ -342,7 +328,7 @@ function AddTaskDialog({
             className={`${styles.chip} ${allCoaches ? styles.chipOn : ''}`}
             onClick={() => { setAllCoaches((v) => !v); setPicked([]); }}
           >
-            All Coaches
+            All
           </button>
           {coaches.map((c) => (
             <button
@@ -358,11 +344,11 @@ function AddTaskDialog({
         </div>
 
         {(allCoaches || picked.length > 0) && (
-          <div className={styles.preview} style={{ background: theme.bg, color: theme.fg }}>
-            <span className={styles.check} style={{ borderColor: theme.fg }} aria-hidden="true" />
+          <div className={styles.preview} style={{ background: t.bg, color: '#ffffff' }}>
+            <span className={styles.check} style={{ borderColor: '#ffffff' }} aria-hidden="true" />
             <div className={styles.taskText}>
               <span className={styles.taskTitle}>{title.trim() || 'Your task'}</span>
-              <span className={styles.taskMeta}>{theme.label}</span>
+              <span className={styles.taskMeta}>{t.label} · {who}</span>
             </div>
           </div>
         )}

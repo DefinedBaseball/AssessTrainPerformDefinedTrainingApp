@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.util';
 
@@ -7,14 +7,34 @@ import type { JwtPayload } from '../auth/jwt.util';
    every task -- the web app colours them by who they're assigned to and
    works out "finished" per viewer (incl. the daily / weekly reset). */
 
-export const TASK_COLUMNS = ['URGENT', 'LONG_TERM', 'DAILY', 'WEEKLY'] as const;
+/* Task TYPE (stored in the `column` field): sets the task's colour on the
+   board, whose columns are now one per coach. */
+export const TASK_COLUMNS = ['URGENT', 'PRIORITY', 'GENERAL', 'REMINDER'] as const;
 export type TaskColumn = (typeof TASK_COLUMNS)[number];
+
+/* The board's first version used time-based columns. Existing tasks are
+   converted once at startup (idempotent): Long Term → General Task,
+   Daily / Weekly → Reminder. Urgent stays Urgent. */
+const LEGACY_TYPES: Record<string, TaskColumn> = { LONG_TERM: 'GENERAL', DAILY: 'REMINDER', WEEKLY: 'REMINDER' };
 
 const MAX_TITLE = 200;
 
 @Injectable()
-export class CoachTasksService {
+export class CoachTasksService implements OnModuleInit {
+  private readonly logger = new Logger(CoachTasksService.name);
+
   constructor(private prisma: PrismaService) {}
+
+  async onModuleInit() {
+    try {
+      for (const [from, to] of Object.entries(LEGACY_TYPES)) {
+        const r = await this.prisma.coachTask.updateMany({ where: { column: from }, data: { column: to } });
+        if (r.count) this.logger.log(`Converted ${r.count} To Do task(s) ${from} → ${to}`);
+      }
+    } catch (err) {
+      this.logger.warn(`To Do type conversion skipped: ${err}`);
+    }
+  }
 
   /** Active coaches -- who "All Coaches" means, and the assign picker. */
   private activeCoaches() {
@@ -58,7 +78,7 @@ export class CoachTasksService {
     if (title.length > MAX_TITLE) throw new BadRequestException('Task name is too long');
 
     const column = b.column as TaskColumn;
-    if (!TASK_COLUMNS.includes(column)) throw new BadRequestException('Choose a column');
+    if (!TASK_COLUMNS.includes(column)) throw new BadRequestException('Choose a task type');
 
     const allCoaches = b.allCoaches === true;
     let assigneeIds: string[] = [];

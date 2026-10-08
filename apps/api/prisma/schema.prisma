@@ -973,16 +973,15 @@ model Inquiry {
 }
 
 // ─── Coach To Do list (coach dashboard) ─────────────────────────────
-// Admins create tasks in one of four columns and assign them to one coach,
-// several, or every coach (allCoaches -- includes coaches added later).
-// Completion is PER COACH: a coach checking a task only finishes it for
-// them. DAILY / WEEKLY completions count only for the current day / week
-// (the web app compares completedAt in the academy time zone), so those
-// tasks come back on their own.
+// Admins create tasks of a TYPE (Urgent / Priority / General / Reminder --
+// the colour) and assign them to one coach, several, or every coach
+// (allCoaches -- includes coaches added later). The board shows one column
+// per coach. Completion is PER COACH: a coach checking a task only
+// finishes their own copy.
 model CoachTask {
   id          String   @id @default(uuid())
   title       String
-  column      String // "URGENT" | "LONG_TERM" | "DAILY" | "WEEKLY"
+  column      String // task TYPE: "URGENT" | "PRIORITY" | "GENERAL" | "REMINDER"
   allCoaches  Boolean  @default(false)
   createdById String?
   createdBy   User?    @relation("CoachTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)

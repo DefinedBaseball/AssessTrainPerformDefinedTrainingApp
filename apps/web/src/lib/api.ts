@@ -1175,12 +1175,15 @@ export async function saveVendorContacts(contacts: Pick<VendorContact, 'source' 
 
 // ---- Coach To Do list (coach dashboard) ----
 
-export type CoachTaskColumn = 'URGENT' | 'LONG_TERM' | 'DAILY' | 'WEEKLY';
+/** Task type -- sets its colour on the board. (Stored in `column`.) */
+export type CoachTaskType = 'URGENT' | 'PRIORITY' | 'GENERAL' | 'REMINDER';
+/** @deprecated old name for CoachTaskType */
+export type CoachTaskColumn = CoachTaskType;
 
 export interface CoachTask {
   id: string;
   title: string;
-  column: CoachTaskColumn;
+  column: CoachTaskType;
   allCoaches: boolean;
   assigneeIds: string[];
   /** One per coach who has checked it off (latest check). */
@@ -1198,7 +1201,7 @@ export async function getCoachTasks() {
   return request<CoachTaskBoard>('/coach-tasks');
 }
 
-export async function createCoachTask(input: { title: string; column: CoachTaskColumn; allCoaches: boolean; assigneeIds: string[] }) {
+export async function createCoachTask(input: { title: string; column: CoachTaskType; allCoaches: boolean; assigneeIds: string[] }) {
   return request<CoachTaskBoard>('/coach-tasks', { method: 'POST', body: JSON.stringify(input) });
 }
 
