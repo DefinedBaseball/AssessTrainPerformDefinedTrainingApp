@@ -1082,21 +1082,21 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
       {/* ────────────────────────────────────────────────────────────────────
           HITTING INPUTS — Full Swing + Blast Motion + Coach Grades in one bubble
           ───────────────────────────────────────────────────────────────── */}
-      <Section>
-        {/* Outer bubble wrapping Coach Grades + Full Swing + Blast Motion +
-            HitTrax — shared profilePanel chrome (matches Player Summary).
-            Now a flex column so each section's grey bubble sits with a
-            16 px gap between them (replaced the old divider-line
-            pattern). */}
-        <div data-pdf-section="hitting-inputs" className={aStyles.profilePanel} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {!anySection && (
-          <EmptyState
-            text="No hitting data yet."
-            hint={isCoach
-              ? 'Upload a Blast Motion / Full Swing / HitTrax CSV to start populating this tab.'
-              : 'Ask your coach to upload swing data.'}
-          />
-        )}
+      {/* Only the empty state lives in this bubble now. The vendor metric
+          bubbles below portal up into the Hitting Report, so with data the
+          bubble had nothing left in it and showed as an empty strip. */}
+      {!anySection && (
+        <Section>
+          <div data-pdf-section="hitting-inputs" className={aStyles.profilePanel} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <EmptyState
+              text="No hitting data yet."
+              hint={isCoach
+                ? 'Upload a Blast Motion / Full Swing / HitTrax CSV to start populating this tab.'
+                : 'Ask your coach to upload swing data.'}
+            />
+          </div>
+        </Section>
+      )}
 
 
 
@@ -1318,9 +1318,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         </div>
         ); })()}
         </HittingVendorMetrics>
-
-        </div>{/* /outer Hitting Inputs bubble */}
-      </Section>
 
     </>
   );

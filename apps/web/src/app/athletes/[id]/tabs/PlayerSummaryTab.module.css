@@ -35,7 +35,7 @@
 
   color: var(--ps-text);
   display: grid;
-  gap: 1.25rem;
+  gap: 12px;
   /* Top padding zeroed so the gap below the player-name hero is exactly
      the .tabPanel padding-top (1.25rem), matching the inter-section gap. */
   padding: 0 0 1.5rem;
@@ -201,7 +201,7 @@
 .hero {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 12px;
 }
 
 /* ── Domain list (tool grades) ── */
@@ -1302,7 +1302,7 @@
 .middle {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.25rem;
+  gap: 12px;
 }
 
 .playerCard {
@@ -1749,7 +1749,7 @@
 .bottom {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  gap: 12px;
 }
 
 @media (max-width: 1120px) {

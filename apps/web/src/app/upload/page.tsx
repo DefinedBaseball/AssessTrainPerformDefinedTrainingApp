@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { rem } from '@/lib/rem';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -130,7 +131,7 @@ export default function UploadPage() {
 
       <button
         className="btn btn-primary"
-        style={{ width: '100%', marginTop: 16 }}
+        style={{ width: '100%', marginTop: rem(12) }}
         onClick={handleUpload}
         disabled={!file || uploading}
       >

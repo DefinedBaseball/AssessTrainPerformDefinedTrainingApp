@@ -1644,7 +1644,7 @@ export function PitchingTab({
         <div
           data-pdf-section="pitch-report"
           className={hud.hudConsole}
-          /* Bottom margin matches the shared `.section` 20px so the
+          /* Bottom margin matches the shared `.section` 12px so the
              Pitch Report bubble sits the same distance from the next
              dark-blue bubble below it as every other section across
              the app (Tool Grades → Sub-Grade Breakdown gap).
@@ -1660,7 +1660,7 @@ export function PitchingTab({
              but coach-spec wants the bubble's outer chrome to read
              at the same scale as every other Snapshot header. */
           style={{
-            marginBottom: 20,
+            marginBottom: rem(12),
             padding: '0.7rem 1.4rem 1.4rem',
           }}
         >

@@ -147,7 +147,7 @@ export default function LeaderboardPage() {
       {/* ── Outer lighter panel wrapping all controls + table ── */}
       <div
         className={aStyles.profilePanel}
-        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
+        style={{ marginTop: 0, padding: 20, display: 'flex', flexDirection: 'column' }}
       >
       {/* ── Filter Selects (Grad Year + Metric) ── */}
       <div className={styles.filterGrid}>

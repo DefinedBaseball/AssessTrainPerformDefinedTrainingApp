@@ -1156,7 +1156,7 @@ export default function TrainingPage() {
           the page reads as a clear two-tone hierarchy. */}
       <div
         className={aStyles.profilePanel}
-        style={{ marginTop: 16, padding: 18, display: 'flex', flexDirection: 'column' }}
+        style={{ marginTop: 0, padding: 18, display: 'flex', flexDirection: 'column' }}
       >
 
       {/* ── Athlete Selector (Coach Only) ── */}

@@ -2,7 +2,7 @@
    the two coach roster pages read as a pair. */
 
 .panel {
-  margin-top: 16px;
+  margin-top: 12px;
   background: var(--card-elev, var(--surface));
   border: 1px solid var(--border-light);
   border-radius: 16px;
@@ -15,7 +15,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: 0;
   padding: 10px 14px;
   background: var(--card-elev, var(--surface));
   border: 1px solid var(--border-light);

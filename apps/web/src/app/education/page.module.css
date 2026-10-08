@@ -18,7 +18,7 @@
    an explicit 2-up step (below) so it no longer jumps straight 3→1.
    (auto-fit was rejected here: with only ~6 cards it over-expanded to 4+
    columns on wide screens, breaking the intended balanced layout.) */
-.hubGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.hubGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .hubCard {
   background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
   padding: 28px; cursor: pointer; transition: all .2s; position: relative; overflow: hidden;

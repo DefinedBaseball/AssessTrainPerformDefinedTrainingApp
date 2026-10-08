@@ -614,7 +614,7 @@ export default function VideosPage() {
           inside it. */}
       <div
         className={aStyles.profilePanel}
-        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
+        style={{ marginTop: 0, padding: 20, display: 'flex', flexDirection: 'column' }}
       >
         {/* ── Athlete Selector (Coach Only) ── */}
         {isCoach && (

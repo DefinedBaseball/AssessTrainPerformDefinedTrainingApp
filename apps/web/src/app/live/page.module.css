@@ -10,13 +10,15 @@
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
+/* The flex gap is the spacing -- no extra title-bubble margin on top. */
+.page > header { margin-bottom: 0; }
 
 .modeGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 18px;
+  gap: 12px;
 }
 
 .modeCard {

@@ -13,7 +13,7 @@
 .sourceRow {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
@@ -113,7 +113,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
-  margin-top: 24px;
+  margin-top: 12px;
 }
 
 .resultsTitle {
@@ -153,7 +153,7 @@
 }
 
 .resultSection {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .resultSectionTitle {
@@ -203,7 +203,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
-  margin-top: 24px;
+  margin-top: 12px;
 }
 
 .howTitle {
@@ -241,7 +241,7 @@
 }
 
 .history {
-  margin-top: 32px;
+  margin-top: 12px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 18px;

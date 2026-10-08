@@ -41,6 +41,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 import Link from 'next/link';
+import { rem } from '@/lib/rem';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -469,7 +470,7 @@ export default function VideoEditorPage() {
 
       <div style={{ padding: '0 18px 28px' }}>
         {/* ── Top row: pool (1/3) + preview (2/3) ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: 14, alignItems: 'stretch' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: rem(12), alignItems: 'stretch' }}>
           {/* ── Uploaded pool ── */}
           <section style={panel}>
             <div style={panelHead}>
@@ -669,7 +670,7 @@ export default function VideoEditorPage() {
         </div>
 
         {/* ── Timeline ── */}
-        <section style={{ ...panel, marginTop: 14 }}>
+        <section style={{ ...panel, marginTop: rem(12) }}>
           <div style={panelHead}>
             <span style={panelTitle}>Timeline</span>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>

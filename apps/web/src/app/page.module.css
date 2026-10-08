@@ -1029,7 +1029,7 @@
 }
 
 @media (max-width: 640px) {
-  .statsGrid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .statsGrid { grid-template-columns: 1fr 1fr; gap: 12px; }
   .statCard { padding: 14px; }
   .statValue { font-size: 24px; }
 }
@@ -1131,7 +1131,7 @@
    ════════════════════════════════════════════════════════════════════ */
 .coachContent {
   padding-top: 0;
-  margin-top: -15px;
+  margin-top: 0;
 }
 .coachContent .statsGrid { margin-bottom: 12px; }
 .coachContent .statCard { padding: 7px 18px; }

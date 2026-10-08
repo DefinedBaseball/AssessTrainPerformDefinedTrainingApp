@@ -60,7 +60,7 @@
    Report + Break & Spin + Video on Pitching) sits the SAME distance
    apart as the Tool Grades → Sub-Grade Breakdown gap (which is set
    by the Summary page's `.hero { gap: 1.25rem; }` flex column). */
-.section { margin-bottom: 20px; }
+.section { margin-bottom: 12px; }
 
 /* Section header rhythm mirrors the Player Summary's Tool Grades
    bubble exactly: title block aligned to the row's flex-end so the
@@ -546,7 +546,7 @@
      bubbles' borders don't double-stack — the Player Name bubble's
      bottom border becomes the visible seam. */
   max-width: 1200px;
-  margin: 0 auto 20px;
+  margin: 0 auto 12px;
   padding: 0 10px;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
