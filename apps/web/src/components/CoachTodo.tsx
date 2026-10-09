@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { tzDayKey } from '@/lib/academy';
 import styles from './CoachTodo.module.css';
 
 export const TASK_TYPES: Array<{ key: string; label: string }> = [
@@ -69,15 +70,29 @@ function orderCoaches(coaches: Coach[]): Coach[] {
   return [...coaches].sort((a, b) => rank(a) - rank(b) || displayName(a).localeCompare(displayName(b)));
 }
 
-/** Who else shares a task, for the small line under its name. */
-function sharedLabel(task: api.CoachTask, columnCoachId: string, coaches: Coach[]): string {
+/** Who the task is assigned to, for the line under its name. */
+function assigneeLabel(task: api.CoachTask, coaches: Coach[]): string {
   if (task.allCoaches) return 'All Coaches';
-  const others = task.assigneeIds
-    .filter((id) => id !== columnCoachId)
-    .map((id) => coaches.find((c) => c.id === id))
-    .filter((c): c is Coach => !!c)
-    .map(displayName);
-  return others.length ? `With ${others.join(', ')}` : '';
+  return orderCoaches(
+    task.assigneeIds.map((id) => coaches.find((c) => c.id === id)).filter((c): c is Coach => !!c),
+  ).map(displayName).join(', ');
+}
+
+/** Whole days from today (academy time zone) to a "YYYY-MM-DD" due date. */
+function daysUntil(dueDate: string, todayKey: string): number {
+  const toUtc = (k: string) => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.round((toUtc(dueDate) - toUtc(todayKey)) / 86_400_000);
+}
+
+/** "Due in 3 days" / "Due tomorrow" / "Due today" / "2 days overdue".
+ *  `urgent` = due tomorrow or sooner -- shown bright, bold, with an alarm icon. */
+export function dueText(dueDate: string | null, todayKey: string): { text: string; urgent: boolean } | null {
+  if (!dueDate) return null;
+  const n = daysUntil(dueDate, todayKey);
+  if (n > 1) return { text: `Due in ${n} days`, urgent: false };
+  if (n === 1) return { text: 'Due tomorrow', urgent: true };
+  if (n === 0) return { text: 'Due today', urgent: true };
+  return { text: `${-n} day${n === -1 ? '' : 's'} overdue`, urgent: true };
 }
 
 export function CoachTodo() {
@@ -90,6 +105,13 @@ export function CoachTodo() {
   const [editing, setEditing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /* Today's date (academy time zone) -- re-checked every minute so the
+     "due in" countdown rolls over at midnight without a reload. */
+  const [todayKey, setTodayKey] = useState(() => tzDayKey(new Date()));
+  useEffect(() => {
+    const t = window.setInterval(() => setTodayKey(tzDayKey(new Date())), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const load = useCallback(() => {
     api.getCoachTasks()
@@ -119,6 +141,7 @@ export function CoachTodo() {
         .map((t) => ({ task: t, done: t.completions.some((c) => c.userId === coach.id) }))
         .sort((a, b) =>
           typeOrder.indexOf(a.task.column) - typeOrder.indexOf(b.task.column)
+          || (a.task.dueDate ?? '9999-99-99').localeCompare(b.task.dueDate ?? '9999-99-99')
           || a.task.createdAt.localeCompare(b.task.createdAt));
       return { coach, items };
     });
@@ -232,7 +255,8 @@ export function CoachTodo() {
                     {shown.map(({ task, done }) => {
                       const bg = colors[task.column] ?? colors.GENERAL;
                       const fg = textOn(bg);
-                      const shared = sharedLabel(task, coach.id, board.coaches);
+                      const who = assigneeLabel(task, board.coaches);
+                      const due = done ? null : dueText(task.dueDate, todayKey);
                       const key = `${coach.id}:${task.id}`;
                       return (
                         <li key={key} className={styles.task} style={{ background: bg, color: fg }}>
@@ -250,7 +274,23 @@ export function CoachTodo() {
                           <div className={styles.taskText}>
                             <span className={styles.taskTitle}>{task.title}</span>
                             <span className={styles.taskMeta}>
-                              {labelIn(types, task.column)}{shared ? ` · ${shared}` : ''}
+                              <span className={styles.metaDim}>
+                                {labelIn(types, task.column)}{who ? ` · ${who}` : ''}{due ? ' · ' : ''}
+                              </span>
+                              {due && (due.urgent ? (
+                                /* Due tomorrow or sooner: full-strength, bold, alarm icon.
+                                   Bright white on the dark colours; on a light colour the
+                                   text is already dark, so it keeps that for contrast. */
+                                <span className={styles.dueUrgent} style={{ color: fg === '#ffffff' ? '#ffffff' : fg }}>
+                                  {due.text}
+                                  <svg className={styles.dueIcon} viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <circle cx="12" cy="13" r="8" />
+                                    <path d="M12 9v4l2.5 2.5M5 3L2 6M19 3l3 3" />
+                                  </svg>
+                                </span>
+                              ) : (
+                                <span className={styles.metaDim}>{due.text}</span>
+                              ))}
                             </span>
                           </div>
                           {isAdmin && (confirmDeleteId === key ? (
@@ -498,6 +538,8 @@ function AddTaskDialog({
   const [title, setTitle] = useState('');
   const [allCoaches, setAllCoaches] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  const [dueDate, setDueDate] = useState('');
+  const todayKey = tzDayKey(new Date());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -525,7 +567,9 @@ function AddTaskDialog({
     setSaving(true);
     setError('');
     try {
-      onCreated(await api.createCoachTask({ title: title.trim(), column: type, allCoaches, assigneeIds: allCoaches ? [] : picked }));
+      onCreated(await api.createCoachTask({
+        title: title.trim(), column: type, allCoaches, assigneeIds: allCoaches ? [] : picked, dueDate: dueDate || null,
+      }));
     } catch (err: any) {
       setError(err?.message || 'Could not add the task');
       setSaving(false);
@@ -588,12 +632,18 @@ function AddTaskDialog({
           ))}
         </div>
 
+        <div className={styles.fieldLabel}>Due Date</div>
+        <DueDateCalendar value={dueDate} min={todayKey} onChange={setDueDate} />
+
         {(allCoaches || picked.length > 0) && (
           <div className={styles.preview} style={{ background: bg, color: fg }}>
             <span className={styles.check} style={{ borderColor: fg }} aria-hidden="true" />
             <div className={styles.taskText}>
               <span className={styles.taskTitle}>{title.trim() || 'Your task'}</span>
-              <span className={styles.taskMeta}>{labelIn(types, type)} · {who}</span>
+              <span className={styles.taskMeta}>
+                {labelIn(types, type)} · {who}
+                {dueDate && ` · ${dueText(dueDate, todayKey)?.text}`}
+              </span>
             </div>
           </div>
         )}
@@ -607,6 +657,95 @@ function AddTaskDialog({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/* ── Due date calendar ───────────────────────────────────────────────────
+   The browser's own date box only opens its calendar from a small icon (and
+   on some setups not at all), so this is a plain month grid: click the box,
+   pick a day. Days before `min` are disabled. Values are "YYYY-MM-DD". */
+
+const WEEKDAY_HEADS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const keyOf = (y: number, m0: number, d: number) => `${y}-${pad2(m0 + 1)}-${pad2(d)}`;
+
+function DueDateCalendar({ value, min, onChange }: { value: string; min: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const start = (value || min).split('-').map(Number);
+  const [view, setView] = useState<{ y: number; m0: number }>({ y: start[0], m0: start[1] - 1 });
+
+  const label = value
+    ? (() => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); })()
+    : 'Pick a date';
+
+  const firstWeekday = new Date(view.y, view.m0, 1).getDay();
+  const daysInView = new Date(view.y, view.m0 + 1, 0).getDate();
+  const cells: Array<number | null> = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInView }, (_, i) => i + 1),
+  ];
+  const [minY, minM] = min.split('-').map(Number);
+  const atMinMonth = view.y < minY || (view.y === minY && view.m0 <= minM - 1);
+  const shift = (delta: number) => setView((v) => {
+    const d = new Date(v.y, v.m0 + delta, 1);
+    return { y: d.getFullYear(), m0: d.getMonth() };
+  });
+
+  return (
+    <div className={styles.calWrap}>
+      <div className={styles.dueRow}>
+        <button
+          type="button"
+          className={`${styles.input} ${styles.dateBox}`}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={value ? `Due date ${label}. Change` : 'Pick a due date'}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+          </svg>
+          <span className={value ? undefined : styles.datePlaceholder}>{label}</span>
+        </button>
+        {value && (
+          <button type="button" className={styles.linkBtn} style={{ marginTop: 0 }} onClick={() => { onChange(''); setOpen(false); }}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className={styles.calendar} role="dialog" aria-label="Choose a due date">
+          <div className={styles.calHead}>
+            <button type="button" className={styles.calNav} onClick={() => shift(-1)} disabled={atMinMonth} aria-label="Previous month">‹</button>
+            <span className={styles.calTitle}>
+              {new Date(view.y, view.m0, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </span>
+            <button type="button" className={styles.calNav} onClick={() => shift(1)} aria-label="Next month">›</button>
+          </div>
+          <div className={styles.calGrid}>
+            {WEEKDAY_HEADS.map((d, i) => <span key={`h${i}`} className={styles.calWeekday}>{d}</span>)}
+            {cells.map((d, i) => {
+              if (d === null) return <span key={`e${i}`} />;
+              const k = keyOf(view.y, view.m0, d);
+              const past = k < min;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  className={`${styles.calDay} ${k === value ? styles.calDayOn : ''} ${k === min ? styles.calToday : ''}`}
+                  disabled={past}
+                  onClick={() => { onChange(k); setOpen(false); }}
+                  aria-label={new Date(view.y, view.m0, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  aria-pressed={k === value}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

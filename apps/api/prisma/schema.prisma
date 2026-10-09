@@ -983,6 +983,9 @@ model CoachTask {
   title       String
   column      String // task TYPE: "URGENT" | "PRIORITY" | "GENERAL" | "REMINDER"
   allCoaches  Boolean  @default(false)
+  // Day the task must be done by, "YYYY-MM-DD" (a plain calendar day, no
+  // time zone). Null = no due date.
+  dueDate     String?
   createdById String?
   createdBy   User?    @relation("CoachTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())

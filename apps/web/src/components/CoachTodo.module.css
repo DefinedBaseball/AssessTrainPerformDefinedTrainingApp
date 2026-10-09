@@ -141,7 +141,9 @@
 
 .taskText { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .taskTitle { font-size: 13px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
-.taskMeta { font-size: 11px; opacity: 0.8; }
+.taskMeta { font-size: 11px; }
+/* Everything on the line is softened except an urgent due date. */
+.metaDim { opacity: 0.8; }
 
 .deleteBtn {
   flex-shrink: 0;
@@ -352,6 +354,66 @@
   font-family: inherit;
 }
 .linkBtn:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
+
+/* Due date */
+.dueRow { display: flex; align-items: center; gap: 10px; }
+.calWrap { display: flex; flex-direction: column; gap: 8px; }
+.dateBox {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.datePlaceholder { color: var(--text-muted); }
+.calendar {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.calHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.calTitle { font-size: 13px; font-weight: 800; color: var(--text); }
+.calNav {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.calNav:disabled { opacity: 0.3; cursor: default; }
+.calGrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calWeekday { text-align: center; font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 2px 0 4px; }
+.calDay {
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.calDay:hover:not(:disabled) { border-color: var(--text-muted); }
+.calDay:disabled { opacity: 0.25; cursor: default; }
+.calToday { border-color: var(--border); }
+.calDayOn, .calDayOn:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+[data-theme="light"] .calendar { background: #ffffff; border-color: rgba(0, 0, 0, 0.12); }
+.dueUrgent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  opacity: 1;
+}
+.dueIcon { flex-shrink: 0; }
 
 /* Custom task types: editable name on the colour bar, + / × buttons. */
 .colorName {

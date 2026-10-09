@@ -1187,6 +1187,8 @@ export interface CoachTask {
   column: string;
   allCoaches: boolean;
   assigneeIds: string[];
+  /** Day it must be done by, "YYYY-MM-DD"; null = no due date. */
+  dueDate: string | null;
   /** One per coach who has checked it off (latest check). */
   completions: Array<{ userId: string; completedAt: string }>;
   createdAt: string;
@@ -1221,7 +1223,7 @@ export async function getCoachTasks() {
   return request<CoachTaskBoard>('/coach-tasks');
 }
 
-export async function createCoachTask(input: { title: string; column: string; allCoaches: boolean; assigneeIds: string[] }) {
+export async function createCoachTask(input: { title: string; column: string; allCoaches: boolean; assigneeIds: string[]; dueDate?: string | null }) {
   return request<CoachTaskBoard>('/coach-tasks', { method: 'POST', body: JSON.stringify(input) });
 }
 

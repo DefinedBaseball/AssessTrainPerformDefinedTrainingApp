@@ -175,6 +175,7 @@ export class CoachTasksService implements OnModuleInit {
         title: t.title,
         column: t.column,
         allCoaches: t.allCoaches,
+        dueDate: t.dueDate,
         assigneeIds: t.assignees.map((a) => a.userId),
         completions: t.completions,
         createdAt: t.createdAt,
@@ -191,6 +192,19 @@ export class CoachTasksService implements OnModuleInit {
 
     const column = typeof b.column === 'string' ? b.column : '';
     if (!(await this.typeKeys()).includes(column)) throw new BadRequestException('Choose a task type');
+
+    /* Optional due date: a calendar day "YYYY-MM-DD". */
+    let dueDate: string | null = null;
+    if (b.dueDate !== undefined && b.dueDate !== null && b.dueDate !== '') {
+      const d = typeof b.dueDate === 'string' ? b.dueDate.trim() : '';
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+      const valid = m && (() => {
+        const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+        return dt.getUTCFullYear() === +m[1] && dt.getUTCMonth() === +m[2] - 1 && dt.getUTCDate() === +m[3];
+      })();
+      if (!valid) throw new BadRequestException('Pick a valid due date');
+      dueDate = d;
+    }
 
     const allCoaches = b.allCoaches === true;
     let assigneeIds: string[] = [];
@@ -210,6 +224,7 @@ export class CoachTasksService implements OnModuleInit {
         title,
         column,
         allCoaches,
+        dueDate,
         createdById: actor.sub,
         assignees: { create: assigneeIds.map((userId) => ({ userId })) },
       },
