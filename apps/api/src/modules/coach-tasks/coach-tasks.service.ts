@@ -1,11 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.util';
 
-/* Coach To Do list (coach dashboard). Admins create and delete tasks; any
+/* Coach Tasks board (coach dashboard). Admins create and delete tasks; any
    coach assigned to a task checks it off for themselves. Every coach sees
-   every task -- the web app colours them by who they're assigned to and
-   works out "finished" per viewer (incl. the daily / weekly reset). */
+   every task. The board shows one column per coach and colours tasks by
+   type; admins choose which coaches get a column and the four type colours
+   (board settings, shared by everyone). */
 
 /* Task TYPE (stored in the `column` field): sets the task's colour on the
    board, whose columns are now one per coach. */
@@ -18,6 +20,32 @@ export type TaskColumn = (typeof TASK_COLUMNS)[number];
 const LEGACY_TYPES: Record<string, TaskColumn> = { LONG_TERM: 'GENERAL', DAILY: 'REMINDER', WEEKLY: 'REMINDER' };
 
 const MAX_TITLE = 200;
+
+/* Board settings, one shared record in AppSetting. Coaches are HIDDEN by
+   listing them, so a newly added coach gets a column by default. */
+const SETTINGS_KEY = 'coachTaskBoard';
+export const DEFAULT_TASK_COLORS: Record<TaskColumn, string> = {
+  URGENT: '#c8102e',
+  PRIORITY: '#e8700f',
+  GENERAL: '#15803d',
+  REMINDER: '#2563eb',
+};
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/* Admin-created task types, after the four built-ins. Keys are generated
+   (T_ + hex) and stored in a task's `column`; removing a type moves its
+   tasks to General Task. */
+const CUSTOM_KEY = /^T_[0-9a-f]{8,16}$/;
+const MAX_CUSTOM_TYPES = 12;
+const MAX_TYPE_NAME = 30;
+export interface CustomTaskType { key: string; label: string }
+
+export interface TaskBoardSettings {
+  hiddenCoachIds: string[];
+  /** Colour per type key -- the built-ins and every custom type. */
+  colors: Record<string, string>;
+  customTypes: CustomTaskType[];
+}
 
 @Injectable()
 export class CoachTasksService implements OnModuleInit {
@@ -36,6 +64,88 @@ export class CoachTasksService implements OnModuleInit {
     }
   }
 
+  async getSettings(): Promise<TaskBoardSettings> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: SETTINGS_KEY } });
+    let saved: any = {};
+    try { saved = row ? JSON.parse(row.value) : {}; } catch { saved = {}; }
+    const hidden = Array.isArray(saved?.hiddenCoachIds)
+      ? saved.hiddenCoachIds.filter((v: unknown): v is string => typeof v === 'string')
+      : [];
+    const customTypes: CustomTaskType[] = Array.isArray(saved?.customTypes)
+      ? saved.customTypes
+          .filter((t: any) => t && typeof t.key === 'string' && CUSTOM_KEY.test(t.key) && typeof t.label === 'string' && t.label.trim())
+          .map((t: any) => ({ key: t.key, label: String(t.label).trim().slice(0, MAX_TYPE_NAME) }))
+      : [];
+    const colors: Record<string, string> = { ...DEFAULT_TASK_COLORS };
+    for (const key of [...TASK_COLUMNS, ...customTypes.map((t) => t.key)]) {
+      const c = saved?.colors?.[key];
+      if (typeof c === 'string' && HEX_COLOR.test(c)) colors[key] = c.toLowerCase();
+      else if (!colors[key]) colors[key] = '#6b7280';
+    }
+    return { hiddenCoachIds: hidden, colors, customTypes };
+  }
+
+  /** Built-in + custom type keys a task may use. */
+  private async typeKeys(): Promise<string[]> {
+    const s = await this.getSettings();
+    return [...TASK_COLUMNS, ...s.customTypes.map((t) => t.key)];
+  }
+
+  /** Admin: which coaches get a column + the type colours. Named fields only. */
+  async saveSettings(input: unknown) {
+    const b = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+    if (!Array.isArray(b.hiddenCoachIds) || b.hiddenCoachIds.some((v) => typeof v !== 'string'))
+      throw new BadRequestException('Choose which coaches have a column');
+    const hiddenCoachIds = [...new Set(b.hiddenCoachIds as string[])].slice(0, 200);
+
+    /* Custom types: existing ones keep their key; new ones (no key) get one. */
+    const before = await this.getSettings();
+    const rawTypes = Array.isArray(b.customTypes) ? b.customTypes : [];
+    if (rawTypes.length > MAX_CUSTOM_TYPES) throw new BadRequestException(`Up to ${MAX_CUSTOM_TYPES} custom task types`);
+    const customTypes: CustomTaskType[] = [];
+    const rowColors: Record<string, string> = {};
+    const seen = new Set(['urgent', 'priority', 'general task', 'reminder']);
+    for (const raw of rawTypes) {
+      const t = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const label = typeof t.label === 'string' ? t.label.replace(/\s+/g, ' ').trim() : '';
+      if (!label) throw new BadRequestException('Give every task type a name');
+      if (label.length > MAX_TYPE_NAME) throw new BadRequestException(`Task type names are up to ${MAX_TYPE_NAME} characters`);
+      if (seen.has(label.toLowerCase())) throw new BadRequestException(`There's already a task type called "${label}"`);
+      seen.add(label.toLowerCase());
+      const key = typeof t.key === 'string' && before.customTypes.some((c) => c.key === t.key)
+        ? t.key
+        : `T_${randomBytes(6).toString('hex')}`;
+      customTypes.push({ key, label });
+      /* Each custom type carries its own colour (a new one has no key yet). */
+      if (typeof t.color !== 'string' || !HEX_COLOR.test(t.color))
+        throw new BadRequestException(`Pick a valid colour for ${label}`);
+      rowColors[key] = t.color.toLowerCase();
+    }
+
+    const rawColors = (b.colors && typeof b.colors === 'object' ? b.colors : {}) as Record<string, unknown>;
+    const colors: Record<string, string> = { ...DEFAULT_TASK_COLORS, ...rowColors };
+    for (const key of TASK_COLUMNS) {
+      const c = rawColors[key];
+      if (c === undefined) continue;
+      if (typeof c !== 'string' || !HEX_COLOR.test(c)) throw new BadRequestException('Pick a valid colour for every task type');
+      colors[key] = c.toLowerCase();
+    }
+
+    /* Removed custom types: their tasks become General Task. */
+    const removed = before.customTypes.map((t) => t.key).filter((k) => !customTypes.some((t) => t.key === k));
+    if (removed.length) {
+      await this.prisma.coachTask.updateMany({ where: { column: { in: removed } }, data: { column: 'GENERAL' } });
+    }
+
+    const value = JSON.stringify({ hiddenCoachIds, colors, customTypes });
+    await this.prisma.appSetting.upsert({
+      where: { key: SETTINGS_KEY },
+      create: { key: SETTINGS_KEY, value },
+      update: { value },
+    });
+    return this.list();
+  }
+
   /** Active coaches -- who "All Coaches" means, and the assign picker. */
   private activeCoaches() {
     return this.prisma.user.findMany({
@@ -46,7 +156,7 @@ export class CoachTasksService implements OnModuleInit {
   }
 
   async list() {
-    const [tasks, coaches] = await Promise.all([
+    const [tasks, coaches, settings] = await Promise.all([
       this.prisma.coachTask.findMany({
         orderBy: { createdAt: 'asc' },
         include: {
@@ -55,9 +165,11 @@ export class CoachTasksService implements OnModuleInit {
         },
       }),
       this.activeCoaches(),
+      this.getSettings(),
     ]);
     return {
       coaches,
+      settings,
       tasks: tasks.map((t) => ({
         id: t.id,
         title: t.title,
@@ -77,8 +189,8 @@ export class CoachTasksService implements OnModuleInit {
     if (!title) throw new BadRequestException('Give the task a name');
     if (title.length > MAX_TITLE) throw new BadRequestException('Task name is too long');
 
-    const column = b.column as TaskColumn;
-    if (!TASK_COLUMNS.includes(column)) throw new BadRequestException('Choose a task type');
+    const column = typeof b.column === 'string' ? b.column : '';
+    if (!(await this.typeKeys()).includes(column)) throw new BadRequestException('Choose a task type');
 
     const allCoaches = b.allCoaches === true;
     let assigneeIds: string[] = [];

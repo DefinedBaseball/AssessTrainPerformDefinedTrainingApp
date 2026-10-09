@@ -1183,7 +1183,8 @@ export type CoachTaskColumn = CoachTaskType;
 export interface CoachTask {
   id: string;
   title: string;
-  column: CoachTaskType;
+  /** A built-in CoachTaskType or a custom type's key (T_…). */
+  column: string;
   allCoaches: boolean;
   assigneeIds: string[];
   /** One per coach who has checked it off (latest check). */
@@ -1191,8 +1192,27 @@ export interface CoachTask {
   createdAt: string;
 }
 
+/** Shared board settings (admins edit them from the board's Edit button). */
+export interface CoachTaskBoardSettings {
+  /** Coaches WITHOUT a column (new coaches get one by default). */
+  hiddenCoachIds: string[];
+  /** Hex colour per task type key (built-ins + custom). */
+  colors: Record<string, string>;
+  /** Admin-created types, after the four built-ins. */
+  customTypes: Array<{ key: string; label: string }>;
+}
+
+/** What the Edit window saves: built-in colours + the custom type list
+ *  (a new custom type has no key yet). */
+export interface CoachTaskBoardSettingsInput {
+  hiddenCoachIds: string[];
+  colors: Record<string, string>;
+  customTypes: Array<{ key?: string; label: string; color: string }>;
+}
+
 export interface CoachTaskBoard {
   tasks: CoachTask[];
+  settings: CoachTaskBoardSettings;
   /** Active coaches -- who "All Coaches" covers. */
   coaches: Array<{ id: string; name: string | null; email: string }>;
 }
@@ -1201,8 +1221,12 @@ export async function getCoachTasks() {
   return request<CoachTaskBoard>('/coach-tasks');
 }
 
-export async function createCoachTask(input: { title: string; column: CoachTaskType; allCoaches: boolean; assigneeIds: string[] }) {
+export async function createCoachTask(input: { title: string; column: string; allCoaches: boolean; assigneeIds: string[] }) {
   return request<CoachTaskBoard>('/coach-tasks', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function saveCoachTaskSettings(settings: CoachTaskBoardSettingsInput) {
+  return request<CoachTaskBoard>('/coach-tasks/settings', { method: 'PUT', body: JSON.stringify(settings) });
 }
 
 export async function deleteCoachTask(id: string) {

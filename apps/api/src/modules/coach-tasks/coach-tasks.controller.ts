@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminOnly, AuthenticatedRequest, Roles, ViewerAllowed } from '../auth/jwt.guard';
 import { CoachTasksService } from './coach-tasks.service';
@@ -22,6 +22,14 @@ export class CoachTasksController {
   @ApiOperation({ summary: 'Create a To Do task (admin)' })
   create(@Req() req: AuthenticatedRequest, @Body() dto: unknown) {
     return this.svc.create(req.user!, dto);
+  }
+
+  @Put('settings')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Save the board settings: which coaches have a column, task type colours (admin)' })
+  saveSettings(@Body() dto: unknown) {
+    return this.svc.saveSettings(dto);
   }
 
   @Delete(':id')
