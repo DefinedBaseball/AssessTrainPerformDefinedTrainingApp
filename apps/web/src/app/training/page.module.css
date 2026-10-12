@@ -1144,6 +1144,15 @@
 }
 .multiSearchInput:focus { border-color: var(--accent); outline: none; }
 
+/* iOS zooms into any field whose text is under 16px when it's tapped.
+   12pt === 16px -- pt, not px, because pxtorem rescales px. Phones only;
+   desktop keeps the smaller type. */
+@media (max-width: 768px) {
+  .athleteSelect,
+  .fieldInput,
+  .multiSearchInput { font-size: 12pt; }
+}
+
 .multiList {
   overflow-y: auto;
   flex: 1;

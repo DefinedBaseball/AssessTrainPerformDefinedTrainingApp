@@ -2699,7 +2699,12 @@ function MultiSelectDropdown({
                 placeholder="Search..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                autoFocus
+                /* Cursor straight into Search on desktop only: on a phone it
+                   would open the keyboard over the list every time the
+                   dropdown opens. */
+                autoFocus={typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches}
+                /* 16px on touch screens (iOS zooms into smaller text fields). */
+                style={typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches ? { fontSize: '12pt' } : undefined}
               />
             </div>
             <div className={styles.multiList}>
