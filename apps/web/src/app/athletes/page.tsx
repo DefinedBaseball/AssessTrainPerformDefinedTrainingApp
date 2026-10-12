@@ -11,6 +11,7 @@ import { AddAthleteModal } from '@/components/AddAthleteModal';
 import { getAgeFromBirthDate } from './[id]/helpers';
 import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
 import styles from './page.module.css';
+import { AthleteAvatar } from '@/components/AthleteAvatar';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
 
@@ -290,9 +291,7 @@ export default function AthletesPage() {
                  navigation instead. */
               <div key={p.id} className={styles.listRow}>
                 <span className={styles.colName}>
-                  <span className={styles.avatar}>
-                    {p.firstName[0]}{p.lastName[0]}
-                  </span>
+                  <AthleteAvatar photo={p.profilePhoto} firstName={p.firstName} lastName={p.lastName} className={styles.avatar} />
                   <Link href={`/athletes/${p.id}`} className={`${styles.playerName} ${styles.playerNameLink}`}>
                     {p.firstName} {p.lastName}
                   </Link>

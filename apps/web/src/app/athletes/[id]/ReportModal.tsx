@@ -39,6 +39,7 @@ import {
   getHiddenTabs, setHiddenTabsForPlayer, REPORT_TYPE_TO_TAB,
   normalizePositionsForSave,
 } from './helpers';
+import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
 
 /* ── Constants ── */
 
@@ -452,6 +453,13 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
     <div className={rs.summaryForm}>
       <div className={rs.section}>
         <div className={rs.sectionHeader}><span className={rs.sectionIcon}>👤</span><span className={rs.sectionTitle}>Player Information</span></div>
+        {/* Saves on its own -- doesn't wait for the form's Save. */}
+        <ProfilePhotoPicker
+          playerId={player.id}
+          firstName={data.firstName || player.firstName}
+          lastName={data.lastName || player.lastName}
+          initialPhoto={player.profilePhoto}
+        />
         <div className={rs.summaryGrid}>
           <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>First Name</label>

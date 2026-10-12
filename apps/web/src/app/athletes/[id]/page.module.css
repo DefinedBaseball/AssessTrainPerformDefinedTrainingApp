@@ -271,6 +271,20 @@
 }
 
 /* Mega name — centerpiece. Syne display, silver gradient. */
+/* Profile picture beside the name, when the athlete has one. */
+.nameWithPhoto { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.heroPhoto {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+@media (max-width: 768px) {
+  .heroPhoto { width: 44px; height: 44px; }
+}
+
 .megaName {
   font-family: var(--font-display);
   font-size: clamp(30px, 3.6vw, 46px);

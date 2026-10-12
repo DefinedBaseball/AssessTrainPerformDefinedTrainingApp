@@ -80,13 +80,29 @@ model PasswordResetToken {
 
 // ─── Player Profile ──────────────────────────────────────────────
 
+/// An athlete's profile picture, stored in the database so it survives
+/// deploys (Render's disk does not). `id` is random and changes on every
+/// upload: it is the unguessable part of the photo's URL, and replacing the
+/// photo retires the old URL.
+model PlayerPhoto {
+  id        String   @id
+  playerId  String   @unique
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  mime      String
+  data      String   // base64
+  createdAt DateTime @default(now())
+}
+
 model Player {
   id               String   @id @default(uuid())
   userId           String   @unique
   user             User     @relation(fields: [userId], references: [id])
   firstName        String
   lastName         String
-  profilePhoto     String? // S3 URL
+  // Link to the athlete's profile picture (/api/player-photos/<id>), or null.
+  // Set only by the photo endpoints; the bytes live in PlayerPhoto.
+  profilePhoto     String?
+  photo            PlayerPhoto?
   positions        String // comma-separated: "INF,OF"
   // Coach roster categories (comma-separated codes): PROGRAM, LESSON,
   // MEMBERSHIP, REMOTE. Drives the Athlete Hub type filter. Additive with a

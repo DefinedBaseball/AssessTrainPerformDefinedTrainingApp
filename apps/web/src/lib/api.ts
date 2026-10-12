@@ -594,6 +594,19 @@ export async function updatePlayer(id: string, data: Partial<Player>) {
   });
 }
 
+/** Set an athlete's profile picture from a (square, shrunk) image data
+ *  URL. Coaches: any athlete; athletes: their own. Returns the new link. */
+export async function setPlayerPhoto(playerId: string, dataUrl: string) {
+  return request<{ profilePhoto: string }>(`/players/${playerId}/photo`, {
+    method: 'PUT',
+    body: JSON.stringify({ dataUrl }),
+  });
+}
+
+export async function removePlayerPhoto(playerId: string) {
+  return request<{ profilePhoto: null }>(`/players/${playerId}/photo`, { method: 'DELETE' });
+}
+
 /** Email one athlete a reminder to finish filling in their profile (COACH
  *  only). `emailed` is false when the server has no mail provider
  *  configured -- the call still succeeds, so callers must check it rather

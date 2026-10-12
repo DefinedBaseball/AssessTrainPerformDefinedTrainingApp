@@ -11,6 +11,7 @@ import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { getAgeFromBirthDate } from '../athletes/[id]/helpers';
 import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
+import { AthleteAvatar } from '@/components/AthleteAvatar';
 
 function initials(f: string, l: string) {
   return `${(f[0] || '').toUpperCase()}${(l[0] || '').toUpperCase()}`;
@@ -170,7 +171,7 @@ export default function ClientsPage() {
                    is invalid HTML and trips a hydration error. */
                 <div key={p.id} className={styles.row}>
                   <span className={styles.name}>
-                    <span className={aStyles.avatar}>{initials(p.firstName, p.lastName)}</span>
+                    <AthleteAvatar photo={p.profilePhoto} firstName={p.firstName} lastName={p.lastName} className={aStyles.avatar} />
                     <Link href={`/athletes/${p.id}`} className={`${aStyles.playerName} ${styles.nameLink}`}>
                       {p.firstName} {p.lastName}
                     </Link>

@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Request, Res, BadRequestException } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, Public, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 
 class CreatePlayerDto {
   userId!: string;
@@ -122,6 +123,23 @@ export class PlayersController {
     return this.playersService.update(id, dto);
   }
 
+  @Put(':id/photo')
+  @Roles('COACH', 'PLAYER')
+  @Throttle({ short: { limit: 30, ttl: 600_000 } })
+  @ApiOperation({ summary: "Set an athlete's profile picture from a data URL (coaches; athletes: their own)" })
+  setPhoto(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { dataUrl?: unknown }) {
+    assertPlayerOwnership(req, id);
+    return this.playersService.setPhoto(id, dto?.dataUrl);
+  }
+
+  @Delete(':id/photo')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: "Remove an athlete's profile picture (coaches; athletes: their own)" })
+  removePhoto(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    assertPlayerOwnership(req, id);
+    return this.playersService.removePhoto(id);
+  }
+
   @Post(':id/profile-reminder')
   @Roles('COACH')
   /* Nudges one athlete to finish their profile. Throttled at the same rate as
@@ -190,5 +208,30 @@ export class PlayersController {
   getTopMetrics(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     assertPlayerOwnership(req, id);
     return this.playersService.getTopMetrics(id);
+  }
+}
+
+/* Profile pictures, loaded by <img> tags (which can't send the login
+   token). The URL's id is random, changes on every upload and is only
+   handed out to signed-in users, so it is the access check -- the same
+   model as the video CDN links. */
+@ApiTags('players')
+@Controller('player-photos')
+export class PlayerPhotosController {
+  constructor(private readonly playersService: PlayersService) {}
+
+  @Get(':photoId')
+  @Public()
+  @ApiOperation({ summary: 'A profile picture by its URL id' })
+  async get(@Param('photoId') photoId: string, @Res() res: Response) {
+    const photo = await this.playersService.getPhoto(photoId);
+    res.set({
+      'Content-Type': photo.mime,
+      'Content-Length': String(photo.data.length),
+      // The id changes whenever the photo does, so it never goes stale.
+      'Cache-Control': 'private, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.send(photo.data);
   }
 }

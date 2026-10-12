@@ -29,6 +29,7 @@ import styles from './page.module.css';
    exports, hence the .then(m => m.X) selectors. ssr:false is safe (and
    right): this whole page is a client component behind auth. */
 import nextDynamic from 'next/dynamic';
+import { AthleteAvatar } from '@/components/AthleteAvatar';
 
 const tabLoading = () => (
   <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
@@ -408,6 +409,33 @@ export default function PlayerProfilePage() {
   /* ?tab=<key> (set by the athlete switcher) opens that tab once this
      athlete's tabs are known, if they have it; otherwise the athlete
      opens as usual. Read once, then stripped from the URL. */
+  /* The big name in the header shrinks to fit: no word may run past the
+     card's edge and it may take at most two lines. Starts from the CSS size
+     every time (so a short name stays full size) and steps down 1px at a
+     time, never below half size. Re-fits when the window resizes. */
+  const nameRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const el = nameRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.fontSize = '';
+      const base = parseFloat(getComputedStyle(el).fontSize);
+      const min = base / 2;
+      let size = base;
+      const overflowing = () => {
+        const lineH = parseFloat(getComputedStyle(el).lineHeight) || size;
+        return el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().height > lineH * 2.2;
+      };
+      while (size > min && overflowing()) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [player?.firstName, player?.lastName, player?.profilePhoto]);
+
   const tabParamDoneRef = useRef<string | null>(null);
   useEffect(() => {
     if (!player || typeof window === 'undefined' || tabParamDoneRef.current === player.id) return;
@@ -748,10 +776,20 @@ export default function PlayerProfilePage() {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                   }}>
-                  <h1 className={styles.megaName} style={{ margin: 0, minWidth: 0 }}>
-                    {player.firstName}{' '}
-                    <span className={styles.lastName}>{player.lastName}</span>
-                  </h1>
+                  <div className={styles.nameWithPhoto}>
+                    {player.profilePhoto && (
+                      <AthleteAvatar
+                        photo={player.profilePhoto}
+                        firstName={player.firstName}
+                        lastName={player.lastName}
+                        className={styles.heroPhoto}
+                      />
+                    )}
+                    <h1 ref={nameRef} className={styles.megaName} style={{ margin: 0, minWidth: 0 }}>
+                      {player.firstName}{' '}
+                      <span className={styles.lastName}>{player.lastName}</span>
+                    </h1>
+                  </div>
                   {/* Right-side cluster — Commitment + Gauge grouped
                       together. Order is Commitment (left) → Gauge
                       (right) so the Player Grade circle is the

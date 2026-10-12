@@ -21,6 +21,7 @@ import type { Player } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { getAgeFromBirthDate } from '../[id]/helpers';
 import styles from '../page.module.css';
+import { AthleteAvatar } from '@/components/AthleteAvatar';
 
 export default function LockedAthletesPage() {
   const router = useRouter();
@@ -156,7 +157,7 @@ export default function LockedAthletesPage() {
             return (
               <div key={p.id} className={styles.listRow}>
                 <span className={styles.colName}>
-                  <span className={styles.avatar}>{p.firstName[0]}{p.lastName[0]}</span>
+                  <AthleteAvatar photo={p.profilePhoto} firstName={p.firstName} lastName={p.lastName} className={styles.avatar} />
                   <Link href={`/athletes/${p.id}`} className={`${styles.playerName} ${styles.playerNameLink}`}>
                     {p.firstName} {p.lastName}
                   </Link>

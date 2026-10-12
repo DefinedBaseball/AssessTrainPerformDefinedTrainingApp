@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 
 /** Profile tabs a coach may hide (matches the web tab keys). Summary and
  *  Videos are never hideable. */
@@ -228,7 +229,51 @@ export class PlayersService {
     otherSports?: string | null;
     injuryHistory?: string | null;
   }) {
-    return this.prisma.player.update({ where: { id }, data });
+    /* The photo link is only ever set by setPhoto / removePhoto -- never
+       from a profile save, where it could point at any outside URL. */
+    const { profilePhoto: _ignored, ...fields } = data;
+    return this.prisma.player.update({ where: { id }, data: fields });
+  }
+
+  /** Save a new profile picture (a data URL from the browser, already
+   *  square-cropped and shrunk there). Replaces any previous one: the new
+   *  photo gets a new random id, so the old URL stops working. */
+  async setPhoto(playerId: string, dataUrl: unknown): Promise<{ profilePhoto: string }> {
+    if (typeof dataUrl !== 'string') throw new BadRequestException('Choose an image file');
+    const m = /^data:[^;,]*;base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl);
+    if (!m) throw new BadRequestException('Choose an image file');
+    const buf = Buffer.from(m[1], 'base64');
+    if (buf.length > 1_000_000) throw new BadRequestException('Photo must be under 1 MB');
+    const mime = sniffPhoto(buf);
+    if (!mime) throw new BadRequestException('Photo must be a PNG, JPG or WebP image');
+
+    const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Player not found');
+
+    const id = randomBytes(16).toString('hex');
+    const profilePhoto = `/api/player-photos/${id}`;
+    await this.prisma.$transaction([
+      this.prisma.playerPhoto.deleteMany({ where: { playerId } }),
+      this.prisma.playerPhoto.create({ data: { id, playerId, mime, data: buf.toString('base64') } }),
+      this.prisma.player.update({ where: { id: playerId }, data: { profilePhoto } }),
+    ]);
+    return { profilePhoto };
+  }
+
+  async removePhoto(playerId: string): Promise<{ profilePhoto: null }> {
+    await this.prisma.$transaction([
+      this.prisma.playerPhoto.deleteMany({ where: { playerId } }),
+      this.prisma.player.update({ where: { id: playerId }, data: { profilePhoto: null } }),
+    ]);
+    return { profilePhoto: null };
+  }
+
+  /** The image behind a photo URL. */
+  async getPhoto(photoId: string): Promise<{ mime: string; data: Buffer }> {
+    if (!/^[0-9a-f]{32}$/.test(photoId)) throw new NotFoundException('No photo');
+    const row = await this.prisma.playerPhoto.findUnique({ where: { id: photoId } });
+    if (!row) throw new NotFoundException('No photo');
+    return { mime: row.mime, data: Buffer.from(row.data, 'base64') };
   }
 
   /**
@@ -433,4 +478,12 @@ export class PlayersService {
 
     return out;
   }
+}
+
+/** PNG / JPEG / WebP by their first bytes -- the file's claimed type is not trusted. */
+function sniffPhoto(buf: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' | null {
+  if (buf.length > 8 && buf[0] === 0x89 && buf.toString('ascii', 1, 4) === 'PNG') return 'image/png';
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  return null;
 }
