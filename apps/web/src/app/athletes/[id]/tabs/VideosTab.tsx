@@ -7,7 +7,7 @@ import { TabBarActions, ReportSelector, DownloadPdfButton } from '@/components/a
 import type { TabProps } from '../helpers';
 import { CoachReviewLibrary } from './CoachReviewLibrary';
 import { AllVideosLibrary } from './AllVideosLibrary';
-import { generateSummaryPdf } from '@/lib/pdf';
+import { usePdfExport } from '@/components/PdfExportDialog';
 
 /* `all-videos` is the default landing sub-tab — the destination
    every per-tab Videos button (next to Download) routes to.
@@ -25,6 +25,7 @@ const SUB_TABS = [
 type SubKey = (typeof SUB_TABS)[number]['key'];
 
 export function VideosTab(props: TabProps) {
+  const pdfExport = usePdfExport({ player: props.player, reports: props.reports, isCoach: props.isCoach });
   const [sub, setSub] = useState<SubKey>('all-videos');
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 
@@ -57,18 +58,10 @@ export function VideosTab(props: TabProps) {
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        {/* Top-level Download PDF — generates a player-summary-style
-            PDF for the currently selected COACHING report. Coaching
-            reports don't have a dedicated PDF generator, so the
-            Summary template is reused; per-row dropdown downloads use
-            the same generator. Mirrors the Hitting tab's pattern. */}
-        <DownloadPdfButton
-          onDownload={async () => {
-            if (!selectedReport) return;
-            await generateSummaryPdf(props.player, [selectedReport], props.topMetrics);
-          }}
-          disabled={!selectedReport}
-        />
+        {/* Top-level Download PDF — Coaching reports have no PDF of their
+            own, so this opens the Report PDF window with every kind ticked. */}
+        <DownloadPdfButton onDownload={async () => pdfExport.open()} />
+        {pdfExport.dialog}
         {/* Videos jump — kept on this tab for visual consistency with
             the other tabs' action bars. On-click is a no-op effectively
             (we're already viewing the Videos tab). */}
@@ -82,7 +75,7 @@ export function VideosTab(props: TabProps) {
           onDeleted={props.onRefresh}
           onNewReport={props.onNewReport}
           onEdit={props.onEditReport}
-          onDownload={(r) => generateSummaryPdf(props.player, [r], props.topMetrics)}
+          onDownload={() => pdfExport.open()}
         />
       </TabBarActions>
 

@@ -25,7 +25,7 @@ import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { useTheme } from '@/lib/theme-context';
 import type { TrackmanPitch } from '@/lib/api';
 import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
-import { generatePitchingPdf } from '@/lib/pdf';
+import { usePdfExport } from '@/components/PdfExportDialog';
 import { CustomCharts } from '@/components/CustomCharts';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
 import { TabBarActions } from '@/components/assessment';
@@ -1223,6 +1223,7 @@ export function PitchingTab({
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
+  const pdfExport = usePdfExport({ player, reports, isCoach });
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const [pitches, setPitches] = useState<TrackmanPitch[]>([]);
@@ -1593,12 +1594,9 @@ export function PitchingTab({
             file. Mirrors the same icon-only square + per-row dropdown
             pattern used on the Hitting tab. */}
         <DownloadPdfButton
-          onDownload={async () => {
-            if (!activePitchingReport) return;
-            await generatePitchingPdf(player, [activePitchingReport]);
-          }}
-          disabled={!activePitchingReport}
+          onDownload={async () => pdfExport.open(activePitchingReport ? [activePitchingReport] : null)}
         />
+        {pdfExport.dialog}
         {/* The Assessment selector moved OUT of this actions slot and into
             the Pitch Report header, where it now occupies the date chip's
             spot as a compact dropdown. See the header row below. */}
@@ -1836,7 +1834,7 @@ export function PitchingTab({
                 onDeleted={onRefresh}
                 onNewReport={onNewReport}
                 onEdit={onEditReport}
-                onDownload={(r) => generatePitchingPdf(player, [r])}
+                onDownload={(r) => pdfExport.open([r])}
                 onRangeChange={handleRangeChange}
               />
             </div>
@@ -2028,6 +2026,8 @@ export function PitchingTab({
             if (attachedVideos.length === 0) return null;
             return (
               <div
+                /* Video clips can't print: left out of the Summary PDF. */
+                data-pdf-hide=""
                 style={{
                   ...pitchReportBubbleStyle,
                   margin: '10px 0 0',

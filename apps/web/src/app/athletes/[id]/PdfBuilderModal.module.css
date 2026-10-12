@@ -352,13 +352,12 @@
   color: var(--text-muted);
 }
 
+/* White, like the printed page. */
 .previewPageCanvas {
   position: relative;
   aspect-ratio: 11 / 8.5;
-  background:
-    radial-gradient(60% 50% at 50% 35%, rgba(255, 255, 255, 0.05), transparent 65%),
-    rgba(20, 24, 32, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: #ffffff;
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -433,7 +432,6 @@
   height: 100%;
   display: block;
   object-fit: contain;
-  background: #0a0e14;
 }
 
 .previewThumbGrip {

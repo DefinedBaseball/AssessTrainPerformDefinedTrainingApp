@@ -44,6 +44,11 @@ function readCache(): api.PublicAcademy | null {
    from the cache at load, so the first render already uses it. */
 let currentTimeZone = readCache()?.timeZone || '';
 
+/** The academy's name for places outside React (PDF covers). */
+export function academyName(): string {
+  return readCache()?.name || DEFAULT_ACADEMY.name;
+}
+
 /** Spread into toLocale*String options: `{ ...tzOpt(), month: 'short' }`.
  *  Empty when no zone is set (each device's own time). */
 export function tzOpt(): { timeZone?: string } {

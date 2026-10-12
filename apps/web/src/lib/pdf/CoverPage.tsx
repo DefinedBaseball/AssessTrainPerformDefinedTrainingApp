@@ -30,6 +30,8 @@ import React from 'react';
 import { Page, View, Text, Image } from '@react-pdf/renderer';
 import { colors } from './theme';
 import { formatHeight, formatPositionsForDisplay } from '@/app/athletes/[id]/helpers';
+import { academyName } from '@/lib/academy';
+import { reportDateStr } from './download';
 
 interface CoverPageProps {
   player: {
@@ -47,7 +49,6 @@ interface CoverPageProps {
     throws?: string | null;
   };
   reportTitle: string;
-  reportDate: string;
 }
 
 /* ── Type tokens ──────────────────────────────────────────────────────────
@@ -97,7 +98,10 @@ function ValueLine({
   );
 }
 
-export function CoverPage({ player, reportTitle, reportDate }: CoverPageProps) {
+export function CoverPage({ player, reportTitle }: CoverPageProps) {
+  /* The cover is dated the day it's downloaded (academy time zone); each
+     page's footer carries the date of the assessment it shows. */
+  const downloadDate = reportDateStr();
   /* Cover-page positions roll up to display labels per coach spec:
        • SS / 2B / 1B / 3B (or umbrella INF) → "INF"
        • LF / CF / RF (or umbrella OF)        → "OF"
@@ -143,14 +147,14 @@ export function CoverPage({ player, reportTitle, reportDate }: CoverPageProps) {
           marginBottom: 16,
         }} />
 
-        {/* DEFINED BASEBALL ACADEMY (eyebrow) */}
+        {/* Academy name (eyebrow) -- from Settings → Academy */}
         <Text style={{
           fontSize: SIZE.brand, color: COLOR.primary,
           fontFamily: FONT.bold,
           textTransform: 'uppercase', letterSpacing: 4,
           marginBottom: 10,
         }}>
-          DEFINED BASEBALL ACADEMY
+          {academyName()}
         </Text>
 
         {/* Report title — bigger, less letter-spaced for readability */}
@@ -277,7 +281,7 @@ export function CoverPage({ player, reportTitle, reportDate }: CoverPageProps) {
           fontFamily: FONT.regular,
           letterSpacing: 1.2,
         }}>
-          {reportDate}
+          {downloadDate}
         </Text>
       </View>
     </Page>

@@ -1798,6 +1798,11 @@ export function SwingDecisionResultsRow({
   return <GradeRow label="Results" grade={composite} chips={chips} metricsOnly singleLineLabels noOuterChrome={noOuterChrome} />;
 }
 
+/** True for a note with no visible text (empty, or only tags / spaces). */
+function isBlankNoteValue(value: string | null | undefined): boolean {
+  return !value || value.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+}
+
 export function NoteBlock({
   label, value, onChange, placeholder, editable, fill = false, rows, largeLabel = false,
 }: {
@@ -1818,7 +1823,10 @@ export function NoteBlock({
   largeLabel?: boolean;
 }) {
   return (
-    <div style={{
+    <div
+      /* An empty note is left out of the Player Summary PDF. */
+      data-pdf-empty={isBlankNoteValue(value) ? '' : undefined}
+      style={{
       display: 'flex', flexDirection: 'column', gap: 6,
       paddingBottom: fill ? 0 : 12,
       borderBottom: fill ? 'none' : '1px solid var(--border)',

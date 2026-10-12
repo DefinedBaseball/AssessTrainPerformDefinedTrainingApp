@@ -11,7 +11,7 @@ import {
 import {
   TabBarActions, EditProfileButton, ReportSelector, DownloadPdfButton, VideoPlayerModal, VideoBundleCard,
 } from '@/components/assessment';
-import { generateSummaryPdf } from '@/lib/pdf';
+import { usePdfExport } from '@/components/PdfExportDialog';
 import {
   TabProps,
   scoreColor,
@@ -2015,7 +2015,7 @@ function TrendMetricCard({
 
 export function PlayerSummaryTab({
   player, topMetrics, reports, progressData, isCoach, onNewReport, onEditReport, onEditProfile, onRefresh,
-  onCaptureSummaryPdf, onOpenVideos, visibleTabKeys, hideHeaderActions = false, dense = false,
+  onOpenVideos, visibleTabKeys, hideHeaderActions = false, dense = false,
 }: TabProps & {
   /** Tighten the gap between sections. Set by the player Dashboard, which
    *  hosts these bubbles directly under the hero; the profile's Summary tab
@@ -2053,6 +2053,8 @@ export function PlayerSummaryTab({
      the Player Summary tab keeps its own up-to-date data when
      mounted directly (e.g. PDF builder previews) and doesn't depend
      on the parent's at-bat fetch having completed. */
+  /* The Report PDF window behind Download PDF. */
+  const pdfExport = usePdfExport({ player, reports, isCoach });
   const [liveAtBats, setLiveAtBats] = useState<api.AtBatDetail[]>([]);
   useEffect(() => {
     if (!player?.id) return;
@@ -2295,24 +2297,15 @@ export function PlayerSummaryTab({
         {/* Edit Profile is available to coaches AND players (was non-coach
             only) so coaches can edit player info from the reports tab. */}
         <EditProfileButton onClick={onEditProfile} show={!hideHeaderActions} />
-        {/* Top-level Download PDF — assembles the Player Summary PDF
-            via DIRECT screenshots of the live in-app sections:
-              1. Title Page (cover)
-              2. Tool Grades       (captured from THIS tab)
-              3. Hitting Snapshot  (captured from the Hitting tab)
-              4. Infield Snapshot  (captured from the Infield tab)
-              5. Catching Snapshot (captured from the Catching tab)
-              6. Outfield Snapshot (captured from the Outfield tab)
-              7. Pitch Report      (captured from the Pitching tab)
-            Driven by `onCaptureSummaryPdf` which lives on the parent
-            page so it can switch `activeTab` between renders. Sections
-            without a live DOM marker for this player are skipped
-            silently. Disabled when the parent didn't pass a handler. */}
+        {/* Top-level Download PDF — the Player Summary PDF: the cover,
+            then the Hitting, Pitching, Catching, Infield and Outfield
+            pages from the athlete's most recent report of each kind
+            (kinds without a report are skipped). */}
         {!hideHeaderActions && (
-          <DownloadPdfButton
-            onDownload={onCaptureSummaryPdf ?? (async () => { /* no-op */ })}
-            disabled={!onCaptureSummaryPdf}
-          />
+          <>
+            <DownloadPdfButton onDownload={async () => pdfExport.open()} />
+            {pdfExport.dialog}
+          </>
         )}
         {/* Videos jump — next to Download PDF, replaces standalone tab.
             Hidden on the Dashboard: there are no profile tabs to jump to
@@ -2511,7 +2504,7 @@ export function PlayerSummaryTab({
                 onDeleted={onRefresh}
                 onNewReport={onNewReport}
                 onEdit={onEditReport}
-                onDownload={(r) => generateSummaryPdf(player, [r], topMetrics)}
+                onDownload={(r) => pdfExport.open([r])}
               />
             </div>
           </div>
@@ -2691,7 +2684,11 @@ export function PlayerSummaryTab({
                   // sections the coach has actually annotated.
                   if (!isCoach && isBlankNoteHtml(persisted)) return null;
                   return (
-                    <div key={s.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div
+                      key={s.key}
+                      data-pdf-empty={isBlankNoteHtml(value) ? '' : undefined}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                    >
                       <div
                         style={{
                           fontSize: rem(11),

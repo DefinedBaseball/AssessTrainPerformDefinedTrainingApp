@@ -26,6 +26,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './PdfBuilderModal.module.css';
+import { CAPTURE_PAGE, CAPTURE_AREA, fitCapture } from '@/lib/pdf/captureLayout';
 
 export interface PdfSectionSpec {
   key: 'tool-grades' | 'hitting-snapshot' | 'infield-snapshot' | 'catching-snapshot' | 'outfield-snapshot' | 'pitch-report';
@@ -159,17 +160,15 @@ function DraggableSectionPreview({
   const dragState = useRef<{ startY: number; startOffset: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Compute the thumbnail's natural aspect-fit size inside the canvas.
-  // Canvas is 11:8.5 landscape; the screenshot occupies `scale * 100%`
-  // of the canvas width (centered) so the user's Size slider directly
-  // governs how much real estate the section takes on the page.
-  const aspect = capture.width / capture.height || 1;
-  /* Canvas inner area allows up to 88% wide (matching the previous
-     fixed margin). At scale=1 the thumb is 88% wide, at scale=0.5
-     it's 44% wide, etc. */
-  const widthPct = 88 * scale;
-  /* Center the thumb horizontally inside the canvas. */
-  const leftPct = (100 - widthPct) / 2;
+  /* Same placement the PDF uses (lib/pdf/captureLayout), as percentages
+     of the 11 × 8.5 canvas, so what is dragged here is what prints. */
+  const box = fitCapture({ width: capture.width, height: capture.height, scale, yOffset });
+  const pct = {
+    left: ((CAPTURE_AREA.left + box.left) / CAPTURE_PAGE.width) * 100,
+    top: ((CAPTURE_AREA.top + box.top) / CAPTURE_PAGE.height) * 100,
+    width: (box.width / CAPTURE_PAGE.width) * 100,
+    height: (box.height / CAPTURE_PAGE.height) * 100,
+  };
 
   useEffect(() => {
     if (!dragging) return;
@@ -180,7 +179,8 @@ function DraggableSectionPreview({
       const rect = canvas.getBoundingClientRect();
       const imgEl = wrapRef.current;
       const imgH = imgEl.getBoundingClientRect().height;
-      const range = rect.height - imgH;
+      /* The image moves within the page's image area, not the whole page. */
+      const range = rect.height * (CAPTURE_AREA.height / CAPTURE_PAGE.height) - imgH;
       if (range <= 0) return; // image too tall to drag
       const clientY = (e as MouseEvent).clientY ?? (e as TouchEvent).touches[0].clientY;
       const dy = clientY - dragState.current.startY;
@@ -219,20 +219,11 @@ function DraggableSectionPreview({
       ref={wrapRef}
       className={`${styles.previewThumb}${dragging ? ' ' + styles.previewThumbDragging : ''}`}
       style={{
-        // Position the thumbnail vertically inside the page canvas.
-        // top = yOffset * (canvasH - thumbH); since we don't know
-        // thumbH at render, we use percentage-based top + transform
-        // to pin the thumb's top edge to (yOffset * canvasH) for
-        // yOffset=0 → top, 0.5 → middle, 1 → bottom of the canvas
-        // (clamped by the thumb's own height).
-        top: `${yOffset * 100}%`,
-        transform: `translateY(${-yOffset * 100}%)`,
-        aspectRatio: `${aspect}`,
-        /* Horizontal extent driven by the Size slider — overrides
-           the static left/right rules in `.previewThumb`. */
-        left: `${leftPct}%`,
+        left: `${pct.left}%`,
+        top: `${pct.top}%`,
+        width: `${pct.width}%`,
+        height: `${pct.height}%`,
         right: 'auto',
-        width: `${widthPct}%`,
       }}
       onMouseDown={handleDown}
       onTouchStart={handleDown}

@@ -3,7 +3,7 @@
  */
 
 // Core utilities
-export { downloadPdf, pdfFilename, reportDateStr } from './download';
+export { downloadPdf, saveBlob, pdfFilename, reportDateStr } from './download';
 
 // Theme & Components
 export { colors, s, badgeColors, barColor } from './theme';
@@ -39,6 +39,9 @@ export {
   generateStrengthPdf,
   generateVisionPdf,
   generateSummaryPdf,
+  buildReportPdf,
+  latestReportsByType,
+  PDF_REPORT_TYPES,
   generateSummaryCapturePdf,
 } from './generators';
-export type { CapturedSection } from './generators';
+export type { CapturedSection, PdfReportType } from './generators';

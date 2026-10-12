@@ -14,7 +14,7 @@ import {
 } from '../components/ReportInlineEditing';
 import { DefenseReportEditor } from '../components/DefenseReportEditor';
 import { INFIELDER_SILHOUETTE, OUTFIELDER_SILHOUETTE } from './defense-silhouettes';
-import { generateDefensePdf } from '@/lib/pdf';
+import { usePdfExport } from '@/components/PdfExportDialog';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import * as api from '@/lib/api';
@@ -66,7 +66,7 @@ const ALL_SUB_TABS: { key: DefenseSubTab; label: string; positionCode: string }[
    doesn't render as an empty placeholder.
    ═══════════════════════════════════════════ */
 function DefenseCoachGradesPanel({
-  report, position, shuffleVelocityMph = null, customGrades, embedded = false,
+  report, position, shuffleVelocityMph = null, customGrades, embedded = false, horizontal = false,
 }: {
   report: ReportSummary | null | undefined;
   position: DefensePosition;
@@ -86,6 +86,10 @@ function DefenseCoachGradesPanel({
    *  embedding inside another bubble — used by the Infielder/Outfielder
    *  Snapshot, which hosts Coach Grades below its two-column body. */
   embedded?: boolean;
+  /** Embedded but laid out as one horizontal row of grades instead of the
+   *  vertical list -- the Catching Report, where the panel runs the full
+   *  width under the heat map and field diagram. */
+  horizontal?: boolean;
 }) {
   const defaultGrades: DefenseCoachGrades = useMemo(
     () => getDefenseCoachGrades(report ?? null, position),
@@ -108,8 +112,9 @@ function DefenseCoachGradesPanel({
          • Embedded (Infielder / Outfielder Snapshot) → a vertical LIST:
            one grade per line, label on the left + value on the right, so
            it stacks as a tall list to the right of the metric bubbles.
-         • Standalone (Catching) → the original horizontal chip row. */}
-      {embedded ? (
+         • Standalone, or embedded with `horizontal` (Catching) → one
+           horizontal row of grades. */}
+      {embedded && !horizontal ? (
         <div style={{
           display: 'flex', flexDirection: 'column', gap: 0,
           /* Grow to fill the stretched bubble; each grade row below is flex:1
@@ -2507,6 +2512,7 @@ export function CatchingSubTab({
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
+  const pdfExport = usePdfExport({ player, reports, isCoach });
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
@@ -2646,7 +2652,7 @@ export function CatchingSubTab({
       onDeleted={onRefresh}
       onNewReport={onNewReport}
       onEdit={onEditReport}
-      onDownload={(r) => generateDefensePdf(player, [r])}
+      onDownload={(r) => pdfExport.open([r])}
     />
   );
   /* Report header controls -- Edit (when a report is selected and not
@@ -2750,12 +2756,9 @@ export function CatchingSubTab({
             selected CATCHING report. Same icon-only square pattern as
             the Hitting tab. */}
         <DownloadPdfButton
-          onDownload={async () => {
-            if (!selectedReport) return;
-            await generateDefensePdf(player, [selectedReport]);
-          }}
-          disabled={!selectedReport}
+          onDownload={async () => pdfExport.open(selectedReport ? [selectedReport] : null)}
         />
+        {pdfExport.dialog}
         {/* The report selector used to sit here beside Download PDF. It
             now lives in the report header's top-right date slot, the way
             Hitting and Pitching do it — see the headerRightSlot below. */}
@@ -2821,6 +2824,7 @@ export function CatchingSubTab({
                 report={selectedReport}
                 position="catching"
                 embedded
+                horizontal
                 customGrades={[
                   { title: 'Footwork',             score: catchingAssessment?.throwing?.footwork?.grade   ?? null },
                   { title: 'Transfer',             score: catchingAssessment?.throwing?.transfer?.grade   ?? null },
@@ -3042,6 +3046,7 @@ export function InfieldSubTab({
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
+  const pdfExport = usePdfExport({ player, reports, isCoach });
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
@@ -3154,7 +3159,7 @@ export function InfieldSubTab({
       onDeleted={onRefresh}
       onNewReport={onNewReport}
       onEdit={onEditReport}
-      onDownload={(r) => generateDefensePdf(player, [r])}
+      onDownload={(r) => pdfExport.open([r])}
     />
   );
   /* Report header controls -- Edit (when a report is selected and not
@@ -3177,12 +3182,9 @@ export function InfieldSubTab({
             selected INFIELD report. Same icon-only square pattern as
             the Hitting tab. */}
         <DownloadPdfButton
-          onDownload={async () => {
-            if (!selectedReport) return;
-            await generateDefensePdf(player, [selectedReport]);
-          }}
-          disabled={!selectedReport}
+          onDownload={async () => pdfExport.open(selectedReport ? [selectedReport] : null)}
         />
+        {pdfExport.dialog}
         {/* The report selector used to sit here beside Download PDF. It
             now lives in the report header's top-right date slot, the way
             Hitting and Pitching do it — see the headerRightSlot below. */}
@@ -3505,6 +3507,7 @@ export function OutfieldSubTab({
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
+  const pdfExport = usePdfExport({ player, reports, isCoach });
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
   const canEdit = useCanEditReports();
@@ -3564,7 +3567,6 @@ export function OutfieldSubTab({
 
   const defMetrics = getTabMetrics(topMetrics, TAB_METRICS.defense);
   const hasData = Object.keys(defMetrics).length > 0;
-  const gradeKeys = TAB_METRICS.defense.filter(k => topMetrics[k] && GRADE_RANGES[k]);
 
   const outfieldAssessment = useMemo<OutfieldAssessment | null>(() => {
     if (!selectedReport?.content) return null;
@@ -3615,7 +3617,7 @@ export function OutfieldSubTab({
       onDeleted={onRefresh}
       onNewReport={onNewReport}
       onEdit={onEditReport}
-      onDownload={(r) => generateDefensePdf(player, [r])}
+      onDownload={(r) => pdfExport.open([r])}
     />
   );
   /* Report header controls -- Edit (when a report is selected and not
@@ -3638,12 +3640,9 @@ export function OutfieldSubTab({
             selected OUTFIELD report. Same icon-only square pattern as
             the Hitting tab. */}
         <DownloadPdfButton
-          onDownload={async () => {
-            if (!selectedReport) return;
-            await generateDefensePdf(player, [selectedReport]);
-          }}
-          disabled={!selectedReport}
+          onDownload={async () => pdfExport.open(selectedReport ? [selectedReport] : null)}
         />
+        {pdfExport.dialog}
         {/* The report selector used to sit here beside Download PDF. It
             now lives in the report header's top-right date slot, the way
             Hitting and Pitching do it — see the headerRightSlot below. */}
@@ -3783,36 +3782,9 @@ export function OutfieldSubTab({
         </Section>
       )}
 
-      {/* ── Scouting Grades (from CSV metrics) ── */}
-      {/* Athlete-wide (CSV) grades -- hidden on a report with no assessment
-          yet, so a new report starts blank. */}
-      {gradeKeys.filter(k => k.includes('outfield')).length > 0 && !(selectedReport && !outfieldAssessment) && (
-        <Section>
-          <SectionHeader icon="📊" iconColor="green" title="Outfield Grades" subtitle="20-80 Scale" />
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div className={styles.gradeRow} style={{ background: 'var(--surface2)', fontWeight: 500, fontSize: rem(11), textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-bright)' }}>
-              <span>Tool</span>
-              <span style={{ textAlign: 'center' }}>Value</span>
-              <span style={{ textAlign: 'center' }}>Grade</span>
-              <span>Scale</span>
-            </div>
-            {gradeKeys.filter(k => k.includes('outfield')).map(key => {
-              const m = topMetrics[key];
-              const grade = toScoutingGrade(m.value, key);
-              return (
-                <div key={key} className={styles.gradeRow}>
-                  <span className={styles.gradeLabel}>{METRIC_LABELS[key]}</span>
-                  <span className={styles.gradeValue} style={{ color: 'var(--accent-light)' }}>
-                    {m.value.toFixed(1)}
-                  </span>
-                  <span className={styles.gradeValue}>{grade}</span>
-                  <ScalePips grade={grade} />
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-      )}
+      {/* Outfield Grades (athlete-wide CSV grades, e.g. Outfield Velo)
+          removed — the Outfielder Report above is the whole view, the same
+          as Infield. */}
 
       {/* Coaching Notes section removed — notes flow through the
           Diagnosis Notes box rendered inside the Outfielder Snapshot. */}

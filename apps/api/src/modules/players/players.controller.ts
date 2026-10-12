@@ -134,6 +134,28 @@ export class PlayersController {
     return this.playersService.sendProfileReminder(id);
   }
 
+  @Get(':id/report-email-draft')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Starting subject + message for emailing a report PDF (COACH only)' })
+  reportEmailDraft(@Param('id') id: string) {
+    return this.playersService.reportEmailDraft(id);
+  }
+
+  @Post(':id/report-email')
+  @Roles('COACH')
+  /* Emails a report PDF the coach just built to the athlete and/or their
+     guardian. Addresses come from the athlete's record on the server, never
+     from the request, so this can't be pointed at an arbitrary inbox.
+     Throttled like the profile reminder. */
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Email a report PDF to the athlete and/or guardian (COACH only)' })
+  emailReport(
+    @Param('id') id: string,
+    @Body() body: { recipients?: unknown; filename?: unknown; pdfBase64?: unknown; subject?: unknown; message?: unknown },
+  ) {
+    return this.playersService.emailReportPdf(id, body);
+  }
+
   @Patch(':id/season-stats')
   @Roles('COACH', 'PLAYER')
   @ApiOperation({ summary: "Replace an athlete's season stats (athletes: their own)" })

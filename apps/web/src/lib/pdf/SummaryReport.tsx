@@ -10,6 +10,7 @@ import { PitchingReportPages, type PitchingPdfData } from './PitchingReport';
 import { DefenseReportPages, type DefensePdfData } from './DefenseReport';
 import { StrengthReportPages, type StrengthPdfData } from './StrengthReport';
 import { VisionReportPages, type VisionPdfData } from './VisionReport';
+import { academyName } from '@/lib/academy';
 
 export interface SummaryPdfData {
   player: any;
@@ -27,14 +28,13 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
   return (
     <Document
       title={`${player.firstName} ${player.lastName} — Player Assessment`}
-      author="Summer Pro Assessment"
+      author={academyName()}
       subject="Complete Player Assessment Report"
     >
       {/* Cover Page */}
       <CoverPage
         player={player}
         reportTitle="Player Assessment"
-        reportDate={reportDate}
       />
 
       {/* Hitting (Swing + At-Bat) */}

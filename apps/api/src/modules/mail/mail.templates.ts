@@ -23,7 +23,8 @@ export type EmailKey =
   | 'REGISTRATION_INVITE'
   | 'PASSWORD_RESET'
   | 'COACH_REVIEW'
-  | 'PROFILE_REMINDER';
+  | 'PROFILE_REMINDER'
+  | 'REPORT_PDF';
 
 /** The admin-editable part of an email. */
 export interface EmailContent {
@@ -168,6 +169,20 @@ export const EMAIL_DEFS: EmailDef[] = [
       heading: 'Complete your player profile',
       body:
         'Hello {name},\n\nPlease complete filling out the personal information on your {academy} Player Profile.',
+    },
+    note: () => '',
+  },
+  {
+    key: 'REPORT_PDF',
+    label: 'Assessment report',
+    when: "A coach emails a PDF report from an athlete's profile",
+    button: 'Open the App',
+    placeholders: ['name', 'academy'],
+    defaults: {
+      subject: "{name}'s {academy} assessment report",
+      heading: "{name}'s assessment report",
+      body:
+        "Hello,\n\nYour coach at {academy} has shared {name}'s assessment report. It's attached to this email as a PDF.",
     },
     note: () => '',
   },

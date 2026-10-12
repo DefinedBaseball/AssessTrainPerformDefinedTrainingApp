@@ -121,6 +121,54 @@ const TABS: Tab[] = [
   { key: 'videos', label: 'Videos', icon: IconVideos },
 ];
 
+/** Swap every large chart in `root` (an <svg> with hundreds of nodes, e.g.
+ *  a pitch plot with thousands of dots) for a single image of itself, and
+ *  return a function that puts the live chart back.
+ *
+ *  html2canvas copies ~350 computed style properties onto EVERY svg node
+ *  it clones, so the Pitch Report's three plots (10,000+ dots) took
+ *  minutes to capture. As one <img> they take a moment. CSS variables in
+ *  the markup are resolved first, since a standalone SVG image can't see
+ *  the page's theme. */
+async function flattenHeavySvgs(root: HTMLElement): Promise<() => void> {
+  const restores: Array<() => void> = [];
+  const svgs = Array.from(root.querySelectorAll<SVGSVGElement>('svg'))
+    .filter((svg) => !svg.parentElement?.closest('svg') && svg.querySelectorAll('*').length >= 150);
+  for (const svg of svgs) {
+    const box = svg.getBoundingClientRect();
+    if (!box.width || !box.height) continue;
+    const cs = getComputedStyle(svg);
+    const copy = svg.cloneNode(true) as SVGSVGElement;
+    copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    copy.setAttribute('width', String(box.width));
+    copy.setAttribute('height', String(box.height));
+    copy.style.color = cs.color;
+    copy.style.fontFamily = cs.fontFamily;
+    const markup = new XMLSerializer().serializeToString(copy).replace(
+      /var\((--[\w-]+)(?:,\s*([^)]+))?\)/g,
+      (_m, name: string, fallback?: string) => cs.getPropertyValue(name).trim() || fallback || 'currentColor',
+    );
+    const img = new Image();
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+    try { await img.decode(); } catch { continue; }
+    img.style.display = cs.display === 'inline' ? 'inline-block' : 'block';
+    img.style.width = `${box.width}px`;
+    img.style.height = `${box.height}px`;
+    img.style.verticalAlign = cs.verticalAlign;
+    const prev = svg.style.display;
+    svg.parentNode?.insertBefore(img, svg);
+    svg.style.display = 'none';
+    /* html2canvas still copies hidden elements; this attribute is its own
+       "skip me", so the dots are never cloned at all. */
+    svg.setAttribute('data-html2canvas-ignore', '');
+    restores.push(() => {
+      img.remove();
+      svg.style.display = prev;
+      svg.removeAttribute('data-html2canvas-ignore');
+    });
+  }
+  return () => restores.forEach((restore) => restore());
+}
 
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
@@ -484,13 +532,36 @@ export default function PlayerProfilePage() {
         const el = document.querySelector(`[data-pdf-section="${key}"]`) as HTMLElement | null;
         if (!el) continue;
 
+        /* Print the report, not the editing screen: no buttons, note
+           toolbars or empty note boxes, and never the private Coach Notes
+           (marked data-pdf-hide where they render). Hidden on the live
+           page for the moment of the capture -- html2canvas sizes the image
+           from the live element, so hiding them only in its copy would
+           leave blank gaps -- and put back straight after. */
+        const hidden = Array.from(
+          el.querySelectorAll<HTMLElement>('[data-pdf-hide], [data-pdf-empty], button'),
+        );
+        const prevDisplay = hidden.map((n) => n.style.display);
+        hidden.forEach((n) => { n.style.display = 'none'; });
+        const restoreCharts = await flattenHeavySvgs(el);
+
         try {
           const canvas = await html2canvas(el, {
-            backgroundColor: '#0a0e14',
+            /* Light theme: transparent, so the rounded corners print
+               white on the white PDF page instead of the app's grey
+               backdrop. Dark theme: the page's own dark background, or
+               its light text would land on white. */
+            backgroundColor: document.documentElement.getAttribute('data-theme') === 'light'
+              ? null
+              : getComputedStyle(document.body).backgroundColor || '#0a0e14',
             scale: 2,
             useCORS: true,
             allowTaint: true,
             logging: false,
+            /* html2canvas copies the whole page before drawing, and every
+               <video> in that copy started downloading again -- minutes per
+               capture. Videos and frames never print, so skip them. */
+            ignoreElements: (node) => node.tagName === 'VIDEO' || node.tagName === 'IFRAME',
           });
           captures[key] = {
             dataUrl: canvas.toDataURL('image/png'),
@@ -501,6 +572,9 @@ export default function PlayerProfilePage() {
         } catch (err) {
           // eslint-disable-next-line no-console
           console.error(`Failed to capture ${key}:`, err);
+        } finally {
+          restoreCharts();
+          hidden.forEach((n, i) => { n.style.display = prevDisplay[i]; });
         }
       }
     } finally {

@@ -16,13 +16,13 @@ import styles from '../page.module.css';
 import { SprayChartView } from '../components/SprayChartView';
 import { StrikeZoneDamageView } from '../components/StrikeZoneDamageView';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
-import { generateHittingPdf } from '@/lib/pdf';
+import { usePdfExport } from '@/components/PdfExportDialog';
 import {
   TabProps,
   getLatestReport, getReportUploadIds, getReportUploadIdsForKeys,
   getManualSwingMetrics, getManualBattedBall,
   getReportVideoIds, getReportContentVideos,
-  metricToGrade, computeHittingComposites,
+  metricToGrade, computeHittingComposites, aggregateReportMetrics,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -225,6 +225,7 @@ export function HittingTab(props: TabProps) {
   const uploadQueue = useUploadQueue();
   const { player, topMetrics, reports, isCoach, onRefresh, refreshKey, videos: playerVideos } = props;
   const { user } = useAuth();
+  const pdfExport = usePdfExport({ player, reports, isCoach });
   const isLight = useTheme().theme === 'light';
   const [subTab, setSubTab] = useState<SubTabKey>('swing');
 
@@ -477,65 +478,16 @@ export function HittingTab(props: TabProps) {
       setPerReportMetrics(new Map());
       return;
     }
-    /* Aggregation rules per metric_type — matches the API's
-       getTopMetrics so the in-app Hitting tab agrees with the rest of
-       the system on how to roll up per-swing rows:
-         max_* / *_max  → MAX
-         avg_* / *_avg  → AVG (mean across rows)
-         *_pct          → AVG (per-row 0/100 flags average to a %)
-         explicit AVG   → MEAN (launch_angle, distance, etc.)
-         lowerIsBetter  → MIN (time_to_contact + whiff/chase/K %)
-         everything else → LATEST (newest row's value)
-       Previously this just took MAX (or MIN for lowerIsBetter), which
-       made percentage metrics like squared_up_pct and overall_barrel_pct
-       always read 100 if any one swing hit 100. */
-    const lowerIsBetter = new Set([
-      'time_to_contact',
-      'overall_whiff_pct', 'fb_whiff_pct', 'os_whiff_pct',
-      'overall_chase_pct', 'fb_chase_pct', 'os_chase_pct',
-      'overall_k_pct',
-    ]);
-    const explicitAvg = new Set([
-      'launch_angle', 'distance', 'spray_angle', 'pitch_speed',
-      'bat_speed', 'attack_angle', 'plane_angle',
-      'time_to_contact', 'on_plane_efficiency',
-      'connection_at_contact', 'rotational_acceleration',
-      'smash_factor',
-    ]);
-    type AggMode = 'max' | 'min' | 'avg' | 'latest';
-    const aggMode = (mt: string): AggMode => {
-      if (lowerIsBetter.has(mt)) return 'min';
-      if (mt.startsWith('max_') || mt.endsWith('_max')) return 'max';
-      if (mt.startsWith('avg_') || mt.endsWith('_avg')) return 'avg';
-      if (mt.endsWith('_pct')) return 'avg';
-      if (explicitAvg.has(mt)) return 'avg';
-      return 'latest';
-    };
+    /* One value per metric for each report -- aggregateReportMetrics
+       (helpers) holds the max / avg / min / latest rules, shared with the
+       PDFs. */
     let cancelled = false;
     Promise.all(hittingReports.map(async (r) => {
       const ids = getReportUploadIds(r);
       if (ids.length === 0) return [r.id, null] as const;
       try {
         const metrics = await api.getPlayerMetrics(player.id, { uploadIds: ids });
-        // Bucket per metric_type so we can apply the right reducer.
-        const grouped = new Map<string, typeof metrics>();
-        for (const m of metrics) {
-          const arr = grouped.get(m.metricType);
-          if (arr) arr.push(m); else grouped.set(m.metricType, [m]);
-        }
-        const top: Record<string, { value: number; unit: string; recordedAt: string }> = {};
-        for (const [mt, rows] of grouped.entries()) {
-          // newest row first (assume rows arrive in any order — sort here)
-          rows.sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
-          const values = rows.map(rr => rr.value);
-          let v: number;
-          const mode = aggMode(mt);
-          if (mode === 'max') v = Math.max(...values);
-          else if (mode === 'min') v = Math.min(...values);
-          else if (mode === 'avg') v = values.reduce((s, n) => s + n, 0) / values.length;
-          else v = rows[0].value;
-          top[mt] = { value: v, unit: rows[0].unit, recordedAt: rows[0].recordedAt };
-        }
+        const top = aggregateReportMetrics(metrics);
         return [r.id, top] as const;
       } catch { return [r.id, null] as const; }
     })).then((entries) => {
@@ -956,22 +908,12 @@ export function HittingTab(props: TabProps) {
       <TabBarActions>
         {/* "+ Add Report" button retired — it now lives as the first
             row inside the ReportSelector dropdown below. */}
-        {/* Top-level Download PDF — generates a PDF for the currently
-            selected HITTING report. Disabled when no report is selected. */}
+        {/* Top-level Download PDF — opens the Report PDF window with this
+            tab's selected HITTING report ticked. */}
         <DownloadPdfButton
-          onDownload={async () => {
-            if (!activeHittingReport) return;
-            /* Pass the in-app Snapshot's exact computed display state:
-                 • topMetricsWithMiss — per-active-report-scoped metrics
-                   (manual + CSV + at-bat XLSX, gated by manual-mode flags).
-                 • qocOverride — pooled HitTrax + Full Swing means/maxes
-                   the snapshot's QoC chips render with.
-               Previously the PDF re-derived these and could drift; now
-               it's literally the same data the on-screen report uses. */
-            await generateHittingPdf(player, [activeHittingReport], topMetricsWithMiss, qocOverride);
-          }}
-          disabled={!activeHittingReport}
+          onDownload={async () => pdfExport.open(activeHittingReport ? [activeHittingReport] : null)}
         />
+        {pdfExport.dialog}
         {/* The Assessment selector moved OUT of this actions slot and into
             the Hitting Report header, where it now occupies the date chip's
             spot as a compact dropdown. See the header row below. */}
@@ -1159,7 +1101,7 @@ export function HittingTab(props: TabProps) {
               onDeleted={onRefresh}
               onNewReport={props.onNewReport}
               onEdit={props.onEditReport}
-              onDownload={(r) => generateHittingPdf(player, [r], topMetricsWithMiss, qocOverride)}
+              onDownload={(r) => pdfExport.open([r])}
               onRangeChange={handleRangeChange}
             />
           </div>
@@ -1377,7 +1319,8 @@ export function HittingTab(props: TabProps) {
             const attachedVideos = playerVideos.filter((v) => attachedReviewIds.includes(v.id));
             if (attachedVideos.length === 0) return null;
             return (
-              <div style={{
+              /* Video clips can't print: left out of the Summary PDF. */
+              <div data-pdf-hide="" style={{
                 minWidth: 0,
                 ...movementPlotBubbleStyle,
                 display: 'flex',

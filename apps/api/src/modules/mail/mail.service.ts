@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AcademyService, DEFAULT_ACADEMY_NAME } from '../academy/academy.service';
-import { EmailContent, EmailKey, EmailVars, emailDef, renderEmail } from './mail.templates';
+import { EmailContent, EmailKey, EmailVars, emailDef, fillPlaceholders, renderEmail } from './mail.templates';
 
 /**
  * Transactional email via Resend's REST API.
@@ -18,6 +18,12 @@ import { EmailContent, EmailKey, EmailVars, emailDef, renderEmail } from './mail
  * Sender name, reply-to, logo, footer and wording come from Settings →
  * Academy at send time.
  */
+/** A file sent with an email. `content` is base64 (Resend's format). */
+export interface MailAttachment {
+  filename: string;
+  content: string;
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -77,11 +83,23 @@ export class MailService {
     return renderEmail(def, content, vars, await this.brand(relativeLogo));
   }
 
+  /** A template's saved wording with {name} / {academy} filled in -- the
+   *  starting text for an email a coach edits before sending. */
+  async filledContent(key: EmailKey, name: string | null): Promise<EmailContent> {
+    const content = await this.academy.emailContent(key);
+    const academyName = (await this.academy.get()).name;
+    const fill = (s: string) => fillPlaceholders(s, name, academyName);
+    return { subject: fill(content.subject), heading: fill(content.heading), body: fill(content.body) };
+  }
+
   /** Render + send one of the app's emails. Same never-throws contract as send(). */
-  async sendTemplate(key: EmailKey, to: string, vars: EmailVars, draft?: EmailContent): Promise<boolean> {
+  async sendTemplate(
+    key: EmailKey, to: string, vars: EmailVars, draft?: EmailContent,
+    attachments?: MailAttachment[],
+  ): Promise<boolean> {
     try {
       const { subject, html, text } = await this.render(key, vars, draft);
-      return await this.send({ to, subject, html, text });
+      return await this.send({ to, subject, html, text, attachments });
     } catch (err) {
       this.logger.error(`Email ${key} could not be built`, err as Error);
       return false;
@@ -97,6 +115,7 @@ export class MailService {
     subject: string;
     html: string;
     text?: string;
+    attachments?: MailAttachment[];
   }): Promise<boolean> {
     const toLabel = Array.isArray(opts.to) ? opts.to.join(', ') : opts.to;
 
@@ -128,6 +147,7 @@ export class MailService {
           html: opts.html,
           ...(opts.text ? { text: opts.text } : {}),
           ...(replyTo ? { reply_to: replyTo } : {}),
+          ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
         }),
       });
 

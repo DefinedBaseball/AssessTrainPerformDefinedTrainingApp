@@ -4,34 +4,31 @@
  */
 import React from 'react';
 import { Document, Page, View, Image, Text, StyleSheet } from '@react-pdf/renderer';
-import { downloadPdf, pdfFilename, reportDateStr } from './download';
+import { downloadPdf, renderPdf, pdfFilename, reportDateStr, latestReportDate } from './download';
+import { PageFooter } from './components';
+import { saveBlob } from './download';
+import { academyName } from '@/lib/academy';
+import { CAPTURE_PAGE, CAPTURE_AREA, fitCapture } from './captureLayout';
 import { CoverPage } from './CoverPage';
-import { HittingReportPages, type HittingPdfData } from './HittingReport';
+import {
+  HittingReportPages, type HittingPdfData, type HittingVendor, type VendorCell, type SprayDot,
+} from './HittingReport';
+import { buildZoneStats, type ZoneStat } from '@/app/athletes/[id]/components/StrikeZoneDamageView';
+import { INFIELDER_SILHOUETTE, OUTFIELDER_SILHOUETTE } from '@/app/athletes/[id]/tabs/defense-silhouettes';
 import { PitchingReportPages, type PitchingPdfData, type ArsenalRow } from './PitchingReport';
-import { DefenseReportPages, type DefensePdfData } from './DefenseReport';
+import { DefenseReportPages, type DefensePdfData, type DefensePosition } from './DefenseReport';
 import { StrengthReportPages, type StrengthPdfData } from './StrengthReport';
 import { VisionReportPages, type VisionPdfData } from './VisionReport';
-import { SummaryReportDocument, type SummaryPdfData } from './SummaryReport';
 import * as api from '@/lib/api';
 import type { ReportSummary } from '@/app/athletes/[id]/helpers';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
-  metricToGrade,
+  gradeIfKnown,
   getManualSwingMetrics, getManualBattedBall,
+  getDefenseCoachGrades, aggregateReportMetrics,
 } from '@/app/athletes/[id]/helpers';
 
 /* ── Helpers ── */
-
-function parsePositions(posStr: string | null | undefined) {
-  const positions = posStr?.split(',').map(p => p.trim()).filter(Boolean) || [];
-  return {
-    list: positions,
-    isCatcher: positions.includes('C'),
-    isInfielder: positions.includes('INF'),
-    isOutfielder: positions.includes('OF'),
-    isPitcher: positions.includes('P'),
-  };
-}
 
 function buildTopMetricsFromRaw(metrics: any[]): Record<string, { value: number; unit: string; recordedAt: string }> {
   const lowerIsBetter = new Set(['sprint_60', 'pop_time', 'exchange_time']);
@@ -55,327 +52,265 @@ function getAssessmentFromReport(report: ReportSummary | null, key: string): any
   } catch { return null; }
 }
 
-function getAtBatAssessmentFromReport(report: ReportSummary | null): any {
-  return getAssessmentFromReport(report, 'atBatAssessment');
+/* ═══════════════════════════════════════════
+   HITTING PDF — one page: vendor bubbles (Blast Motion / HitTrax /
+   Full Swing, each only when the report has its data), spray chart +
+   strike zone, hitting notes.
+   ═══════════════════════════════════════════ */
+
+type MetricMap = Record<string, { value: number; unit: string; recordedAt: string }>;
+
+/* Column labels, keys and number formats copied from the Hitting tab's
+   vendor bubbles (SwingTab) so the PDF reads exactly like the screen. */
+const VENDOR_LABELS: Record<string, string> = {
+  max_exit_velo: 'Max Exit Velocity',
+  avg_exit_velo: 'Avg Exit Velocity',
+  max_distance: 'Max Distance',
+  distance: 'Avg Distance',
+  launch_angle: 'Avg Launch Angle',
+  squared_up_pct: 'Squared Up %',
+  max_bat_speed: 'Max Bat Speed',
+  avg_bat_speed: 'Avg Bat Speed',
+  peak_hand_speed: 'Hand Speed',
+  time_to_contact: 'Time to Contact',
+  rotational_accel_g: 'Rotational Accel',
+  early_connection: 'Early Connection',
+  plane_angle: 'Vert Bat Angle',
+  attack_angle: 'Attack Angle',
+  on_plane_efficiency: 'Plane Score',
+};
+const HITTRAX_COLUMNS = ['max_exit_velo', 'avg_exit_velo', 'max_distance', 'distance', 'launch_angle'];
+const FULLSWING_COLUMNS = [...HITTRAX_COLUMNS, 'squared_up_pct'];
+const BLAST_COLUMNS = [
+  'max_bat_speed', 'avg_bat_speed', 'peak_hand_speed', 'time_to_contact',
+  'rotational_accel_g', 'early_connection', 'plane_angle', 'attack_angle',
+  'on_plane_efficiency',
+];
+
+function battedBallCell(key: string, m: { value: number } | undefined): VendorCell {
+  const label = VENDOR_LABELS[key] || key;
+  if (!m) return { label, display: '—', grade: null };
+  const v = m.value;
+  const f = key.endsWith('_exit_velo') ? { display: v.toFixed(1), unit: 'mph' }
+    : key.endsWith('_pct') ? { display: v.toFixed(1), unit: '%' }
+    : key === 'launch_angle' ? { display: v.toFixed(1), unit: 'deg' }
+    : key === 'distance' || key === 'max_distance' ? { display: v.toFixed(0), unit: 'ft' }
+    : { display: v.toFixed(1) };
+  return { label, ...f, grade: gradeIfKnown(v, key) };
 }
 
-/* ═══════════════════════════════════════════
-   HITTING PDF (Swing/Batted Ball + At-Bat Results)
-   ═══════════════════════════════════════════ */
+/** Share of balls hit at 5-30 degrees -- the Hitting tab's "LD %". */
+function lineDrivePct(las: number[]): number | null {
+  const inPlay = las.filter(la => Number.isFinite(la));
+  if (inPlay.length === 0) return null;
+  return (inPlay.filter(la => la >= 5 && la <= 30).length / inPlay.length) * 100;
+}
+
+/** Everything the Hitting PDF prints for one HITTING report. Shared by
+ *  the Hitting PDF and the Player Summary PDF so the two never drift, and
+ *  self-contained: it reads the report's own uploads and manual entries
+ *  and rolls them up the way the Hitting tab does, so the numbers match
+ *  the screen whichever page the download starts from. */
+async function collectHittingPdfData(
+  player: any,
+  hittingReport: ReportSummary | null,
+  reportDate: string,
+): Promise<HittingPdfData> {
+  const uploadIds = getReportUploadIds(hittingReport);
+
+  /* Notes: the report's own notes, legacy content.diagnosisNotes fallback. */
+  let notes = (hittingReport?.notes && hittingReport.notes.trim()) || '';
+  if (!notes && hittingReport?.content) {
+    try {
+      const c = JSON.parse(hittingReport.content);
+      notes = typeof c.diagnosisNotes === 'string' ? c.diagnosisNotes : '';
+    } catch { /* ignore */ }
+  }
+
+  /* Manual-entry flags: a stale manual block only counts when its toggle is on. */
+  let manualModes = { fullswing: false, blast: false };
+  if (hittingReport?.content) {
+    try {
+      const m = JSON.parse(hittingReport.content)?.manualEntryModes;
+      manualModes = { fullswing: !!m?.fullswing, blast: !!m?.blast };
+    } catch { /* ignore */ }
+  }
+  const manualBatted = getManualBattedBall(hittingReport) as unknown as Record<string, number | null>;
+  const manualSwing = getManualSwingMetrics(hittingReport) as unknown as Record<string, number | null>;
+  const hasManual = (o: Record<string, number | null>) => Object.values(o).some(v => v != null);
+
+  /* This report's uploads, by source -- the same read the Hitting tab does. */
+  const ht = { v: [] as number[], la: [] as number[], d: [] as number[] };
+  const fs = { v: [] as number[], la: [] as number[], d: [] as number[] };
+  let sawFs = false, sawHt = false, sawBlast = false;
+  /* The report's metrics, one value each (Hitting tab layering: manual
+     entries first, this report's uploads on top). */
+  const topMetrics: MetricMap = {};
+  const mergeManual = (entries: Record<string, number | null>) => {
+    for (const [k, v] of Object.entries(entries)) {
+      if (typeof v === 'number' && Number.isFinite(v)) topMetrics[k] = { value: v, unit: '', recordedAt: '' };
+    }
+  };
+  if (manualModes.blast) mergeManual(manualSwing);
+  if (manualModes.fullswing) mergeManual(manualBatted);
+  if (uploadIds.length > 0) {
+    try {
+      const rows = await api.getPlayerMetrics(player.id, { uploadIds });
+      Object.assign(topMetrics, aggregateReportMetrics(rows as any[]));
+      for (const m of rows as any[]) {
+        if (!Number.isFinite(m.value)) continue;
+        const bucket = m.source === 'HITTRAX' ? ht : m.source === 'FULL_SWING' ? fs : null;
+        if (m.source === 'HITTRAX') sawHt = true;
+        else if (m.source === 'FULL_SWING') sawFs = true;
+        else if (m.source === 'BLAST_MOTION') sawBlast = true;
+        if (!bucket) continue;
+        if (m.metricType === 'max_exit_velo') bucket.v.push(m.value);
+        else if (m.metricType === 'launch_angle') bucket.la.push(m.value);
+        else if (m.metricType === 'distance') bucket.d.push(m.value);
+      }
+    } catch { /* leave empty */ }
+  }
+  // A 0 mph reading is an empty at-bat, not a ball.
+  ht.v = ht.v.filter(v => v !== 0);
+  fs.v = fs.v.filter(v => v !== 0);
+
+  const mean = (a: number[]) => a.reduce((s, n) => s + n, 0) / a.length;
+  const sessionValues = (src: typeof ht) => {
+    const out: Record<string, { value: number }> = {};
+    if (src.v.length) { out.avg_exit_velo = { value: mean(src.v) }; out.max_exit_velo = { value: Math.max(...src.v) }; }
+    if (src.la.length) out.launch_angle = { value: mean(src.la) };
+    if (src.d.length) { out.distance = { value: mean(src.d) }; out.max_distance = { value: Math.max(...src.d) }; }
+    return out;
+  };
+
+  const vendors: HittingVendor[] = [];
+
+  /* Blast Motion -- only the readings present. */
+  if (sawBlast || (manualModes.blast && hasManual(manualSwing))) {
+    const swing = topMetrics;
+    const cells = BLAST_COLUMNS.filter(k => swing[k]).map((k): VendorCell => {
+      const m = swing[k];
+      const isAngle = k === 'plane_angle' || k === 'attack_angle' || k === 'early_connection';
+      const unit = isAngle ? 'deg' : (m.unit === '°' ? 'deg' : (m.unit || undefined));
+      return {
+        label: VENDOR_LABELS[k] || k,
+        display: k === 'time_to_contact' ? m.value.toFixed(2) : m.value.toFixed(1),
+        unit,
+        grade: gradeIfKnown(m.value, k),
+      };
+    });
+    if (cells.length) vendors.push({ key: 'blast', title: 'Blast Motion', cells });
+  }
+
+  /* HitTrax -- this report's HitTrax uploads only. */
+  if (sawHt) {
+    const vals = sessionValues(ht);
+    const ld = lineDrivePct(ht.la);
+    vendors.push({
+      key: 'hittrax', title: 'HitTrax',
+      cells: [
+        ...HITTRAX_COLUMNS.map(k => battedBallCell(k, vals[k])),
+        ...(ld !== null ? [{ label: 'LD %', display: ld.toFixed(1), unit: '%', grade: null }] : []),
+      ],
+    });
+  }
+
+  /* Full Swing -- CSV values win over manual entries; the four keys both
+     vendors emit never fall back to the shared pool, so HitTrax numbers
+     can't land in this bubble. */
+  if (sawFs || (manualModes.fullswing && hasManual(manualBatted))) {
+    const override: Record<string, { value: number }> = {};
+    if (manualModes.fullswing) {
+      for (const [k, v] of Object.entries(manualBatted)) if (typeof v === 'number') override[k] = { value: v };
+    }
+    Object.assign(override, sessionValues(fs));
+    const SHARED = new Set(['avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance', 'max_distance']);
+    const resolve = (k: string) => override[k] ?? (SHARED.has(k) ? undefined : topMetrics[k]);
+    const ld = lineDrivePct(fs.la);
+    vendors.push({
+      key: 'fullswing', title: 'Full Swing',
+      cells: [
+        ...FULLSWING_COLUMNS.map(k => battedBallCell(k, resolve(k))),
+        ...(ld !== null ? [{ label: 'LD %', display: ld.toFixed(1), unit: '%', grade: null }] : []),
+      ],
+    });
+  }
+
+  /* Spray chart dots + strike zone. HitTrax dots win when present (as on
+     screen); Full Swing angle + distance is the fallback. */
+  let sprayDots: SprayDot[] = [];
+  let zoneStats: ZoneStat[] = [];
+  const ids = uploadIds.length > 0 ? { uploadIds } : undefined;
+  if (uploadIds.length > 0) {
+    try {
+      const [htRows, fsRows] = await Promise.all([
+        api.getSessionData(player.id, 'HITTRAX',
+          ['spray_x', 'spray_z', 'spray_angle', 'spray_dist', 'ball_type_code', 'max_exit_velo', 'launch_angle', 'strike_zone'],
+          ids).catch(() => [] as any[]),
+        api.getSessionData(player.id, 'FULL_SWING',
+          ['spray_angle', 'distance', 'max_exit_velo'], ids).catch(() => [] as any[]),
+      ]);
+      zoneStats = buildZoneStats(htRows as any[]);
+
+      type HtRow = { x?: number; z?: number; polarAngle?: number; polarDist?: number; type?: number; ev?: number };
+      const htByTs = new Map<string, HtRow>();
+      for (const r of htRows as any[]) {
+        const cur = htByTs.get(r.recordedAt) ?? {};
+        if (r.metricType === 'spray_x') cur.x = r.value;
+        if (r.metricType === 'spray_z') cur.z = r.value;
+        if (r.metricType === 'spray_angle') cur.polarAngle = r.value;
+        if (r.metricType === 'spray_dist') cur.polarDist = r.value;
+        if (r.metricType === 'ball_type_code') cur.type = r.value;
+        if (r.metricType === 'max_exit_velo') cur.ev = r.value;
+        htByTs.set(r.recordedAt, cur);
+      }
+      const htDots: SprayDot[] = [];
+      for (const e of htByTs.values()) {
+        if (e.x !== undefined && e.z !== undefined && e.z > 0) {
+          htDots.push({ angle: (Math.atan2(e.x, e.z) * 180) / Math.PI, distance: Math.hypot(e.x, e.z), exitVelo: e.ev, ballTypeCode: e.type });
+        } else if (e.polarAngle !== undefined && e.polarDist !== undefined && e.polarDist > 0) {
+          htDots.push({ angle: e.polarAngle, distance: e.polarDist, exitVelo: e.ev, ballTypeCode: e.type });
+        }
+      }
+
+      const fsByTs = new Map<string, { angle?: number; dist?: number; ev?: number }>();
+      for (const r of fsRows as any[]) {
+        const cur = fsByTs.get(r.recordedAt) ?? {};
+        if (r.metricType === 'spray_angle') cur.angle = r.value;
+        if (r.metricType === 'distance') cur.dist = r.value;
+        if (r.metricType === 'max_exit_velo') cur.ev = r.value;
+        fsByTs.set(r.recordedAt, cur);
+      }
+      const fsDots: SprayDot[] = Array.from(fsByTs.values())
+        .filter(s => s.angle !== undefined && s.dist !== undefined && s.dist > 0)
+        .map(s => ({ angle: s.angle!, distance: s.dist!, exitVelo: s.ev }));
+
+      sprayDots = htDots.length > 0 ? htDots : fsDots;
+    } catch { /* ignore */ }
+  }
+
+  return { player, reportDate, vendors, sprayDots, zoneStats, notes };
+}
 
 export async function generateHittingPdf(
   player: any,
   reports: ReportSummary[],
-  topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
-  /** Optional pre-computed Quality-of-Contact override from the in-app
-   *  Hitting Snapshot — pooled HitTrax + Full Swing means/maxes for
-   *  Avg EV / Max EV / LA / Dist. When provided, the PDF uses these
-   *  values verbatim so there can be no drift between the on-screen
-   *  snapshot and the printed report. */
-  qocOverride?: Record<string, { value: number; unit: string }>,
 ) {
-  const reportDate = reportDateStr();
-
-  // Find the selected/latest hitting report
   const hittingReport = reports
     .filter(r => r.reportType === 'HITTING')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-
-  const uploadIds = getReportUploadIds(hittingReport);
-  const ids = uploadIds.length > 0 ? uploadIds : undefined;
-
-  // Hitting notes. Prefer the report's top-level `notes` field (source of
-  // truth in the modal + snapshot), falling back to legacy
-  // content.diagnosisNotes for older reports. Coach grades are no longer
-  // read here — they never appear in a forward-facing report.
-  let diagnosisNotes = (hittingReport?.notes && hittingReport.notes.trim()) || '';
-  if (!diagnosisNotes && hittingReport?.content) {
-    try {
-      const c = JSON.parse(hittingReport.content);
-      diagnosisNotes = typeof c.diagnosisNotes === 'string' ? c.diagnosisNotes : '';
-    } catch { /* ignore */ }
-  }
-
-  /* Compute Full Swing Miss% + spray dots — mirrors SprayChartView so the
-     PDF and the in-app spray chart show the same dots:
-       1. Fetch HITTRAX-source spray_x / spray_z / spray_angle / spray_dist /
-          ball_type_code in parallel with the FULL_SWING session data.
-       2. If HitTrax has dots, those win (Cartesian X/Z preferred, polar
-          Horiz. Angle + Dist as fallback). Each dot also carries
-          ballTypeCode so PdfSprayChart can color GB/LD/FB.
-       3. Otherwise fall back to the FULL_SWING-derived dots (spray_angle,
-          distance, max_exit_velo for color). */
-  let fullSwingMissPct: number | null = null;
-  let sprayDots: { angle: number; distance: number; exitVelo?: number; ballTypeCode?: number }[] = [];
-  try {
-    const [htRows, fsRows] = await Promise.all([
-      api.getSessionData(player.id, 'HITTRAX',
-        ['spray_x', 'spray_z', 'spray_angle', 'spray_dist', 'ball_type_code', 'max_exit_velo', 'launch_angle'],
-        ids ? { uploadIds: ids } : undefined,
-      ).catch(() => [] as any[]),
-      api.getSessionData(player.id, 'FULL_SWING',
-        ['bat_speed', 'squared_up_pct', 'spray_angle', 'distance', 'max_exit_velo'],
-        ids ? { uploadIds: ids } : undefined,
-      ).catch(() => [] as any[]),
-    ]);
-
-    // ── HitTrax dots (Cartesian preferred, polar fallback) ──
-    type HtRow = { x?: number; z?: number; polarAngle?: number; polarDist?: number; type?: number; ev?: number };
-    const htByTs = new Map<string, HtRow>();
-    for (const r of (htRows as any[])) {
-      const cur = htByTs.get(r.recordedAt) ?? {};
-      if (r.metricType === 'spray_x')        cur.x = r.value;
-      if (r.metricType === 'spray_z')        cur.z = r.value;
-      if (r.metricType === 'spray_angle')    cur.polarAngle = r.value;
-      if (r.metricType === 'spray_dist')     cur.polarDist  = r.value;
-      if (r.metricType === 'ball_type_code') cur.type = r.value;
-      if (r.metricType === 'max_exit_velo')  cur.ev   = r.value;
-      htByTs.set(r.recordedAt, cur);
-    }
-    const htDots: typeof sprayDots = [];
-    for (const e of htByTs.values()) {
-      let angle: number | undefined;
-      let distance: number | undefined;
-      if (e.x !== undefined && e.z !== undefined && e.z > 0) {
-        distance = Math.sqrt(e.x * e.x + e.z * e.z);
-        angle = (Math.atan2(e.x, e.z) * 180) / Math.PI;
-      } else if (e.polarAngle !== undefined && e.polarDist !== undefined && e.polarDist > 0) {
-        angle = e.polarAngle;
-        distance = e.polarDist;
-      }
-      if (angle !== undefined && distance !== undefined) {
-        htDots.push({ angle, distance, exitVelo: e.ev, ballTypeCode: e.type });
-      }
-    }
-
-    // ── Full Swing miss% + dot fallback ──
-    const fsByTs = new Map<string, { bat: boolean; sq: boolean; angle?: number; dist?: number; ev?: number }>();
-    for (const r of (fsRows as any[])) {
-      const cur = fsByTs.get(r.recordedAt) ?? { bat: false, sq: false };
-      if (r.metricType === 'bat_speed')      cur.bat = true;
-      if (r.metricType === 'squared_up_pct') cur.sq  = true;
-      if (r.metricType === 'spray_angle')    cur.angle = r.value;
-      if (r.metricType === 'distance')       cur.dist  = r.value;
-      if (r.metricType === 'max_exit_velo')  cur.ev    = r.value;
-      fsByTs.set(r.recordedAt, cur);
-    }
-    const swings = Array.from(fsByTs.values()).filter(s => s.bat);
-    if (swings.length > 0) {
-      const misses = swings.filter(s => !s.sq).length;
-      fullSwingMissPct = (misses / swings.length) * 100;
-    }
-    const fsDots: typeof sprayDots = Array.from(fsByTs.values())
-      .filter(s => s.angle !== undefined && s.dist !== undefined && s.dist! > 0)
-      .map(s => ({ angle: s.angle!, distance: s.dist!, exitVelo: s.ev }));
-
-    // HitTrax wins when present, mirroring SprayChartView.
-    sprayDots = htDots.length > 0 ? htDots : fsDots;
-  } catch { /* ignore */ }
-
-  /* topMetrics passed in IS already the in-app Snapshot's
-     topMetricsWithMiss (active-report-scoped: at-bat XLSX + manual entries
-     gated by manualEntryModes + this report's CSV-derived metrics). We
-     also overlay the manual entries here as a defensive fallback for
-     cases where the caller passes the player-wide topMetrics instead —
-     the same gating + merge order HittingTab uses, so the PDF can never
-     drift from what the coach sees on screen. */
-  const topMetricsAll: Record<string, { value: number; unit: string; recordedAt: string }> = {
-    ...topMetrics,
-  };
-
-  // Read the active report's manual-mode flags so stale manualBattedBall /
-  // manualSwingMetrics from older saves don't leak into the PDF.
-  let manualModes = { fullswing: false, blast: false };
-  if (hittingReport?.content) {
-    try {
-      const c = JSON.parse(hittingReport.content);
-      const m = c?.manualEntryModes;
-      manualModes = {
-        fullswing: !!(m && m.fullswing),
-        blast: !!(m && m.blast),
-      };
-    } catch { /* ignore */ }
-  }
-  const manualBatted = getManualBattedBall(hittingReport);
-  const manualSwing  = getManualSwingMetrics(hittingReport);
-  const mergeManual = (
-    entries: Record<string, number | null>,
-    unitFor: (k: string) => string,
-  ) => {
-    for (const [k, val] of Object.entries(entries)) {
-      if (typeof val !== 'number' || !Number.isFinite(val)) continue;
-      // Don't override values already present in topMetrics (the caller's
-      // topMetricsWithMiss would have CSV-derived data already merged).
-      if (topMetricsAll[k] !== undefined) continue;
-      topMetricsAll[k] = {
-        value: val, unit: unitFor(k),
-        recordedAt: hittingReport?.createdAt ?? new Date().toISOString(),
-      };
-    }
-  };
-  if (manualModes.blast) {
-    mergeManual(manualSwing as unknown as Record<string, number | null>, (k) => {
-      if (k === 'time_to_contact') return 'sec';
-      if (k.endsWith('_pct') || k === 'on_plane_efficiency') return '%';
-      if (k === 'attack_angle' || k === 'plane_angle') return 'deg';
-      if (k === 'power_output') return 'kW';
-      if (k === 'peak_hand_speed') return 'mph';
-      /* Blast CSV spec additions — scores are unitless, the two
-         connection-degree readings carry 'deg' so badge / chip
-         renderers see the right unit when they reference it. */
-      if (k === 'plane_score' || k === 'connection_score' || k === 'rotation_score') return '';
-      if (k === 'early_connection' || k === 'connection_at_impact') return 'deg';
-      return 'mph';
-    });
-  }
-  if (manualModes.fullswing) {
-    mergeManual(manualBatted as unknown as Record<string, number | null>, (k) => {
-      if (k === 'distance') return 'ft';
-      if (k === 'launch_angle') return 'deg';
-      if (k === 'avg_exit_velo' || k === 'max_exit_velo') return 'mph';
-      if (k === 'smash_factor') return '';
-      return '%';
-    });
-  }
-
-  if (fullSwingMissPct !== null) {
-    topMetricsAll.full_swing_miss_pct = {
-      value: fullSwingMissPct, unit: '%', recordedAt: new Date().toISOString(),
-    };
-  }
-  /* Pooled Avg / Max EV is overlaid below — after the per-source fetch
-     populates htVelos / fsVelos. Order matters: declaring it here would
-     hit the temporal dead zone since those arrays are still uninitialized. */
-
-  // Per-key 20-80 grades for Blast Motion mechanics inputs.
-  // Includes max_bat_speed so the Swing row's first chip lights up.
-  // Blast CSV spec additions (plane_score / connection_score /
-  // rotation_score / early_connection / connection_at_impact) appended
-  // so their KPI cards in the PDF Blast Motion section get a color via
-  // `metricGrades` — keep this in sync with HittingReport.tsx's
-  // SWING_METRIC_KEYS so every chip / card grade flows through.
-  const SWING_KEYS = [
-    'max_bat_speed', 'avg_bat_speed',
-    'attack_angle', 'plane_angle', 'time_to_contact',
-    'on_plane_efficiency', 'power_output', 'peak_hand_speed',
-    'plane_score', 'connection_score', 'rotation_score',
-    'early_connection', 'connection_at_impact',
-  ] as const;
-  const metricGrades: Record<string, number | null> = {};
-  for (const k of SWING_KEYS) {
-    metricGrades[k] = metricToGrade(topMetricsAll, k);
-  }
-
-  /* Per-source aggregates for the PDF's HitTrax + Full Swing sections.
-     Strict per-active-report scoping — fetches every metric for THIS
-     report's upload IDs and buckets by source. Mirrors HittingTab so the
-     PDF and the in-app Snapshot show the exact same numbers. If the
-     report has no upload IDs, every aggregate is empty and the matching
-     section is dropped from the PDF. */
-  let htVelos: number[] = [], htLAs: number[] = [], htDists: number[] = [];
-  let fsVelos: number[] = [], fsLAs: number[] = [], fsDists: number[] = [];
-  if (uploadIds.length > 0) {
-    try {
-      const reportMetrics = await api.getPlayerMetrics(player.id, { uploadIds });
-      for (const m of reportMetrics as any[]) {
-        if (!Number.isFinite(m.value)) continue;
-        if (m.source === 'HITTRAX') {
-          if (m.metricType === 'max_exit_velo') htVelos.push(m.value);
-          else if (m.metricType === 'launch_angle') htLAs.push(m.value);
-          else if (m.metricType === 'distance') htDists.push(m.value);
-        } else if (m.source === 'FULL_SWING') {
-          if (m.metricType === 'max_exit_velo') fsVelos.push(m.value);
-          else if (m.metricType === 'launch_angle') fsLAs.push(m.value);
-          else if (m.metricType === 'distance') fsDists.push(m.value);
-        }
-      }
-      // Drop Velo=0 rows so empty at-bats don't drag averages toward zero.
-      htVelos = htVelos.filter(v => v !== 0);
-      fsVelos = fsVelos.filter(v => v !== 0);
-    } catch { /* leave arrays empty */ }
-  }
-  const meanRound = (arr: number[]) =>
-    Math.round((arr.reduce((s, n) => s + n, 0) / arr.length) * 100) / 100;
-  const buildSourceValues = (
-    velos: number[], las: number[], dists: number[],
-  ): Record<string, { value: number; unit: string }> => {
-    const out: Record<string, { value: number; unit: string }> = {};
-    if (velos.length > 0) {
-      out.avg_exit_velo = { value: meanRound(velos),                      unit: 'mph' };
-      out.max_exit_velo = { value: Math.round(Math.max(...velos) * 100) / 100, unit: 'mph' };
-    }
-    if (las.length   > 0) out.launch_angle = { value: meanRound(las),   unit: 'deg' };
-    if (dists.length > 0) out.distance     = { value: meanRound(dists), unit: 'ft'  };
-    return out;
-  };
-  const hittraxValues  = buildSourceValues(htVelos, htLAs, htDists);
-  const fullswingValues = buildSourceValues(fsVelos, fsLAs, fsDists);
-
-  /* Quality-of-Contact overlay — single source of truth.
-     Prefers the caller's pre-computed qocOverride (which IS the in-app
-     Snapshot's qocOverride from HittingTab — already pooled across
-     HitTrax + Full Swing per-row velos/LAs/distances). Eliminates any
-     chance of the PDF drifting from what's on screen.
-     Fallback (no qocOverride passed): re-pool from the per-source
-     fetch above so older callers still get correct numbers. */
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  if (qocOverride) {
-    for (const [k, v] of Object.entries(qocOverride)) {
-      topMetricsAll[k] = {
-        value: v.value,
-        unit: v.unit,
-        recordedAt: new Date().toISOString(),
-      };
-    }
-  } else {
-    const meanOf = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
-    const pooledVelos = [...htVelos, ...fsVelos];
-    const pooledLAs   = [...htLAs,   ...fsLAs];
-    const pooledDists = [...htDists, ...fsDists];
-    if (pooledVelos.length > 0) {
-      topMetricsAll.avg_exit_velo = {
-        value: round2(meanOf(pooledVelos)), unit: 'mph',
-        recordedAt: new Date().toISOString(),
-      };
-      topMetricsAll.max_exit_velo = {
-        value: round2(Math.max(...pooledVelos)), unit: 'mph',
-        recordedAt: new Date().toISOString(),
-      };
-    }
-    if (pooledLAs.length > 0) {
-      topMetricsAll.launch_angle = {
-        value: round2(meanOf(pooledLAs)), unit: 'deg',
-        recordedAt: new Date().toISOString(),
-      };
-    }
-    if (pooledDists.length > 0) {
-      topMetricsAll.distance = {
-        value: round2(meanOf(pooledDists)), unit: 'ft',
-        recordedAt: new Date().toISOString(),
-      };
-    }
-  }
-
-  const data: HittingPdfData = {
-    player,
-    topMetrics: topMetricsAll,
-    metricGrades,
-    diagnosisNotes,
-    sprayDots,
-    swingNotes: hittingReport?.notes || null,
-    reportDate,
-    hittraxValues,
-    fullswingValues,
-  };
+  /* The assessment's date, not today's. */
+  const reportDate = reportDateStr(hittingReport?.createdAt);
+  const data = await collectHittingPdfData(player, hittingReport, reportDate);
 
   const doc = (
     <Document title={`${player.firstName} ${player.lastName} — Hitting Assessment`}>
-      <CoverPage player={player} reportTitle="Hitting Assessment" reportDate={reportDate} />
+      <CoverPage player={player} reportTitle="Hitting Assessment" />
       <HittingReportPages data={data} />
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Hitting'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Hitting', hittingReport?.createdAt));
 }
 
 /* ═══════════════════════════════════════════
@@ -409,13 +344,6 @@ function buildArsenalFromPitches(pitches: api.TrackmanPitch[]): ArsenalRow[] {
       const tiltM = Math.round((avgAxis % 30) * 2);
       const tilt = `${tiltH}:${String(tiltM).padStart(2, '0')}`;
 
-      // Spin efficiency
-      const avgIVB = avg(ivBreaks);
-      const avgHB = avg(hBreaks);
-      const totalBreak = Math.sqrt(avgIVB * avgIVB + avgHB * avgHB);
-      const avgSpin = avg(spins);
-      const spinEff = avgSpin > 0 ? Math.min(100, (totalBreak / (avgSpin * 0.01)) * 2) : 0;
-
       return {
         pitchType: type,
         count: list.length,
@@ -433,7 +361,6 @@ function buildArsenalFromPitches(pitches: api.TrackmanPitch[]): ArsenalRow[] {
         avgRelHeight: avg(relHeights),
         avgRelSide: avg(relSides),
         tilt,
-        spinEff,
       };
     })
     .filter(r => r.count > 0)
@@ -444,11 +371,10 @@ export async function generatePitchingPdf(
   player: any,
   reports: ReportSummary[],
 ) {
-  const reportDate = reportDateStr();
-
   const pitchingReport = reports
     .filter(r => r.reportType === 'PITCHING')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+  const reportDate = reportDateStr(pitchingReport?.createdAt);
 
   const uploadIds = getReportUploadIds(pitchingReport);
   const opts = uploadIds.length > 0 ? { uploadIds } : undefined;
@@ -501,62 +427,113 @@ export async function generatePitchingPdf(
 
   const doc = (
     <Document title={`${player.firstName} ${player.lastName} — Pitching Assessment`}>
-      <CoverPage player={player} reportTitle="Pitching Assessment" reportDate={reportDate} />
+      <CoverPage player={player} reportTitle="Pitching Assessment" />
       <PitchingReportPages data={data} />
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Pitching'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Pitching', pitchingReport?.createdAt));
 }
 
 /* ═══════════════════════════════════════════
    DEFENSE PDF
    ═══════════════════════════════════════════ */
 
+/** Latest CATCHING / INFIELD / OUTFIELD report among `reports`, and the
+ *  defense PDF data for exactly the positions that have one. */
+function buildDefenseData(player: any, reports: ReportSummary[], reportDate: string) {
+  const latest = (type: string) => reports
+    .filter(r => r.reportType === type)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+  const byPos: Record<DefensePosition, ReportSummary | null> = {
+    catching: latest('CATCHING'),
+    infield: latest('INFIELD'),
+    outfield: latest('OUTFIELD'),
+  };
+  const sections = (['catching', 'infield', 'outfield'] as const).filter(p => byPos[p]);
+  const data: DefensePdfData = {
+    player,
+    sections: [...sections],
+    catchingAssessment: getAssessmentFromReport(byPos.catching, 'catchingAssessment'),
+    infieldAssessment: getAssessmentFromReport(byPos.infield, 'infieldAssessment'),
+    outfieldAssessment: getAssessmentFromReport(byPos.outfield, 'outfieldAssessment'),
+    coachGrades: {
+      catching: getDefenseCoachGrades(byPos.catching, 'catching'),
+      infield: getDefenseCoachGrades(byPos.infield, 'infield'),
+      outfield: getDefenseCoachGrades(byPos.outfield, 'outfield'),
+    },
+    catchingNotes: byPos.catching?.notes || null,
+    infieldNotes: byPos.infield?.notes || null,
+    outfieldNotes: byPos.outfield?.notes || null,
+    reportDate,
+  };
+  return { data, byPos };
+}
+
+/** The Defensive Skills player figure in the profile's blue gradient
+ *  (#3D8BFD → #1F5FD1 → #143C82), as a PNG. The app colours it with an SVG
+ *  mask, which react-pdf can't do, so it's coloured here in the browser
+ *  (drawn 4× up for a crisp print). Null if the browser can't draw it --
+ *  the panel then shows its callouts without the figure. */
+async function tintFigure(src: string): Promise<string | null> {
+  try {
+    const img = new window.Image();
+    img.src = src;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth * 4;
+    c.height = img.naturalHeight * 4;
+    const ctx = c.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    ctx.globalCompositeOperation = 'source-in';
+    const g = ctx.createLinearGradient(0, 0, 0, c.height);
+    g.addColorStop(0, '#3D8BFD');
+    g.addColorStop(0.55, '#1F5FD1');
+    g.addColorStop(1, '#143C82');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+/** Figures for the infield / outfield pages being printed. */
+async function defenseFigures(sections: DefensePosition[]): Promise<DefensePdfData['silhouettes']> {
+  const [infield, outfield] = await Promise.all([
+    sections.includes('infield') ? tintFigure(INFIELDER_SILHOUETTE) : Promise.resolve(null),
+    sections.includes('outfield') ? tintFigure(OUTFIELDER_SILHOUETTE) : Promise.resolve(null),
+  ]);
+  return { infield, outfield };
+}
+
+const DEFENSE_LABEL: Record<DefensePosition, string> = {
+  catching: 'Catching', infield: 'Infield', outfield: 'Outfield',
+};
+
+/** Defense PDF for the report(s) passed in. The Infield, Catching and
+ *  Outfield tabs each pass their one report, so each gets its own PDF
+ *  ("Infield Assessment", ..._Infield_<date>.pdf) holding only that
+ *  position -- they used to all print the same combined "Defense" file. */
 export async function generateDefensePdf(
   player: any,
   reports: ReportSummary[],
 ) {
-  const reportDate = reportDateStr();
-  const pos = parsePositions(player.positions);
-
-  // Get most recent assessment for each position type
-  const catchingReport = reports
-    .filter(r => r.reportType === 'CATCHING')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-
-  const infieldReport = reports
-    .filter(r => r.reportType === 'INFIELD')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-
-  const outfieldReport = reports
-    .filter(r => r.reportType === 'OUTFIELD')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-
-  const data: DefensePdfData = {
-    player,
-    positions: {
-      isCatcher: pos.isCatcher,
-      isInfielder: pos.isInfielder,
-      isOutfielder: pos.isOutfielder,
-    },
-    catchingAssessment: getAssessmentFromReport(catchingReport, 'catchingAssessment'),
-    infieldAssessment: getAssessmentFromReport(infieldReport, 'infieldAssessment'),
-    outfieldAssessment: getAssessmentFromReport(outfieldReport, 'outfieldAssessment'),
-    catchingNotes: catchingReport?.notes || null,
-    infieldNotes: infieldReport?.notes || null,
-    outfieldNotes: outfieldReport?.notes || null,
-    reportDate,
-  };
+  const dated = latestReportDate(reports.filter(r => ['CATCHING', 'INFIELD', 'OUTFIELD'].includes(r.reportType)));
+  const reportDate = reportDateStr(dated);
+  const { data } = buildDefenseData(player, reports, reportDate);
+  data.silhouettes = await defenseFigures(data.sections);
+  const label = data.sections.length === 1 ? DEFENSE_LABEL[data.sections[0]] : 'Defense';
 
   const doc = (
-    <Document title={`${player.firstName} ${player.lastName} — Defense Assessment`}>
-      <CoverPage player={player} reportTitle="Defense Assessment" reportDate={reportDate} />
+    <Document title={`${player.firstName} ${player.lastName} — ${label} Assessment`}>
+      <CoverPage player={player} reportTitle={`${label} Assessment`} />
       <DefenseReportPages data={data} />
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Defense'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, label, dated));
 }
 
 /* ═══════════════════════════════════════════
@@ -568,11 +545,10 @@ export async function generateStrengthPdf(
   reports: ReportSummary[],
   topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
 ) {
-  const reportDate = reportDateStr();
-
   const scReport = reports
     .filter(r => r.reportType === 'STRENGTH')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+  const reportDate = reportDateStr(scReport?.createdAt);
 
   const uploadIds = getReportUploadIds(scReport);
 
@@ -595,12 +571,12 @@ export async function generateStrengthPdf(
 
   const doc = (
     <Document title={`${player.firstName} ${player.lastName} — Strength & Conditioning`}>
-      <CoverPage player={player} reportTitle="Strength & Conditioning" reportDate={reportDate} />
+      <CoverPage player={player} reportTitle="Strength & Conditioning" />
       <StrengthReportPages data={data} />
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Strength_Conditioning'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Strength_Conditioning', scReport?.createdAt));
 }
 
 /* ═══════════════════════════════════════════
@@ -612,11 +588,10 @@ export async function generateVisionPdf(
   reports: ReportSummary[],
   topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
 ) {
-  const reportDate = reportDateStr();
-
   const visionReport = reports
     .filter(r => r.reportType === 'COGNITION')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+  const reportDate = reportDateStr(visionReport?.createdAt);
 
   const uploadIds = getReportUploadIds(visionReport);
 
@@ -639,267 +614,128 @@ export async function generateVisionPdf(
 
   const doc = (
     <Document title={`${player.firstName} ${player.lastName} — Cognition Assessment`}>
-      <CoverPage player={player} reportTitle="Cognition Assessment" reportDate={reportDate} />
+      <CoverPage player={player} reportTitle="Cognition Assessment" />
       <VisionReportPages data={data} />
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Cognition'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Cognition', visionReport?.createdAt));
 }
 
 /* ═══════════════════════════════════════════
-   SUMMARY PDF (All sections combined)
+   PLAYER SUMMARY PDF — the Summary tab's Download PDF. The cover, then
+   page 2 of each individual PDF for the athlete's most recent report of
+   each kind, in order: Hitting, Pitching, Catching, Infield, Outfield.
+   Kinds without a report are skipped (Hitting + Pitching only → 3 pages).
    ═══════════════════════════════════════════ */
 
-export async function generateSummaryPdf(
+/** Pitching page data for one PITCHING report (same as the Pitching PDF). */
+async function collectPitchingPdfData(
   player: any,
-  reports: ReportSummary[],
-  topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
-) {
-  const reportDate = reportDateStr();
-  const pos = parsePositions(player.positions);
-
-  // ── Hitting data ──
-  const hittingReport = reports
-    .filter(r => r.reportType === 'HITTING')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const hittingUploadIds = getReportUploadIds(hittingReport);
-  const hIds = hittingUploadIds.length > 0 ? hittingUploadIds : undefined;
-
-  const atBatReport = reports
-    .filter(r => r.reportType === 'AT_BAT_RESULTS')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const atBatUploadIds = getReportUploadIds(atBatReport);
-  const abIds = atBatUploadIds.length > 0 ? atBatUploadIds : undefined;
-
-  // ── Pitching data ──
-  const pitchingReport = reports
-    .filter(r => r.reportType === 'PITCHING')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const pitchUploadIds = getReportUploadIds(pitchingReport);
-  const pOpts = pitchUploadIds.length > 0 ? { uploadIds: pitchUploadIds } : undefined;
-
-  // ── S&C data ──
-  const scReport = reports
-    .filter(r => r.reportType === 'STRENGTH')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const scUploadIds = getReportUploadIds(scReport);
-
-  // ── Vision data ──
-  const visionReport = reports
-    .filter(r => r.reportType === 'COGNITION')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const visionUploadIds = getReportUploadIds(visionReport);
-
-  // ── Defense data ──
-  const catchingReport = reports.filter(r => r.reportType === 'CATCHING').sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const infieldReport = reports.filter(r => r.reportType === 'INFIELD').sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-  const outfieldReport = reports.filter(r => r.reportType === 'OUTFIELD').sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
-
-  // Fetch all data in parallel
-  const [bbSummary, blastSummary, fsSummary, pitches, scRawMetrics, visionRawMetrics] = await Promise.all([
-    api.getBattedBallSummary(player.id, 'FULL_SWING', hIds).catch(() => ({})),
-    api.getBattedBallSummary(player.id, 'BLAST_MOTION', hIds).catch(() => ({})),
-    api.getBattedBallSummary(player.id, 'FULL_SWING', abIds).catch(() => ({})),
-    api.getTrackmanPitches(player.id, pOpts).catch(() => []),
-    scUploadIds.length > 0 ? api.getPlayerMetrics(player.id, { uploadIds: scUploadIds }).catch(() => []) : Promise.resolve([]),
-    visionUploadIds.length > 0 ? api.getPlayerMetrics(player.id, { uploadIds: visionUploadIds }).catch(() => []) : Promise.resolve([]),
-  ]);
-
-  // Build hitting data — mirrors generateHittingPdf so the summary PDF's
-  // hitting page matches the standalone Hitting PDF.
-
-  // Same precedence as generateHittingPdf: report.notes first, legacy
-  // content.diagnosisNotes fallback.
-  let summaryDiagnosisNotes = (hittingReport?.notes && hittingReport.notes.trim()) || '';
-  if (!summaryDiagnosisNotes && hittingReport?.content) {
-    try {
-      const c = JSON.parse(hittingReport.content);
-      summaryDiagnosisNotes = typeof c.diagnosisNotes === 'string' ? c.diagnosisNotes : '';
-    } catch { /* ignore */ }
-  }
-  let summaryMissPct: number | null = null;
-  let summarySprayDots: { angle: number; distance: number; exitVelo?: number }[] = [];
-  try {
-    const rows = await api.getSessionData(player.id, 'FULL_SWING',
-      ['bat_speed', 'squared_up_pct', 'spray_angle', 'distance', 'max_exit_velo'],
-      hIds ? { uploadIds: hIds } : undefined);
-    const byTs = new Map<string, { bat: boolean; sq: boolean; angle?: number; dist?: number; ev?: number }>();
-    for (const r of (rows as any[])) {
-      const cur = byTs.get(r.recordedAt) ?? { bat: false, sq: false };
-      if (r.metricType === 'bat_speed')      cur.bat = true;
-      if (r.metricType === 'squared_up_pct') cur.sq  = true;
-      if (r.metricType === 'spray_angle')    cur.angle = r.value;
-      if (r.metricType === 'distance')       cur.dist  = r.value;
-      if (r.metricType === 'max_exit_velo')  cur.ev    = r.value;
-      byTs.set(r.recordedAt, cur);
-    }
-    const swings = Array.from(byTs.values()).filter(s => s.bat);
-    if (swings.length > 0) {
-      summaryMissPct = (swings.filter(s => !s.sq).length / swings.length) * 100;
-    }
-    summarySprayDots = Array.from(byTs.values())
-      .filter(s => s.angle !== undefined && s.dist !== undefined && s.dist! > 0)
-      .map(s => ({ angle: s.angle!, distance: s.dist!, exitVelo: s.ev }));
-  } catch { /* ignore */ }
-  const summaryTopAll: Record<string, { value: number; unit: string; recordedAt: string }> = { ...topMetrics };
-  if (summaryMissPct !== null) {
-    summaryTopAll.full_swing_miss_pct = {
-      value: summaryMissPct, unit: '%', recordedAt: new Date().toISOString(),
-    };
-  }
-  /* Keep in sync with the SWING_KEYS in generateHittingPdf above —
-     summary PDF needs the same 13 graded metrics so the new Blast CSV
-     additions (plane_score / connection_score / rotation_score /
-     early_connection / connection_at_impact) color correctly in the
-     summary's Hitting chip strip + Blast Motion KPI cards. */
-  const SWING_KEYS_SUM = [
-    'max_bat_speed', 'avg_bat_speed',
-    'attack_angle', 'plane_angle', 'time_to_contact',
-    'on_plane_efficiency', 'power_output', 'peak_hand_speed',
-    'plane_score', 'connection_score', 'rotation_score',
-    'early_connection', 'connection_at_impact',
-  ] as const;
-  const summaryGrades: Record<string, number | null> = {};
-  for (const k of SWING_KEYS_SUM) {
-    summaryGrades[k] = metricToGrade(summaryTopAll, k);
-  }
-
-  /* Per-source aggregates so the summary PDF's HitTrax + Full Swing
-     sections only render when their respective sources have data. */
-  const fetchSourceValsSum = (type: string, source: string) =>
-    api.getMetricProgress(player.id, type, source)
-      .then(rows => rows.map(r => r.value).filter((v) => Number.isFinite(v)))
-      .catch(() => [] as number[]);
-  const [
-    sumHtVelos, sumHtLAs, sumHtDists,
-    sumFsVelos, sumFsLAs, sumFsDists,
-  ] = await Promise.all([
-    fetchSourceValsSum('max_exit_velo', 'HITTRAX').then(arr => arr.filter(v => v !== 0)),
-    fetchSourceValsSum('launch_angle',  'HITTRAX'),
-    fetchSourceValsSum('distance',      'HITTRAX'),
-    fetchSourceValsSum('max_exit_velo', 'FULL_SWING').then(arr => arr.filter(v => v !== 0)),
-    fetchSourceValsSum('launch_angle',  'FULL_SWING'),
-    fetchSourceValsSum('distance',      'FULL_SWING'),
-  ]);
-  const meanRoundSum = (arr: number[]) =>
-    Math.round((arr.reduce((s, n) => s + n, 0) / arr.length) * 100) / 100;
-  const buildSourceValuesSum = (
-    velos: number[], las: number[], dists: number[],
-  ): Record<string, { value: number; unit: string }> => {
-    const out: Record<string, { value: number; unit: string }> = {};
-    if (velos.length > 0) {
-      out.avg_exit_velo = { value: meanRoundSum(velos),                      unit: 'mph' };
-      out.max_exit_velo = { value: Math.round(Math.max(...velos) * 100) / 100, unit: 'mph' };
-    }
-    if (las.length   > 0) out.launch_angle = { value: meanRoundSum(las),   unit: 'deg' };
-    if (dists.length > 0) out.distance     = { value: meanRoundSum(dists), unit: 'ft'  };
-    return out;
-  };
-
-  const hittingData: HittingPdfData = {
-    player,
-    topMetrics: summaryTopAll,
-    metricGrades: summaryGrades,
-    diagnosisNotes: summaryDiagnosisNotes,
-    sprayDots: summarySprayDots,
-    swingNotes: hittingReport?.notes || null,
-    reportDate,
-    hittraxValues:   buildSourceValuesSum(sumHtVelos, sumHtLAs, sumHtDists),
-    fullswingValues: buildSourceValuesSum(sumFsVelos, sumFsLAs, sumFsDists),
-  };
-
-  // Build pitching data
+  pitchingReport: ReportSummary,
+  reportDate: string,
+): Promise<PitchingPdfData> {
+  const uploadIds = getReportUploadIds(pitchingReport);
+  const pitches = await api.getTrackmanPitches(player.id, uploadIds.length > 0 ? { uploadIds } : undefined).catch(() => []);
   const arsenal = buildArsenalFromPitches(pitches);
-  const totalPitches = pitches.length;
-  arsenal.forEach(r => { r.pct = totalPitches > 0 ? (r.count / totalPitches) * 100 : 0; });
+  arsenal.forEach(r => { r.pct = pitches.length > 0 ? (r.count / pitches.length) * 100 : 0; });
 
-  /* Pitching Notes — read from content.pitchingNotes the same way the
-     standalone Pitching PDF does, so the Summary PDF surfaces the
-     coach's saved notes (not the report's stale `notes` field). */
-  let summaryPitchNotes: string | null = null;
-  if (pitchingReport?.content) {
+  let pitchNotes: string | null = null;
+  if (pitchingReport.content) {
     try {
       const c = JSON.parse(pitchingReport.content);
-      if (typeof c.pitchingNotes === 'string' && c.pitchingNotes.trim()) {
-        summaryPitchNotes = c.pitchingNotes.trim();
-      }
+      if (typeof c.pitchingNotes === 'string' && c.pitchingNotes.trim()) pitchNotes = c.pitchingNotes.trim();
     } catch { /* ignore */ }
   }
-  if (!summaryPitchNotes && pitchingReport?.notes && pitchingReport.notes.trim()) {
-    summaryPitchNotes = pitchingReport.notes.trim();
-  }
+  if (!pitchNotes && pitchingReport.notes && pitchingReport.notes.trim()) pitchNotes = pitchingReport.notes.trim();
 
-  const summaryPdfPitches = pitches.map((p) => ({
-    pitchType: p.pitchType,
-    horzBreak: p.horzBreak,
-    inducedVertBreak: p.inducedVertBreak,
-    plateLocSide: p.plateLocSide,
-    plateLocHeight: p.plateLocHeight,
-    relSide: p.relSide,
-    relHeight: p.relHeight,
-    pitcherThrows: p.pitcherThrows,
-  }));
-
-  const pitchingData: PitchingPdfData | null = totalPitches > 0 ? {
+  return {
     player,
     arsenal,
-    totalPitches,
-    pitchNotes: summaryPitchNotes,
-    pitches: summaryPdfPitches,
-    reportDate,
-  } : null;
-
-  // Build defense data (only if non-pitcher positions)
-  const hasDefensePositions = pos.isCatcher || pos.isInfielder || pos.isOutfielder;
-  const defenseData: DefensePdfData | null = hasDefensePositions ? {
-    player,
-    positions: {
-      isCatcher: pos.isCatcher,
-      isInfielder: pos.isInfielder,
-      isOutfielder: pos.isOutfielder,
-    },
-    catchingAssessment: getAssessmentFromReport(catchingReport, 'catchingAssessment'),
-    infieldAssessment: getAssessmentFromReport(infieldReport, 'infieldAssessment'),
-    outfieldAssessment: getAssessmentFromReport(outfieldReport, 'outfieldAssessment'),
-    catchingNotes: catchingReport?.notes || null,
-    infieldNotes: infieldReport?.notes || null,
-    outfieldNotes: outfieldReport?.notes || null,
-    reportDate,
-  } : null;
-
-  // Build S&C data
-  const scActiveMetrics = scRawMetrics.length > 0 ? buildTopMetricsFromRaw(scRawMetrics) : topMetrics;
-  const scMetrics = getTabMetrics(scActiveMetrics, TAB_METRICS.strengthCond);
-  const strengthData: StrengthPdfData | null = Object.keys(scMetrics).length > 0 ? {
-    player,
-    metrics: scMetrics,
-    scNotes: scReport?.notes || null,
-    reportDate,
-  } : null;
-
-  // Build vision data
-  const visionActiveMetrics = visionRawMetrics.length > 0 ? buildTopMetricsFromRaw(visionRawMetrics) : topMetrics;
-  const visionMetrics = getTabMetrics(visionActiveMetrics, TAB_METRICS.vision);
-  const visionData: VisionPdfData | null = Object.keys(visionMetrics).length > 0 ? {
-    player,
-    metrics: visionMetrics,
-    visionNotes: visionReport?.notes || null,
-    reportDate,
-  } : null;
-
-  const summaryData: SummaryPdfData = {
-    player,
-    hitting: hittingData,
-    pitching: pitchingData,
-    defense: defenseData,
-    strength: strengthData,
-    vision: visionData,
+    totalPitches: pitches.length,
+    pitchNotes,
+    pitches: pitches.map((p) => ({
+      pitchType: p.pitchType,
+      horzBreak: p.horzBreak,
+      inducedVertBreak: p.inducedVertBreak,
+      plateLocSide: p.plateLocSide,
+      plateLocHeight: p.plateLocHeight,
+      relSide: p.relSide,
+      relHeight: p.relHeight,
+      pitcherThrows: p.pitcherThrows,
+    })),
     reportDate,
   };
+}
 
-  const doc = <SummaryReportDocument data={summaryData} />;
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Complete_Assessment'));
+/** Report kinds a PDF can hold, in page order. */
+export const PDF_REPORT_TYPES = ['HITTING', 'PITCHING', 'CATCHING', 'INFIELD', 'OUTFIELD'] as const;
+export type PdfReportType = typeof PDF_REPORT_TYPES[number];
+const PDF_TYPE_NAME: Record<PdfReportType, string> = {
+  HITTING: 'Hitting', PITCHING: 'Pitching', CATCHING: 'Catching', INFIELD: 'Infield', OUTFIELD: 'Outfield',
+};
+
+/** The athlete's most recent report of each PDF kind, in page order. */
+export function latestReportsByType(reports: ReportSummary[]): ReportSummary[] {
+  return PDF_REPORT_TYPES
+    .map((type) => reports
+      .filter(r => r.reportType === type)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null)
+    .filter((r): r is ReportSummary => !!r);
+}
+
+/** Build the PDF for the chosen reports (one per kind): the cover, then
+ *  each report's page IN THE ORDER GIVEN (the order the coach ticked them).
+ *  One report → that report's own PDF ("Hitting Assessment"); several →
+ *  the "Player Summary". Returns the file without saving it, so the caller
+ *  can download or email it. */
+export async function buildReportPdf(
+  player: any,
+  chosen: ReportSummary[],
+): Promise<{ blob: Blob; filename: string }> {
+  /* One report per kind, first occurrence wins, unknown kinds dropped. */
+  const ordered = chosen.filter((r, i) =>
+    (PDF_REPORT_TYPES as readonly string[]).includes(r.reportType)
+    && chosen.findIndex((x) => x.reportType === r.reportType) === i);
+  const single = ordered.length === 1 ? PDF_TYPE_NAME[ordered[0].reportType as PdfReportType] : null;
+  const title = single ? `${single} Assessment` : 'Player Summary';
+
+  /* The filename carries the newest included report's date; each page's
+     footer carries its own report's date (the cover shows the download
+     date). */
+  const dated = latestReportDate(ordered);
+
+  /* Each report's page, built in parallel, kept in the chosen order. */
+  const pages = await Promise.all(ordered.map(async (r) => {
+    const date = reportDateStr(r.createdAt);
+    if (r.reportType === 'HITTING') {
+      return <HittingReportPages key={r.id} data={await collectHittingPdfData(player, r, date)} />;
+    }
+    if (r.reportType === 'PITCHING') {
+      return <PitchingReportPages key={r.id} data={await collectPitchingPdfData(player, r, date)} />;
+    }
+    const { data } = buildDefenseData(player, [r], date);
+    data.silhouettes = await defenseFigures(data.sections);
+    return <DefenseReportPages key={r.id} data={data} />;
+  }));
+
+  const doc = (
+    <Document title={`${player.firstName} ${player.lastName} — ${title}`} author={academyName()}>
+      <CoverPage player={player} reportTitle={title} />
+      {pages}
+    </Document>
+  );
+
+  return {
+    blob: await renderPdf(doc),
+    filename: pdfFilename(player.firstName, player.lastName, single ?? 'Player_Summary', dated),
+  };
+}
+
+/** The Player Summary PDF from the athlete's latest report of each kind. */
+export async function generateSummaryPdf(player: any, reports: ReportSummary[]) {
+  const { blob, filename } = await buildReportPdf(player, latestReportsByType(reports));
+  saveBlob(blob, filename);
 }
 
 /* ═══════════════════════════════════════════
@@ -936,53 +772,32 @@ export interface CapturedSection {
 
 const captureStyles = StyleSheet.create({
   page: {
-    backgroundColor: '#0a0e14',
-    padding: 32,
+    backgroundColor: '#FFFFFF',
+    padding: CAPTURE_PAGE.padding,
     flexDirection: 'column',
+    fontFamily: 'Helvetica',
   },
   sectionTitle: {
-    color: 'var(--text-bright)',
-    fontSize: 16,
-    fontWeight: 700,
-    letterSpacing: 1.5,
+    color: '#000000',
+    fontSize: 13,
+    fontFamily: 'Helvetica-Bold',
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
-    marginBottom: 12,
+    height: CAPTURE_PAGE.titleBlock - 10,
+    marginBottom: 10,
   },
-  /* The image wrap is the page's content area minus header + footer.
-     We position the screenshot inside it with `position: absolute` +
-     a percentage-based `top` so a continuous yOffset (0 = top of wrap,
-     1 = bottom of wrap) maps cleanly to PDF coordinates. */
-  imageWrap: {
-    flexGrow: 1,
+  imageArea: {
+    width: CAPTURE_AREA.width,
+    height: CAPTURE_AREA.height,
     position: 'relative',
-  },
-  /* `left` + `width` are set inline per-section (driven by the
-     PDF Builder's Size slider). Defaults below match what scale=1
-     produces. */
-  imageWrapInner: {
-    position: 'absolute',
-    left: 0,
-    width: '100%',
-  },
-  image: {
-    objectFit: 'contain',
-    width: '100%',
-  },
-  footer: {
-    marginTop: 12,
-    fontSize: 9,
-    color: '#7a7e84',
-    textAlign: 'center',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
   },
 });
 
 /** Render the captured screenshots into a multi-page PDF. The first
- *  page is the standard CoverPage; each subsequent page contains a
- *  single section's screenshot scaled to fit while preserving the
- *  captured aspect ratio. Pages are LANDSCAPE LETTER so the wide
- *  snapshot bubbles render close to their on-screen proportions. */
+ *  page is the standard CoverPage; each subsequent page holds one
+ *  section's screenshot, fitted inside the page with the standard footer
+ *  underneath. Pages are LANDSCAPE LETTER so the wide snapshot bubbles
+ *  render close to their on-screen proportions. */
 export async function generateSummaryCapturePdf(
   player: any,
   sections: CapturedSection[],
@@ -990,48 +805,25 @@ export async function generateSummaryCapturePdf(
   const reportDate = reportDateStr();
 
   const doc = (
-    <Document>
-      <CoverPage player={player} reportTitle="Player Summary" reportDate={reportDate} />
+    <Document title={`${player.firstName} ${player.lastName} — Player Summary`}>
+      <CoverPage player={player} reportTitle="Player Summary" />
       {sections.map(s => {
-        /* Continuous vertical positioning: the inner wrap is
-           absolutely positioned inside the page's content area with
-           `top: yOffset * 100%` and a matching negative translateY,
-           so 0 → top, 0.5 → vertically centered, 1 → bottom.
-           Matches what the user dragged the preview to in the
-           builder modal exactly. */
-        const yOffset = typeof s.yOffset === 'number' ? Math.max(0, Math.min(1, s.yOffset)) : 0.5;
-        /* Size: 1.0 fills the page's content width, 0.5 fills half,
-           etc. The image is horizontally centered when scaled below
-           full width — `left` + `width` percentages handle this. */
-        const scale = typeof s.scale === 'number' ? Math.max(0.1, Math.min(1, s.scale)) : 1;
-        const widthPct = scale * 100;
-        const leftPct = (100 - widthPct) / 2;
+        const box = fitCapture(s);
         return (
           <Page key={s.key} size="LETTER" orientation="landscape" style={captureStyles.page}>
             <Text style={captureStyles.sectionTitle}>{s.title}</Text>
-            <View style={captureStyles.imageWrap}>
-              <View
-                style={[
-                  captureStyles.imageWrapInner,
-                  {
-                    top: `${yOffset * 100}%`,
-                    transform: `translateY(${-yOffset * 100}%)`,
-                    left: `${leftPct}%`,
-                    width: `${widthPct}%`,
-                  },
-                ]}
-              >
-                <Image src={s.dataUrl} style={captureStyles.image} />
-              </View>
+            <View style={captureStyles.imageArea}>
+              <Image
+                src={s.dataUrl}
+                style={{ position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height }}
+              />
             </View>
-            <Text style={captureStyles.footer}>
-              {player.firstName} {player.lastName} · {reportDate}
-            </Text>
+            <PageFooter player={player} reportTitle="Player Summary" date={reportDate} />
           </Page>
         );
       })}
     </Document>
   );
 
-  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Player_Summary_Capture'));
+  await downloadPdf(doc, pdfFilename(player.firstName, player.lastName, 'Player_Summary'));
 }

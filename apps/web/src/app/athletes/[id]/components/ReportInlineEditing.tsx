@@ -299,7 +299,9 @@ export function CoachNotesInline({
   if (!isCoach) return null;
 
   return (
-    <div style={{ marginTop: 14, ...style }}>
+    /* data-pdf-hide: the Player Summary PDF screenshots this section and
+       the PDF goes to athletes and parents, so these never print. */
+    <div data-pdf-hide="" style={{ marginTop: 14, ...style }}>
       <NoteBlock
         label="Coach Notes"
         value={field.draft}

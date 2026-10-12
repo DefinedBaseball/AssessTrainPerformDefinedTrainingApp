@@ -76,7 +76,7 @@ export type ZoneTone = {
 /* Blue and red per coach spec: 30% darker than the first pass, then 15% back
    up (channels x 0.7, then x 1.15) — net ~19.5% darker than the originals
    rgb(52,108,190) / rgb(198,52,52). White type still clears contrast on both. */
-const TONE_COLD: ZoneTone = {
+export const TONE_COLD: ZoneTone = {
   bg: 'rgba(41, 87, 153, 0.88)',
   text: '#ffffff',
   sub: 'rgba(255, 255, 255, 0.90)',
@@ -85,13 +85,13 @@ const TONE_COLD: ZoneTone = {
 /* The middle bucket is off-white rather than paper white: 10% off the
    original rgb(240,242,246). A first pass at 20% off (rgb 192,194,197) read
    as too grey, so this sits halfway between that and pure white. */
-const TONE_MID: ZoneTone = {
+export const TONE_MID: ZoneTone = {
   bg: 'rgba(216, 218, 221, 0.94)',
   text: '#12151c',
   sub: 'rgba(18, 21, 28, 0.84)',
   muted: 'rgba(18, 21, 28, 0.60)',
 };
-const TONE_HOT: ZoneTone = {
+export const TONE_HOT: ZoneTone = {
   bg: 'rgba(160, 41, 41, 0.90)',
   text: '#ffffff',
   sub: 'rgba(255, 255, 255, 0.90)',

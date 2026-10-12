@@ -4,6 +4,7 @@
 import { pdf } from '@react-pdf/renderer';
 import type { DocumentProps } from '@react-pdf/renderer';
 import React from 'react';
+import { tzDayKey, tzOpt } from '@/lib/academy';
 
 /**
  * Generate a PDF from a React element and trigger browser download.
@@ -15,7 +16,16 @@ export async function downloadPdf(
   element: React.ReactElement<DocumentProps>,
   filename: string,
 ): Promise<void> {
-  const blob = await pdf(element).toBlob();
+  saveBlob(await pdf(element).toBlob(), filename);
+}
+
+/** Render a react-pdf <Document> to a PDF Blob without saving it. */
+export async function renderPdf(element: React.ReactElement<DocumentProps>): Promise<Blob> {
+  return pdf(element).toBlob();
+}
+
+/** Hand a finished PDF to the browser as a download. */
+export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -28,26 +38,44 @@ export async function downloadPdf(
 }
 
 /**
- * Format a filename for a report PDF
+ * Format a filename for a report PDF. `date` is the assessment's own date
+ * (defaults to today), as a day in the academy's time zone -- toISOString
+ * would hand an evening download tomorrow's UTC date.
  */
 export function pdfFilename(
   playerFirst: string,
   playerLast: string,
   reportType: string,
+  date?: string | Date | null,
 ): string {
   const name = `${playerFirst}_${playerLast}`.replace(/\s+/g, '_');
   const type = reportType.replace(/\s+/g, '_');
-  const date = new Date().toISOString().slice(0, 10);
-  return `${name}_${type}_${date}.pdf`;
+  return `${name}_${type}_${tzDayKey(toDate(date))}.pdf`;
 }
 
 /**
- * Get formatted report date string
+ * The date printed on a report: the assessment's own date when there is
+ * one (a June report downloaded in October still says June), else today.
  */
-export function reportDateStr(): string {
-  return new Date().toLocaleDateString('en-US', {
+export function reportDateStr(date?: string | Date | null): string {
+  return toDate(date).toLocaleDateString('en-US', {
+    ...tzOpt(),
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
+}
+
+/** Newest createdAt among the given reports (the date a multi-report PDF
+ *  speaks for), or null when there are none. */
+export function latestReportDate(reports: Array<{ createdAt: string } | null | undefined>): string | null {
+  const times = reports
+    .map((r) => (r ? new Date(r.createdAt).getTime() : NaN))
+    .filter((t) => Number.isFinite(t));
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+}
+
+function toDate(date?: string | Date | null): Date {
+  const d = date ? new Date(date) : new Date();
+  return Number.isNaN(d.getTime()) ? new Date() : d;
 }

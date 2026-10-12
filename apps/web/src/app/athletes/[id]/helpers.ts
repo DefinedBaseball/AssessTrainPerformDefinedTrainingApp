@@ -843,6 +843,15 @@ const EMPTY_MANUAL_SWING: ManualSwingMetrics = {
   early_connection: null, connection_at_impact: null,
 };
 
+/* Manual-entry readings where 0 can't be a real measurement (nobody hits
+   a 0 mph ball or swings a 0 mph bat), so a saved 0 is an untouched
+   field, not data. Angles and percentages are left alone: 0 is real there. */
+const ZERO_MEANS_BLANK = new Set([
+  'avg_exit_velo', 'max_exit_velo', 'distance', 'smash_factor',
+  'max_bat_speed', 'avg_bat_speed', 'time_to_contact', 'peak_hand_speed',
+  'power_output', 'rotational_acceleration', 'rotational_accel_g',
+]);
+
 function readManualNumberMap<T extends Record<string, number | null>>(
   empty: T,
   source: any,
@@ -851,8 +860,14 @@ function readManualNumberMap<T extends Record<string, number | null>>(
   const out: any = { ...empty };
   for (const key of Object.keys(empty)) {
     const raw = source[key];
+    /* Number(null) and Number('') are both 0, which used to turn every
+       blank field into a reading of 0. Blank stays blank. */
+    if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) {
+      out[key] = null;
+      continue;
+    }
     const n = typeof raw === 'number' ? raw : Number(raw);
-    out[key] = Number.isFinite(n) ? n : null;
+    out[key] = Number.isFinite(n) && !(n === 0 && ZERO_MEANS_BLANK.has(key)) ? n : null;
   }
   return out as T;
 }
@@ -889,6 +904,58 @@ export function metricToGrade(
   const m = topMetrics[metricKey];
   if (!m) return null;
   return toScoutingGrade(m.value, metricKey);
+}
+
+/** One value per metric type from a report's uploaded rows -- the Hitting
+ *  tab's roll-up, shared so the PDFs compute exactly the same numbers.
+ *  Matches the API's getTopMetrics rules:
+ *    max_* / *_max  → MAX
+ *    avg_* / *_avg  → AVG (mean across rows)
+ *    *_pct          → AVG (per-row 0/100 flags average to a %)
+ *    explicit AVG   → MEAN (launch_angle, distance, etc.)
+ *    lowerIsBetter  → MIN (time_to_contact + whiff/chase/K %)
+ *    everything else → LATEST (newest row's value) */
+export function aggregateReportMetrics(
+  metrics: Array<{ metricType: string; value: number; unit: string; recordedAt: string }>,
+): Record<string, { value: number; unit: string; recordedAt: string }> {
+  const lowerIsBetter = new Set([
+    'time_to_contact',
+    'overall_whiff_pct', 'fb_whiff_pct', 'os_whiff_pct',
+    'overall_chase_pct', 'fb_chase_pct', 'os_chase_pct',
+    'overall_k_pct',
+  ]);
+  const explicitAvg = new Set([
+    'launch_angle', 'distance', 'spray_angle', 'pitch_speed',
+    'bat_speed', 'attack_angle', 'plane_angle',
+    'time_to_contact', 'on_plane_efficiency',
+    'connection_at_contact', 'rotational_acceleration',
+    'smash_factor',
+  ]);
+  const aggMode = (mt: string): 'max' | 'min' | 'avg' | 'latest' => {
+    if (lowerIsBetter.has(mt)) return 'min';
+    if (mt.startsWith('max_') || mt.endsWith('_max')) return 'max';
+    if (mt.startsWith('avg_') || mt.endsWith('_avg')) return 'avg';
+    if (mt.endsWith('_pct')) return 'avg';
+    if (explicitAvg.has(mt)) return 'avg';
+    return 'latest';
+  };
+  const grouped = new Map<string, typeof metrics>();
+  for (const m of metrics) {
+    const arr = grouped.get(m.metricType);
+    if (arr) arr.push(m); else grouped.set(m.metricType, [m]);
+  }
+  const top: Record<string, { value: number; unit: string; recordedAt: string }> = {};
+  for (const [mt, rows] of grouped.entries()) {
+    rows.sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+    const values = rows.map(rr => rr.value);
+    const mode = aggMode(mt);
+    const v = mode === 'max' ? Math.max(...values)
+      : mode === 'min' ? Math.min(...values)
+      : mode === 'avg' ? values.reduce((s, n) => s + n, 0) / values.length
+      : rows[0].value;
+    top[mt] = { value: v, unit: rows[0].unit, recordedAt: rows[0].recordedAt };
+  }
+  return top;
 }
 
 /** Upload IDs carried by a single csvUploads slot entry. Multi-file slots
@@ -1342,6 +1409,22 @@ export function toScoutingGrade(value: number, metricType: string): number {
   const pct = (value - min) / (max - min);
   const raw = 20 + pct * 60;
   return Math.max(20, Math.min(80, Math.round(raw / 10) * 10));
+}
+
+/* Keys toScoutingGrade grades with fixed bands instead of GRADE_RANGES. */
+const BANDED_GRADE_KEYS = new Set([
+  'distance', 'plane_angle', 'attack_angle',
+  'early_connection', 'connection_at_impact',
+  'plane_score', 'connection_score', 'rotation_score',
+]);
+
+/** toScoutingGrade for metrics that have a grading rule, null for the rest
+ *  (toScoutingGrade itself falls back to a flat 50). The PDFs grade through
+ *  this so their colours always match the app. */
+export function gradeIfKnown(value: number, metricType: string): number | null {
+  if (!Number.isFinite(value)) return null;
+  if (!GRADE_RANGES[metricType] && !BANDED_GRADE_KEYS.has(metricType)) return null;
+  return toScoutingGrade(value, metricType);
 }
 
 /* ── Utility Functions ── */

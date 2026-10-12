@@ -28,7 +28,7 @@ export function VisionReportPages({ data }: { data: VisionPdfData }) {
     /* Top `PdfPlayerInfoBar` retired — Cover Page already carries
        the player's name + vitals on PDF page 1, so the black bar
        on page 2 was redundant. */
-    <Page size="LETTER" style={s.page}>
+    <Page size="LETTER" orientation="landscape" style={s.page}>
       <PdfSectionHeader title="Vizual Edge Assessment" subtitle="Visual performance metrics" />
 
       {hasData ? (
@@ -84,7 +84,7 @@ export function VisionReportPages({ data }: { data: VisionPdfData }) {
         </>
       )}
 
-      <PageFooter reportTitle="Cognition Assessment" date={reportDate} />
+      <PageFooter player={player} reportTitle="Cognition Assessment" date={reportDate} />
     </Page>
   );
 }

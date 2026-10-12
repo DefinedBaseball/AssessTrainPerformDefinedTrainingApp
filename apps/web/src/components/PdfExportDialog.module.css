@@ -1,0 +1,139 @@
+/* Report PDF window -- same chrome as the Tasks board dialogs. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.dialog {
+  /* Wide enough to write a proper email in. */
+  width: min(816px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: linear-gradient(180deg, #0d0f12 0%, #060708 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px 20px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+}
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.title { font-size: 16px; font-weight: 800; color: var(--text); }
+.sub { margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+.close {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+.label {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.empty { margin: 0; font-size: 13px; color: var(--text-muted); }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  min-width: 0;
+}
+.row input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--text); cursor: pointer; }
+.rowOff { opacity: 0.5; cursor: not-allowed; }
+/* Page picks: a numbered box in place of a tick -- the number is the
+   page's place in the PDF. The real checkbox stays for keyboards and
+   screen readers, just invisible. */
+.row { position: relative; }
+.hiddenCheck {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.orderBox {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.orderBoxOn { background: var(--text); border-color: var(--text); color: var(--bg); }
+.row:focus-within .orderBox { box-shadow: 0 0 0 2px var(--text-muted); }
+.rowOff input { cursor: not-allowed; }
+.rowName { font-size: 13px; font-weight: 700; color: var(--text); }
+.rowSub {
+  margin-left: auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actions { display: flex; gap: 8px; margin-top: 16px; }
+.primary,
+.secondary {
+  flex: 1;
+  border-radius: 9px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.primary { border: none; background: var(--text); color: var(--bg); }
+.primary:disabled, .secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+.secondary { border: 1px solid var(--border); background: transparent; color: var(--text); }
+.secondaryOn { border-color: var(--text); }
+.emailBox {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  /* 12pt = 16px: keeps iOS from zooming in on focus. */
+  font-size: 12pt;
+}
+.input:focus { outline: none; border-color: var(--text-muted); }
+.textarea { resize: vertical; min-height: 180px; line-height: 1.5; }
+.notice { margin: 12px 0 0; font-size: 12px; color: #16a34a; }
+.error { margin: 12px 0 0; font-size: 12px; color: #ef4444; }
+
+[data-theme="light"] .dialog {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 32px 80px rgba(15, 20, 30, 0.18);
+}
+[data-theme="light"] .row,
+[data-theme="light"] .input { border-color: rgba(0, 0, 0, 0.14); }

@@ -77,15 +77,20 @@ export const s = StyleSheet.create({
     fontFamily: 'Helvetica',
     color: colors.textDark,
   },
+  /* Sits inside the page's bottom padding (36), so it can never land on
+     top of the content above it. */
   pageFooter: {
     position: 'absolute',
-    bottom: 20,
-    left: 40,
-    right: 40,
+    bottom: 14,
+    left: 36,
+    right: 36,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingTop: 5,
+    borderTop: `0.5px solid ${colors.cardBorder}`,
     fontSize: 7,
     color: colors.textMuted,
+    letterSpacing: 0.3,
   },
 
   /* ── Cover ── */

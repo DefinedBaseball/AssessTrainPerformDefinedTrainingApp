@@ -6,14 +6,32 @@ import { View, Text, Image, Svg, Rect, Circle } from '@react-pdf/renderer';
 import { s, colors, badgeColors, barColor } from './theme';
 import { formatPositionsForDisplay } from '@/app/athletes/[id]/helpers';
 
-/* ── Page Footer ── */
-export function PageFooter({ reportTitle, date }: { reportTitle: string; date: string }) {
+/* ── Page Footer ──
+   Same strip on every body page of every report: athlete · report on the
+   left, date and "Page 2 of 4" on the right (the cover counts as page 1).
+   `fixed` repeats it on pages a long section flows onto. */
+export function PageFooter({
+  player, reportTitle, date,
+}: {
+  player: { firstName: string; lastName: string };
+  reportTitle: string;
+  date: string;
+}) {
   return (
     <View style={s.pageFooter} fixed>
-      <Text>{reportTitle}</Text>
-      <Text>Generated {date}</Text>
+      <Text>{player.firstName} {player.lastName}  ·  {reportTitle}</Text>
+      <Text render={({ pageNumber, totalPages }) => `${date}  ·  Page ${pageNumber} of ${totalPages}`} />
     </View>
   );
+}
+
+/** Red / yellow / green for a 20-80 grade -- the app's scoreColor bands
+ *  (< 40, 40-59, >= 60) in the white-page PDF palette. */
+export function gradeTone(grade: number | null | undefined): string {
+  if (grade === null || grade === undefined || !Number.isFinite(grade)) return colors.cardBorder;
+  if (grade >= 60) return colors.elite;
+  if (grade >= 40) return colors.aboveAvg;
+  return colors.developing;
 }
 
 /* ── Section Header ── */
@@ -194,7 +212,12 @@ export function PdfTable({
    parser so b/strong, i/em, and u tags map to the matching @react-pdf
    <Text> styles. <br>, <div>, and <p> insert line breaks. Anything else
    is stripped so unsafe / unsupported tags can't bleed into the PDF. */
-export function PdfNotesBox({ label, text }: { label: string; text: string }) {
+export function PdfNotesBox({ label, text, fontSize }: {
+  label: string;
+  text: string;
+  /** Body size override -- the one-page Hitting PDF shrinks long notes to fit. */
+  fontSize?: number;
+}) {
   /* Default react-pdf flow — the notes block starts on the current page
      right under whatever precedes it. We render each line of the parsed
      HTML as its OWN <Text> element inside the box's <View>. react-pdf
@@ -208,10 +231,26 @@ export function PdfNotesBox({ label, text }: { label: string; text: string }) {
     <View style={s.notesBox}>
       <Text style={s.notesLabel}>{label}</Text>
       {lines.map((line, idx) => (
-        <Text key={idx} style={s.notesText}>{line}</Text>
+        <Text key={idx} style={fontSize ? [s.notesText, { fontSize }] : s.notesText}>{line}</Text>
       ))}
     </View>
   );
+}
+
+/** Rough rendered height of a PdfNotesBox at a given body size, so a
+ *  one-page report can budget its page before drawing it. `textWidth` is
+ *  the box's inner width in points. */
+export function estimateNotesHeight(notes: string, fontSize: number, textWidth = 696): number {
+  if (!notes.trim()) return 0;
+  const text = notes
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n+$/, '');
+  const perLine = Math.floor(textWidth / (fontSize * 0.5));
+  const lines = text.split('\n').reduce((n, p) => n + Math.max(1, Math.ceil(p.length / perLine)), 0);
+  return 20 + 16 + lines * fontSize * 1.5;
 }
 
 /** Same parser as renderHtmlNote, but groups output into LINES (each
@@ -454,7 +493,7 @@ export function PdfDivider() {
   return <View style={s.divider} />;
 }
 
-/* ── Assessment Grade Card ── */
+/* ── Assessment Grade Card ── 20-80 scouting grade, coloured like the app. */
 export function PdfGradeCard({
   label,
   grade,
@@ -465,16 +504,12 @@ export function PdfGradeCard({
   sublabel?: string;
 }) {
   if (grade === null || grade === undefined) return null;
-  let gradeColor = colors.textMuted;
-  if (grade >= 8) gradeColor = colors.elite;
-  else if (grade >= 6) gradeColor = colors.aboveAvg;
-  else if (grade >= 4) gradeColor = colors.gold;
-  else gradeColor = colors.developing;
+  const gradeColor = gradeTone(grade);
 
   return (
     <View style={[s.kpiCard, { borderLeftWidth: 3, borderLeftColor: gradeColor }]}>
       <Text style={s.kpiLabel}>{label}</Text>
-      <Text style={[s.kpiValue, { color: gradeColor }]}>{grade}/10</Text>
+      <Text style={[s.kpiValue, { color: gradeColor }]}>{grade}</Text>
       {sublabel && <Text style={s.kpiUnit}>{sublabel}</Text>}
     </View>
   );

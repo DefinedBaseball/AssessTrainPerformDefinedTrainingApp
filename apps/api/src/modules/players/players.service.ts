@@ -78,6 +78,78 @@ export class PlayersService {
     return { ok: true, emailed, to };
   }
 
+  /** The "Assessment report" email's saved wording for this athlete, as the
+   *  starting subject + message the coach edits before sending. */
+  async reportEmailDraft(playerId: string): Promise<{ subject: string; message: string }> {
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { firstName: true } });
+    if (!player) throw new NotFoundException('Player not found');
+    const draft = await this.mail.filledContent('REPORT_PDF', player.firstName);
+    return { subject: draft.subject, message: draft.body };
+  }
+
+  /** Email a coach-built report PDF to the athlete and/or guardian -- one
+   *  email each, so neither sees the other's address. Recipients resolve
+   *  to the addresses on file (the athlete's login email, the guardian's
+   *  parentEmail); the request only says which. The subject and message are
+   *  the coach's own words, wrapped in the academy's email layout. */
+  async emailReportPdf(
+    playerId: string,
+    body: { recipients?: unknown; filename?: unknown; pdfBase64?: unknown; subject?: unknown; message?: unknown },
+  ): Promise<{ results: Array<{ recipient: 'player' | 'guardian'; email: string; sent: boolean }> }> {
+    const wanted = Array.isArray(body.recipients) ? body.recipients : [];
+    const recipients = (['player', 'guardian'] as const).filter((r) => wanted.includes(r));
+    if (recipients.length === 0) throw new BadRequestException('Choose who to email: the player, the guardian or both.');
+
+    const subject = (typeof body.subject === 'string' ? body.subject : '').replace(/[\r\n]+/g, ' ').trim();
+    const message = (typeof body.message === 'string' ? body.message : '').replace(/\r\n/g, '\n').trim();
+    if (!subject) throw new BadRequestException('Add a subject line.');
+    if (subject.length > 200) throw new BadRequestException('Keep the subject under 200 characters.');
+    if (message.length > 5000) throw new BadRequestException('Keep the message under 5,000 characters.');
+
+    if (typeof body.pdfBase64 !== 'string' || body.pdfBase64.length === 0) {
+      throw new BadRequestException('The PDF is missing.');
+    }
+    // ~15 MB of PDF; base64 is 4/3 the size.
+    if (body.pdfBase64.length > 20_000_000) throw new BadRequestException('That PDF is too large to email.');
+    const pdf = Buffer.from(body.pdfBase64, 'base64');
+    if (pdf.length < 5 || pdf.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      throw new BadRequestException('Only PDF reports can be emailed.');
+    }
+    const rawName = typeof body.filename === 'string' ? body.filename : 'Report.pdf';
+    const filename = (rawName.replace(/[^\w.-]+/g, '_').replace(/\.pdf$/i, '').slice(0, 100) || 'Report') + '.pdf';
+
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { firstName: true, parentEmail: true, user: { select: { email: true } } },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+    const addressOf = { player: player.user?.email?.trim() || '', guardian: player.parentEmail?.trim() || '' };
+    const missing = recipients.filter((r) => !addressOf[r]);
+    if (missing.length) {
+      throw new BadRequestException(
+        missing.length === 2 ? 'Neither the player nor the guardian has an email address on file.'
+          : missing[0] === 'player' ? 'The player has no email address on file.'
+          : 'There is no guardian email on file for this athlete.',
+      );
+    }
+
+    const attachment = [{ filename, content: pdf.toString('base64') }];
+    /* The coach's subject + message in place of the template's; the
+       template's heading stays as the title inside the email. */
+    const template = await this.mail.filledContent('REPORT_PDF', player.firstName);
+    const draft = { subject, heading: template.heading, body: message };
+    const results: Array<{ recipient: 'player' | 'guardian'; email: string; sent: boolean }> = [];
+    for (const recipient of recipients) {
+      const sent = await this.mail.sendTemplate(
+        'REPORT_PDF', addressOf[recipient],
+        { name: player.firstName, url: `${this.mail.webAppUrl}/login` },
+        draft, attachment,
+      );
+      results.push({ recipient, email: addressOf[recipient], sent });
+    }
+    return { results };
+  }
+
   async create(data: {
     userId: string;
     firstName: string;

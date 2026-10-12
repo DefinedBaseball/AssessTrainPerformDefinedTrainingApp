@@ -1,295 +1,25 @@
 /**
- * Hitting PDF Report — mirrors the Hitting tab summary page (white theme):
- *   Page 1 — Hitting Snapshot: Swing / Quality of Contact / Coach Diagnosis
- *            grade rows (composite bar + raw-value chip strip), Diagnosis
- *            Notes, Full Swing + Blast Motion KPI grids, Coach Grades cards.
- *   Page 2 — Swing Decision view: Barrel / Whiff / Chase / Approach grade rows.
+ * Hitting PDF Report — one landscape page after the cover:
+ *
+ *   1. Vendor bubbles — Blast Motion, HitTrax, Full Swing — each only when
+ *      the report has that vendor's data, with the same columns, labels
+ *      and colours as the Hitting tab.
+ *   2. Spray chart beside the strike zone damage map (the map only when
+ *      the report's HitTrax data carries zone numbers).
+ *   3. Hitting notes.
+ *
+ * Everything is sized to fit the one page: long notes shrink the charts
+ * first, then the note text.
  */
 import React from 'react';
 import { Page, View, Text, Svg, Path, Line, Polygon, Rect, Circle, G } from '@react-pdf/renderer';
 import { s, colors } from './theme';
+import { PageFooter, PdfNotesBox, gradeTone, estimateNotesHeight } from './components';
 import {
-  PageFooter, PdfSectionHeader, PdfKpiCard,
-  PdfNotesBox, PdfPlayerInfoBar, PdfDivider,
-} from './components';
-import {
-  METRIC_LABELS, getBadgeLevel, getBadgeText,
-  formatHeight, getAge,
-} from '@/app/athletes/[id]/helpers';
+  buildZoneTones, TONE_COLD, TONE_MID, TONE_HOT, type ZoneStat, type ZoneTone,
+} from '@/app/athletes/[id]/components/StrikeZoneDamageView';
 
-/* ─── Metric groupings (mirror SwingTab + SwingDecisionTab) ─── */
-// Swing row — Max/Avg Bat Speed first, then mechanics in display order:
-// Attack, Tilt (plane_angle), TtC, Plane (on-plane efficiency), Connection,
-// Rotation. Blast CSV spec additions appended at the end (Plane Score /
-// Connection Score / Rotation Score / Early Connection / Connection at Impact)
-// so they flow through every PDF surface that iterates this array.
-const SWING_METRIC_KEYS = [
-  'max_bat_speed', 'avg_bat_speed',
-  'attack_angle', 'plane_angle', 'time_to_contact',
-  'on_plane_efficiency', 'power_output', 'peak_hand_speed',
-  'plane_score', 'connection_score', 'rotation_score',
-  'early_connection', 'connection_at_impact',
-] as const;
-/* Snapshot "Swing" grade-row chip strip — only the 6 in-bubble keys
-   that the in-app SwingTab `SWING_GRADEROW_KEYS` shows. The remaining
-   Blast metrics (Plane / Connection / Rotation scores, Early Conn,
-   Conn at Impact, on-plane efficiency, peak hand speed) all flow
-   through the Blast Motion KPI grid further down the page. */
-const SWING_GRADEROW_KEYS = [
-  'max_bat_speed', 'avg_bat_speed',
-  'attack_angle', 'plane_angle', 'time_to_contact', 'power_output',
-] as const;
-// Quality of Contact — matches the in-app Hitting Snapshot QoC chips
-// exactly: Avg EV, Max EV, Squared Up %, Smash, Miss %, Barrel %, LA, Dist.
-// (8 metrics — Smash Factor added per the latest spec.)
-const QOC_KEYS = [
-  'avg_exit_velo', 'max_exit_velo',
-  'squared_up_pct', 'smash_factor',
-  'full_swing_miss_pct', 'overall_barrel_pct',
-  'launch_angle', 'distance',
-] as const;
-const SCORE_LABEL_OVERRIDES: Record<string, string> = {
-  on_plane_efficiency:    'Plane Score',
-  power_output:           'Power',
-  peak_hand_speed:        'Peak Hand Speed',
-  connection_at_contact:  'Connection Score',  // legacy
-  rotational_acceleration:'Rotation Score',    // legacy
-};
-const SHORT_LABELS: Record<string, string> = {
-  /* Labels rewritten to match the in-app `SHORT_LABELS` in
-     SwingTab.tsx so the PDF report's chip / KPI labels line up
-     with what the coach sees on the profile. */
-  max_bat_speed: 'Max Bat Speed',
-  avg_bat_speed: 'Avg Bat Speed',
-  attack_angle: 'Attack Angle',
-  plane_angle: 'Vert Bat Angle',
-  time_to_contact: 'Time to Contact',
-  on_plane_efficiency: 'Plane Score',
-  power_output: 'Power (Kwh)',
-  peak_hand_speed: 'Hand Speed',
-  connection_at_contact: 'Conn',     // legacy alias
-  rotational_acceleration: 'Rot',    // legacy alias
-  /* Blast CSV spec additions — same spelled-out labels the in-app
-     bubble uses. Long ones may wrap in narrow PDF cells; the cell
-     renderer handles overflow. */
-  plane_score: 'Plane Score',
-  connection_score: 'Connection Score',
-  rotation_score: 'Rotation Score',
-  early_connection: 'Early Connection',
-  connection_at_impact: 'Connection at Impact',
-  avg_exit_velo: 'Avg EV',
-  max_exit_velo: 'Max EV',
-  squared_up_pct: 'Sq-Up',
-  smash_factor: 'Smash',
-  full_swing_miss_pct: 'Miss',
-  overall_whiff_pct: 'Whiff',
-  overall_barrel_pct: 'Barrel',
-  overall_chase_pct: 'Chase',
-  overall_in_zone_swing_pct: 'Zone Sw',
-  overall_bb_pct: 'Walk',
-  overall_k_pct: 'K%',
-  fb_barrel_pct: 'FB Bar',
-  os_barrel_pct: 'OS Bar',
-  fb_whiff_pct: 'FB Wh',
-  os_whiff_pct: 'OS Wh',
-  fb_chase_pct: 'FB Ch',
-  os_chase_pct: 'OS Ch',
-  fb_in_zone_swing_pct: 'FB Zn',
-  os_in_zone_swing_pct: 'OS Zn',
-  launch_angle: 'LA',
-  distance: 'Dist',
-};
-
-/* ─── Helpers ─── */
-
-/** Piecewise bar fill: 20 → 0%, 40 → 50% (halfway), 80 → 100% (full). */
-function gradeToBarPct(grade: number | null): number {
-  if (grade === null) return 0;
-  if (grade <= 20) return 0;
-  if (grade >= 80) return 100;
-  if (grade <= 40) return (grade - 20) * 2.5;
-  return 50 + (grade - 40) * 1.25;
-}
-
-function averageGrades(values: (number | null | undefined)[]): number | null {
-  const real = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
-  if (real.length === 0) return null;
-  return Math.round(real.reduce((a, b) => a + b, 0) / real.length);
-}
-
-/** Format raw metric value for chip / KPI display (mirrors formatRawChip in SwingTab).
- *  Per design: Attack Angle, Plane Angle (Tilt), Launch Angle, and
- *  On-Plane Efficiency (Plane Score) drop their unit suffixes — the
- *  metric label already implies the unit. */
-function formatRawChip(key: string, value: number): string {
-  switch (key) {
-    case 'attack_angle':            return value.toFixed(1);
-    case 'plane_angle':             return value.toFixed(1);
-    case 'max_bat_speed':           return value.toFixed(1);
-    case 'avg_bat_speed':           return value.toFixed(1);
-    case 'time_to_contact':         return value.toFixed(2);
-    case 'on_plane_efficiency':     return value.toFixed(0);
-    case 'connection_at_contact':   return value.toFixed(0);
-    case 'rotational_acceleration': return value.toFixed(1);
-    case 'power_output':            return value.toFixed(2);
-    case 'peak_hand_speed':         return value.toFixed(1);
-    /* Blast CSV spec additions — integer scores for the *_score keys
-       (raw 0-100 Blast composite) and one decimal place for the
-       connection-degree readings (Early / At-Impact). */
-    case 'plane_score':             return value.toFixed(0);
-    case 'connection_score':        return value.toFixed(0);
-    case 'rotation_score':          return value.toFixed(0);
-    case 'early_connection':        return value.toFixed(1);
-    case 'connection_at_impact':    return value.toFixed(1);
-    case 'avg_exit_velo':           return value.toFixed(1);
-    case 'max_exit_velo':           return value.toFixed(1);
-    case 'squared_up_pct':          return `${value.toFixed(0)}%`;
-    case 'smash_factor':            return value.toFixed(2);
-    case 'full_swing_miss_pct':
-    case 'overall_whiff_pct':
-    case 'overall_barrel_pct':
-    case 'overall_chase_pct':
-    case 'overall_in_zone_swing_pct':
-    case 'overall_bb_pct':
-    case 'overall_k_pct':
-    case 'fb_barrel_pct':
-    case 'fb_whiff_pct':
-    case 'fb_chase_pct':
-    case 'fb_in_zone_swing_pct':
-    case 'os_barrel_pct':
-    case 'os_whiff_pct':
-    case 'os_chase_pct':
-    case 'os_in_zone_swing_pct':    return `${value.toFixed(0)}%`;
-    case 'launch_angle':            return value.toFixed(1);
-    case 'distance':                return value.toFixed(0);
-    default:                        return value.toFixed(1);
-  }
-}
-
-function metricToGradeFromRanges(value: number, range: [number, number]): number {
-  const [min, max] = range;
-  const pct = (value - min) / (max - min);
-  const raw = 20 + pct * 60;
-  return Math.max(20, Math.min(80, Math.round(raw / 10) * 10));
-}
-
-/* ─── Bar + chip strip (matches the screen's GradeRow) ─── */
-
-function PdfGradeRow({
-  label, grade, chips, isLast,
-}: {
-  label: string;
-  grade: number | null;
-  chips: { key: string; label: string; grade: number | null; display?: string }[];
-  /** When true, drops the bottom margin so the last row's spacing inside
-   *  the Hitting Grades bubble matches the top label's spacing — keeps
-   *  the bubble's interior padding visually symmetric (top label gap ≈
-   *  bottom chip gap). */
-  isLast?: boolean;
-}) {
-  const fillPct = gradeToBarPct(grade);
-  const tone =
-    grade === null      ? colors.cardBorder
-    : grade >= 60       ? colors.elite        // green = good
-    : grade >= 40       ? colors.aboveAvg     // yellow = average
-    : colors.developing;                       // red = bad
-  return (
-    <View style={{ marginBottom: isLast ? 0 : 10 }}>
-      <View style={{
-        flexDirection: 'row', justifyContent: 'space-between',
-        alignItems: 'baseline', marginBottom: 4,
-      }}>
-        <Text style={{
-          fontSize: 8, fontFamily: 'Helvetica-Bold',
-          /* Grade-row title (SWING / QUALITY OF CONTACT / COACH DIAGNOSIS)
-             — black to match the other body labels. */
-          color: colors.black, letterSpacing: 1,
-        }}>
-          {label.toUpperCase()}
-        </Text>
-        <Text style={{
-          fontSize: 14, fontFamily: 'Helvetica-Bold', color: tone,
-        }}>
-          {grade ?? '—'}
-        </Text>
-      </View>
-      {/* Bar with halfway tick */}
-      <View style={{
-        position: 'relative',
-        height: 8, borderRadius: 4,
-        backgroundColor: colors.cardBg,
-        border: `0.5px solid ${colors.cardBorder}`,
-        overflow: 'hidden',
-        marginBottom: 5,
-      }}>
-        <View style={{
-          height: '100%', width: `${fillPct}%`,
-          backgroundColor: tone, borderRadius: 4,
-        }} />
-        <View style={{
-          position: 'absolute', top: 0, bottom: 0, left: '50%',
-          width: 0.5, backgroundColor: colors.textMuted, opacity: 0.4,
-        }} />
-      </View>
-      {/* Chip strip — every chip's label MUST fit on a single line so
-          every number lines up at the same y-position across the row.
-          We wrap the label in a fixed-height row and force single-line
-          rendering with `wrap={false}`; the font size is dialed down
-          enough that the longest label ("Max Bat", "Posture", "Timing")
-          fits within the chip's flex-share of the row width. */}
-      <View style={{ flexDirection: 'row', gap: 4 }}>
-        {chips.map(c => {
-          const ct =
-            c.grade === null    ? colors.cardBorder
-            : c.grade >= 60     ? colors.elite        // green
-            : c.grade >= 40     ? colors.aboveAvg     // yellow
-            : colors.developing;                       // red
-          return (
-            <View key={c.key} style={{
-              flex: 1,
-              backgroundColor: colors.cardBg,
-              border: `0.5px solid ${colors.cardBorder}`,
-              borderRadius: 4,
-              padding: 4,
-              alignItems: 'center',
-            }}>
-              {/* Fixed-height label row — guarantees the value below
-                  lands at the same y on every chip, even if a label is
-                  edge-of-fit. wrap={false} also prevents react-pdf from
-                  breaking words at internal spaces ("Max Bat" stays on
-                  one line). */}
-              <View style={{
-                height: 9,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginBottom: 2,
-              }}>
-                <Text
-                  wrap={false}
-                  style={{
-                    fontSize: 5.5, fontFamily: 'Helvetica-Bold',
-                    color: colors.black,
-                    textAlign: 'center',
-                  }}
-                >
-                  {c.label}
-                </Text>
-              </View>
-              <Text style={{
-                fontSize: 9, fontFamily: 'Helvetica-Bold', color: ct,
-              }}>
-                {c.display ?? (c.grade ?? '—')}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-
-/* ─── Public type ─── */
+/* ─── Public types ─── */
 
 export interface SprayDot {
   angle: number;
@@ -301,26 +31,95 @@ export interface SprayDot {
   ballTypeCode?: number;
 }
 
+/** One column of a vendor bubble. `grade` (20-80) colours the value. */
+export interface VendorCell { label: string; display: string; unit?: string; grade: number | null }
+
+export interface HittingVendor {
+  key: 'blast' | 'hittrax' | 'fullswing';
+  title: string;
+  cells: VendorCell[];
+}
+
 export interface HittingPdfData {
   player: any;
-  /** topMetrics extended with the synthetic full_swing_miss_pct reading. */
-  topMetrics: Record<string, { value: number; unit: string }>;
-  /** Per-key 20-80 grades for the swing mechanics inputs. */
-  metricGrades: Record<string, number | null>;
-  /** The report’s own notes, printed as HITTING NOTES. (Coach grades are
-   *  deliberately absent from this shape — they never print.) */
-  diagnosisNotes: string;
-  /** Each batted ball — angle (deg, 0=center, ±=left/right), distance (ft), optional EV. */
-  sprayDots: SprayDot[];
-  swingNotes: string | null;
   reportDate: string;
-  /** HitTrax-source aggregates (avg/max EV, mean LA, mean Dist). The HitTrax
-   *  section only renders when this is non-empty — mirroring the in-app
-   *  profile where the section auto-hides without source data. */
-  hittraxValues?: Record<string, { value: number; unit: string }>;
-  /** Full-Swing-source aggregates. Same auto-hide behavior. */
-  fullswingValues?: Record<string, { value: number; unit: string }>;
+  /** Vendors with data on this report, in print order. */
+  vendors: HittingVendor[];
+  sprayDots: SprayDot[];
+  /** Per-zone averages; empty when the report has no zone numbers. */
+  zoneStats: ZoneStat[];
+  /** The report's hitting notes (HTML or plain text). */
+  notes: string;
 }
+
+/* ─── Page geometry (landscape LETTER, s.page padding) ─── */
+const CONTENT_W = 792 - 36 * 2;      // 720
+const CONTENT_H = 612 - 24 - 36;     // 552
+const GAP = 8;
+const VENDOR_H = 43;                 // one vendor bubble, title + one row
+const ZONE_W = 300;                  // strike zone card width
+const CHART_MAX = 240;
+const CHART_GOOD = 192;              // charts read well from here up
+const CHART_MIN = 136;
+
+const notesHeight = (notes: string, fontSize: number) => estimateNotesHeight(notes, fontSize, CONTENT_W - 24);
+
+/** Chart height and note size that fit the page. Long notes first step
+ *  their type down a little (to 8pt) to keep the charts a readable size,
+ *  and only then let the charts shrink. */
+function planLayout(vendorCount: number, notes: string) {
+  const free = CONTENT_H - vendorCount * (VENDOR_H + GAP);
+  const roomAt = (fontSize: number) => {
+    const nh = notesHeight(notes, fontSize);
+    return free - (nh ? nh + GAP : 0);
+  };
+  for (const fontSize of [9, 8.5, 8]) {
+    if (roomAt(fontSize) >= CHART_GOOD) return { chartH: Math.min(CHART_MAX, roomAt(fontSize)), fontSize };
+  }
+  for (const fontSize of [8, 7.5]) {
+    const room = roomAt(fontSize);
+    if (room >= CHART_MIN) return { chartH: Math.min(CHART_MAX, room), fontSize };
+  }
+  // Very long notes: smallest type, minimum charts; the notes may run on.
+  return { chartH: CHART_MIN, fontSize: 7.5 };
+}
+
+/* ─── Shared card chrome ─── */
+const card = {
+  backgroundColor: colors.cardBg,
+  border: `1px solid ${colors.cardBorder}`,
+  borderRadius: 8,
+};
+const cardTitle = {
+  fontSize: 8, fontFamily: 'Helvetica-Bold', color: colors.black,
+  letterSpacing: 1.2, textTransform: 'uppercase' as const,
+};
+
+/* ─── Vendor bubble: title + one row of columns (the Hitting tab's table) ─── */
+function VendorBubble({ vendor }: { vendor: HittingVendor }) {
+  return (
+    <View wrap={false} style={[card, { height: VENDOR_H, paddingVertical: 5, paddingHorizontal: 10, marginBottom: GAP }]}>
+      <Text style={[cardTitle, { fontSize: 7, marginBottom: 3 }]}>{vendor.title}</Text>
+      <View style={{ flexDirection: 'row', borderTop: `0.5px solid ${colors.cardBorder}`, paddingTop: 3 }}>
+        {vendor.cells.map((c) => (
+          <View key={c.label} style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 5.2, fontFamily: 'Helvetica-Bold', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 1, textAlign: 'center' }}>
+              {c.label}
+            </Text>
+            <Text style={{
+              fontSize: 9.5, fontFamily: 'Helvetica-Bold',
+              color: c.display === '—' ? colors.textMuted : c.grade !== null ? gradeTone(c.grade) : colors.navy,
+            }}>
+              {c.display}
+              {c.unit && c.display !== '—' ? <Text style={{ fontSize: 5.3, fontFamily: 'Helvetica', color: colors.textMuted }}> {c.unit}</Text> : null}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
    PdfSprayChart — static SVG snapshot of the spray chart, white-paper styled.
@@ -424,442 +223,155 @@ function PdfSprayChart({ dots }: { dots: SprayDot[] }) {
   );
 }
 
-/* ─── Document body ─── */
 
-export function HittingReportPages({ data }: { data: HittingPdfData }) {
-  const {
-    player, topMetrics, metricGrades, diagnosisNotes, sprayDots,
-    swingNotes, reportDate,
-    hittraxValues, fullswingValues,
-  } = data;
-  // Per-source presence flags so each section auto-hides exactly the way
-  // the in-app profile does — HitTrax block only when HitTrax CSVs have been
-  // ingested, Full Swing block only when Full Swing CSVs have been ingested.
-  const SOURCE_KEYS: readonly string[] = ['avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance'];
-  const hasHitTrax  = !!hittraxValues  && SOURCE_KEYS.some(k => hittraxValues[k]  !== undefined);
-  const hasFullSwing = !!fullswingValues && SOURCE_KEYS.some(k => fullswingValues[k] !== undefined);
-  const hasBlast = SWING_METRIC_KEYS.some(k => topMetrics[k] !== undefined);
+/* ─────────────────────────────────────────────────────────────────────────────
+   PdfStrikeZone — the Hitting tab's Strike Zone damage map: four out-of-zone
+   quadrants (11 / 10 / 13 / 12) around the 3×3 strike zone (HitTrax zone
+   numbers, right-to-left across each row), each showing avg exit velo and
+   avg launch angle, coloured blue / white / red by EV rank with the app's
+   own buildZoneTones. Pitcher's view, plate underneath.
+   ─────────────────────────────────────────────────────────────────────────── */
+const IN_ZONE_ROWS = [[3, 2, 1], [6, 5, 4], [9, 8, 7]];
+const EMPTY_TONE: ZoneTone = { bg: '#F3F4F6', text: colors.textMuted, sub: colors.textMuted, muted: colors.textMuted };
+const ZONE_FRAME = '#9AA1AC';
 
-  // ── Build chip data for each grade row ────────────────────────────────────
-  /* Snapshot Swing row uses the trimmed SWING_GRADEROW_KEYS so only the
-     6 core in-bubble metrics chip-render here. The full SWING_METRIC_KEYS
-     set still drives the Blast Motion KPI grid further down the page. */
-  const swingChips = SWING_GRADEROW_KEYS.map(k => {
-    const m = topMetrics[k];
-    return {
-      key: k,
-      label: SHORT_LABELS[k] || k,
-      grade: metricGrades[k] ?? null,
-      display: m ? formatRawChip(k, m.value) : undefined,
-    };
-  });
-  const swingComposite = averageGrades(swingChips.map(c => c.grade));
-
-  const qocChips = QOC_KEYS.map(k => {
-    const m = topMetrics[k];
-    const grade = m ? metricToGradeFromMetric(k, m.value) : null;
-    return {
-      key: k,
-      label: SHORT_LABELS[k] || k,
-      grade,
-      display: m ? formatRawChip(k, m.value) : undefined,
-    };
-  });
-  const qocComposite = averageGrades(qocChips.map(c => c.grade));
-
-  // ── Decision groups ──────────────────────────────────────────────────────
-  const buildGroup = (keys: string[]) => {
-    const chips = keys.map(k => {
-      const m = topMetrics[k];
-      const grade = m ? metricToGradeFromMetric(k, m.value) : null;
-      return {
-        key: k,
-        label: SHORT_LABELS[k] || k,
-        grade,
-        display: m ? formatRawChip(k, m.value) : undefined,
-      };
-    });
-    return { chips, composite: averageGrades(chips.map(c => c.grade)) };
-  };
-  /* Same pitch-family bundling as the in-app Swing-Decision sub-tab:
-       Fastballs / Offspeed / Overall (each = barrel + whiff + chase) +
-       Decision (zone-swing rates + overall chase + K%). */
-  const fastballGroup = buildGroup(['fb_barrel_pct', 'fb_whiff_pct', 'fb_chase_pct']);
-  const offspeedGroup = buildGroup(['os_barrel_pct', 'os_whiff_pct', 'os_chase_pct']);
-  const overallGroup  = buildGroup(['overall_barrel_pct', 'overall_whiff_pct', 'overall_chase_pct']);
-  const decisionGroup = buildGroup(['fb_in_zone_swing_pct', 'os_in_zone_swing_pct', 'overall_in_zone_swing_pct', 'overall_chase_pct', 'overall_k_pct']);
-  const hasDecisionData = [...fastballGroup.chips, ...offspeedGroup.chips, ...overallGroup.chips, ...decisionGroup.chips]
-    .some(c => c.grade !== null);
-
+/** Avg EV over avg LA. `units` off in small cells -- the legend says mph / deg. */
+function ZoneReading({ stat, tone, big, units = true }: { stat?: ZoneStat; tone: ZoneTone; big: number; units?: boolean }) {
+  if (!stat || stat.n === 0) {
+    return <Text style={{ fontSize: big * 0.8, color: tone.muted }}>—</Text>;
+  }
   return (
-    <>
-      {/* ── Page 1: Hitting Snapshot (Swing view) ──
-          Landscape LETTER so this page (PDF page 2) and its sibling
-          data-sections page (PDF page 3, created by the `<View break>`
-          below) share the same 11" × 8.5" canvas as the Cover Page.
-          The top `PdfPlayerInfoBar` (black bar with the player's name
-          + vitals) was retired here — the Cover Page already shows
-          that information prominently on PDF page 1, so repeating
-          it at the top of page 2 was redundant and burned vertical
-          budget the snapshot needed. */}
-      <Page size="LETTER" orientation="landscape" style={s.page}>
-        {/* SNAPSHOT ROW — Spray Chart (left) + Hitting Grades bubble (right).
-            Tighter gap + reduced marginBottom so the notes block below
-            has more room to fit on page 2. */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'stretch',           // equalize bubble heights so the
-                                           // chart's bottom border lines up
-                                           // with the Hitting Grades bottom
-          gap: 8,
-          marginBottom: 8,
-        }}>
-          {/* Spray Chart panel — left.
-              Column flexbox so the inner chart View can claim the
-              remaining vertical space (flex: 1) and the bubble's
-              bottom border matches the Hitting Grades bubble next to
-              it via the parent row's `alignItems: 'stretch'`. */}
-          <View style={{
-            width: '46%',
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8,
-            padding: 6,
-            flexDirection: 'column',
-          }}>
-            <Text style={{
-              fontSize: 8, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1.4, marginBottom: 4,
-            }}>
-              SPRAY CHART
-            </Text>
-            {/* Chart fills the remaining height of the bubble (flex: 1)
-                so the bubble's bottom border lines up with the Hitting
-                Grades bubble. The SVG inside uses preserveAspectRatio
-                so the cropped viewBox keeps its shape inside this box. */}
-            <View style={{ flex: 1, width: '100%' }}>
-              <PdfSprayChart dots={sprayDots} />
-            </View>
-            {/* Caption removed per design — the chart speaks for itself
-                without the "X batted balls · EV color legend" footer. */}
-          </View>
-
-          {/* Hitting Grades bubble — right */}
-          <View style={{
-            flex: 1,
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8,
-            padding: 8,
-          }}>
-            <Text style={{
-              fontSize: 8, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1.4, marginBottom: 6,
-            }}>
-              HITTING GRADES
-            </Text>
-            {/* Swing + Quality of Contact only. The third row used to be
-                "Mechanical Grades", the average of the nine coach swing
-                grades — those are retired, so the row went with them.
-                Coach grades now live on the dashboard alone and never
-                appear in a forward-facing report.
-                `isLast` drops the final row's bottom margin so the chip
-                strip sits the same distance from the bubble's bottom
-                border as the HITTING GRADES title sits from the top. */}
-            <PdfGradeRow label="Swing"              grade={swingComposite} chips={swingChips} />
-            <PdfGradeRow label="Quality of Contact" grade={qocComposite}   chips={qocChips} isLast />
-          </View>
-        </View>
-
-        {/* Hitting Notes — the report's own notes field. Flows directly
-            under the spray-chart / hitting-grades row on page 2. Renamed
-            from "Diagnosis Notes" now that Coach Diagnosis is retired. */}
-        {diagnosisNotes && (
-          <PdfNotesBox label="HITTING NOTES" text={diagnosisNotes} />
-        )}
-
-        {/* Hard page break before the data sections — Full Swing /
-            HitTrax / Blast Motion ALWAYS start on page 3.
-            That gives the snapshot + notes the entirety of page 2 to
-            themselves, so the notes don't get squeezed by the data
-            sections trying to share the page. */}
-        <View break>
-
-        {/* Full Swing — only render when Full-Swing-source data exists.
-            EV / LA / Dist values come ONLY from fullswingValues so HitTrax
-            data never leaks in via topMetrics. Squared Up % and Barrel %
-            pull from topMetrics since those are Full-Swing-CSV-only
-            metrics that aren't in the per-source override. */}
-        {hasFullSwing && (() => {
-          const FULLSWING_ONLY_KEYS = new Set([
-            'avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance',
-          ]);
-          const fsResolvePdf = (k: string) => {
-            if (fullswingValues && fullswingValues[k]) return fullswingValues[k];
-            if (FULLSWING_ONLY_KEYS.has(k)) return undefined;
-            return topMetrics[k];
-          };
-          return (
-            <>
-              <PdfSectionHeader title="Full Swing" subtitle="Outcome metrics — Full Swing CSV" />
-              <View style={s.kpiGrid}>
-                {QOC_KEYS.map(k => {
-                  const m = fsResolvePdf(k);
-                  const label = METRIC_LABELS[k] || k;
-                  if (!m) return <PdfKpiCard key={k} label={label} value="—" badge="No data" badgeLevel="teal" />;
-                  /* Color the value via the same grade the Hitting Grades
-                     chip uses (metricToGradeFromMetric → 3-band map) so
-                     the KPI card and chip agree. Falls back to the
-                     vendor THRESHOLDS only when no grade range exists. */
-                  const grade = metricToGradeFromMetric(k, m.value);
-                  const level = grade !== null
-                    ? (grade >= 60 ? 'high' : grade >= 40 ? 'mid' : 'low')
-                    : getBadgeLevel(k, m.value);
-                  return (
-                    <PdfKpiCard
-                      key={k}
-                      label={label}
-                      value={formatRawChip(k, m.value)}
-                      badge={grade !== null ? `Grade ${grade}` : (getBadgeText(level) || undefined)}
-                      badgeLevel={level}
-                    />
-                  );
-                })}
-              </View>
-            </>
-          );
-        })()}
-
-        {/* HitTrax — separate from Full Swing in the PDF the same way the
-            profile keeps the two sections apart. Renders only when HitTrax
-            CSVs have been ingested. The "Grade XX" badge has been removed
-            from this section per design — the value text already
-            color-codes by grade band, so the badge was redundant noise. */}
-        {hasHitTrax && (
-          <>
-            <PdfSectionHeader title="HitTrax" subtitle="HitTrax Metrics" />
-            <View style={s.kpiGrid}>
-              {(['avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance'] as const).map(k => {
-                const m = hittraxValues && hittraxValues[k];
-                /* HitTrax-only label overrides — the values in this
-                   section are session means, so the cards explicitly
-                   say "AVG" instead of inheriting the generic METRIC_LABELS
-                   strings used elsewhere ("Launch Angle" / "Distance"). */
-                const HITTRAX_OVERRIDES: Record<string, string> = {
-                  launch_angle: 'AVG Launch Angle',
-                  distance:     'AVG Distance',
-                };
-                const label = HITTRAX_OVERRIDES[k] || METRIC_LABELS[k] || k;
-                if (!m) return <PdfKpiCard key={k} label={label} value="—" badgeLevel="teal" />;
-                /* Use the chip's grade-band logic so HitTrax KPI value
-                   colors agree with the corresponding Hitting Grades
-                   chips (Launch Angle was reading yellow while the chip
-                   read green because THRESHOLDS used different cutoffs). */
-                const grade = metricToGradeFromMetric(k, m.value);
-                const level = grade !== null
-                  ? (grade >= 60 ? 'high' : grade >= 40 ? 'mid' : 'low')
-                  : getBadgeLevel(k, m.value);
-                return (
-                  <PdfKpiCard
-                    key={k}
-                    label={label}
-                    value={formatRawChip(k, m.value)}
-                    badgeLevel={level}
-                  />
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* Blast Motion — only render when at least one Blast-source mechanic
-            has been ingested. Filters to keys WITH data so the section
-            mirrors the in-app Blast Motion bubble (empty metrics don't
-            print as "—" cards in the PDF). Labels pull from SHORT_LABELS
-            (same dictionary the profile chip uses) so report labels match
-            profile labels exactly. */}
-        {hasBlast && (
-          <>
-            <PdfSectionHeader title="Blast Motion" subtitle="Swing Metrics" />
-            <View style={s.kpiGrid}>
-              {SWING_METRIC_KEYS.filter(k => !!topMetrics[k]).map(k => {
-                const m = topMetrics[k]!;
-                const label = SHORT_LABELS[k] || SCORE_LABEL_OVERRIDES[k] || METRIC_LABELS[k] || k;
-                /* Same grade-band → level mapping as HitTrax above so
-                   Max Bat Speed (and the other Blast metrics) read the
-                   same color in the KPI card as in the Hitting Grades
-                   chip. THRESHOLDS-based getBadgeLevel had different
-                   cutoffs and was painting cards the wrong color. */
-                const grade = metricToGradeFromMetric(k, m.value);
-                const level = grade !== null
-                  ? (grade >= 60 ? 'high' : grade >= 40 ? 'mid' : 'low')
-                  : getBadgeLevel(k, m.value);
-                return (
-                  <PdfKpiCard
-                    key={k}
-                    label={label}
-                    value={formatRawChip(k, m.value)}
-                    badgeLevel={level}
-                  />
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* Second notes block (formerly under Blast Motion) removed —
-            the same notes already render once under the Spray Chart as
-            "DIAGNOSIS NOTES". A single appearance keeps the report from
-            duplicating the same paragraph on the same page. */}
-
-        </View>{/* end of page-3 data sections wrapper */}
-
-        {/* PageFooter removed per design — no "Hitting Assessment" /
-            "Generated MM DD" labels in the bottom corners. */}
-      </Page>
-
-      {/* ── Page 2: At-Bat Results (Swing Decision data) ──
-          Same landscape LETTER canvas as the Cover Page + Snapshot pages
-          so the entire deck reads in a single orientation. */}
-      {hasDecisionData && (
-        <Page size="LETTER" orientation="landscape" style={s.page}>
-          <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
-
-          <View style={{
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8,
-            padding: 12,
-            marginBottom: 14,
-          }}>
-            <Text style={{
-              fontSize: 9, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1.5, marginBottom: 8,
-            }}>
-              AT-BAT RESULTS · SWING DECISION
-            </Text>
-            <PdfGradeRow label="Fastballs" grade={fastballGroup.composite} chips={fastballGroup.chips} />
-            <PdfGradeRow label="Offspeed"  grade={offspeedGroup.composite} chips={offspeedGroup.chips} />
-            <PdfGradeRow label="Overall"   grade={overallGroup.composite}  chips={overallGroup.chips} />
-            <PdfGradeRow label="Decision"  grade={decisionGroup.composite} chips={decisionGroup.chips} />
-          </View>
-
-          {/* PageFooter removed per design. */}
-        </Page>
-      )}
-    </>
+    <View style={{ alignItems: 'center' }}>
+      <Text style={{ fontSize: big, fontFamily: 'Helvetica-Bold', color: tone.text }}>
+        {stat.avgEv != null ? stat.avgEv.toFixed(1) : '—'}
+        {units && <Text style={{ fontSize: big * 0.5, fontFamily: 'Helvetica', color: tone.muted }}> mph</Text>}
+      </Text>
+      <Text style={{ fontSize: big * 0.72, fontFamily: 'Helvetica-Bold', color: tone.sub }}>
+        {stat.avgLa != null ? stat.avgLa.toFixed(1) : '—'}
+        {units && <Text style={{ fontSize: big * 0.5, fontFamily: 'Helvetica', color: tone.muted }}> deg</Text>}
+      </Text>
+    </View>
   );
 }
 
-/* Local helper that mirrors metricToGrade in helpers.ts but uses the metric
-   key directly to look up its GRADE_RANGES range — avoids passing topMetrics. */
-function metricToGradeFromMetric(key: string, value: number): number | null {
-  /* Distance uses strict band thresholds (NOT a linear range) to match
-     the in-app helpers.ts toScoutingGrade special-case:
-       <200 ft  → grade 30 (red)
-       200–300  → grade 50 (yellow)
-       >300 ft  → grade 70 (green)
-     scoreColor bands the result red/yellow/green at <40 / 40-59 / ≥60,
-     so 30/50/70 land cleanly inside each color. Without this branch the
-     PDF was using a linear [250, 450] range — 214 ft mapped to grade 20
-     (red) when it should be yellow. */
-  if (key === 'distance') {
-    if (value < 200) return 30;
-    if (value <= 300) return 50;
-    return 70;
-  }
-  /* Plane Angle / Tilt — Blast CSV imports as POSITIVE values; legacy
-     manual entries may be negative. Use absolute value so both grade
-     correctly:
-       0–10  → red    (30)
-       10–20 → yellow (50)
-       20–40 → green  (70)
-       >40   → red    (30) */
-  if (key === 'plane_angle') {
-    const v = Math.abs(value);
-    if (v < 10) return 30;
-    if (v < 20) return 50;
-    if (v <= 40) return 70;
-    return 30;
-  }
-  /* Attack Angle — sweet-spot bands match the in-app:
-       <0    → red    (30)
-       0-15  → green  (70)
-       15-20 → yellow (50)
-       >20   → red    (30) */
-  if (key === 'attack_angle') {
-    if (value < 0) return 30;
-    if (value <= 15) return 70;
-    if (value <= 20) return 50;
-    return 30;
-  }
-  /* Early Connection / Connection at Impact — degree readings with a
-     symmetric sweet-spot at 90°. Mirrors helpers.ts toScoutingGrade:
-       <70 or >110  → red    (30)
-       70-80, 100-110 → yellow (50)
-       80-100       → green  (70)
-     scoreColor then bands the 30/50/70 results into the correct
-     red/yellow/green chip colors. */
-  if (key === 'early_connection' || key === 'connection_at_impact') {
-    if (value < 70 || value > 110) return 30;
-    if (value < 80 || value > 100) return 50;
-    return 70;
-  }
-  /* Plane Score / Connection Score / Rotation Score — raw 0-100
-     composite scores from Blast. Clamp to 20-80 and return the value
-     itself as the grade so scoreColor's <40/40-59/≥60 bands map to:
-       20-40 red, 40-60 yellow, 60-80 green (matches the user spec). */
-  if (key === 'plane_score' || key === 'connection_score' || key === 'rotation_score') {
-    return Math.max(20, Math.min(80, Math.round(value)));
-  }
-  // GRADE_RANGES is exported from helpers but importing here would create a
-  // circular path. Inline the few we need:
-  const RANGES: Record<string, [number, number]> = {
-    attack_angle: [-5, 18],
-    plane_angle: [10, 38],
-    /* Bat speed metrics — were missing from this map, so the chip's
-       grade computed to null and the value text rendered in the
-       "no grade" cardBorder color (white on a white card). */
-    max_bat_speed: [55, 85],
-    avg_bat_speed: [50, 80],
-    bat_speed: [50, 85],
-    time_to_contact: [0.20, 0.13],
-    /* Plane Score / Connection / Rotation use a flat 20-80 raw band so
-       the chip color flips at 40 (red→yellow) and 60 (yellow→green) —
-       matches the user-spec "20-40 red, 40-60 yellow, 60-80 green" and
-       the GRADE_RANGES values in helpers.ts. */
-    on_plane_efficiency: [20, 80],
-    connection_at_contact: [20, 80],   // legacy
-    rotational_acceleration: [20, 80], // legacy
-    /* Power (Blast column O, kW) — 3 kW grade 20 → 7 kW grade 80. */
-    power_output: [3, 7],
-    /* Peak Hand Speed (mph). */
-    peak_hand_speed: [18, 28],
-    avg_exit_velo: [65, 100],
-    /* Same fix for max_exit_velo — without this entry the Max EV chip's
-       grade was always null, so its value text was white. */
-    max_exit_velo: [70, 110],
-    squared_up_pct: [10, 45],
-    smash_factor: [0.8, 1.5],
-    full_swing_miss_pct: [40, 5],
-    overall_whiff_pct: [35, 12],
-    overall_barrel_pct: [5, 25],
-    overall_chase_pct: [42, 12],
-    overall_in_zone_swing_pct: [40, 78],
-    overall_bb_pct: [4, 16],
-    overall_k_pct: [35, 8],
-    fb_barrel_pct: [5, 30],
-    os_barrel_pct: [3, 25],
-    fb_whiff_pct: [35, 10],
-    os_whiff_pct: [40, 15],
-    fb_chase_pct: [40, 10],
-    os_chase_pct: [45, 15],
-    fb_in_zone_swing_pct: [40, 80],
-    os_in_zone_swing_pct: [40, 75],
-    launch_angle: [5, 22],
-    distance: [250, 450],
+function PdfStrikeZone({ stats, width, height }: { stats: ZoneStat[]; width: number; height: number }) {
+  const byZone = new Map(stats.map((z) => [z.zone, z]));
+  const tones = buildZoneTones(stats);
+  const toneFor = (zone: number) => tones.get(zone) ?? EMPTY_TONE;
+  const totalBalls = stats.reduce((n, z) => n + z.n, 0);
+
+  /* Figure 300:322 (taller than wide) with a plate 58% of its width below;
+     sized to whichever of width or height runs out first. */
+  const legendH = 10;
+  const plateRatio = 0.58 * (92 / 200);
+  const fw = Math.min(width, (height - legendH - 6) / (322 / 300 + plateRatio + 0.02));
+  const fh = fw * (322 / 300);
+  const box = { left: fw * 0.225, top: fh * 0.185, w: fw * 0.55, h: fh * 0.63 };
+  const cellW = box.w / 3, cellH = box.h / 3;
+  const big = Math.max(6.5, Math.min(11, cellW / 4.6, cellH / 3));
+  const cellUnits = cellW >= 52;
+  const tag = (zone: number, pos: Record<string, number>, tone: ZoneTone) => (
+    <Text style={{ position: 'absolute', ...pos, fontSize: 4.8, fontFamily: 'Helvetica-Bold', color: tone.muted }}>{zone}</Text>
+  );
+  const quadrant = (zone: number, top: boolean, left: boolean) => {
+    const tone = toneFor(zone);
+    return (
+      <View key={zone} style={{
+        position: 'absolute', top: top ? 0 : fh / 2, left: left ? 0 : fw / 2, width: fw / 2, height: fh / 2,
+        backgroundColor: tone.bg, alignItems: 'center',
+        justifyContent: top ? 'flex-start' : 'flex-end',
+        paddingTop: top ? 5 : 0, paddingBottom: top ? 0 : 5,
+      }}>
+        {tag(zone, { [top ? 'top' : 'bottom']: 3, [left ? 'left' : 'right']: 4 }, tone)}
+        <ZoneReading stat={byZone.get(zone)} tone={tone} big={big} />
+      </View>
+    );
   };
-  const r = RANGES[key];
-  if (!r) return null;
-  return metricToGradeFromRanges(value, r);
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      {/* Legend: the colours are EV rank buckets, not mph thresholds. */}
+      <View style={{ height: legendH, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+        <Text style={{ fontSize: 6, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          Avg mph · avg deg · {totalBalls} {totalBalls === 1 ? 'ball' : 'balls'}
+        </Text>
+        {([['Bottom 4', TONE_COLD], ['Middle 5', TONE_MID], ['Top 4', TONE_HOT]] as const).map(([label, tone]) => (
+          <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: tone.bg }} />
+            <Text style={{ fontSize: 6, color: colors.textMuted }}>{label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={{ width: fw, height: fh, position: 'relative', border: `0.8px solid ${ZONE_FRAME}`, borderRadius: 6, overflow: 'hidden' }}>
+        {quadrant(11, true, true)}
+        {quadrant(10, true, false)}
+        {quadrant(13, false, true)}
+        {quadrant(12, false, false)}
+        <View style={{ position: 'absolute', left: fw / 2, top: 0, width: 0.6, height: fh, backgroundColor: ZONE_FRAME }} />
+        <View style={{ position: 'absolute', top: fh / 2, left: 0, height: 0.6, width: fw, backgroundColor: ZONE_FRAME }} />
+        <View style={{ position: 'absolute', left: box.left, top: box.top, width: box.w, height: box.h, border: `1.2px solid ${colors.textDark}` }}>
+          {IN_ZONE_ROWS.map((row, ri) => (
+            <View key={ri} style={{ flexDirection: 'row', height: cellH - (ri === 2 ? 2.4 : 0) }}>
+              {row.map((zone, ci) => {
+                const tone = toneFor(zone);
+                return (
+                  <View key={zone} style={{
+                    width: cellW - (ci === 2 ? 2.4 : 0), backgroundColor: tone.bg,
+                    alignItems: 'center', justifyContent: 'center',
+                    borderRight: ci < 2 ? `0.5px solid ${ZONE_FRAME}` : undefined,
+                    borderBottom: ri < 2 ? `0.5px solid ${ZONE_FRAME}` : undefined,
+                    position: 'relative',
+                  }}>
+                    {tag(zone, { top: 1.5, left: 2 }, tone)}
+                    <ZoneReading stat={byZone.get(zone)} tone={tone} big={big} units={cellUnits} />
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Home plate, pitcher's view. */}
+      <Svg viewBox="0 0 200 92" style={{ width: fw * 0.58, height: fw * 0.58 * (92 / 200), marginTop: 4 }}>
+        <Path d="M3 3 H197 V34 L100 89 L3 34 Z" fill="#F3F4F6" stroke={ZONE_FRAME} strokeWidth={3} />
+      </Svg>
+    </View>
+  );
+}
+
+/* ─── Document body ─── */
+
+export function HittingReportPages({ data }: { data: HittingPdfData }) {
+  const { player, reportDate, vendors, sprayDots, zoneStats, notes } = data;
+  const showZone = zoneStats.some((z) => z.n > 0);
+  const { chartH, fontSize } = planLayout(vendors.length, notes);
+  const inner = chartH - 14 - 12;    // card padding + title row
+  const zoneInnerW = ZONE_W - 14;
+
+  return (
+    <Page size="LETTER" orientation="landscape" style={s.page}>
+      {vendors.map((v) => <VendorBubble key={v.key} vendor={v} />)}
+
+      <View wrap={false} style={{ flexDirection: 'row', gap: GAP, height: chartH, marginBottom: notes.trim() ? GAP : 0 }}>
+        <View style={[card, { flex: 1, padding: 7 }]}>
+          <Text style={[cardTitle, { fontSize: 7.5, height: 12 }]}>Spray Chart</Text>
+          <View style={{ height: inner, width: '100%' }}>
+            <PdfSprayChart dots={sprayDots} />
+          </View>
+        </View>
+        {showZone && (
+          <View style={[card, { width: ZONE_W, padding: 7 }]}>
+            <Text style={[cardTitle, { fontSize: 7.5, height: 12 }]}>Strike Zone</Text>
+            <PdfStrikeZone stats={zoneStats} width={zoneInnerW} height={inner} />
+          </View>
+        )}
+      </View>
+
+      {notes.trim() !== '' && <PdfNotesBox label="HITTING NOTES" text={notes} fontSize={fontSize} />}
+
+      <PageFooter player={player} reportTitle="Hitting Assessment" date={reportDate} />
+    </Page>
+  );
 }

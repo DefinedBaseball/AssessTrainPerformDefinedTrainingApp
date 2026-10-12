@@ -12,11 +12,8 @@ import React from 'react';
 import { Page, View, Text, Svg, Circle, Line, Rect, G } from '@react-pdf/renderer';
 import { s, colors } from './theme';
 import {
-  PdfNotesBox, PdfPlayerInfoBar,
+  PdfNotesBox, PageFooter, estimateNotesHeight,
 } from './components';
-import {
-  formatHeight, getAge,
-} from '@/app/athletes/[id]/helpers';
 
 export interface ArsenalRow {
   pitchType: string;
@@ -34,7 +31,6 @@ export interface ArsenalRow {
   /** Average release side in feet — used by the PDF Release table. */
   avgRelSide: number;
   tilt: string;
-  spinEff: number;
 }
 
 /** Subset of TrackmanPitch fields the PDF plots need. The full
@@ -220,8 +216,8 @@ function PdfMovementPlot({ pitches }: { pitches: PdfPitch[] }) {
       {valid.map((p, i) => {
         const x = sx(p.horzBreak as number);
         const y = sy(p.inducedVertBreak as number);
-        if (x < pad.left - 4 || x > pad.left + plotW + 4) return null;
-        if (y < pad.top - 4  || y > pad.top + plotH + 4)  return null;
+        if (x < pad.left || x > pad.left + plotW) return null;
+        if (y < pad.top  || y > pad.top + plotH)  return null;
         return (
           <Circle key={i} cx={x} cy={y} r={2.4}
             fill={pitchColor(p.pitchType)} opacity={0.85}
@@ -295,8 +291,8 @@ function PdfLocationPlot({ pitches }: { pitches: PdfPitch[] }) {
       {valid.map((p, i) => {
         const x = sx(p.plateLocSide as number);
         const y = sy(p.plateLocHeight as number);
-        if (x < pad.left - 4 || x > pad.left + plotW + 4) return null;
-        if (y < pad.top - 4  || y > pad.top + plotH + 4)  return null;
+        if (x < pad.left || x > pad.left + plotW) return null;
+        if (y < pad.top  || y > pad.top + plotH)  return null;
         return (
           <Circle key={i} cx={x} cy={y} r={2.4}
             fill={pitchColor(p.pitchType)} opacity={0.85}
@@ -357,8 +353,8 @@ function PdfReleasePointPlot({ pitches }: { pitches: PdfPitch[] }) {
         const plotSide = isLefty ? -raw : raw;
         const x = sx(plotSide);
         const y = sy(p.relHeight as number);
-        if (x < pad.left - 4 || x > pad.left + plotW + 4) return null;
-        if (y < pad.top - 4  || y > pad.top + plotH + 4)  return null;
+        if (x < pad.left || x > pad.left + plotW) return null;
+        if (y < pad.top  || y > pad.top + plotH)  return null;
         return (
           <Circle key={i} cx={x} cy={y} r={2.4}
             fill={pitchColor(p.pitchType)} opacity={0.85}
@@ -370,7 +366,7 @@ function PdfReleasePointPlot({ pitches }: { pitches: PdfPitch[] }) {
 }
 
 /* ─── Break & Spin Table (header + rows, no surrounding bubble chrome) ─── */
-function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
+function PdfBreakSpinTable({ rows, compact = false }: { rows: ArsenalRow[]; compact?: boolean }) {
   const cellHead = {
     fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.black,
     textAlign: 'center' as const, letterSpacing: 0.4,
@@ -382,13 +378,11 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
   const cellMuted = {
     fontSize: 6, color: colors.textMuted,
   };
-  /* Column widths sized so the 8-column row fits on a landscape page: a
-     fixed-width left "Pitch" label + 7 evenly-shared metric cells.
-     Widened from 7 when Max Velo was added, to mirror the in-app table —
-     the Arsenal cards that used to carry Max Velo are gone from both
-     surfaces, so this table is now the only place it appears. */
-  const colW = ['12%', '12.57%', '12.57%', '12.57%', '12.57%', '12.57%', '12.57%', '12.58%'] as const;
-  const headers = ['Pitch', 'Max Velo', 'Avg Velo', 'H-Break', 'V-Break', 'Spin', 'Tilt', 'Spin Eff'];
+  /* A fixed-width left "Pitch" label + 6 evenly-shared metric cells.
+     No Spin Efficiency column: TrackMan's export has no such field, and
+     the number this table printed was made up from break and spin. */
+  const colW = ['12%', '14.66%', '14.66%', '14.67%', '14.67%', '14.67%', '14.67%'] as const;
+  const headers = ['Pitch', 'Max Velo', 'Avg Velo', 'H-Break', 'V-Break', 'Spin', 'Tilt'];
   return (
     <View>
       {/* Header row */}
@@ -413,7 +407,7 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
              than the ~84pt overflow an 8-pitch-type report produced. Most
              pitchers show 3-5 types and were never close to the limit; this
              keeps the busiest reports on one page too. */
-          paddingVertical: 3.5, paddingHorizontal: 4,
+          paddingVertical: compact ? ROW_PAD_COMPACT : 3.5, paddingHorizontal: 4,
           borderBottom: `0.4px solid ${colors.cardBorder}`,
         }}>
           <Text style={{
@@ -447,9 +441,6 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
           <Text style={[cellData, { width: colW[6] }]}>
             {r.tilt}
           </Text>
-          <Text style={[cellData, { width: colW[7] }]}>
-            {Math.round(r.spinEff)}%
-          </Text>
         </View>
       ))}
     </View>
@@ -457,7 +448,7 @@ function PdfBreakSpinTable({ rows }: { rows: ArsenalRow[] }) {
 }
 
 /* ─── Release & Extension Table ─── */
-function PdfReleaseExtensionTable({ rows }: { rows: ArsenalRow[] }) {
+function PdfReleaseExtensionTable({ rows, compact = false }: { rows: ArsenalRow[]; compact?: boolean }) {
   const cellHead = {
     fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.black,
     textAlign: 'center' as const, letterSpacing: 0.4,
@@ -493,7 +484,7 @@ function PdfReleaseExtensionTable({ rows }: { rows: ArsenalRow[] }) {
              than the ~84pt overflow an 8-pitch-type report produced. Most
              pitchers show 3-5 types and were never close to the limit; this
              keeps the busiest reports on one page too. */
-          paddingVertical: 3.5, paddingHorizontal: 4,
+          paddingVertical: compact ? ROW_PAD_COMPACT : 3.5, paddingHorizontal: 4,
           borderBottom: `0.4px solid ${colors.cardBorder}`,
         }}>
           <Text style={{
@@ -522,191 +513,102 @@ function PdfReleaseExtensionTable({ rows }: { rows: ArsenalRow[] }) {
   );
 }
 
-/* ─── Section header (small label above each PDF section) ─── */
-function PdfSectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <View style={{ marginBottom: 6, marginTop: 4 }}>
-      <Text style={{
-        fontSize: 10, fontFamily: 'Helvetica-Bold',
-        color: colors.black, letterSpacing: 1,
-        textTransform: 'uppercase',
-      }}>
-        {title}
-      </Text>
-      {subtitle && (
-        <Text style={{
-          fontSize: 7, color: colors.textMuted, marginTop: 1,
-        }}>
-          {subtitle}
-        </Text>
-      )}
-    </View>
-  );
+/* ─── One-page layout (landscape LETTER, s.page padding) ─────────────────
+   Row 1: Pitch Metrics beside Release Metrics.
+   Row 2: Movement · Location · Release Point plots.
+   Row 3: Pitching notes.
+   The page is budgeted before drawing: long notes step their type down
+   (to 8pt) before the plots shrink, so everything lands on the one page. */
+const CONTENT_W = 792 - 36 * 2;      // 720
+const CONTENT_H = 612 - 24 - 36;     // 552
+const GAP = 8;
+const ROW_PAD_COMPACT = 2.5;
+const TABLE_ROW_H = 16;              // 9pt cell + compact padding + hairline
+const TABLE_CHROME = 26 + 16;        // card padding + title + header row
+const PLOT_CHROME = 12 + 12;         // card padding + plot header
+/* Plot height is also capped by its card's width (plots keep 240:220). */
+const PLOT_W = (CONTENT_W - GAP * 2) / 3 - 12;
+const PLOT_MAX = Math.floor(PLOT_W * (220 / 240));
+const PLOT_GOOD = 150;
+const PLOT_MIN = 110;
+
+function planLayout(typeCount: number, notes: string) {
+  const tablesH = TABLE_CHROME + Math.max(1, typeCount) * TABLE_ROW_H;
+  const free = CONTENT_H - tablesH - GAP - PLOT_CHROME;
+  const roomAt = (fontSize: number) => {
+    const nh = estimateNotesHeight(notes, fontSize, CONTENT_W - 24);
+    return free - (nh ? nh + GAP : 0);
+  };
+  for (const fontSize of [9, 8.5, 8]) {
+    if (roomAt(fontSize) >= PLOT_GOOD) return { plotH: Math.min(PLOT_MAX, roomAt(fontSize)), fontSize };
+  }
+  for (const fontSize of [8, 7.5]) {
+    if (roomAt(fontSize) >= PLOT_MIN) return { plotH: Math.min(PLOT_MAX, roomAt(fontSize)), fontSize };
+  }
+  return { plotH: PLOT_MIN, fontSize: 7.5 };
 }
+
+const card = {
+  backgroundColor: colors.cardBg,
+  border: `1px solid ${colors.cardBorder}`,
+  borderRadius: 8,
+};
+const cardTitle = {
+  fontSize: 8, fontFamily: 'Helvetica-Bold', color: colors.black,
+  letterSpacing: 1, textTransform: 'uppercase' as const,
+};
 
 /* ─── Document body ─── */
 export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
-  const { player, arsenal, totalPitches, pitchNotes, pitches } = data;
-
-  // Always show the 4 main pitch types in the bubble row, even if no data,
-  // matching the in-app `arsenalCards` build. Any extra types in the
-  // arsenal (Sinker, Cutter, etc.) get appended after the main four.
-  const mainTypes = ['Fastball', 'Curveball', 'Slider', 'ChangeUp'];
-  const arsenalCards: ArsenalRow[] = mainTypes.map(t => {
-    const existing = arsenal.find(a => a.pitchType === t);
-    return existing || {
-      pitchType: t, count: 0, pct: 0, avgVelo: 0, maxVelo: 0, minVelo: 0,
-      avgSpin: 0, avgHBreak: 0, avgIVB: 0, avgExt: 0,
-      avgRelHeight: 0, avgRelSide: 0, tilt: '—', spinEff: 0,
-    };
-  });
-  for (const a of arsenal) {
-    if (!mainTypes.includes(a.pitchType)) arsenalCards.push(a);
-  }
-
+  const { player, arsenal, totalPitches, pitchNotes, pitches, reportDate } = data;
+  const notes = pitchNotes ?? '';
   const hasData = arsenal.length > 0;
+  const { plotH, fontSize } = planLayout(arsenal.length, notes);
+
+  const plotCard = (label: string, plot: React.ReactNode) => (
+    <View style={[card, { flex: 1, padding: 6 }]}>
+      <PlotPaneHeader label={label} />
+      <View style={{ height: plotH, width: '100%' }}>{plot}</View>
+    </View>
+  );
 
   return (
-    <>
-      {/* ── Page 2: Trackman Pitch Metrics + Release Metrics --
-          Ordered BEFORE the plots page to mirror the in-app console, where
-          both tables sit above the Movement / Location / Release plots.
-          They cannot share one page: the plots grid needs ~238pt and the
-          two tables ~440pt against 552pt of usable landscape height, so
-          "above the plots" becomes "the page before" in print. ──── */}
-      {hasData && (
-        <Page size="LETTER" orientation="landscape" style={s.page}>
-          <PdfPlayerInfoBar player={player} formatHeight={formatHeight} getAge={getAge} />
-
-          <PdfSectionTitle title="Trackman" subtitle="Pitch Metrics · Release Metrics" />
-
-          {/* Break & Spin */}
-          <View style={{
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8, padding: 10, marginBottom: 10,
-          }}>
-            <Text style={{
-              fontSize: 9, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              Pitch Metrics
-            </Text>
-            <PdfBreakSpinTable rows={arsenal} />
+    <Page size="LETTER" orientation="landscape" style={s.page}>
+      {!hasData ? (
+        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 20, marginBottom: 12 }}>
+          No TrackMan pitching data on this report.
+        </Text>
+      ) : (
+        <>
+          {/* Pitch Metrics · Release Metrics */}
+          <View wrap={false} style={{ flexDirection: 'row', gap: GAP, marginBottom: GAP }}>
+            <View style={[card, { flex: 1.65, padding: 8 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                <Text style={cardTitle}>Pitch Metrics</Text>
+                <Text style={{ fontSize: 6.5, color: colors.textMuted, letterSpacing: 1, textTransform: 'uppercase' }}>
+                  {totalPitches} pitches
+                </Text>
+              </View>
+              <PdfBreakSpinTable rows={arsenal} compact />
+            </View>
+            <View style={[card, { flex: 1, padding: 8 }]}>
+              <Text style={[cardTitle, { marginBottom: 4 }]}>Release Metrics</Text>
+              <PdfReleaseExtensionTable rows={arsenal} compact />
+            </View>
           </View>
 
-          {/* Release & Extension */}
-          <View style={{
-            backgroundColor: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 8, padding: 10,
-          }}>
-            <Text style={{
-              fontSize: 9, fontFamily: 'Helvetica-Bold',
-              color: colors.black, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              Release Metrics
-            </Text>
-            <PdfReleaseExtensionTable rows={arsenal} />
+          {/* Movement · Location · Release Point */}
+          <View wrap={false} style={{ flexDirection: 'row', gap: GAP, marginBottom: notes.trim() ? GAP : 0 }}>
+            {plotCard("Movement · Pitcher's View", <PdfMovementPlot pitches={pitches} />)}
+            {plotCard("Location · Catcher's View", <PdfLocationPlot pitches={pitches} />)}
+            {plotCard("Release Point · Pitcher's View", <PdfReleasePointPlot pitches={pitches} />)}
           </View>
-        </Page>
+        </>
       )}
-      {/* ── Page 3: Plots + Notes + Coach Grades ─────────────────
-          Top `PdfPlayerInfoBar` retired — the Cover Page already
-          carries the player's name + vitals on PDF page 1, so
-          repeating the black bar here was redundant. The pitch
-          report header below now leads the page. */}
-      <Page size="LETTER" orientation="landscape" style={s.page}>
-        {!hasData ? (
-          <View style={{ paddingTop: 24, alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, color: colors.textMuted }}>
-              No Trackman pitching data available.
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Pitch Report header with pitch-count tag */}
-            <View style={{
-              flexDirection: 'row', alignItems: 'baseline',
-              justifyContent: 'space-between',
-              marginBottom: 6, marginTop: 2,
-            }}>
-              <Text style={{
-                fontSize: 12, fontFamily: 'Helvetica-Bold',
-                color: colors.black, letterSpacing: 0.6,
-                textTransform: 'uppercase',
-              }}>
-                Pitch Report
-              </Text>
-              <Text style={{
-                fontSize: 7, color: colors.textMuted,
-                letterSpacing: 1.4, textTransform: 'uppercase',
-              }}>
-                {totalPitches} pitches
-              </Text>
-            </View>
 
-            {/* Pitch Type Bubbles row removed to match the in-app Pitching
-                tab, where the Arsenal strip was retired: its Max / Avg velo
-                now live in the Pitch Metrics table on the page before, so the cards
-                were duplicating that. Keeps the export a faithful mirror of
-                what the coach sees on screen. */}
+      {notes.trim() !== '' && <PdfNotesBox label="PITCHING NOTES" text={notes} fontSize={fontSize} />}
 
-            {/* Plots grid — Movement · Location · Release Point */}
-            <View style={{
-              flexDirection: 'row', gap: 6, marginBottom: 8,
-            }}>
-              <View style={{
-                flex: 1,
-                backgroundColor: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: 8, padding: 6,
-              }}>
-                <PlotPaneHeader label="Movement · Pitcher's View" />
-                <View style={{ aspectRatio: 240 / 220, width: '100%' }}>
-                  <PdfMovementPlot pitches={pitches} />
-                </View>
-              </View>
-              <View style={{
-                flex: 1,
-                backgroundColor: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: 8, padding: 6,
-              }}>
-                <PlotPaneHeader label="Location · Catcher's View" />
-                <View style={{ aspectRatio: 240 / 220, width: '100%' }}>
-                  <PdfLocationPlot pitches={pitches} />
-                </View>
-              </View>
-              <View style={{
-                flex: 1,
-                backgroundColor: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: 8, padding: 6,
-              }}>
-                <PlotPaneHeader label="Release Point · Pitcher's View" />
-                <View style={{ aspectRatio: 240 / 220, width: '100%' }}>
-                  <PdfReleasePointPlot pitches={pitches} />
-                </View>
-              </View>
-            </View>
-
-            {/* Pitching Notes bubble — only when notes exist (same gate the
-                in-app Pitching Notes box uses). */}
-            {pitchNotes && (
-              <PdfNotesBox label="PITCHING NOTES" text={pitchNotes} />
-            )}
-
-            {/* Coach grades used to close this page (a "Mechanical
-                Grades" grid of per-section scores + descriptors).
-                Retired: the pitching report is now Trackman metrics,
-                plots and notes only, and the three coach grades show
-                on the dashboard alone. */}
-          </>
-        )}
-      </Page>
-    </>
+      <PageFooter player={player} reportTitle="Pitching Assessment" date={reportDate} />
+    </Page>
   );
 }

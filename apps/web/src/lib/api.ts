@@ -605,6 +605,25 @@ export async function sendProfileReminder(playerId: string) {
   );
 }
 
+/** Email a report PDF to the athlete and/or guardian (COACH only). The
+ *  server uses the addresses on file; `sent` is false per recipient when
+ *  the mail provider isn't configured or the send failed. */
+export async function emailReportPdf(
+  playerId: string,
+  input: { recipients: Array<'player' | 'guardian'>; filename: string; pdfBase64: string; subject: string; message: string },
+) {
+  return request<{ results: Array<{ recipient: 'player' | 'guardian'; email: string; sent: boolean }> }>(
+    `/players/${playerId}/report-email`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+/** Starting subject + message for emailing a report (the "Assessment
+ *  report" template from Settings, filled in for this athlete). */
+export async function getReportEmailDraft(playerId: string) {
+  return request<{ subject: string; message: string }>(`/players/${playerId}/report-email-draft`);
+}
+
 export async function getTopMetrics(playerId: string) {
   return request<Record<string, { value: number; unit: string; recordedAt: string }>>(
     `/players/${playerId}/top-metrics`,

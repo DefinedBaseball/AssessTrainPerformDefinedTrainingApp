@@ -36,7 +36,7 @@ export function StrengthReportPages({ data }: { data: StrengthPdfData }) {
     /* Top `PdfPlayerInfoBar` retired — Cover Page already carries
        the player's name + vitals on PDF page 1, so the black bar
        on page 2 was redundant. */
-    <Page size="LETTER" style={s.page}>
+    <Page size="LETTER" orientation="landscape" style={s.page}>
       {/* ── Athletic Testing ── */}
       <PdfSectionHeader title="Athletic Testing" subtitle="Speed, power & explosiveness" />
 
@@ -179,7 +179,7 @@ export function StrengthReportPages({ data }: { data: StrengthPdfData }) {
         </>
       )}
 
-      <PageFooter reportTitle="Strength & Conditioning Assessment" date={reportDate} />
+      <PageFooter player={player} reportTitle="Strength & Conditioning" date={reportDate} />
     </Page>
   );
 }
