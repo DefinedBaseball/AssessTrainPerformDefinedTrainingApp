@@ -459,7 +459,7 @@ export class AuthService {
   async sendRegistrationInvite(rawEmail: string): Promise<{ ok: boolean; emailed: boolean; to: string }> {
     const to = rawEmail?.trim().toLowerCase();
     if (!to) throw new BadRequestException('Email is required');
-    if (!/^[^@s]+@[^@s]+.[^@s]+$/.test(to))
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to))
       throw new BadRequestException('Enter a valid email address');
 
     const existing = await this.prisma.user.findUnique({ where: { email: to } });
