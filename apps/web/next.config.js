@@ -16,6 +16,9 @@ const nextConfig = {
   images: { unoptimized: true },
   /* Don't advertise the framework/version in every response. */
   poweredByHeader: false,
+  /* Lint runs on its own (`pnpm lint`) before pushes, not inside the build,
+     so a lint finding can never block a Render deploy. */
+  eslint: { ignoreDuringBuilds: true },
   /* Browser security headers. The API already sends these (helmet); the
      web app sent none, so any site could load it in a hidden frame and
      trick a signed-in coach into clicking (clickjacking).

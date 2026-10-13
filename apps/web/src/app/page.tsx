@@ -265,6 +265,7 @@ export default function DashboardPage() {
     api.getDayCheckIns(todayStr)
       .then((r) => { if (!cancelled) setWorkoutRows(r); })
       .catch(() => { if (!cancelled) setWorkoutRows([]); });
+    return () => { cancelled = true; };
   }, [isCoach, todayStr]);
 
   /* Every hook must sit ABOVE this guard: an early return that skips

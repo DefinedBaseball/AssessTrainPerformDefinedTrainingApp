@@ -404,7 +404,7 @@ export default function PlayerProfilePage() {
       if (t.key === 'videos')   return false;
       return true; // strength
     });
-  }, [player, reports, hiddenTabs, capturingPdf]);
+  }, [player, reports, hiddenTabs, capturingPdf, isCoach]);
 
   /* ?tab=<key> (set by the athlete switcher) opens that tab once this
      athlete's tabs are known, if they have it; otherwise the athlete
