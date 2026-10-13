@@ -349,8 +349,8 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
       <div className={styles.card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
           <h3 className={styles.cardTitle} style={{ margin: 0 }}>Account Information</h3>
-          {/* Coaches sign themselves out everywhere here; athletes have the
-              same button on My Profile. */}
+          {/* Coaches sign themselves out everywhere here; athletes have it
+              in its own card further down, above Delete account. */}
           {isCoach && <span style={{ marginLeft: 'auto' }}><SignOutEverywhereButton /></span>}
           {isPrimaryAdmin && (
             <span
@@ -460,6 +460,19 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
           <button className={styles.btnDanger} onClick={onLogout}>Sign Out</button>
         </div>
       </div>
+
+      {!isCoach && (
+        <div className={styles.card}>
+          <h3 className={styles.cardTitle}>Sign out of all devices</h3>
+          <p className={styles.cardDesc}>
+            Signs you out everywhere you&rsquo;re signed in, including this device. Useful after losing a phone
+            or using a shared computer.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <SignOutEverywhereButton />
+          </div>
+        </div>
+      )}
 
       {!isCoach && <DeleteAccountCard profile={profile} onChange={setProfile} />}
     </div>
@@ -1835,9 +1848,6 @@ function MyProfileTab({ playerId }: { playerId: string }) {
   }
   return (
     <div className={styles.section}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <SignOutEverywhereButton />
-      </div>
       <ReportModal
         player={player}
         userId={userId}
