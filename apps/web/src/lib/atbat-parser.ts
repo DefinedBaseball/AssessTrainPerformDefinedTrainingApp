@@ -82,15 +82,7 @@ export function parseAtBatXlsx(buffer: ArrayBuffer): AtBatAssessment {
 
   // Determine number of at-bats from header row
   const headerRow = data[0] || [];
-  let numAtBatCols = 0;
-  for (let i = 1; i < headerRow.length; i++) {
-    const val = String(headerRow[i] || '').trim().toLowerCase();
-    if (val.startsWith('at bat') || val.startsWith('ab')) {
-      numAtBatCols = i; // track the last valid AB column index
-    }
-  }
-  // If we found AB columns, numAtBatCols is the last index; count = numAtBatCols
-  // Actually, let's just count all non-empty columns after A
+  // One at-bat per non-empty header column after A.
   const abColCount = headerRow.filter((v, i) => i > 0 && v && String(v).trim()).length;
 
   // Parse at-bats

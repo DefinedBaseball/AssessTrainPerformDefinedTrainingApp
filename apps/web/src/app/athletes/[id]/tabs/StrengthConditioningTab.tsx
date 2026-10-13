@@ -809,19 +809,6 @@ function FieldCell({
 /* ─────────────────────────────────────────────────────────────────────
    Shared display chrome — small label + read-only value row.
    ─────────────────────────────────────────────────────────────── */
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 10,
-    }}>
-      <span style={fieldLabelStyle}>{label}</span>
-      {children}
-    </div>
-  );
-}
 
 /** Read-only paragraph / value — empty values render an italic muted
  *  placeholder ("No mechanical notes." etc.) so the row still has
@@ -1415,51 +1402,6 @@ function SnapshotTitle({ first, accent }: { first: string; accent: string }) {
   );
 }
 
-/* Sub-block header inside a big-blue bubble — separates the
-   warm-up and mobility-battery halves of the Mobility Screen
-   without using a full profilePanel for each. */
-function SubBlock({
-  title, subtitle, children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        gap: 10,
-        marginBottom: 8,
-      }}>
-        <span style={{
-          fontFamily: 'inherit',
-          fontSize: rem(13), fontWeight: 700,
-          color: 'var(--text-bright)', lineHeight: 1.05,
-          letterSpacing: '-0.01em',
-          textTransform: 'uppercase',
-        }}>
-          {title}
-        </span>
-        {subtitle && (
-          <span style={{
-            fontSize: rem(10),
-            /* Subtitle reads white per coach-spec — every label /
-               subtitle across the profile is now consistently white. */
-            color: 'var(--text-bright)',
-            letterSpacing: '0.04em',
-          }}>
-            {subtitle}
-          </span>
-        )}
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
-      {children}
-    </div>
-  );
-}
-
 /* ─────────────────────────────────────────────────────────────────────
    GreyMetricBubble — warm-grey Curveball-style sub-bubble used inside
    the Strength + Speed big-blue panels.
@@ -1574,7 +1516,7 @@ type SCSubTab = 'sc' | 'mobility';
 
 export function StrengthConditioningTab({
   player, topMetrics, isCoach, onRefresh, reports,
-  onNewReport, onEditReport, onEditProfile, onOpenVideos,
+  onNewReport, onEditReport,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /* In-page sub-tab — defaults to Strength & Conditioning. Mirrors

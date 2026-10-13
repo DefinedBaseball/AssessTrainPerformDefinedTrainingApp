@@ -1,7 +1,7 @@
 /**
  * PDF Theme — Colors, spacing, and reusable StyleSheet for @react-pdf/renderer
  */
-import { StyleSheet, Font } from '@react-pdf/renderer';
+import { StyleSheet } from '@react-pdf/renderer';
 
 /* ── Brand Colors ── */
 export const colors = {

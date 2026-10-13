@@ -216,17 +216,6 @@ function getTabCatStyle(tab: string, category: string) {
   };
 }
 
-function formatTime(t: string | null | undefined): string {
-  if (!t) return '';
-  /* Accept HH:MM (24h) or already-formatted strings */
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
-  if (!m) return t;
-  let h = parseInt(m[1], 10);
-  const min = m[2];
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12; if (h === 0) h = 12;
-  return `${h}:${min} ${ampm}`;
-}
 
 function todayIso(): string {
   return formatLocalDate(new Date());
@@ -239,12 +228,6 @@ function todayIso(): string {
    always lands on the day the coach actually picked regardless of the
    viewer's timezone. */
 
-/** Parse a `YYYY-MM-DD` string as local-midnight (NOT UTC midnight). */
-function parseLocalDate(s: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return new Date(s);
-  return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
-}
 
 /** Format a Date as `YYYY-MM-DD` using its LOCAL date components. */
 function formatLocalDate(d: Date): string {
@@ -254,13 +237,6 @@ function formatLocalDate(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/** Add a number of calendar days to a `YYYY-MM-DD` string, returning a new
- *  `YYYY-MM-DD` (handles month/year rollovers correctly via Date math). */
-function addDays(yyyymmdd: string, days: number): string {
-  const d = parseLocalDate(yyyymmdd);
-  d.setDate(d.getDate() + days);
-  return formatLocalDate(d);
-}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Athlete multi-select dropdown

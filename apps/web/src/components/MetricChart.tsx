@@ -75,7 +75,6 @@ export function MetricChart({ title, unit, data, color = '#4A90D9', showArea = t
   const latest = values[values.length - 1];
   const first = values[0];
   const change = latest - first;
-  const changePct = first !== 0 ? ((change / first) * 100).toFixed(1) : '—';
 
   const padding = (max - min) * 0.15 || 1;
   const yMin = Math.floor(min - padding);
@@ -86,7 +85,6 @@ export function MetricChart({ title, unit, data, color = '#4A90D9', showArea = t
     value: d.value,
   }));
 
-  const ChartComponent = showArea ? AreaChart : LineChart;
 
   return (
     <div className={styles.container}>

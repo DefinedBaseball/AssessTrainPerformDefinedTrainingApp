@@ -131,7 +131,6 @@ export default function AthletesPage() {
     return sortDir === 'az' ? cmp : -cmp;
   });
 
-  const gradYears = [...new Set(players.map(p => p.gradYear).filter(Boolean))].sort();
 
   if (isLoading || !user) return null;
 

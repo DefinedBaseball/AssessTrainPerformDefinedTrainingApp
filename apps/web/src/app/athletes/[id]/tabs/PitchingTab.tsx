@@ -12,19 +12,18 @@ import styles from '../page.module.css';
 import hud from './PitchingTab.module.css';
 import {
   TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport,
-  scoreColor,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
-  ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
-  useCanEditReports, useCanUploadReportVideo, isBlankNote,
+  ReportFilesButton, ReportVideoUploadButton, CoachNotesInline,
+  useCanEditReports, useCanUploadReportVideo,
 } from '../components/ReportInlineEditing';
 import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { useTheme } from '@/lib/theme-context';
 import type { TrackmanPitch } from '@/lib/api';
-import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
+import { bundleVideos } from '@/lib/video-titles';
 import { usePdfExport } from '@/components/PdfExportDialog';
 import { CustomCharts } from '@/components/CustomCharts';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
@@ -79,27 +78,6 @@ const pitchReportBubbleStyle: React.CSSProperties = {
   boxShadow: '0 5px 14px rgba(0, 0, 0, 0.21)',
 };
 
-/* ── Shared Player-Name-bubble (Command Deck) surface style ──
-   Same chrome the page-hero `.commandDeck` carries (and now the
-   Pitch Report `.hudConsole` too): deep dark-navy radial highlight,
-   white-rim border, layered inset shadow stack. Used for any
-   *outer* shell around grouped sub-bubbles so it reads as a sibling
-   of the page hero rather than a generic surface. */
-const COMMAND_DECK_BG =
-  'radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),' +
-  'rgba(10, 14, 20, 0.38)';
-
-const commandDeckBubbleStyle: React.CSSProperties = {
-  background: COMMAND_DECK_BG,
-  border: '1px solid var(--border-light)',
-  borderRadius: 28,
-  boxShadow:
-    'inset 0 1px 0 rgba(255, 255, 255, 0.05),' +
-    'inset 0 0 24px rgba(0, 0, 0, 0.35),' +
-    '0 1px 2px rgba(0, 0, 0, 0.25)',
-  overflow: 'hidden',
-  position: 'relative',
-};
 
 /* ── Trackman brand badge ──
    Inline SVG version of the Trackman logo — an orange rounded square
@@ -152,13 +130,6 @@ const PITCH_SHORT: Record<string, string> = {
   Fastball: '4S FB', Sinker: 'SI', Cutter: 'FC', Slider: 'SL',
   Curveball: 'CB', ChangeUp: 'CH', Splitter: 'FS', Sweeper: 'SW',
   Knuckleball: 'KN', Unknown: '??',
-};
-
-/* Pitch type display names */
-const PITCH_DISPLAY: Record<string, string> = {
-  Fastball: '4-Seam Fastball', Sinker: 'Sinker', Cutter: 'Cutter',
-  Slider: 'Slider', Curveball: 'Curveball', ChangeUp: 'Changeup',
-  Splitter: 'Splitter', Sweeper: 'Sweeper', Knuckleball: 'Knuckleball',
 };
 
 function getPitchColor(type: string): string {
@@ -248,134 +219,6 @@ function computeArsenal(pitches: TrackmanPitch[]): ArsenalRow[] {
 
   rows.sort((a, b) => b.count - a.count);
   return rows;
-}
-
-/* ── Pitch Arsenal Card ── */
-function ArsenalCard({ row }: { row: ArsenalRow }) {
-  const color = getPitchColor(row.pitchType);
-  const hasData = row.maxVelo > 0;
-
-  return (
-    <div
-      // Match the outer Pitch Report bubble's gradient so the four
-      // Arsenal chips (Fastball / Curveball / Slider / ChangeUp) read
-      // in the same visual scheme as every other bubble on the tab.
-      // `flex` + `minWidth` lifted off this inline style — they live in
-      // the parent `.hudArsenal > *` rule now, so the 5-per-row + wrap
-      // sizing rules in PitchingTab.module.css can take effect (inline
-      // flex/minWidth here was beating the CSS class and forcing all
-      // 8 cards onto a single row for Andy Johnson).
-      style={{
-        ...pitchReportBubbleStyle,
-        padding: '9px 11px',
-      }}
-    >
-      {/* Pitch label — centered card title in Font B (Brown display,
-          upright, 1 rem, weight 600, -0.025em, uppercase, bright
-          white) so the Arsenal card titles match every other grey-
-          bubble eyebrow across the app. White rule under the label
-          mirrors the GradeRow table layout over in the Hitting tab:
-          padding-bottom 8 px above the rule, margin-bottom 8 px
-          below it before the velo grid. */}
-      <div style={{
-        fontFamily: 'inherit', fontSize: '0.85rem',
-        fontWeight: 600, fontStyle: 'normal',
-        letterSpacing: '-0.025em', textTransform: 'uppercase',
-        color: 'var(--text-bright)', lineHeight: 1.05,
-        paddingBottom: 8,
-        borderBottom: '1px solid var(--border)',
-        marginBottom: 8,
-        textAlign: 'center',
-      }}>
-        {PITCH_DISPLAY[row.pitchType] || row.pitchType}
-      </div>
-      {hasData ? (
-        <>
-          {/* Max Velo / Avg Velo / Low Velo — three centered columns
-              reading left to right. Captions in white above the big
-              mono numeral the pitch-color tint takes. The separate
-              Velocity Range row beneath was retired; Low Velo replaces
-              its role on the right edge of the trio. Border-bottom +
-              padding-bottom add a matching white rule below the
-              numbers so the card reads as: label / line / numbers /
-              line — same rhythm as the Hitting GradeRow table. */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
-            paddingBottom: 8,
-            borderBottom: '1px solid var(--border)',
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: rem(6.8), color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Max Velo</div>
-              <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
-                {row.maxVelo.toFixed(1)}
-              </div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: rem(6.8), color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Velo</div>
-              <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
-                {row.avgVelo.toFixed(1)}
-              </div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: rem(6.8), color: 'var(--text-bright)', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Low Velo</div>
-              <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color, lineHeight: 1 }}>
-                {row.minVelo.toFixed(1)}
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: rem(18.7), fontWeight: 700, fontFamily: 'inherit', color: 'var(--faint)', lineHeight: 1 }}>--</div>
-          <div style={{ fontSize: rem(7.65), color: 'var(--text-muted)', marginTop: 3 }}>No data yet</div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ── Shared pitch detail panel (used by both plots) ── */
-function PitchDetailPanel({ selected, compact }: { selected: TrackmanPitch | null; compact?: boolean }) {
-  if (!selected) {
-    return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        height: '100%', gap: 6, opacity: 0.5, padding: '12px 0',
-      }}>
-        <span style={{ fontSize: rem(18.7) }}>&#127919;</span>
-        <span style={{ fontSize: rem(9.35), color: 'var(--text-muted)', textAlign: 'center' }}>Click a pitch</span>
-      </div>
-    );
-  }
-  const items: [string, string, string][] = [
-    ['Pitch', PITCH_SHORT[selected.pitchType] || selected.pitchType, getPitchColor(selected.pitchType)],
-    ['Velocity', selected.relSpeed != null ? `${selected.relSpeed.toFixed(1)} mph` : '--', 'var(--text)'],
-    ['Spin Rate', selected.spinRate != null ? `${Math.round(selected.spinRate)} rpm` : '--', 'var(--text)'],
-    ['H-Break', selected.horzBreak != null ? `${selected.horzBreak.toFixed(1)}"` : '--', 'var(--text)'],
-    ['IVB', selected.inducedVertBreak != null ? `${selected.inducedVertBreak.toFixed(1)}"` : '--', 'var(--text)'],
-    ['Extension', selected.extension != null ? `${selected.extension.toFixed(1)} ft` : '--', 'var(--text)'],
-    ['Rel Height', selected.relHeight != null ? `${selected.relHeight.toFixed(1)} ft` : '--', 'var(--text)'],
-    ['Rel Side', selected.relSide != null ? `${selected.relSide.toFixed(1)} ft` : '--', 'var(--text)'],
-  ];
-  return (
-    <>
-      <div style={{
-        fontFamily: 'inherit', fontSize: '0.85rem',
-        fontWeight: 600, fontStyle: 'normal',
-        letterSpacing: '-0.025em', textTransform: 'uppercase',
-        color: 'var(--text-bright)', lineHeight: 1.05,
-        marginBottom: 4,
-      }}>
-        Selected Pitch
-      </div>
-      {items.map(([label, val, color]) => (
-        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: rem(7.65), fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)' }}>{label}</span>
-          <span style={{ fontSize: rem(11.05), fontWeight: 700, fontFamily: 'inherit', color }}>{val}</span>
-        </div>
-      ))}
-    </>
-  );
 }
 
 /* ── Interactive Movement Plot — tactical HUD styling (matches spray chart) ── */
@@ -1044,12 +887,6 @@ function PitchLocationPlot({
 }
 
 /* ── Arsenal Table ── */
-const thStyle: React.CSSProperties = {
-  textAlign: 'left', padding: '8px 10px', fontSize: rem(8.5), fontWeight: 600,
-  textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-bright)',
-};
-const tdBase: React.CSSProperties = { padding: '8px 10px', color: 'var(--text)' };
-const tdMono: React.CSSProperties = { ...tdBase, fontFamily: 'inherit', fontWeight: 600 };
 
 function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
   const cols = '70px 1fr 1fr 1fr';
@@ -1091,46 +928,6 @@ function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-/* ── Velocity Range Bars ── */
-function VeloRanges({ rows }: { rows: ArsenalRow[] }) {
-  const globalMax = Math.max(...rows.map(r => r.maxVelo));
-  const globalMin = Math.min(...rows.filter(r => r.minVelo > 0).map(r => r.minVelo));
-  const range = globalMax - globalMin + 10;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{
-        fontFamily: 'inherit', fontSize: '0.85rem',
-        fontWeight: 600, fontStyle: 'normal',
-        letterSpacing: '-0.025em', textTransform: 'uppercase',
-        color: 'var(--text-bright)', lineHeight: 1.05,
-      }}>
-        Velocity Range by Pitch
-      </div>
-      {rows.filter(r => r.maxVelo > 0).map(r => {
-        const left = ((r.minVelo - globalMin + 5) / range) * 100;
-        const w = ((r.maxVelo - r.minVelo) / range) * 100;
-        return (
-          <div key={r.pitchType} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: rem(9.35), fontWeight: 700, color: 'var(--text-muted)', width: 40, fontFamily: 'inherit' }}>
-              {PITCH_SHORT[r.pitchType]}
-            </span>
-            <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--border)', position: 'relative' }}>
-              <div style={{
-                position: 'absolute', left: `${left}%`, width: `${Math.max(w, 2)}%`,
-                height: '100%', borderRadius: 4, background: getPitchColor(r.pitchType),
-              }} />
-            </div>
-            <span style={{ fontSize: rem(9.35), fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-              {r.minVelo} &ndash; {r.maxVelo} MPH
-            </span>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -1219,7 +1016,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
 
 /* ── Main PitchingTab ── */
 export function PitchingTab({
-  player, topMetrics, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, onEditProfile, onOpenVideos, focusReportId,
+  player, isCoach, onRefresh, refreshKey, reports, videos: playerVideos, onNewReport, onEditReport, focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
   const { user } = useAuth();
@@ -2089,8 +1886,6 @@ export function PitchingTab({
 
         </div>
 
-
-
       {/* ── Main Video gallery — BOTTOM-most section on this tab.
           Lifted here from its previous spot above the Trackman
           tables so the long video roll never pushes the other
@@ -2140,7 +1935,6 @@ export function PitchingTab({
                   {/* Clips still uploading, in the slot their finished card will take. */}
                   <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
-                    const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
                       <VideoBundleCard
                         key={b.key}

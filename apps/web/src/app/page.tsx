@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [playersError, setPlayersError] = useState(false);
   const [posts, setPosts] = useState<PostItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   /* Bumped by the Player Summary's own refresh callback (e.g. after a
      report is deleted from its selector) to refetch the summary bundle. */
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);

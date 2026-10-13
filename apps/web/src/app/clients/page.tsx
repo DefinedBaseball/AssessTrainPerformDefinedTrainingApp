@@ -13,9 +13,6 @@ import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
 
-function initials(f: string, l: string) {
-  return `${(f[0] || '').toUpperCase()}${(l[0] || '').toUpperCase()}`;
-}
 
 /**
  * The single "Team" a client is playing for.

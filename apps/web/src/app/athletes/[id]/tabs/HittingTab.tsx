@@ -3,14 +3,14 @@
 import { rem } from '@/lib/rem';
 import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { SwingTab, HittingGradeStack, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, HITTING_VENDOR_METRICS_ID, type SharedHittingState } from './SwingTab';
-import { TabBar, TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
+import { SwingTab, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, HITTING_VENDOR_METRICS_ID, SWING_METRIC_KEYS, type SharedHittingState } from './SwingTab';
+import { TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import {
   ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
   useCanEditReports, useCanUploadReportVideo, isBlankNote,
 } from '../components/ReportInlineEditing';
 import { ReportUploadsDialog } from '../ReportUploadsDialog';
-import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
+import { bundleVideos } from '@/lib/video-titles';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import { SprayChartView } from '../components/SprayChartView';
@@ -22,7 +22,7 @@ import {
   getLatestReport, getReportUploadIds, getReportUploadIdsForKeys,
   getManualSwingMetrics, getManualBattedBall,
   getReportVideoIds, getReportContentVideos,
-  metricToGrade, computeHittingComposites, aggregateReportMetrics,
+  metricToGrade, aggregateReportMetrics,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -30,109 +30,10 @@ import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 
-const SUB_TABS = [
-  { key: 'swing',    label: 'Swing' },
-  /* "Swing Decision" renamed to "Live Results" per coach-spec.
-     The button that toggles this view was also relocated from the
-     in-snapshot center toggle to the TabBarActions row next to the
-     ReportSelector. The snapshot's center toggle now renders only
-     the "Swing" entry (see the filtered `.map` further below);
-     the "Live Results" entry is consumed by the new toggle in
-     the action bar. Keep both entries here so subTab routing,
-     content branching, and the storage key all keep working
-     unchanged. */
-  { key: 'decision', label: 'Live Results' },
-] as const;
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   HittingSnapshotIcon — inline SVG of crossed baseball bats + baseball,
-   used as the section icon for the Hitting Snapshot header.
-   Sized to fill the 36×36 .sectionIcon slot.
-   ───────────────────────────────────────────────────────────────────────── */
-function HittingSnapshotIcon() {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      width="100%"
-      height="100%"
-      role="img"
-      aria-label="Hitting"
-      style={{ display: 'block' }}
-    >
-      {/* White rounded tile background to match brand-mark presentation */}
-      <rect x="0" y="0" width="100" height="100" rx="14" fill="var(--text-bright)" />
-      {/* Baseball at the top center — outer circle + a couple of seam arcs */}
-      <g>
-        <circle cx="50" cy="20" r="8" fill="#000" />
-        <path d="M 44 16.5 Q 50 18.5 56 16.5"
-          stroke="var(--text-bright)" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-        <path d="M 44 23.5 Q 50 21.5 56 23.5"
-          stroke="var(--text-bright)" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-      </g>
-      {/* Crossed bats — two tapered shapes rotated to form an X.
-          Each bat: thick barrel at top, narrow handle at bottom, knob at end. */}
-      {/* LEFT bat (rotated -22°) */}
-      <g transform="rotate(-22 50 60)">
-        {/* barrel + handle as a single tapered path */}
-        <path
-          d="M 44 12
-             L 56 12
-             Q 56 24 54 40
-             L 53 80
-             Q 53 88 50 88
-             Q 47 88 47 80
-             L 46 40
-             Q 44 24 44 12 Z"
-          fill="#000"
-        />
-        {/* knob */}
-        <circle cx="50" cy="89" r="5" fill="#000" />
-      </g>
-      {/* RIGHT bat (rotated +22°) */}
-      <g transform="rotate(22 50 60)">
-        <path
-          d="M 44 12
-             L 56 12
-             Q 56 24 54 40
-             L 53 80
-             Q 53 88 50 88
-             Q 47 88 47 80
-             L 46 40
-             Q 44 24 44 12 Z"
-          fill="#000"
-        />
-        <circle cx="50" cy="89" r="5" fill="#000" />
-      </g>
-    </svg>
-  );
-}
-
-type SubTabKey = (typeof SUB_TABS)[number]['key'];
-
-const SWING_METRIC_KEYS = [
-  'max_bat_speed',
-  'avg_bat_speed',
-  'attack_angle',
-  'plane_angle',
-  'time_to_contact',
-  'on_plane_efficiency',
-  'power_output',
-  'peak_hand_speed',
-  /* Blast CSV spec additions — kept in sync with the same-named
-     array in SwingTab.tsx (the chip strip render side). This local
-     copy drives `metricGrades` so the chip-tone colours (red /
-     yellow / green from `toScoutingGrade` → `scoreColor`) reach
-     the Blast Motion bubble. Forgetting these keys here was why
-     the new Score / Connection metrics were rendering uncoloured —
-     the chip strip iterated over them but `metricGrades[k]` was
-     undefined, so `it.color` defaulted to neutral. */
-  'plane_score',
-  'connection_score',
-  'rotation_score',
-  'early_connection',
-  'connection_at_impact',
-  'rotational_accel_g',   // Blast CSV "Rotational Acceleration (g)" average
-] as const;
+/* Sub-views of the Hitting tab: "swing" (the snapshot) and "decision"
+   (shown as "Live Results" -- its toggle sits in the action bar next to
+   the ReportSelector). */
+type SubTabKey = 'swing' | 'decision';
 
 /* ── Swing-decision metrics from LIVE at-bats ──
    Computes the Fastballs / Offspeed / Overall / Decision grade-group
@@ -223,7 +124,7 @@ function computeLiveAtBatSwingMetrics(
 
 export function HittingTab(props: TabProps) {
   const uploadQueue = useUploadQueue();
-  const { player, topMetrics, reports, isCoach, onRefresh, refreshKey, videos: playerVideos } = props;
+  const { player, reports, isCoach, onRefresh, refreshKey, videos: playerVideos } = props;
   const { user } = useAuth();
   const pdfExport = usePdfExport({ player, reports, isCoach });
   const isLight = useTheme().theme === 'light';
@@ -234,7 +135,7 @@ export function HittingTab(props: TabProps) {
   // corner instead of inside the chart's legend strip. SprayChartView
   // fires `onDataRangeChange` whenever the resolved range changes
   // (or becomes null when no data is loaded). `null` hides the chip.
-  const [sprayDateLabel, setSprayDateLabel] = useState<string | null>(null);
+  const [, setSprayDateLabel] = useState<string | null>(null);
 
   // ── Shared state lifted from SwingTab so the grade bubble at the top of the
   //    Hitting tab stays visible (and live) regardless of which sub-tab is on. ──
@@ -362,8 +263,6 @@ export function HittingTab(props: TabProps) {
     () => [] as string[],
     [],
   );
-
-
 
   /* The Hitting Snapshot's notes box is now backed by the report's
      top-level `notes` field — whatever the coach types in the report
@@ -603,14 +502,6 @@ export function HittingTab(props: TabProps) {
      report's csvUploads + manual entries, NEVER from at-bat XLSX,
      carry-forward, or other reports. Declared above topMetricsWithMiss
      because that memo references them in its merge step + deps. */
-  const activeReportSlots = useMemo(() => {
-    if (!activeHittingReport?.content) return {} as Record<string, any>;
-    try {
-      const parsed = JSON.parse(activeHittingReport.content);
-      const slots = parsed?.csvUploads;
-      return (slots && typeof slots === 'object') ? slots : {};
-    } catch { return {} as Record<string, any>; }
-  }, [activeHittingReport]);
   /* Whether the active report's Manual Entry toggle was ON for each slot
      when the coach last saved. Required for manual values to count as
      real data — older reports without the marker are treated as
@@ -755,114 +646,35 @@ export function HittingTab(props: TabProps) {
     return out;
   }, [topMetricsWithMiss]);
 
-  /* ── Source-aware QoC override for the Hitting Snapshot ──
-     The QoC chips (Avg EV / Max EV / LA / Dist) need to mirror whatever the
-     HitTrax sub-section is showing when HitTrax data exists, falling back to
-     Full-Swing-source data when only Full Swing data is loaded. We fetch
-     each metric's progress filtered by source and aggregate the same way
-     the SwingTab sections do (HitTrax: avg of velos for Avg EV, max for
-     Max EV, mean for LA / Dist). */
-  const [hittraxVelos, setHittraxVelos] = useState<number[]>([]);
-  const [hittraxLAs, setHittraxLAs] = useState<number[]>([]);
-  const [hittraxDists, setHittraxDists] = useState<number[]>([]);
-  const [fullswingVelos, setFullswingVelos] = useState<number[]>([]);
-  const [fullswingLAs, setFullswingLAs] = useState<number[]>([]);
-  const [fullswingDists, setFullswingDists] = useState<number[]>([]);
-
+  /* Which data sources the active report has (drives which vendor sections
+     show). Strict per-report scoping: only this report's upload IDs. */
   useEffect(() => {
     if (!player?.id) return;
     let cancelled = false;
-    /* Strict per-active-report scoping: pull every metric for THIS report's
-       upload IDs, then bucket by source so HitTrax-source rows feed the
-       HitTrax aggregates and Full-Swing-source rows feed the Full Swing
-       aggregates. If the active report has no upload IDs, all arrays stay
-       empty and every section / chip stays hidden. */
     if (reportUploadIds.length === 0) {
-      setHittraxVelos([]); setHittraxLAs([]); setHittraxDists([]);
-      setFullswingVelos([]); setFullswingLAs([]); setFullswingDists([]);
       setHasFullSwingCsv(false); setHasHitTraxCsv(false); setHasBlastCsv(false);
       return;
     }
     api.getPlayerMetrics(player.id, { uploadIds: reportUploadIds })
       .then((metrics: any[]) => {
         if (cancelled) return;
-        const htV: number[] = [], htLA: number[] = [], htD: number[] = [];
-        const fsV: number[] = [], fsLA: number[] = [], fsD: number[] = [];
         let sawFs = false, sawHt = false, sawBlast = false;
         for (const m of metrics) {
           if (!Number.isFinite(m.value)) continue;
-          if (m.source === 'HITTRAX') {
-            sawHt = true;
-            if (m.metricType === 'max_exit_velo') htV.push(m.value);
-            else if (m.metricType === 'launch_angle') htLA.push(m.value);
-            else if (m.metricType === 'distance') htD.push(m.value);
-          } else if (m.source === 'FULL_SWING') {
-            sawFs = true;
-            if (m.metricType === 'max_exit_velo') fsV.push(m.value);
-            else if (m.metricType === 'launch_angle') fsLA.push(m.value);
-            else if (m.metricType === 'distance') fsD.push(m.value);
-          } else if (m.source === 'BLAST_MOTION') {
-            sawBlast = true;
-          }
+          if (m.source === 'HITTRAX') sawHt = true;
+          else if (m.source === 'FULL_SWING') sawFs = true;
+          else if (m.source === 'BLAST_MOTION') sawBlast = true;
         }
-        // Drop Velo=0 rows so empty at-bats don't drag averages toward zero.
-        setHittraxVelos(htV.filter(v => v !== 0));
-        setHittraxLAs(htLA);
-        setHittraxDists(htD);
-        setFullswingVelos(fsV.filter(v => v !== 0));
-        setFullswingLAs(fsLA);
-        setFullswingDists(fsD);
         setHasFullSwingCsv(sawFs);
         setHasHitTraxCsv(sawHt);
         setHasBlastCsv(sawBlast);
       })
       .catch(() => {
         if (cancelled) return;
-        setHittraxVelos([]); setHittraxLAs([]); setHittraxDists([]);
-        setFullswingVelos([]); setFullswingLAs([]); setFullswingDists([]);
         setHasFullSwingCsv(false); setHasHitTraxCsv(false); setHasBlastCsv(false);
       });
     return () => { cancelled = true; };
   }, [player?.id, refreshKey, reportUploadIds]);
-
-  const qocOverride: Record<string, { value: number; unit: string }> = useMemo(() => {
-    const mean = (arr: number[]) => arr.reduce((s, n) => s + n, 0) / arr.length;
-    const round = (n: number) => Math.round(n * 100) / 100;
-    const out: Record<string, { value: number; unit: string }> = {};
-    // The Hitting Snapshot's QoC chips POOL HitTrax + Full Swing data so the
-    // top-of-tab averages reflect every batted ball recorded across both
-    // sources. The individual sub-sections (Full Swing card / HitTrax card)
-    // continue to use their own source-filtered aggregates so each card
-    // still shows only its own data — only the snapshot is combined.
-    const velos = [...hittraxVelos, ...fullswingVelos];
-    const las   = [...hittraxLAs,   ...fullswingLAs];
-    const dists = [...hittraxDists, ...fullswingDists];
-    if (velos.length > 0) {
-      out.avg_exit_velo = { value: round(mean(velos)),         unit: 'mph' };
-      out.max_exit_velo = { value: round(Math.max(...velos)),  unit: 'mph' };
-    }
-    if (las.length   > 0) out.launch_angle = { value: round(mean(las)),   unit: 'deg' };
-    if (dists.length > 0) out.distance     = { value: round(mean(dists)), unit: 'ft'  };
-    return out;
-  }, [hittraxVelos, hittraxLAs, hittraxDists, fullswingVelos, fullswingLAs, fullswingDists]);
-
-  /* The two metric-derived Hitting Snapshot composites (Swing / Quality of
-     Contact), via the same shared helper the Snapshot uses. The former
-     third composite ("Mechanical") averaged the retired coach grades and
-     went with them. */
-  const snapshotComposites = useMemo(
-    () => computeHittingComposites({
-      topMetrics: topMetricsWithMiss,
-      metricGrades,
-      qocOverride,
-    }),
-    [topMetricsWithMiss, metricGrades, qocOverride],
-  );
-
-  /* These composites are computed on view and never written back. The old
-     persist-on-view effect caused a refresh loop and was replaced by a save
-     flow that no longer exists; the dashboard reads coach grades directly
-     off the report now, so nothing needs persisting here. */
 
   /* The inline save flow that used to live here (grade state, a dirty
      check and a saveManual that wrote content.manualScores) is gone.
@@ -1582,7 +1394,6 @@ export function HittingTab(props: TabProps) {
                   {/* Clips still uploading, in the slot their finished card will take. */}
                   <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
-                    const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
                       <VideoBundleCard
                         key={b.key}

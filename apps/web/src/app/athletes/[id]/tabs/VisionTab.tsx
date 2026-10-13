@@ -5,7 +5,6 @@ import {
   KpiCard, KpiGrid, SectionHeader, Section,
   ScoreBar, NotesBox, ReportSelector,
   TabBarActions, } from '@/components/assessment';
-import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import {
   TabProps, METRIC_LABELS, TAB_METRICS,
@@ -19,7 +18,7 @@ import { generateVisionPdf } from '@/lib/pdf';
 const REPORT_TYPES = ['COGNITION'];
 
 export function VisionTab({
-  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport, onEditProfile,
+  player, topMetrics, isCoach, onRefresh, reports, refreshKey, onNewReport, onEditReport,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
 

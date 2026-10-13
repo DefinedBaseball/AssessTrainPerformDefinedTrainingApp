@@ -5,7 +5,7 @@ import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   KpiCard, KpiGrid, SectionHeader, Section,
-  ScoreBar, ScalePips, NotesBox, VideoPlaceholder, VideoBundleCard,
+  ScoreBar, NotesBox, VideoPlaceholder, VideoBundleCard,
   ReportSelector, TabBarActions, DownloadPdfButton, } from '@/components/assessment';
 import { NoteBlock } from './SwingTab';
 import {
@@ -33,7 +33,7 @@ import {
   DEFENSE_COACH_GRADE_SECTIONS, getDefenseCoachGrades,
 } from '../helpers';
 import { CustomCharts } from '@/components/CustomCharts';
-import { bundleVideos, normalizeVideoTitle, splitVideoTitle } from '@/lib/video-titles';
+import { bundleVideos } from '@/lib/video-titles';
 
 /* ═══════════════════════════════════════════
    SUB-TAB DEFINITIONS
@@ -440,543 +440,6 @@ interface CatchingAssessment {
 
 const MONO = "'DM Mono', monospace";
 
-/* ── Infield constants ── */
-
-const ARM_METRICS: { key: keyof InfieldAssessment['arm']; label: string; unit: string }[] = [
-  { key: 'velocity', label: 'Arm Velocity', unit: 'mph' },
-  { key: 'accuracy', label: 'Arm Accuracy', unit: '%' },
-];
-
-const RANGE_SKILLS: { key: keyof Omit<InfieldAssessment['rangeFootwork'], 'overallGrade'>; label: string }[] = [
-  { key: 'jumps', label: 'Jumps' },
-  { key: 'routes', label: 'Routes' },
-  { key: 'rangeGloveSide', label: 'Range — Glove Side' },
-  { key: 'rangeArmSide', label: 'Range — Arm Side' },
-  { key: 'breakdownFootwork', label: 'Break Down Footwork' },
-  { key: 'athleticism', label: 'Athleticism' },
-];
-
-const HANDS_SKILLS: { key: keyof Omit<InfieldAssessment['handsGlove'], 'overallGrade'>; label: string }[] = [
-  { key: 'exchanges', label: 'Exchanges' },
-  { key: 'shortHops', label: 'Short Hops' },
-  { key: 'forehand', label: 'Forehand' },
-  { key: 'backhand', label: 'Backhand' },
-  { key: 'doublePlays', label: 'Double Plays' },
-];
-
-/* ── Outfield constants ── */
-
-const OF_ARM_METRICS: { key: keyof Omit<OutfieldAssessment['arm'], 'overallGrade'>; label: string; unit: string }[] = [
-  { key: 'velocity', label: 'Arm Velocity', unit: 'mph' },
-  { key: 'crowHop', label: 'Crow Hop', unit: 'mph' },
-  { key: 'releaseTime', label: 'Release Time', unit: 'sec' },
-  { key: 'accuracy', label: 'Arm Accuracy', unit: '%' },
-];
-
-const OF_ROUTES_SKILLS: { key: keyof Omit<OutfieldAssessment['routesReads'], 'overallGrade'>; label: string }[] = [
-  { key: 'firstStepJump', label: 'First-Step Jump' },
-  { key: 'flyBallBack', label: 'Fly Ball Read — Going Back' },
-  { key: 'flyBallIn', label: 'Fly Ball Read — In' },
-  { key: 'lineDriveRead', label: 'Line Drive Read' },
-  { key: 'routes', label: 'Routes' },
-  { key: 'range', label: 'Range' },
-  { key: 'gloveWork', label: 'Glove Work' },
-];
-
-/* ── Catching constants ── */
-
-const THROWING_CARDS: {
-  key: keyof CatchingAssessment['throwing'];
-  label: string;
-  unit: string;
-  mlbRef: string;
-}[] = [
-  { key: 'popTime2B', label: 'Pop Time (2B)', unit: 's', mlbRef: 'MLB avg: 1.90\u20132.00s' },
-  { key: 'exchangeTime', label: 'Exchange Time', unit: 's', mlbRef: 'MLB avg: 0.65\u20130.75s' },
-  { key: 'velocity', label: 'Velocity', unit: 'mph', mlbRef: 'MLB avg: 75\u201380 mph' },
-];
-
-/* ── Zone color helpers ── */
-const ZONE_FILLS = ['#F87171', '#ffffff', '#4ADE80'] as const; // 0=red, 1=white, 2=green
-const ZONE_LABELS_C = ['Bad', 'Average', 'Good'] as const;
-
-/* ═══════════════════════════════════════════
-   SHARED GRADE HELPERS
-   ═══════════════════════════════════════════ */
-
-/* Three flat bands matching scoreColor() and the rest of the app:
-     20–40 → red, 40–60 → yellow, 60–80 → green. */
-function gradeColor(grade: number | null): string {
-  if (grade === null) return 'var(--faint)';
-  if (grade >= 60) return '#22C55E'; // green
-  if (grade >= 40) return '#EAB308'; // yellow
-  return '#EF4444';                   // red
-}
-
-function gradeBg(grade: number | null): string {
-  if (grade === null) return 'transparent';
-  if (grade >= 60) return 'rgba(34,197,94,0.10)';
-  if (grade >= 40) return 'rgba(234,179,8,0.10)';
-  return 'rgba(239,68,68,0.12)';
-}
-
-function gradeLabel(grade: number | null): string {
-  if (grade === null) return '';
-  if (grade >= 70) return 'Plus-Plus';
-  if (grade >= 60) return 'Plus';
-  if (grade >= 55) return 'Above Avg';
-  if (grade >= 50) return 'Average';
-  if (grade >= 45) return 'Below Avg';
-  if (grade >= 40) return 'Fringe';
-  return 'Well Below';
-}
-
-/* ═══════════════════════════════════════════
-   SHARED SUB-COMPONENTS
-   ═══════════════════════════════════════════ */
-
-function ArmMetricCard({ metric, label, unit }: {
-  metric: ArmMetric; label: string; unit: string;
-}) {
-  const hasBest = metric.best !== null;
-  const hasAvg = metric.avg !== null;
-  const attempts = metric.attempts || [];
-
-  return (
-    <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      padding: '18px 16px 14px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8,
-    }}>
-      <div style={{
-        /* Font D — small all-caps Satoshi eyebrow shared across
-           every grey-bubble secondary label in the app. */
-        fontFamily: 'inherit',
-        fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
-        letterSpacing: '0.05em', color: 'var(--text-bright)',
-        lineHeight: 1.2,
-      }}>
-        {label}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{
-          fontSize: rem(28), fontWeight: 800, fontFamily: 'inherit',
-          color: hasBest ? '#4ADE80' : 'var(--faint)',
-          lineHeight: 1,
-        }}>
-          {hasBest ? metric.best! : '\u2014'}
-        </span>
-        {hasBest && (
-          <span style={{ fontSize: rem(11), fontWeight: 600, color: 'var(--text-muted)' }}>
-            {unit} best
-          </span>
-        )}
-      </div>
-
-      <div style={{ fontSize: rem(12), color: 'var(--text-muted)', fontFamily: 'inherit' }}>
-        {hasAvg ? (
-          <>Avg: <span style={{ fontWeight: 700, color: 'var(--accent-light)' }}>{metric.avg}</span> {unit}</>
-        ) : (
-          'Avg: \u2014'
-        )}
-      </div>
-
-      {attempts.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
-          {attempts.map((val, i) => (
-            <span
-              key={i}
-              title={val !== null ? `#${i + 1}: ${val} ${unit}` : `#${i + 1}: no data`}
-              style={{
-                minWidth: 36, height: 26, borderRadius: 8,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: rem(10), fontWeight: 700, fontFamily: 'inherit',
-                background: val !== null ? 'rgba(74,222,128,0.12)' : 'var(--surface2)',
-                color: val !== null ? '#4ADE80' : 'var(--faint)',
-                border: val !== null ? '1px solid rgba(74,222,128,0.25)' : '1px solid var(--border)',
-                padding: '0 6px',
-              }}
-            >
-              {val !== null ? val : '\u00b7'}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {metric.notes && (
-        <div style={{
-          fontSize: rem(11), color: 'var(--text-muted)',
-          borderTop: '1px solid var(--border)',
-          paddingTop: 6, marginTop: 2,
-          lineHeight: 1.4,
-        }}>
-          {metric.notes}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ThrowingMetricCard({ metric, label, unit, mlbRef }: {
-  metric: ThrowingMetric; label: string; unit: string; mlbRef: string;
-}) {
-  const hasBest = metric.best !== null;
-  const hasAvg = metric.avg !== null;
-  const attempts = metric.attempts || [];
-
-  return (
-    <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      padding: '18px 16px 14px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8,
-    }}>
-      <div style={{
-        /* Font D — small all-caps Satoshi eyebrow shared across
-           every grey-bubble secondary label in the app. */
-        fontFamily: 'inherit',
-        fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
-        letterSpacing: '0.05em', color: 'var(--text-bright)',
-        lineHeight: 1.2,
-      }}>
-        {label}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{
-          fontSize: rem(28), fontWeight: 800, fontFamily: 'inherit',
-          color: hasBest ? '#4ADE80' : 'var(--faint)',
-          lineHeight: 1,
-        }}>
-          {hasBest ? metric.best!.toFixed(2) : '\u2014'}
-        </span>
-        {hasBest && (
-          <span style={{ fontSize: rem(11), fontWeight: 600, color: 'var(--text-muted)' }}>
-            {unit} best
-          </span>
-        )}
-      </div>
-
-      <div style={{ fontSize: rem(12), color: 'var(--text-muted)', fontFamily: 'inherit' }}>
-        {hasAvg ? (
-          <>Avg: <span style={{ fontWeight: 700, color: 'var(--accent-light)' }}>{metric.avg!.toFixed(2)}</span> {unit}</>
-        ) : (
-          'Avg: \u2014'
-        )}
-      </div>
-
-      {attempts.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-          {attempts.map((val, i) => (
-            <span
-              key={i}
-              title={val !== null ? `#${i + 1}: ${val.toFixed(2)} ${unit}` : `#${i + 1}: no data`}
-              style={{
-                width: 22, height: 22, borderRadius: 6,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: rem(8), fontWeight: 700, fontFamily: 'inherit',
-                background: val !== null ? 'rgba(74,222,128,0.12)' : 'var(--faint)',
-                color: val !== null ? '#4ADE80' : 'var(--border)',
-                border: val !== null ? '1px solid rgba(74,222,128,0.25)' : '1px solid var(--border)',
-              }}
-            >
-              {val !== null ? (i + 1) : '\u00b7'}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div style={{
-        fontSize: rem(10), color: 'var(--faint)', fontStyle: 'italic', marginTop: 2,
-      }}>
-        {mlbRef}
-      </div>
-
-      {metric.notes && (
-        <div style={{
-          fontSize: rem(11), color: 'var(--text-muted)',
-          borderTop: '1px solid var(--border)',
-          paddingTop: 6, marginTop: 2,
-          lineHeight: 1.4,
-        }}>
-          {metric.notes}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ScoutingGradeBadge({ grade, size = 'large' }: { grade: number | null; size?: 'large' | 'small' }) {
-  const isLarge = size === 'large';
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: isLarge ? 64 : 44,
-      height: isLarge ? 64 : 44,
-      borderRadius: isLarge ? 16 : 10,
-      background: gradeBg(grade),
-      border: `2px solid ${gradeColor(grade)}`,
-    }}>
-      <span style={{
-        fontSize: isLarge ? rem(28) : rem(18),
-        fontWeight: 800,
-        fontFamily: 'inherit',
-        color: gradeColor(grade),
-      }}>
-        {grade !== null ? grade : '\u2014'}
-      </span>
-    </div>
-  );
-}
-
-function GradeRow({ label, item }: { label: string; item: GradeItem }) {
-  const pct = item.grade !== null ? Math.min((item.grade / 80) * 100, 100) : 0;
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '180px 50px 1fr',
-      alignItems: 'center',
-      gap: 14,
-      padding: '10px 16px',
-      borderBottom: '1px solid var(--border)',
-    }}>
-      <span style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: rem(16), fontWeight: 800, fontFamily: 'inherit',
-        color: gradeColor(item.grade),
-        textAlign: 'center',
-      }}>
-        {item.grade !== null ? item.grade : '\u2014'}
-      </span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{
-          height: 8, borderRadius: 4,
-          background: 'var(--border)',
-          overflow: 'hidden',
-          position: 'relative',
-        }}>
-          {item.grade !== null && (
-            <div style={{
-              position: 'absolute', top: 0, left: 0, height: '100%',
-              width: `${pct}%`,
-              borderRadius: 4,
-              background: `linear-gradient(90deg, ${gradeColor(item.grade)}88, ${gradeColor(item.grade)})`,
-              transition: 'width 0.5s ease',
-            }} />
-          )}
-        </div>
-        {item.notes && (
-          <span style={{ fontSize: rem(10), color: 'var(--faint)', lineHeight: 1.3 }}>
-            {item.notes}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function OverallGradeCard({ label, grade }: { label: string; grade: number | null }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 16,
-      padding: '14px 20px',
-      background: gradeBg(grade),
-      borderRadius: 10,
-      border: `1px solid ${gradeColor(grade)}33`,
-      marginTop: 4,
-    }}>
-      <ScoutingGradeBadge grade={grade} size="small" />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span style={{
-          /* Font D */
-          fontFamily: 'inherit',
-          fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
-          letterSpacing: '0.05em', color: 'var(--text-bright)',
-          lineHeight: 1.2,
-        }}>
-          Overall {label}
-        </span>
-        <span style={{
-          fontSize: rem(14), fontWeight: 700,
-          color: gradeColor(grade),
-        }}>
-          {grade !== null ? `${grade} \u2014 ${gradeLabel(grade)}` : 'Not Graded'}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   CATCHING SUB-COMPONENTS
-   ═══════════════════════════════════════════ */
-
-/* ── Interactive 9-Zone Strike Zone ── */
-function ReceivingZone({ zoneColors, onToggle }: {
-  zoneColors: (0 | 1 | 2)[];
-  onToggle: (idx: number) => void;
-}) {
-  const W = 300, H = 320;
-  const szLeft = 60, szTop = 40, szW = 180, szH = 240;
-  const cellW = szW / 3, cellH = szH / 3;
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ display: 'block', margin: '0 auto', cursor: 'pointer', maxWidth: W }}>
-      <rect width={W} height={H} fill="transparent" />
-      {/* 9 zones */}
-      {[0,1,2,3,4,5,6,7,8].map(i => {
-        const row = Math.floor(i / 3), col = i % 3;
-        const x = szLeft + col * cellW, y = szTop + row * cellH;
-        const fill = ZONE_FILLS[zoneColors[i]] || '#ffffff';
-        return (
-          <g key={i} onClick={() => onToggle(i)}>
-            <rect x={x} y={y} width={cellW} height={cellH} fill={fill} stroke="var(--border)" strokeWidth={1.5} rx={3} opacity={0.85} />
-            <text x={x + cellW / 2} y={y + cellH / 2 + 5} textAnchor="middle" fontSize={14} fontWeight={700} fill={zoneColors[i] === 1 ? 'var(--text-muted)' : '#000'}>
-              {i + 1}
-            </text>
-          </g>
-        );
-      })}
-      {/* Strike zone border */}
-      <rect x={szLeft} y={szTop} width={szW} height={szH} fill="none" stroke="var(--text-muted)" strokeWidth={2} rx={4} />
-      {/* Home plate */}
-      <polygon points={`${W/2 - 20},${szTop + szH + 15} ${W/2 + 20},${szTop + szH + 15} ${W/2 + 12},${szTop + szH + 28} ${W/2},${szTop + szH + 35} ${W/2 - 12},${szTop + szH + 28}`}
-        fill="none" stroke="var(--text-muted)" strokeWidth={1.5} />
-      {/* Legend */}
-      {[2, 1, 0].map((v, i) => (
-        <g key={v} transform={`translate(${szLeft + i * 70}, ${H - 12})`}>
-          <rect width={12} height={12} rx={2} fill={ZONE_FILLS[v]} stroke="var(--border)" strokeWidth={0.5} />
-          <text x={16} y={10} fontSize={10} fill="var(--text-muted)">{ZONE_LABELS_C[v]}</text>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-/* ── Receiving Score Row ── */
-function ReceivingScoreRow({ label, item }: { label: string; item?: GradeItem }) {
-  const grade = item?.grade ?? null;
-  const pct = grade !== null ? Math.min((grade / 80) * 100, 100) : 0;
-  return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '140px 44px 1fr', alignItems: 'center', gap: 10,
-      padding: '10px 14px', borderBottom: '1px solid var(--border)',
-    }}>
-      <span style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>{label}</span>
-      <span style={{ fontSize: rem(16), fontWeight: 800, fontFamily: 'inherit', color: gradeColor(grade), textAlign: 'center' }}>
-        {grade !== null ? grade : '\u2014'}
-      </span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', position: 'relative' }}>
-          {grade !== null && (
-            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pct}%`, borderRadius: 4,
-              background: `linear-gradient(90deg, ${gradeColor(grade)}88, ${gradeColor(grade)})`, transition: 'width 0.5s ease' }} />
-          )}
-        </div>
-        {item?.notes && <span style={{ fontSize: rem(10), color: 'var(--faint)', lineHeight: 1.3 }}>{item.notes}</span>}
-      </div>
-    </div>
-  );
-}
-
-/* ── Blocking Score Row ── */
-function BlockingScoreRow({ label, item }: { label: string; item?: GradeItem }) {
-  const grade = item?.grade ?? null;
-  const pct = grade !== null ? Math.min((grade / 80) * 100, 100) : 0;
-  return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '160px 44px 1fr', alignItems: 'center', gap: 10,
-      padding: '10px 14px', borderBottom: '1px solid var(--border)',
-    }}>
-      <span style={{ fontSize: rem(13), fontWeight: 600, color: 'var(--text)' }}>{label}</span>
-      <span style={{ fontSize: rem(16), fontWeight: 800, fontFamily: 'inherit', color: gradeColor(grade), textAlign: 'center' }}>
-        {grade !== null ? grade : '\u2014'}
-      </span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', position: 'relative' }}>
-          {grade !== null && (
-            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pct}%`, borderRadius: 4,
-              background: `linear-gradient(90deg, ${gradeColor(grade)}88, ${gradeColor(grade)})`, transition: 'width 0.5s ease' }} />
-          )}
-        </div>
-        {item?.notes && <span style={{ fontSize: rem(10), color: 'var(--faint)', lineHeight: 1.3 }}>{item.notes}</span>}
-      </div>
-    </div>
-  );
-}
-
-/* ── Blocking Range Visual ── */
-function BlockingRangeVisual({ rangeFeet }: { rangeFeet: number | null }) {
-  const W = 500, H = 220;
-  const plateY = 50, catcherY = 160;
-  const cx = W / 2;
-  // Scale: 1 foot ≈ 30px
-  const scale = 30;
-  const rangeRadius = rangeFeet ? rangeFeet * scale : 0;
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ display: 'block', margin: '0 auto', maxWidth: W }}>
-      {/* Home plate */}
-      <polygon
-        points={`${cx - 16},${plateY} ${cx + 16},${plateY} ${cx + 10},${plateY + 10} ${cx},${plateY + 16} ${cx - 10},${plateY + 10}`}
-        fill="none" stroke="var(--text-muted)" strokeWidth={1.5}
-      />
-      <text x={cx} y={plateY - 8} textAnchor="middle" fontSize={9} fill="var(--text-muted)" fontWeight={600}>HOME</text>
-
-      {/* LHH batter's box */}
-      <rect x={cx - 90} y={plateY - 18} width={50} height={52} fill="none" stroke="var(--border)" strokeWidth={1} strokeDasharray="4 3" rx={2} />
-      <text x={cx - 65} y={plateY - 22} textAnchor="middle" fontSize={8} fill="var(--faint)">LHH</text>
-
-      {/* RHH batter's box */}
-      <rect x={cx + 40} y={plateY - 18} width={50} height={52} fill="none" stroke="var(--border)" strokeWidth={1} strokeDasharray="4 3" rx={2} />
-      <text x={cx + 65} y={plateY - 22} textAnchor="middle" fontSize={8} fill="var(--faint)">RHH</text>
-
-      {/* Catcher icon */}
-      <circle cx={cx} cy={catcherY} r={16} fill="var(--surface)" stroke="#4ADE80" strokeWidth={2} />
-      <text x={cx} y={catcherY + 5} textAnchor="middle" fontSize={12} fontWeight={700} fill="#4ADE80">C</text>
-
-      {/* Blocking range arc */}
-      {rangeFeet && rangeRadius > 0 && (
-        <>
-          <path
-            d={`M ${cx - rangeRadius},${catcherY} A ${rangeRadius},${rangeRadius} 0 0,1 ${cx + rangeRadius},${catcherY}`}
-            fill="rgba(74,222,128,0.12)" stroke="#4ADE80" strokeWidth={2} strokeDasharray="6 3"
-          />
-          {/* Left label */}
-          <line x1={cx - rangeRadius} y1={catcherY - 5} x2={cx - rangeRadius} y2={catcherY + 5} stroke="#4ADE80" strokeWidth={1.5} />
-          {/* Right label */}
-          <line x1={cx + rangeRadius} y1={catcherY - 5} x2={cx + rangeRadius} y2={catcherY + 5} stroke="#4ADE80" strokeWidth={1.5} />
-          {/* Range label */}
-          <text x={cx} y={catcherY - rangeRadius / 2 - 2} textAnchor="middle" fontSize={13} fontWeight={700} fill="#4ADE80">
-            {rangeFeet} ft
-          </text>
-        </>
-      )}
-      {!rangeFeet && (
-        <text x={cx} y={catcherY + 40} textAnchor="middle" fontSize={11} fill="var(--faint)">
-          No blocking range data
-        </text>
-      )}
-
-      {/* Footer label */}
-      <text x={cx} y={H - 6} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
-        Lateral Blocking Range from Home Plate
-      </text>
-    </svg>
-  );
-}
-
 /* ════════════════════════════════════════════════════════════════
    SHARED SNAPSHOT helpers — used by Catching, Infield, and Outfield
    ════════════════════════════════════════════════════════════════ */
@@ -991,53 +454,6 @@ function gradeTone(g: number | null): { stroke: string; fill: string; text: stri
   if (g >= 60)    return { stroke: '#22C55E', fill: 'rgba(34,197,94,0.16)',  text: '#22C55E' }; // green
   if (g >= 40)    return { stroke: '#EAB308', fill: 'rgba(234,179,8,0.16)',  text: '#EAB308' }; // yellow
   return                  { stroke: '#EF4444', fill: 'rgba(239,68,68,0.16)', text: '#EF4444' }; // red
-}
-
-/* Single horizontal bar inside GloveFootworkBars */
-function BarRow({ label, grade }: { label: string; grade: number | null }) {
-  const t = gradeTone(grade);
-  const pct = grade !== null ? Math.max(0, Math.min(((grade - 20) / 60) * 100, 100)) : 0;
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 36px', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-      <span style={{ fontSize: rem(12), fontWeight: 600, color: 'var(--text)' }}>{label}</span>
-      <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden', position: 'relative' }}>
-        {grade !== null && (
-          <div style={{ position: 'absolute', inset: '0 auto 0 0', width: `${pct}%`, height: '100%', borderRadius: 4,
-            background: `linear-gradient(90deg, ${t.text}66, ${t.text})`, transition: 'width 0.5s ease' }} />
-        )}
-      </div>
-      <span style={{ fontSize: rem(14), fontWeight: 800, fontFamily: 'inherit', textAlign: 'right', color: t.text, fontVariantNumeric: 'tabular-nums' }}>
-        {grade !== null ? grade : '—'}
-      </span>
-    </div>
-  );
-}
-
-/* Glove + Footwork bar chart — replaces the strike-zone heat map for IF/OF */
-function GloveFootworkBars({ gloveTitle, gloveItems, footworkTitle, footworkItems }: {
-  gloveTitle: string;
-  gloveItems: { label: string; grade: number | null }[];
-  footworkTitle: string;
-  footworkItems: { label: string; grade: number | null }[];
-}) {
-  return (
-    <div style={{ width: '100%', maxWidth: 380, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div>
-        <div style={{ fontFamily: 'inherit', fontSize: rem(11.88), fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-          color: 'var(--text-bright)', lineHeight: 1.2, marginBottom: 6, paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
-          {gloveTitle}
-        </div>
-        {gloveItems.map(item => <BarRow key={item.label} {...item} />)}
-      </div>
-      <div>
-        <div style={{ fontFamily: 'inherit', fontSize: rem(11.88), fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-          color: 'var(--text-bright)', lineHeight: 1.2, marginBottom: 6, paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
-          {footworkTitle}
-        </div>
-        {footworkItems.map(item => <BarRow key={item.label} {...item} />)}
-      </div>
-    </div>
-  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1396,9 +812,6 @@ const FIELD_CX = FIELD_W / 2;       // 260
 const FIELD_CY = FIELD_H - 24;      // 436 = home plate
 const FIELD_MAX_DIST = 420;
 const FIELD_SCALE = (FIELD_H - 70) / FIELD_MAX_DIST; // ≈ 0.929 px/ft (full field)
-/** Infielder mode: zoom the polar mapping so 200 ft fills the same pixel field. */
-const IF_MAX_DIST = 200;
-const IF_SCALE = (FIELD_H - 70) / IF_MAX_DIST; // ≈ 1.95 px/ft
 /** Catcher mode: tighter zoom so 120 ft fills the canvas — keeps the 90 ft
  *  bases prominent while still showing space behind the bag for blocking
  *  range chips. */
@@ -1710,145 +1123,6 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
   );
 }
 
-/* Position-aware field for infielders/outfielders */
-function PositionFieldDiagram({ mode, positionDot, rangeLeft, rangeRight, rangeIn, rangeBack, armGrade, armVelo, maxWidth = 560 }: {
-  mode: 'infield' | 'outfield';
-  positionDot: { x: number; y: number; label: string };
-  rangeLeft: number | null; rangeRight: number | null; rangeIn: number | null; rangeBack: number | null;
-  armGrade: number | null; armVelo: number | null;
-  maxWidth?: number;
-}) {
-  const isOF = mode === 'outfield';
-  const CHIP_FONT = "Inter, 'Helvetica Neue', Arial, sans-serif";
-
-  // Arm target — IF throws to 1B, OF throws home
-  // Use the same scale the field renders at so the arm-strength line lands on 1B.
-  const fieldScale = isOF ? FIELD_SCALE : IF_SCALE;
-  const [armTargetX, armTargetY] = isOF ? [FIELD_CX, FIELD_CY] : fieldXY(45, 90, IF_SCALE);
-  const armTargetLabel = isOF ? 'to Home' : 'to 1B';
-
-  // Player faces home — arrow basis
-  const fwdX = FIELD_CX - positionDot.x;
-  const fwdY = FIELD_CY - positionDot.y;
-  const fwdMag = Math.sqrt(fwdX * fwdX + fwdY * fwdY) || 1;
-  const inUx = fwdX / fwdMag, inUy = fwdY / fwdMag;
-  const rightUx = inUy, rightUy = -inUx;
-
-  // Horizontal chips (Left/Right) need more room because the 144-wide
-  // chips would overlap the position dot at a shorter offset. Vertical
-  // chips (In/Back) only need the chip-half-height of clearance, so
-  // they sit much closer to the position dot.
-  const ARROW_LEN_H = 100;
-  const ARROW_LEN_V = 50;
-  const ArrowChip = ({ dir, grade }: { dir: 'L' | 'R' | 'I' | 'B'; grade: number | null }) => {
-    const t = gradeTone(grade);
-    let dx = 0, dy = 0;
-    if (dir === 'L') { dx = -rightUx * ARROW_LEN_H; dy = -rightUy * ARROW_LEN_H; }
-    if (dir === 'R') { dx =  rightUx * ARROW_LEN_H; dy =  rightUy * ARROW_LEN_H; }
-    if (dir === 'I') { dx =  inUx    * ARROW_LEN_V; dy =  inUy    * ARROW_LEN_V; }
-    if (dir === 'B') { dx = -inUx    * ARROW_LEN_V; dy = -inUy    * ARROW_LEN_V; }
-    const dirLabel = dir === 'L' ? 'RANGE LEFT' : dir === 'R' ? 'RANGE RIGHT' : dir === 'I' ? 'RANGE IN' : 'RANGE BACK';
-    const tipX = positionDot.x + dx;
-    const tipY = positionDot.y + dy;
-    return (
-      <g>
-        <line x1={positionDot.x} y1={positionDot.y} x2={tipX} y2={tipY}
-          stroke={t.stroke} strokeWidth="1.3" strokeDasharray="3 2" />
-        <g transform={`translate(${tipX}, ${tipY})`}>
-          {/* Match the Catching Pop Time chip — 144 × 46, neutral fill +
-              stroke, 10px centered label + 18px centered value. */}
-          <rect x="-72" y="-23" width="144" height="46" rx="9"
-            fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
-          <text x="0" y="-5" textAnchor="middle" fontSize="10" fontFamily={CHIP_FONT} fontWeight="600"
-            fill="var(--text-muted)" letterSpacing="0.12em">{dirLabel}</text>
-          <text x="0" y="15" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
-            fill={t.text} letterSpacing="-0.01em" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {grade !== null ? grade : '—'}
-          </text>
-        </g>
-      </g>
-    );
-  };
-
-  const armToneObj = gradeTone(armGrade);
-  const armMidX = (positionDot.x + armTargetX) / 2;
-  const armMidY = (positionDot.y + armTargetY) / 2;
-
-  return (
-    <svg viewBox={`0 0 ${FIELD_W} ${FIELD_H}`} preserveAspectRatio="xMidYMid meet"
-         style={{ display: 'block', width: '100%', height: 'auto', maxWidth, margin: '0 auto', filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.55))' }}>
-      <SprayField
-        uid={`pos-${mode}`}
-        scale={fieldScale}
-        distArcs={isOF ? undefined : [60, 120, 200]}
-      />
-
-      {/* Arm-strength line + chip */}
-      <line x1={positionDot.x} y1={positionDot.y} x2={armTargetX} y2={armTargetY}
-        stroke={armToneObj.stroke} strokeWidth="1.7" strokeDasharray="6 4" opacity="0.85" />
-      <g transform={`translate(${armMidX}, ${armMidY})`}>
-        {/* Match the Catching Pop Time chip — 144 × 46, neutral fill +
-            stroke, 10px centered label + 18px centered value. */}
-        <rect x="-72" y="-23" width="144" height="46" rx="9"
-          fill="rgba(20,24,32,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2" />
-        <text x="0" y="-5" textAnchor="middle" fontSize="10" fontFamily={CHIP_FONT} fontWeight="600"
-          fill="var(--text-muted)" letterSpacing="0.12em">
-          ARM {armTargetLabel.toUpperCase()}
-        </text>
-        <text x="0" y="15" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
-          fill={armToneObj.text} letterSpacing="-0.01em" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {armVelo !== null ? `${armVelo.toFixed(0)} mph` : armGrade !== null ? armGrade : '—'}
-        </text>
-      </g>
-
-      {/* Range arrows */}
-      <ArrowChip dir="L" grade={rangeLeft} />
-      <ArrowChip dir="R" grade={rangeRight} />
-      <ArrowChip dir="I" grade={rangeIn} />
-      <ArrowChip dir="B" grade={rangeBack} />
-
-      {/* Position dot */}
-      <circle cx={positionDot.x} cy={positionDot.y} r="16"
-        fill="rgba(135,175,255,0.20)" stroke="rgba(135,175,255,0.60)" strokeWidth="1" />
-      <circle cx={positionDot.x} cy={positionDot.y} r="9"
-        fill="#cfe0ff" stroke="rgba(255,255,255,0.85)" strokeWidth="1.3" />
-      <text x={positionDot.x} y={positionDot.y + 3.5} textAnchor="middle"
-        fontSize="10" fontFamily={CHIP_FONT} fontWeight="800" fill="#0e1116">{positionDot.label}</text>
-
-      <text x={FIELD_CX} y={FIELD_H - 6} textAnchor="middle" fontSize="11" fontFamily={CHIP_FONT} fontWeight="600"
-        fill="rgba(255,255,255,0.40)" fontStyle="italic">
-        {mode === 'infield' ? 'Range coverage at the bag · arm strength to 1B' : 'Range coverage in the gap · arm strength to home'}
-      </text>
-    </svg>
-  );
-}
-
-/* Default fielder spots — polar (angle, distance) → screen XY in spray-chart coords. */
-const INFIELD_POLAR: Record<string, { angle: number; dist: number; label: string }> = {
-  '1B': { angle:  42, dist: 96,  label: '1B' },
-  '2B': { angle:  22, dist: 115, label: '2B' },
-  'SS': { angle: -28, dist: 130, label: 'SS' },   // deeper, behind the 2B-3B baseline
-  '3B': { angle: -42, dist: 96,  label: '3B' },
-};
-const OUTFIELD_POLAR: Record<string, { angle: number; dist: number; label: string }> = {
-  'LF': { angle: -22, dist: 260, label: 'LF' },
-  'CF': { angle:   0, dist: 290, label: 'CF' },
-  'RF': { angle:  22, dist: 260, label: 'RF' },
-};
-const polarToPos = (p: { angle: number; dist: number; label: string }, scale: number) => {
-  const [x, y] = fieldXY(p.angle, p.dist, scale);
-  return { x, y, label: p.label };
-};
-// IF positions render at IF_SCALE so they sit on the 200-ft "infield only" diamond.
-const INFIELD_POSITIONS: Record<string, { x: number; y: number; label: string }> =
-  Object.fromEntries(Object.entries(INFIELD_POLAR).map(([k, p]) => [k, polarToPos(p, IF_SCALE)]));
-const OUTFIELD_POSITIONS: Record<string, { x: number; y: number; label: string }> =
-  Object.fromEntries(Object.entries(OUTFIELD_POLAR).map(([k, p]) => [k, polarToPos(p, FIELD_SCALE)]));
-
-/* Underlying stats row — shared */
-type StatCell =
-  | { kind: 'metric'; label: string; value: number | null; unit: string; decimals?: number }
-  | { kind: 'grade'; label: string; grade: number | null };
 
 /* ─────────────────────────────────────────────────────────────────────────
    DefensiveSnapshot — shared two-column snapshot used by the Infielder
@@ -1916,12 +1190,6 @@ const ofInnerBubbleStyle: React.CSSProperties = {
   position: 'relative',
 };
 
-const ofPopTimeBubbleStyle: React.CSSProperties = {
-  background: 'var(--defense-poptime-bg)',
-  border: '1px solid var(--border-strong)',
-  borderRadius: 8,
-  position: 'relative',
-};
 
 /* Top-right date chip used on every Snapshot/Report header. Takes a
    pre-formatted label (e.g. "Apr 3, 2026") and renders the same
@@ -2310,86 +1578,6 @@ function DefensiveSnapshot({
   );
 }
 
-function StatsRow({ title, icon, cells }: { title: string; icon: string; cells: StatCell[] }) {
-  return (
-    <div
-      className={aStyles.innerPanel}
-      style={{
-        padding: '14px 18px', marginBottom: 8,
-        display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24, alignItems: 'center',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 18, borderRight: '1px solid var(--border)' }}>
-        <span style={{ fontSize: rem(22), lineHeight: 1 }}>{icon}</span>
-        <span style={{ fontSize: rem(17), fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{title}</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-        {cells.map((c, i) => {
-          /* Each underlying-stat cell uses the same dark slate chrome as
-             the Catching Pop Time / Velocity / Exchange chips so the
-             whole "underlying stats" strip reads as a row of spotlight
-             chips. Hardcoded light text keeps it readable in both themes. */
-          const slateChip: React.CSSProperties = {
-            padding: '12px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            background: 'rgba(20, 24, 32, 0.92)',
-            border: '1px solid var(--border-strong)',
-            borderRadius: 10,
-            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.25)',
-          };
-          const slateLabel: React.CSSProperties = {
-            /* Font D treatment for slate-chip label */
-            fontFamily: 'inherit',
-            fontSize: rem(11.88), fontWeight: 600, textTransform: 'uppercase',
-            letterSpacing: '0.05em', color: 'var(--text-bright)',
-            lineHeight: 1.2,
-          };
-          const slateUnit: React.CSSProperties = {
-            fontFamily: 'inherit', fontSize: rem(10), fontWeight: 600,
-            color: 'rgba(255, 255, 255, 0.55)', letterSpacing: '0.10em',
-          };
-          const slateRating: React.CSSProperties = {
-            fontSize: rem(11), color: 'rgba(255, 255, 255, 0.55)', fontStyle: 'italic',
-          };
-          if (c.kind === 'metric') {
-            const has = c.value !== null && c.value !== undefined;
-            const decimals = c.decimals ?? (c.unit === 'mph' ? 0 : 2);
-            return (
-              <div key={i} style={slateChip}>
-                <span style={slateLabel}>{c.label}</span>
-                <span style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                  <span style={{ fontSize: rem(24), fontWeight: 800, color: has ? '#F1F5F9' : 'rgba(255,255,255,0.40)',
-                    letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                    {has ? c.value!.toFixed(decimals) : '—'}
-                  </span>
-                  <span style={slateUnit}>{c.unit}</span>
-                </span>
-              </div>
-            );
-          } else {
-            const grade = c.grade;
-            const valueColor = gradeColor(grade);
-            const ratingLabel = grade !== null ? gradeLabel(grade) : 'Not graded';
-            return (
-              <div key={i} style={slateChip}>
-                <span style={slateLabel}>{c.label}</span>
-                <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontSize: rem(24), fontWeight: 800, color: valueColor,
-                    letterSpacing: '-0.025em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                    {grade !== null ? grade : '—'}
-                  </span>
-                  <span style={slateRating}>{ratingLabel}</span>
-                </span>
-              </div>
-            );
-          }
-        })}
-      </div>
-    </div>
-  );
-}
 
 /* Reusable Snapshot bubble — wraps a 2-pane grid + underlying stats rows */
 function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, notes, headerRightSlot }: {
@@ -2507,7 +1695,7 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
    ═══════════════════════════════════════════ */
 
 export function CatchingSubTab({
-  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
+  player, isCoach, onRefresh, onNewReport, onEditReport, reports, videos: playerVideos,
   focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
@@ -2547,7 +1735,7 @@ export function CatchingSubTab({
   }, [reports]);
 
   // Interactive zone state (local override for clicking zones on profile)
-  const [localZoneColors, setLocalZoneColors] = useState<(0 | 1 | 2)[]>([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+  const [localZoneColors] = useState<(0 | 1 | 2)[]>([1, 1, 1, 1, 1, 1, 1, 1, 1]);
 
   /* All Catching reports — fed to the bundle modal's Attach-to-Report
      dropdown so coaches can stamp a Coach Review onto a specific
@@ -2628,12 +1816,6 @@ export function CatchingSubTab({
   // Use report zone colors if available, otherwise use local state
   const zoneColors = catchingAssessment?.receiving?.zoneColors ?? localZoneColors;
 
-  const handleZoneToggle = (idx: number) => {
-    const newColors = [...zoneColors] as (0 | 1 | 2)[];
-    // Cycle: white(1) → green(2) → red(0) → white(1)
-    newColors[idx] = ((newColors[idx] + 1) % 3) as 0 | 1 | 2;
-    setLocalZoneColors(newColors);
-  };
 
   /* One selector node, mounted in whichever branch renders below.
      It must appear in BOTH: mounting is what picks the default report
@@ -2916,7 +2098,6 @@ export function CatchingSubTab({
                 paddingRight: 4,
               }}>
                 {bundleVideos(attachedVideos).map((b) => {
-                  const { prefix } = splitVideoTitle(b.videos[0].title || '');
                   return (
                     <VideoBundleCard
                       key={b.key}
@@ -3001,7 +2182,6 @@ export function CatchingSubTab({
                   {/* Clips still uploading, in the slot their finished card will take. */}
                   <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
-                    const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
                       <VideoBundleCard
                         key={b.key}
@@ -3041,11 +2221,10 @@ export function CatchingSubTab({
    ═══════════════════════════════════════════ */
 
 export function InfieldSubTab({
-  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
+  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, reports, videos: playerVideos,
   focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
-  const { user } = useAuth();
   const pdfExport = usePdfExport({ player, reports, isCoach });
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
@@ -3106,7 +2285,6 @@ export function InfieldSubTab({
 
   const defMetrics = getTabMetrics(topMetrics, TAB_METRICS.defense);
   const hasData = Object.keys(defMetrics).length > 0;
-  const gradeKeys = TAB_METRICS.defense.filter(k => topMetrics[k] && GRADE_RANGES[k]);
 
   const infieldAssessment = useMemo<InfieldAssessment | null>(() => {
     if (!selectedReport?.content) return null;
@@ -3116,31 +2294,6 @@ export function InfieldSubTab({
     } catch { /* skip */ }
     return null;
   }, [selectedReport]);
-
-  /* Diagnosis Notes — same NoteBlock + save pattern as the Catching and
-   * Hitting snapshots. Local edit buffer resets when the user switches
-   * reports so in-progress edits don't leak across them. */
-  const persistedNotes = selectedReport?.notes || '';
-  const [diagnosisNotes, setDiagnosisNotes] = useState(persistedNotes);
-  useEffect(() => { setDiagnosisNotes(persistedNotes); }, [persistedNotes]);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSavedAt, setNotesSavedAt] = useState<number | null>(null);
-  const notesDirty = diagnosisNotes !== persistedNotes;
-
-  const saveDiagnosisNotes = async () => {
-    if (!selectedReport || !user) return;
-    setSavingNotes(true);
-    try {
-      await api.updateReport(selectedReport.id, { notes: diagnosisNotes || undefined });
-      setNotesSavedAt(Date.now());
-      onRefresh?.();
-    } catch (err) {
-      console.error('Failed to save infield notes:', err);
-    } finally {
-      setSavingNotes(false);
-      setTimeout(() => setNotesSavedAt(null), 2200);
-    }
-  };
 
   /* One selector node, mounted in whichever branch renders below.
      It must appear in BOTH: mounting is what picks the default report
@@ -3380,7 +2533,6 @@ export function InfieldSubTab({
                 paddingRight: 4,
               }}>
                 {bundleVideos(attachedVideos).map((b) => {
-                  const { prefix } = splitVideoTitle(b.videos[0].title || '');
                   return (
                     <VideoBundleCard
                       key={b.key}
@@ -3462,7 +2614,6 @@ export function InfieldSubTab({
                   {/* Clips still uploading, in the slot their finished card will take. */}
                   <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
-                    const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
                       <VideoBundleCard
                         key={b.key}
@@ -3502,11 +2653,10 @@ export function InfieldSubTab({
    ═══════════════════════════════════════════ */
 
 export function OutfieldSubTab({
-  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, onEditProfile, reports, videos: playerVideos, onOpenVideos,
+  player, topMetrics, isCoach, onRefresh, onNewReport, onEditReport, reports, videos: playerVideos,
   focusReportId,
 }: TabProps) {
   const uploadQueue = useUploadQueue();
-  const { user } = useAuth();
   const pdfExport = usePdfExport({ player, reports, isCoach });
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
   /** Coaches who can write (not VIEWER level) get the in-tab edit controls. */
@@ -3576,29 +2726,6 @@ export function OutfieldSubTab({
     } catch { /* skip */ }
     return null;
   }, [selectedReport]);
-
-  /* Diagnosis Notes — same pattern as Infield/Catching/Hitting. */
-  const persistedNotes = selectedReport?.notes || '';
-  const [diagnosisNotes, setDiagnosisNotes] = useState(persistedNotes);
-  useEffect(() => { setDiagnosisNotes(persistedNotes); }, [persistedNotes]);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSavedAt, setNotesSavedAt] = useState<number | null>(null);
-  const notesDirty = diagnosisNotes !== persistedNotes;
-
-  const saveDiagnosisNotes = async () => {
-    if (!selectedReport || !user) return;
-    setSavingNotes(true);
-    try {
-      await api.updateReport(selectedReport.id, { notes: diagnosisNotes || undefined });
-      setNotesSavedAt(Date.now());
-      onRefresh?.();
-    } catch (err) {
-      console.error('Failed to save outfield notes:', err);
-    } finally {
-      setSavingNotes(false);
-      setTimeout(() => setNotesSavedAt(null), 2200);
-    }
-  };
 
   /* One selector node, mounted in whichever branch renders below.
      It must appear in BOTH: mounting is what picks the default report
@@ -3841,7 +2968,6 @@ export function OutfieldSubTab({
                 paddingRight: 4,
               }}>
                 {bundleVideos(attachedVideos).map((b) => {
-                  const { prefix } = splitVideoTitle(b.videos[0].title || '');
                   return (
                     <VideoBundleCard
                       key={b.key}
@@ -3923,7 +3049,6 @@ export function OutfieldSubTab({
                   {/* Clips still uploading, in the slot their finished card will take. */}
                   <PendingVideoCards reportId={reportIdForVideos} />
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
-                    const { prefix } = splitVideoTitle(b.videos[0].title || '');
                     return (
                       <VideoBundleCard
                         key={b.key}
@@ -4089,7 +3214,7 @@ export function DefenseTab(props: TabProps) {
    UTILITY SUB-TAB (multi-position athletes)
    ═══════════════════════════════════════════ */
 
-function UtilitySubTab(props: TabProps) {
+function UtilitySubTab(_props: TabProps) {
   return (
     <>
       <SectionHeader

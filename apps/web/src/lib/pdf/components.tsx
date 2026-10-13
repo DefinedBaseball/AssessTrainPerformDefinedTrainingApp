@@ -2,7 +2,7 @@
  * Reusable PDF Components for @react-pdf/renderer
  */
 import React from 'react';
-import { View, Text, Image, Svg, Rect, Circle } from '@react-pdf/renderer';
+import { View, Text } from '@react-pdf/renderer';
 import { s, colors, badgeColors, barColor } from './theme';
 import { formatPositionsForDisplay } from '@/app/athletes/[id]/helpers';
 
@@ -347,91 +347,6 @@ function renderHtmlNoteAsLines(html: string): React.ReactNode[][] {
   return lines.map(line => (line.length === 0 ? [' '] : line));
 }
 
-/** Tokenize a small HTML subset and return an array of <Text> elements
- *  with the right inline style stack applied. Handles nested tags by
- *  walking a tag stack — e.g. "<b>foo <i>bar</i></b>" produces two spans:
- *  bold "foo " and bold-italic "bar".
- *
- *  Block-level tags (<div>, <p>) emit a newline on BOTH open and close so
- *  the rendered text matches what a browser would show when the same HTML
- *  is mounted via dangerouslySetInnerHTML — block elements start on a
- *  new line even when preceded by inline text. Consecutive newlines are
- *  deduped so we don't end up with double-spaced paragraphs. */
-function renderHtmlNote(html: string): React.ReactNode[] {
-  if (!html) return [];
-  // Fast path: if the string has no tags, just return the text as-is.
-  if (!/<[^>]+>/.test(html)) {
-    return [<Text key="0">{decodeEntities(html)}</Text>];
-  }
-  type Style = { bold?: boolean; italic?: boolean; underline?: boolean };
-  const stack: Style[] = [{}];
-  const out: React.ReactNode[] = [];
-  let key = 0;
-  let i = 0;
-  let buf = '';
-  let lastWasNewline = true; // suppress a leading break before the first block
-  const flush = () => {
-    if (!buf) return;
-    const s = stack[stack.length - 1];
-    const style: any = {};
-    if (s.bold && s.italic) style.fontFamily = 'Helvetica-BoldOblique';
-    else if (s.bold)        style.fontFamily = 'Helvetica-Bold';
-    else if (s.italic)      style.fontFamily = 'Helvetica-Oblique';
-    if (s.underline)        style.textDecoration = 'underline';
-    out.push(<Text key={key++} style={style}>{decodeEntities(buf)}</Text>);
-    buf = '';
-    lastWasNewline = false;
-  };
-  const newline = () => {
-    // Drop runs of consecutive newlines so back-to-back blocks (e.g.
-    // </div><div>) don't render as a blank paragraph between them.
-    if (lastWasNewline) return;
-    out.push(<Text key={key++}>{'\n'}</Text>);
-    lastWasNewline = true;
-  };
-  while (i < html.length) {
-    if (html[i] === '<') {
-      const close = html.indexOf('>', i);
-      if (close === -1) break;
-      const raw = html.slice(i + 1, close).trim().toLowerCase();
-      flush();
-      if (raw === 'br' || raw === 'br/' || raw === 'br /') {
-        // Hard line break — always emit, even if last was newline (keeps
-        // user-typed blank lines as visual paragraph breaks).
-        out.push(<Text key={key++}>{'\n'}</Text>);
-        lastWasNewline = true;
-      } else {
-        const isClose = raw.startsWith('/');
-        const name = (isClose ? raw.slice(1) : raw).split(/\s/)[0];
-        const next = { ...stack[stack.length - 1] };
-        if (name === 'b' || name === 'strong')      next.bold = !isClose;
-        else if (name === 'i' || name === 'em')     next.italic = !isClose;
-        else if (name === 'u')                      next.underline = !isClose;
-        else if (name === 'p' || name === 'div') {
-          // Block-level — newline on BOTH ends. Emitting on open ensures
-          // a break BEFORE the block (matches browser block-flow), and
-          // emitting on close ensures the next inline content starts on
-          // its own line. Consecutive newlines are deduped above.
-          newline();
-        }
-        // For all recognized inline tags, push a new style frame on open
-        // and pop on close. Unknown tags are simply ignored.
-        if (['b','strong','i','em','u'].includes(name)) {
-          if (isClose) {
-            if (stack.length > 1) stack.pop();
-          } else {
-            stack.push(next);
-          }
-        }
-      }
-      i = close + 1;
-    } else {
-      buf += html[i++];
-    }
-  }
-  flush();
-  return out;
-}
 
 /** Minimal HTML entity decoder for the entities react-pdf otherwise
  *  prints literally. Covers the everyday ones produced by contenteditable. */
@@ -449,7 +364,6 @@ function decodeEntities(s: string): string {
 export function PdfPlayerInfoBar({
   player,
   formatHeight,
-  getAge,
 }: {
   player: {
     firstName: string;

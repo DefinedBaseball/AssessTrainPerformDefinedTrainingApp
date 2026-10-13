@@ -78,74 +78,8 @@ const PITCH_SHORT: Record<string, string> = {
   Curveball: 'CB', ChangeUp: 'CH', Splitter: 'FS', Sweeper: 'SW',
   Knuckleball: 'KN', Unknown: '??',
 };
-const PITCH_DISPLAY: Record<string, string> = {
-  Fastball: '4-Seam Fastball', Sinker: 'Sinker', Cutter: 'Cutter',
-  Slider: 'Slider', Curveball: 'Curveball', ChangeUp: 'Changeup',
-  Splitter: 'Splitter', Sweeper: 'Sweeper', Knuckleball: 'Knuckleball',
-};
 function pitchColor(type: string): string {
   return PITCH_COLORS[type] || PITCH_COLORS.Unknown;
-}
-
-/* ─── Pitch Type Bubble (mirrors ArsenalCard) ─── */
-function PdfArsenalCard({ row }: { row: ArsenalRow }) {
-  const color = pitchColor(row.pitchType);
-  const hasData = row.maxVelo > 0;
-  return (
-    <View style={{
-      flex: 1,
-      backgroundColor: colors.cardBg,
-      border: `1px solid ${colors.cardBorder}`,
-      borderRadius: 8,
-      padding: 8,
-      minWidth: 90,
-    }}>
-      {/* Pitch label — centered title above a hairline divider, same
-          treatment the in-app ArsenalCard uses. */}
-      <View style={{
-        borderBottom: `0.7px solid ${colors.cardBorder}`,
-        paddingBottom: 4, marginBottom: 6,
-      }}>
-        <Text style={{
-          fontSize: 9, fontFamily: 'Helvetica-Bold',
-          color: colors.black, letterSpacing: 0.6,
-          textAlign: 'center',
-        }}>
-          {(PITCH_DISPLAY[row.pitchType] || row.pitchType).toUpperCase()}
-        </Text>
-      </View>
-      {hasData ? (
-        <View style={{ flexDirection: 'row', gap: 4 }}>
-          {([
-            ['Max',  row.maxVelo.toFixed(1)],
-            ['Avg',  row.avgVelo.toFixed(1)],
-            ['Low',  row.minVelo.toFixed(1)],
-          ] as [string, string][]).map(([lbl, v]) => (
-            <View key={lbl} style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{
-                fontSize: 6, color: colors.black,
-                fontFamily: 'Helvetica-Bold',
-                textTransform: 'uppercase', letterSpacing: 0.4,
-                marginBottom: 1,
-              }}>
-                {lbl} Velo
-              </Text>
-              <Text style={{
-                fontSize: 13, fontFamily: 'Helvetica-Bold', color,
-              }}>
-                {v}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={{ alignItems: 'center', paddingVertical: 6 }}>
-          <Text style={{ fontSize: 13, fontFamily: 'Helvetica-Bold', color: colors.textMuted }}>—</Text>
-          <Text style={{ fontSize: 6, color: colors.textMuted, marginTop: 2 }}>No data</Text>
-        </View>
-      )}
-    </View>
-  );
 }
 
 /* ─── Plot title strip (matches each in-app plot's hudPlotPaneHead) ─── */

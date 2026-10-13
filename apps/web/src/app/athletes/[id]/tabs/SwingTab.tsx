@@ -13,23 +13,17 @@ const NOTE_SIZES = [
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  KpiCard, SectionHeader, Section,
-  NotesBox,
+  SectionHeader, Section,
 } from '@/components/assessment';
 import aStyles from '@/components/assessment/assessment.module.css';
 import {
-  TabProps, METRIC_LABELS, TAB_METRICS,
-  getBadgeLevel, getBadgeText, getTabMetrics,
-  toScoutingGrade, GRADE_RANGES, computeHittingComposites,
-  getLatestReport, averageGrades,
+  TabProps, METRIC_LABELS,
+  computeHittingComposites,
+  averageGrades,
   metricToGrade, scoreColor,
-  getReportUploadIds,
 } from '../helpers';
-import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import { SprayChartView } from '../components/SprayChartView';
 
-const HITTING_REPORT_TYPES = ['HITTING'];
 
 /** Tracks whether the viewport is at phone width (≤ breakpoint px).
  *  Used by the GradeRow chip strips to relax their hardcoded
@@ -121,116 +115,12 @@ const hittingVendorBubbleStyle: React.CSSProperties = {
   gap: 3,
 };
 
-/* Dark-navy `.panel` chrome — same color as the Swing inner bubble.
-   Applied inline to KpiCards and ManualScoreCards inside the
-   Hitting-inputs sections so every metric tile reads in the same
-   color as the Swing/QoC/Coach Diagnosis inner bubbles. */
-const SWING_BUBBLE_CHROME: React.CSSProperties = {
-  background:
-    'radial-gradient(ellipse at 50% 35%,' +
-    ' rgba(255, 255, 255, 0.04) 0%,' +
-    ' transparent 60%),' +
-    'rgba(10, 14, 20, 0.38)',
-  border: '1px solid var(--border-light)',
-  borderRadius: 10,
-  boxShadow:
-    'inset 0 1px 0 rgba(255, 255, 255, 0.05),' +
-    'inset 0 0 24px rgba(0, 0, 0, 0.35),' +
-    '0 1px 2px rgba(0, 0, 0, 0.25)',
-};
-
-/* ── Player-Name (Command Deck) chip style ──
-   Same chrome the page-hero `.commandDeck` carries — centered white
-   radial highlight at 50% 35%, 12%-white border, 12px radius, and the
-   layered inset shadow stack — MINUS the `::before` blue corner glow.
-   Used for the chips under the Swing / Quality of Contact / Coach
-   Diagnosis grade rows so they read with the same dark-navy depth
-   as the Outfielder Snapshot callouts.
-   The dark-navy base layer is rendered OPAQUE here (rgb(10,14,20)
-   instead of rgba(10,14,20,0.38)) so the chip doesn't let the
-   parent Hitting Grades bubble's lighter graphite color bleed
-   through; the bubble underneath keeps its own surface unchanged. */
-const COMMAND_DECK_CHIP_BG =
-  'radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.04) 0%, transparent 60%),' +
-  'rgb(10, 14, 20)';
-
-const commandDeckChipStyle: React.CSSProperties = {
-  background: COMMAND_DECK_CHIP_BG,
-  border: '1px solid var(--border-light)',
-  borderRadius: 12,
-  boxShadow:
-    'inset 0 1px 0 rgba(255, 255, 255, 0.05),' +
-    'inset 0 0 24px rgba(0, 0, 0, 0.35),' +
-    '0 1px 2px rgba(0, 0, 0, 0.25)',
-  position: 'relative',
-};
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Vendor logos — inline SVGs so we don't have to ship binary assets.
    Sized to fit the SectionHeader's 36×36 .sectionIcon slot; both render on a
    white tile to match each brand's standard treatment.
    ───────────────────────────────────────────────────────────────────────── */
-/* Coach Grades icon — clipboard with three checked rows and an "A+"
-   stamp on the bottom-right. Renders on a dark rounded tile so it
-   reads consistently with the other vendor logos in the section
-   header (Full Swing / Blast Motion). */
-function CoachGradesIcon() {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      width="100%"
-      height="100%"
-      role="img"
-      aria-label="Coach Grades"
-      style={{ display: 'block' }}
-    >
-      {/* Dark rounded tile background */}
-      <rect x="0" y="0" width="100" height="100" rx="22" fill="#1a1f25" />
-      {/* Paper / clipboard body. Hard-coded white for the same reason the
-          Blast tile is: var(--text-bright) is white in dark mode but
-          #0a0d12 in light, so the paper turned near-black against the
-          near-black tile and the whole icon read as a dark blob. Its tile
-          and every mark on it are fixed dark, so the paper must be fixed
-          white in both themes. */}
-      <rect x="22" y="22" width="46" height="64" rx="3" fill="#ffffff" />
-      {/* Three checkbox rows: small square + check + line */}
-      <g stroke="#1a1f25" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        {/* Row 1 */}
-        <path d="M28 36 v6 h6" />
-        <path d="M30.5 39 l3 3 l5.5 -5.5" />
-        <line x1="42" y1="40" x2="63" y2="40" />
-        {/* Row 2 */}
-        <path d="M28 53 v6 h6" />
-        <path d="M30.5 56 l3 3 l5.5 -5.5" />
-        <line x1="42" y1="57" x2="63" y2="57" />
-        {/* Row 3 */}
-        <path d="M28 70 v6 h6" />
-        <path d="M30.5 73 l3 3 l5.5 -5.5" />
-        <line x1="42" y1="74" x2="63" y2="74" />
-      </g>
-      {/* A+ grade circle (bottom-right) */}
-      <circle cx="74" cy="62" r="18" fill="#ffffff" stroke="#1a1f25" strokeWidth="3" />
-      <text
-        x="71" y="69"
-        textAnchor="middle"
-        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        fontSize="22"
-        fontWeight="800"
-        fill="#1a1f25"
-        letterSpacing="-1"
-      >A</text>
-      <text
-        x="84" y="55"
-        textAnchor="middle"
-        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        fontSize="14"
-        fontWeight="800"
-        fill="#1a1f25"
-      >+</text>
-    </svg>
-  );
-}
-
 function HitTraxLogo() {
   /* Charcoal rounded tile, "HT" wordmark in white with a red diagonal
      swoosh through it, framed by chevrons (◀ ▶) on the sides and red
@@ -369,19 +259,6 @@ function BlastLogo() {
   );
 }
 
-/** Single horizontal row of KpiCards — cards grow to fill the bubble width.
- *  Used by both the Full Swing and Blast Motion bubbles, which span the same
- *  width as the Hitting Snapshot row above them. */
-const metricRowStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'nowrap',
-  gap: 10,
-  width: '100%',
-};
-const metricRowItemStyle: React.CSSProperties = {
-  flex: '1 1 0',
-  minWidth: 0,
-};
 
 /* ── Break-&-Spin-style metric table ──
    Mirrors the Pitch Report's BreakTable in PitchingTab.tsx exactly:
@@ -818,8 +695,9 @@ function HittingMetricTable({ items, singleRow = false, compact = false, hideLab
    Per latest spec: Connection → Power (column O Power kW); Rotation →
    Peak Hand Speed (column Peak Hand Speed mph). Max Bat sits next to
    Avg Bat Spd so the snapshot shows both top-line speed numbers
-   alongside the mechanics chips. */
-const SWING_METRIC_KEYS = [
+   alongside the mechanics chips. HittingTab imports this same list for
+   its chip grades -- one list, so the two can't drift apart. */
+export const SWING_METRIC_KEYS = [
   'max_bat_speed',
   'avg_bat_speed',
   'attack_angle',
@@ -877,13 +755,12 @@ export interface SharedHittingState {
 }
 
 export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
-  const { player, topMetrics, progressData, reports, isCoach, refreshKey, shared } = props;
+  const { player, isCoach, refreshKey, shared } = props;
   const {
     topMetricsWithMiss, metricGrades, reportUploadIds,
     hasActiveFullSwingData, hasActiveBlastData, hasActiveHitTraxData,
     activeManualBatted, manualFullSwingOn,
   } = shared;
-  const latestHitting = useMemo(() => getLatestReport(reports, HITTING_REPORT_TYPES), [reports]);
   /* Drives the abbreviated vendor-table labels below. */
   const isMobile = useIsMobile();
 
@@ -1070,10 +947,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
   const hasHitTrax   = hasActiveHitTraxData;
   const anySection   = hasFullSwing || hasBlast || hasHitTrax;
 
-  /* Track which sections have rendered so the dividers know whether
-     there's anything above them to separate from. */
-  let renderedSections = 0;
-
   return (
     <>
       {/* Spray Chart + grade bubble live in HittingTab now, side-by-side at the
@@ -1098,8 +971,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         </Section>
       )}
 
-
-
         {/* ── Vendor metric bubbles (Full Swing / Blast Motion / HitTrax) ──
             Portalled ABOVE the spray chart per coach-spec — they now lead
             the Hitting Report the way Pitch Metrics leads the Pitch Report.
@@ -1115,7 +986,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         <HittingVendorMetrics>
         {/* ── FULL SWING — only when QoC metrics have data */}
         {hasFullSwing && (() => {
-          renderedSections++;
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
@@ -1193,7 +1063,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
 
         {/* ── BLAST MOTION — only when at least one swing metric grade is set */}
         {hasBlast && (() => {
-          renderedSections++;
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
@@ -1257,7 +1126,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
 
         {/* ── HITTRAX — only when at least one HitTrax metric has data */}
         {hasHitTrax && (() => {
-          renderedSections++;
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
@@ -1423,12 +1291,6 @@ const VENDOR_TABLE_LABELS: Record<string, string> = {
   launch_angle: 'Avg Launch Angle',
 };
 
-const DECISION_KEYS = [
-  'fb_barrel_pct', 'os_barrel_pct', 'overall_barrel_pct',
-  'fb_whiff_pct', 'os_whiff_pct', 'overall_whiff_pct',
-  'fb_chase_pct', 'os_chase_pct', 'overall_chase_pct',
-  'overall_bb_pct', 'overall_k_pct', 'overall_in_zone_swing_pct',
-] as const;
 
 /** Format a raw metric reading for the small chips (Swing + Quality of Contact rows).
  *  Coach Diagnosis chips bypass this and keep showing the 20-80 grade. */
@@ -1560,8 +1422,7 @@ const SHORT_LABELS: Record<string, string> = {
 };
 
 export function HittingGradeStack({
-  topMetrics, metricGrades, isCoach,
-  diagnosisNotes, setDiagnosisNotes,
+  topMetrics, metricGrades,
   subTabBar,
   subTab = 'swing',
   qocOverride,
@@ -2007,57 +1868,6 @@ function RichEditableNote({
   );
 }
 
-/* Textarea that auto-grows with content — height tracks scrollHeight on
-   every keystroke so nothing the coach types ever gets clipped or hidden
-   behind a scrollbar. Manual vertical drag is also enabled so the coach
-   can stretch it further if they want. */
-function AutoGrowTextarea({
-  value, onChange, placeholder, rows, fill,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  rows: number;
-  fill: boolean;
-}) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  // Recompute height whenever the text changes (initial mount included).
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    // Reset to auto first so shrinking also works (otherwise scrollHeight
-    // only ever grows). Then set to the actual content height.
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [value]);
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={fill ? undefined : rows}
-      style={{
-        background: 'rgba(20,24,32,0.85)',
-        border: '1px solid var(--border)',
-        color: 'var(--text)',
-        padding: '10px 12px',
-        borderRadius: 7,
-        fontSize: rem(14),
-        lineHeight: 1.55,
-        // No internal scrollbar — height auto-fits the content.
-        resize: 'vertical',
-        overflow: 'hidden',
-        fontFamily: 'inherit',
-        minHeight: fill ? 0 : 52,
-        flex: fill ? '1 1 auto' : '0 0 auto',
-        width: '100%',
-        boxSizing: 'border-box',
-      }}
-    />
-  );
-}
-
 function GradeRow({
   label, grade, chips, metricsOnly = false, singleLineLabels = false, hideProgressBar = false, noOuterChrome = false,
 }: {
@@ -2382,260 +2192,6 @@ function GradeRow({
       />
       </div>{/* /flush-edges wrapper around the chip strip */}
       </div>{/* /toolGraphBubble-style inner blue bubble */}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Composite hero — big number + breakdown bars
-   ─────────────────────────────────────────────────────────────────────────── */
-function CompositeHero({
-  label, grade, parts,
-}: {
-  label: string;
-  grade: number | null;
-  parts: { label: string; grade: number | null }[];
-}) {
-  const pct = grade !== null ? ((grade - 20) / 60) * 100 : 0;
-  const tone = grade !== null ? scoreColor(grade) : '#94a3b8';
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'minmax(180px, 240px) 1fr',
-      gap: 24,
-      padding: '22px 26px',
-      background: 'linear-gradient(135deg, rgba(126,182,255,0.06), rgba(61,139,253,0.02))',
-      border: '1px solid rgba(126,182,255,0.25)',
-      borderRadius: 14,
-      alignItems: 'center',
-    }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{
-          fontSize: rem(10), fontWeight: 700, letterSpacing: '0.30em',
-          textTransform: 'uppercase', color: 'var(--text-bright)',
-        }}>
-          {label}
-        </span>
-        <div style={{
-          fontSize: rem(64), fontWeight: 800, lineHeight: 1,
-          color: tone,
-          fontVariantNumeric: 'tabular-nums',
-          letterSpacing: '-0.04em',
-        }}>
-          {grade ?? '—'}
-        </div>
-        <span style={{ fontSize: rem(10.5), color: 'var(--text-muted)', letterSpacing: '0.16em' }}>
-          /80 · 20-80 SCALE
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Composite gauge bar */}
-        <div style={{
-          position: 'relative', height: 14, borderRadius: 9,
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute', inset: 0,
-            width: `${pct}%`,
-            background: `linear-gradient(90deg, ${tone}55, ${tone})`,
-            transition: 'width 0.35s ease',
-          }} />
-        </div>
-        {/* Sub-parts */}
-        {parts.map(p => (
-          <div key={p.label} style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            fontSize: rem(11.5), color: 'var(--text-muted)',
-          }}>
-            <span style={{ minWidth: 180 }}>{p.label}</span>
-            <div style={{
-              flex: 1, height: 5, borderRadius: 3,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid var(--border)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                width: `${p.grade !== null ? ((p.grade - 20) / 60) * 100 : 0}%`,
-                height: '100%',
-                background: p.grade !== null ? scoreColor(p.grade) : 'transparent',
-              }} />
-            </div>
-            <span style={{
-              fontVariantNumeric: 'tabular-nums', fontWeight: 700,
-              color: p.grade !== null ? 'var(--text)' : 'var(--text-muted)',
-              minWidth: 28, textAlign: 'right',
-            }}>
-              {p.grade ?? '—'}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Manual score card — number input bound to a 20-80 grade
-   ─────────────────────────────────────────────────────────────────────────── */
-function ManualScoreCard({
-  label, hint, value, isCoach, onChange,
-  optionList, selectedOptions, onToggleOption,
-}: {
-  label: string;
-  hint: string;
-  value: number | null;
-  isCoach: boolean;
-  onChange: (v: number | null) => void;
-  /** Multi-select options for this category (e.g. ['Stuck','Stable','Drift']).
-   *  Coaches can toggle when editing; non-coaches see active chips read-only. */
-  optionList: string[];
-  selectedOptions: string[];
-  onToggleOption: (opt: string) => void;
-}) {
-  const tone = value !== null ? scoreColor(value) : '#475569';
-  const pct = value !== null ? ((value - 20) / 60) * 100 : 0;
-  const [editing, setEditing] = useState(false);
-
-  return (
-    <div
-      // Coach Grade card (Forward Move / Posture / Stability / Direction /
-      // Stretch / Core / Slot / Timing) — full Movement-Plot bubble
-      // chrome (triple-gradient background + white-rim border + soft
-      // outer shadow) so the eight Coach Grade cards read in the same
-      // Bubble chrome retired — Coach Grade cards now sit
-      // transparently on the inner blue bubble that wraps them
-      // (mirroring the Swing GradeRow chip pattern). Padding kept
-      // so each card still has breathing room within the grid.
-      style={{
-        position: 'relative',
-        padding: '14px 16px',
-        display: 'flex', flexDirection: 'column', gap: 10,
-      }}
-    >
-      {/* Tiny edit toggle in top-right corner (coach only) */}
-      {isCoach && (
-        <button
-          type="button"
-          onClick={() => setEditing(e => !e)}
-          title={editing ? 'Done editing' : 'Edit grade'}
-          style={{
-            position: 'absolute', top: 8, right: 8,
-            width: 22, height: 22, borderRadius: 5,
-            background: editing ? 'rgba(126,182,255,0.18)' : 'rgba(255,255,255,0.04)',
-            border: editing
-              ? '1px solid rgba(126,182,255,0.55)'
-              : '1px solid var(--border)',
-            color: editing ? 'var(--accent-light)' : 'var(--text-muted)',
-            fontSize: rem(11), lineHeight: 1, padding: 0,
-            cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
-          }}
-        >
-          {editing ? '✓' : (
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                 strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11.5 2.5l2 2-8 8H3.5v-2z" />
-              <path d="M10 4l2 2" />
-            </svg>
-          )}
-        </button>
-      )}
-
-      {/* Label + value stacked vertically and centered as a single
-          cluster — matches the KpiCard layout pattern so every
-          metric tile in the Hitting Inputs sections reads the same
-          way (label centered above its number). */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-        paddingRight: isCoach ? 28 : 0, // leave room for edit button
-      }}>
-        <span style={{
-          /* Font D — small all-caps Satoshi eyebrow, matching the
-             KpiCard `.kpiLabel` spec exactly. */
-          fontFamily: 'inherit',
-          fontSize: rem(9), fontWeight: 600, letterSpacing: '0.05em',
-          textTransform: 'uppercase', color: 'var(--text-bright)',
-          lineHeight: 1.2,
-          textAlign: 'center',
-        }}>
-          {label}
-        </span>
-        <span style={{
-          fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: rem(26),
-          color: tone, lineHeight: 1, letterSpacing: '-0.02em',
-        }}>
-          {value ?? '—'}
-        </span>
-      </div>
-
-      <div style={{
-        height: 6, borderRadius: 4,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid var(--border)',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${pct}%`, height: '100%',
-          background: tone, transition: 'width 0.25s ease',
-        }} />
-      </div>
-
-      {/* Secondary descriptor chips retired — coach grades now show
-          just the label, grade number, and bar without the descriptor
-          tag row. Descriptor tags still persist in content.manualOptions
-          for older reports but are no longer rendered on the dashboard. */}
-
-      {isCoach && editing ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="range"
-            min={20} max={80} step={5}
-            value={value ?? 50}
-            onChange={(e) => onChange(Number(e.target.value))}
-            style={{ flex: 1 }}
-          />
-          <input
-            type="number"
-            min={20} max={80} step={5}
-            value={value ?? ''}
-            placeholder="—"
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === '') return onChange(null);
-              const n = Number(v);
-              if (!Number.isFinite(n)) return;
-              onChange(Math.max(20, Math.min(80, Math.round(n / 5) * 5)));
-            }}
-            style={{
-              width: 64,
-              background: 'rgba(20,24,32,0.85)',
-              border: '1px solid var(--border)',
-              color: 'var(--text)',
-              padding: '5px 8px',
-              borderRadius: 7,
-              fontSize: rem(12), fontWeight: 700,
-              fontVariantNumeric: 'tabular-nums',
-              textAlign: 'center',
-            }}
-          />
-          {value !== null && (
-            <button
-              type="button"
-              onClick={() => onChange(null)}
-              title="Clear"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: rem(13),
-              }}
-            >×</button>
-          )}
-        </div>
-      ) : null}
     </div>
   );
 }

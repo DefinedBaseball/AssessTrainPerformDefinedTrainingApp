@@ -26,7 +26,7 @@
  */
 
 import { rem } from '@/lib/rem';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Section, SectionHeader, VideoBundleCard } from '@/components/assessment';
 import { bundleVideos } from '@/lib/video-titles';
 import type { TabProps } from '../helpers';

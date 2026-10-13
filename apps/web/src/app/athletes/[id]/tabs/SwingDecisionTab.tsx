@@ -54,7 +54,7 @@ const APPROACH_KEYS = [
 ];
 
 export function SwingDecisionTab({
-  player, topMetrics, reports, isCoach,
+  topMetrics, reports, isCoach,
 }: TabProps) {
   const latestHitting = useMemo(() => getLatestReport(reports, HITTING_REPORT_TYPES), [reports]);
 

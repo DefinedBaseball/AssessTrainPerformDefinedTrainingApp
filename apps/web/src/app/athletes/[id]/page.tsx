@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { PROFILE_EDIT_EVENT } from '@/lib/profile-edit';
-import type { Player, Metric, Video } from '@/lib/api';
 
 /* Direct imports, not the '@/components/assessment' barrel -- the barrel also
    re-exports the video player/bundle modals, which then ride along in this
@@ -16,9 +15,6 @@ import type { Player, Metric, Video } from '@/lib/api';
 import { TabBar, TabPanel } from '@/components/assessment/TabBar';
 import type { Tab } from '@/components/assessment/TabBar';
 import { VideosIconButton } from '@/components/assessment/VideosIconButton';
-import { ResetPasswordButton } from '@/components/ResetPasswordButton';
-import { ChangeEmailButton } from '@/components/ChangeEmailButton';
-import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
 
 /* Tabs + modals are code-split with next/dynamic so the profile's initial
@@ -48,7 +44,7 @@ const VideosTab = nextDynamic(() => import('./tabs/VideosTab').then(m => m.Video
 const ReportModal = nextDynamic(() => import('./ReportModal').then(m => m.ReportModal), { ssr: false });
 const PdfBuilderModal = nextDynamic(() => import('./PdfBuilderModal').then(m => m.PdfBuilderModal), { ssr: false });
 import type { PdfLayout } from './PdfBuilderModal';
-import { formatHeight, getAge, computeAggregateScores, scoreColor, getHiddenTabs, setHiddenTabsForPlayer, primeHiddenTabs, REPORT_TYPE_TO_TAB } from './helpers';
+import { formatHeight, getAge, getHiddenTabs, setHiddenTabsForPlayer, primeHiddenTabs, REPORT_TYPE_TO_TAB } from './helpers';
 import { CreateReportDialog, type CreateReportMode } from './CreateReportDialog';
 
 /* Report types filled in on their own tab (data files, notes, coach notes,
@@ -86,9 +82,6 @@ const IconDefense = (
 );
 const IconPitching = (
   <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M7.5 6.5c2 3 5 6 10 8.5M16.5 6.5c-2 3-5 6-10 8.5" /></svg>
-);
-const IconVision = (
-  <svg {...iconProps}><path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z" /><circle cx="12" cy="12" r="3" /></svg>
 );
 const IconStrength = (
   <svg {...iconProps}><path d="M3 9v6M6 6v12M10 4v16M14 4v16M18 6v12M21 9v6" /></svg>
@@ -296,27 +289,6 @@ export default function PlayerProfilePage() {
     }
   }, [authLoading, user, isCoach, id, router]);
 
-
-  /* Live At-Bats for this athlete — feeds the Swing Decision bar in
-     the Hitting Tool Grades card. Pulled separately from the metrics
-     fetch so the rest of the profile loads quickly even if at-bat
-     data is large. 500-row cap is generous (most athletes have far
-     fewer); coaches who exceed it can revisit the cap later. */
-  const [liveAtBats, setLiveAtBats] = useState<api.AtBatDetail[]>([]);
-  useEffect(() => {
-    if (!user || !id) return;
-    let cancelled = false;
-    api.listAtBats({ hitterId: id, limit: 500 })
-      .then((rows) => { if (!cancelled) setLiveAtBats(rows); })
-      .catch(() => { if (!cancelled) setLiveAtBats([]); });
-    return () => { cancelled = true; };
-  }, [user, id, refreshKey]);
-
-  /* ── Aggregate score (hero "Player Score" bubble) ── */
-  const aggregate = useMemo(() => {
-    if (!player) return null;
-    return computeAggregateScores(player, reports, topMetrics, liveAtBats);
-  }, [player, reports, topMetrics, liveAtBats]);
 
   /* Hidden-tab preference (per-player, persisted in localStorage). The
      Eye toggle in the Report modal header writes here; we listen for the
@@ -697,47 +669,6 @@ export default function PlayerProfilePage() {
 
       {/* ── COMMAND DECK HERO (ported from test-3) ── */}
       {(() => {
-        // 5-axis radar values (20-80 scouting scale) — derived from the
-        // aggregate sections when available; otherwise a neutral 50.
-        const bySection = (key: string) => {
-          const sec = aggregate?.sections?.find((s) => s.key === key);
-          if (!sec) return 50;
-          const scored = sec.bars.filter((b) => b.score != null).map((b) => b.score as number);
-          if (!scored.length) return 50;
-          return scored.reduce((a, b) => a + b, 0) / scored.length;
-        };
-        // DEF axis rolls up across the per-position defense sections
-        // (defense_infield / defense_catching / defense_outfield) since
-        // the single 'defense' section was split. Average every populated
-        // bar score across whichever ones exist; fall back to 50.
-        const defenseScores = (aggregate?.sections ?? [])
-          .filter((s) => s.key === 'defense_infield' || s.key === 'defense_catching' || s.key === 'defense_outfield')
-          .flatMap((s) => s.bars.filter((b) => b.score != null).map((b) => b.score as number));
-        const defAvg = defenseScores.length === 0
-          ? 50
-          : defenseScores.reduce((a, b) => a + b, 0) / defenseScores.length;
-        // 4-axis radar (HIT / DEF / PITCH / ATH) — Vision was retired.
-        const axes = [
-          { label: 'HIT',    v: bySection('hitting') },
-          { label: 'DEF',    v: defAvg },
-          { label: 'PITCH',  v: bySection('pitching') },
-          { label: 'ATH',    v: bySection('strength') },
-        ];
-        const rx = 70;
-        const cx = 85;
-        const cy = 85;
-        const pts = axes.map((a, i) => {
-          const theta = (-Math.PI / 2) + (2 * Math.PI * i) / axes.length;
-          const k = Math.max(0.1, Math.min(1, (a.v - 20) / 60));
-          return {
-            x: cx + Math.cos(theta) * rx * k,
-            y: cy + Math.sin(theta) * rx * k,
-            lx: cx + Math.cos(theta) * (rx + 14),
-            ly: cy + Math.sin(theta) * (rx + 14),
-            label: a.label,
-          };
-        });
-
         const committed = Boolean(player.collegeCommit);
 
         /* Resolve the commitment circle's image. Priority order:

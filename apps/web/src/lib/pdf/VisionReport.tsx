@@ -6,11 +6,10 @@ import { Page, View, Text } from '@react-pdf/renderer';
 import { s, colors } from './theme';
 import {
   PageFooter, PdfSectionHeader, PdfKpiCard, PdfScoreBar,
-  PdfNotesBox, PdfPlayerInfoBar, PdfDivider,
+  PdfNotesBox, PdfDivider,
 } from './components';
 import {
   METRIC_LABELS, TAB_METRICS, getBadgeLevel, getBadgeText,
-  formatHeight, getAge,
 } from '@/app/athletes/[id]/helpers';
 
 export interface VisionPdfData {

@@ -6,11 +6,10 @@ import { Page, View, Text } from '@react-pdf/renderer';
 import { s, colors } from './theme';
 import {
   PageFooter, PdfSectionHeader, PdfKpiCard, PdfScoreBar,
-  PdfNotesBox, PdfPlayerInfoBar, PdfDivider, PdfScalePips,
+  PdfNotesBox, PdfDivider, PdfScalePips,
 } from './components';
 import {
   METRIC_LABELS, getBadgeLevel, getBadgeText, toScoutingGrade, GRADE_RANGES,
-  formatHeight, getAge,
 } from '@/app/athletes/[id]/helpers';
 
 export interface StrengthPdfData {

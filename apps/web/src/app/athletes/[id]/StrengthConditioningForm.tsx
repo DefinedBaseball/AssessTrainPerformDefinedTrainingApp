@@ -1229,39 +1229,6 @@ function GreyMetricBubble({
   );
 }
 
-function SubBlock({
-  title, subtitle, children,
-}: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        gap: 10,
-        marginBottom: 8,
-      }}>
-        <span style={{
-          fontFamily: 'inherit',
-          fontSize: rem(13), fontWeight: 700,
-          color: 'var(--text-bright)', lineHeight: 1.05,
-          letterSpacing: '-0.01em',
-          textTransform: 'uppercase',
-        }}>{title}</span>
-        {subtitle && (
-          <span style={{
-            fontSize: rem(10),
-            /* Subtitle reads white per coach-spec — every label /
-               subtitle across the form is now consistently white. */
-            color: 'var(--text-bright)',
-            letterSpacing: '0.04em',
-          }}>{subtitle}</span>
-        )}
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
-      {children}
-    </div>
-  );
-}
 
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (

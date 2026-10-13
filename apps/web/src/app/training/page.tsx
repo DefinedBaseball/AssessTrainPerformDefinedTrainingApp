@@ -26,7 +26,7 @@ import styles from './page.module.css';
    Summary's Upcoming Drills panel renders the same color treatment as
    the Training day-column cards do here — single source of truth. */
 import {
-  TAB_LABELS, TAB_COLORS, TAB_CAT_COLORS, DEFAULT_CAT_COLOR,
+  TAB_LABELS, TAB_COLORS,
   LEGEND_CATEGORIES, getTabCatStyle,
 } from '@/lib/training-colors';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
@@ -518,7 +518,7 @@ export default function TrainingPage() {
     if (!isCoach) setView('day');
   }, [authLoading, user, isCoach]);
   const [events, setEvents] = useState<ScheduledDrill[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [, setLoadingEvents] = useState(false);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -693,13 +693,6 @@ export default function TrainingPage() {
   const openAddModal = (date?: string) => {
     setModalDate(date || toDateStr(currentDate));
     setModalEditExisting([]);
-    setShowModal(true);
-  };
-
-  // Open edit modal (pre-populated with existing drills for that day)
-  const openEditModal = (date: string) => {
-    setModalDate(date);
-    setModalEditExisting(allEventsByDate[date] || []);
     setShowModal(true);
   };
 
@@ -1673,7 +1666,6 @@ function DayView({
   allDayEvents,
   isCoach,
   onDelete,
-  onCopy,
   onCopyTab,
   onPaste,
   hasCopied,

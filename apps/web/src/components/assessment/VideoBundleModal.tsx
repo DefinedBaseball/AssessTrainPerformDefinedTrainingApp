@@ -135,8 +135,6 @@ export function VideoBundleModal({
   const modalBackdrop = isLight
     ? 'rgba(174, 174, 174, 0.96)'      // --bg page-grey at 96 % alpha
     : 'rgba(0, 0, 0, 0.88)';
-  /* Header text color (the "{n} angles" eyebrow + bundle label). */
-  const headerTextColor = isLight ? 'var(--text)' : 'var(--text-bright)';
   /* PendingClip review preview — backdrop + inner card. */
   const previewBackdrop = isLight
     ? 'rgba(174, 174, 174, 0.96)'

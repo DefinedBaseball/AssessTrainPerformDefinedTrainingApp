@@ -23,7 +23,7 @@ export interface SummaryPdfData {
 }
 
 export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
-  const { player, reportDate } = data;
+  const { player } = data;
 
   return (
     <Document

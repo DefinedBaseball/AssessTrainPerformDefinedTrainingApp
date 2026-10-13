@@ -150,8 +150,8 @@ export function CoachingStudio({
   }, [currentTime, syncCompare, showCompare]);
 
   useEffect(() => {
-    primaryVideoRef.current && (primaryVideoRef.current.playbackRate = playbackRate);
-    compareVideoRef.current && (compareVideoRef.current.playbackRate = playbackRate);
+    if (primaryVideoRef.current) primaryVideoRef.current.playbackRate = playbackRate;
+    if (compareVideoRef.current) compareVideoRef.current.playbackRate = playbackRate;
   }, [playbackRate, primarySrc?.id, compareSrc?.id]);
 
   // ── Canvas redraw ─────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ export function CoachingStudio({
   }
 
   function onPointerUp(pane: 'primary' | 'compare') {
-    return (e: React.PointerEvent<HTMLCanvasElement>) => {
+    return () => {
       const cur = drawingAnnotation.current;
       if (!cur || cur.pane !== pane) return;
       const t = (pane === 'primary' ? primaryVideoRef.current : compareVideoRef.current)?.currentTime ?? currentTime;

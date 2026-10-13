@@ -37,7 +37,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import type { Player, LiveSession, TrainingClipDetail } from '@/lib/api';
+import type { Player, LiveSession } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { getCameraLabel } from '@/lib/camera-labels';
 import pageStyles from '../page.module.css';
@@ -224,7 +224,7 @@ export default function LiveTrainingPage() {
   const [reportsByPlayer, setReportsByPlayer] = useState<Record<string, Array<{ id: string; title: string | null; createdAt: string }>>>({});
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
-  const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
+  const [, setRecordStartedAt] = useState<number | null>(null);
   /* Currently-selected implement / drill-type tag (e.g. "Tee", "BP",
      "Bullpen"). Editable any time during the recording step; the
      value is snapshotted at `startRecorder` so changes mid-clip

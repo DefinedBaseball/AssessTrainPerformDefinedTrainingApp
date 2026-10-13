@@ -16,7 +16,6 @@ import {
 import rs from '@/components/assessment/report-form.module.css';
 import { REPORT_TYPES, EyeVisibilityToggle } from './reportTypes';
 import { RichTextEditor } from '@/components/RichTextEditor';
-import { sanitizeHtml } from '@/lib/sanitize';
 import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
@@ -31,12 +30,12 @@ import {
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
   getPhysicalGrades,
-  type DefenseCoachGrades, type DefensePosition,
+  type DefenseCoachGrades,
   DEFENSE_COACH_GRADE_SECTIONS, getDefenseCoachGrades,
   type CoachGrades, type CoachGradeSectionConfig, getCoachGrades,
   HITTING_COACH_GRADE_SECTIONS, PITCHING_COACH_GRADE_SECTIONS,
   scoreColor,
-  getHiddenTabs, setHiddenTabsForPlayer, REPORT_TYPE_TO_TAB,
+  REPORT_TYPE_TO_TAB,
   normalizePositionsForSave,
 } from './helpers';
 import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
@@ -1055,115 +1054,7 @@ const inputStyle: React.CSSProperties = {
   background: 'var(--surface2, rgba(255,255,255,0.06))', border: '1px solid var(--border)',
   borderRadius: 6, color: 'var(--text)', textAlign: 'center', outline: 'none',
 };
-const gradeInputStyle: React.CSSProperties = {
-  ...inputStyle, width: 70, fontSize: rem(15), fontWeight: 700, textAlign: 'center',
-};
-const notesInputStyle: React.CSSProperties = {
-  ...inputStyle, textAlign: 'left', flex: 1, minWidth: 100,
-};
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   RichNotesEditor — contenteditable notes box with a Bold / Italic / Underline
-   toolbar for the HITTING report's main Notes field. Stores HTML in `value`;
-   the read side (Hitting Snapshot's NoteBlock + the PDF generators) renders
-   the HTML back out so the formatting persists. Existing plain-text notes
-   keep working — anything without HTML tags reads through as-is.
-   ───────────────────────────────────────────────────────────────────────── */
-function RichNotesEditor({
-  value, onChange, placeholder, minHeight = 220,
-}: {
-  value: string;
-  onChange: (html: string) => void;
-  placeholder: string;
-  minHeight?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [focused, setFocused] = useState(false);
-
-  // Sync value INTO the editor only when the prop changes externally (not
-  // on every keystroke — that would reset the caret to the beginning).
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const clean = sanitizeHtml(value);
-    if (document.activeElement !== el && el.innerHTML !== clean) el.innerHTML = clean;
-  }, [value]);
-
-  const exec = (cmd: 'bold' | 'italic' | 'underline') => {
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    document.execCommand(cmd);
-    onChange(el.innerHTML);
-  };
-
-  const ToolbarBtn = ({
-    cmd, label, style,
-  }: { cmd: 'bold' | 'italic' | 'underline'; label: string; style: React.CSSProperties }) => (
-    <button
-      type="button"
-      onMouseDown={(e) => { e.preventDefault(); exec(cmd); }}
-      style={{
-        width: 32, height: 28, borderRadius: 4,
-        border: '1px solid var(--border)',
-        background: 'rgba(255,255,255,0.04)',
-        color: 'var(--text)',
-        fontSize: rem(13), lineHeight: 1, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        ...style,
-      }}
-      aria-label={cmd}
-    >
-      {label}
-    </button>
-  );
-
-  const isEmpty = !value || value === '<br>' || value.replace(/<[^>]+>/g, '').trim() === '';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {/* Toolbar — Bold / Italic / Underline */}
-      <div style={{ display: 'flex', gap: 4 }}>
-        <ToolbarBtn cmd="bold"      label="B" style={{ fontWeight: 800 }} />
-        <ToolbarBtn cmd="italic"    label="I" style={{ fontStyle: 'italic' }} />
-        <ToolbarBtn cmd="underline" label="U" style={{ textDecoration: 'underline' }} />
-      </div>
-      {/* Editable surface */}
-      <div style={{ position: 'relative' }}>
-        <div
-          ref={ref}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          style={{
-            background: 'rgba(20,24,32,0.85)',
-            border: `1px solid ${focused ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: 7,
-            padding: '12px 14px',
-            color: 'var(--text)',
-            fontSize: rem(14), lineHeight: 1.55,
-            minHeight,
-            outline: 'none',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            transition: 'border-color 0.12s ease',
-          }}
-        />
-        {isEmpty && (
-          <div style={{
-            position: 'absolute', top: 12, left: 14,
-            color: 'var(--text-muted)', fontStyle: 'italic',
-            pointerEvents: 'none', fontSize: rem(14), lineHeight: 1.55,
-          }}>
-            {placeholder}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 const sectionTitleStyle: React.CSSProperties = {
   /* Matches the Pitching report's section header (`rs.sectionTitle`):
      15px / weight 700 / `var(--text)`, emoji icon inline at the same
@@ -1183,11 +1074,6 @@ const metricLabelStyle: React.CSSProperties = {
 };
 const mlbRefStyle: React.CSSProperties = {
   fontSize: rem(10), color: 'var(--faint)', textAlign: 'center', padding: '6px 4px',
-};
-const overallRowStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, marginTop: 12,
-  padding: '12px 16px', background: 'rgba(32,128,141,0.08)', borderRadius: 8,
-  border: '1px solid rgba(32,128,141,0.2)',
 };
 
 /* ── Shared report-form bubble chrome ──
@@ -2483,181 +2369,6 @@ export function InfieldForm({ data, setData }: { data: InfieldFormData; setData:
   );
 }
 
-function InfieldFormLegacy({ data, setData }: { data: InfieldFormData; setData: (d: InfieldFormData) => void }) {
-  /* Kept around solely so the JSX below typechecks while we migrate. */
-  const updateArm = (key: keyof InfieldFormData['arm'], field: Partial<ArmRow>) => {
-    setData({
-      ...data,
-      arm: { ...data.arm, [key]: { ...data.arm[key], ...field } },
-    });
-  };
-  const updateArmAttempt = (key: keyof InfieldFormData['arm'], idx: number, val: string) => {
-    const row = data.arm[key];
-    const newAttempts = [...row.attempts];
-    newAttempts[idx] = val;
-    updateArm(key, { attempts: newAttempts });
-  };
-  const updateRange = (key: keyof InfieldFormData['rangeFootwork'], field: Partial<GradeRow>) => {
-    if (key === 'overallGrade') return;
-    setData({
-      ...data,
-      rangeFootwork: { ...data.rangeFootwork, [key]: { ...(data.rangeFootwork[key] as GradeRow), ...field } },
-    });
-  };
-  const updateHands = (key: keyof InfieldFormData['handsGlove'], field: Partial<GradeRow>) => {
-    if (key === 'overallGrade') return;
-    setData({
-      ...data,
-      handsGlove: { ...data.handsGlove, [key]: { ...(data.handsGlove[key] as GradeRow), ...field } },
-    });
-  };
-
-  const armRows: { key: keyof InfieldFormData['arm']; label: string; unit: string }[] = [
-    { key: 'velocity', label: 'Arm Velocity', unit: 'mph' },
-    { key: 'accuracy', label: 'Arm Accuracy', unit: '% on target' },
-  ];
-
-  const rangeRows: { key: keyof InfieldFormData['rangeFootwork']; label: string }[] = [
-    { key: 'jumps', label: 'Jumps' },
-    { key: 'routes', label: 'Routes' },
-    { key: 'rangeGloveSide', label: 'Range \u2014 Glove Side' },
-    { key: 'rangeArmSide', label: 'Range \u2014 Arm Side' },
-    { key: 'breakdownFootwork', label: 'Break Down Footwork' },
-    { key: 'athleticism', label: 'Athleticism' },
-  ];
-
-  const handsRows: { key: keyof InfieldFormData['handsGlove']; label: string }[] = [
-    { key: 'exchanges', label: 'Exchanges' },
-    { key: 'shortHops', label: 'Short Hops' },
-    { key: 'forehand', label: 'Forehand' },
-    { key: 'backhand', label: 'Backhand' },
-    { key: 'doublePlays', label: 'Double Plays' },
-  ];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* ── ARM STRENGTH & ACCURACY ── */}
-      <div>
-        <div style={sectionTitleStyle}>
-          <span>💪</span> Arm Strength & Accuracy
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rem(12) }}>
-            <thead>
-              <tr>
-                <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 140 }}>Metric</th>
-                {[1,2,3].map(n => (
-                  <th key={n} style={{ ...headerCellStyle, minWidth: 72 }}>Attempt {n}</th>
-                ))}
-                <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 120 }}>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {armRows.map(row => {
-                const rowData = data.arm[row.key];
-                return (
-                  <tr key={row.key}>
-                    <td style={metricLabelStyle}>{row.label} — {row.unit}</td>
-                    {rowData.attempts.map((val, i) => (
-                      <td key={i} style={{ padding: '4px 2px' }}>
-                        <input
-                          type="text" inputMode="decimal" style={inputStyle}
-                          value={val} placeholder="—"
-                          onChange={e => updateArmAttempt(row.key, i, e.target.value)}
-                        />
-                      </td>
-                    ))}
-                    <td style={{ padding: '4px 2px' }}>
-                      <input
-                        type="text" style={{ ...inputStyle, textAlign: 'left' }}
-                        value={rowData.notes} placeholder="Notes..."
-                        onChange={e => updateArm(row.key, { notes: e.target.value })}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── RANGE & FOOTWORK ── */}
-      <div>
-        <div style={sectionTitleStyle}>
-          <span>🏃</span> Range & Footwork — Scouting Grades (20–80)
-        </div>
-        {/* Grade slider grid — matches the Coach Grades section
-           layout (auto-fit, minmax(280px, 1fr)) so each
-           DefenseGradeSlider lays out at the same horizontal size
-           as a Coach Grade chip (The Gather / Lower Half at Foot
-           Strike / etc.). Was previously a vertical flex stack
-           which made each slider stretch to 100% modal width. */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 12,
-        }}>
-          {rangeRows.map(row => {
-            const rowData = data.rangeFootwork[row.key] as GradeRow;
-            return (
-              <DefenseGradeSlider
-                key={row.key}
-                label={row.label}
-                grade={rowData.grade}
-                notes={rowData.notes}
-                onGradeChange={(v) => updateRange(row.key, { grade: v })}
-                onNotesChange={(v) => updateRange(row.key, { notes: v })}
-              />
-            );
-          })}
-        </div>
-        <DefenseOverallSlider
-          label="Overall Range / Footwork"
-          grade={data.rangeFootwork.overallGrade}
-          onGradeChange={(v) => setData({ ...data, rangeFootwork: { ...data.rangeFootwork, overallGrade: v } })}
-        />
-      </div>
-
-      {/* ── HANDS & GLOVE WORK ── */}
-      <div>
-        <div style={sectionTitleStyle}>
-          <span>🧤</span> Hands & Glove Work — Scouting Grades (20–80)
-        </div>
-        {/* Grade slider grid — matches the Coach Grades section
-           layout (auto-fit, minmax(280px, 1fr)) so each
-           DefenseGradeSlider lays out at the same horizontal size
-           as a Coach Grade chip (The Gather / Lower Half at Foot
-           Strike / etc.). Was previously a vertical flex stack
-           which made each slider stretch to 100% modal width. */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 12,
-        }}>
-          {handsRows.map(row => {
-            const rowData = data.handsGlove[row.key] as GradeRow;
-            return (
-              <DefenseGradeSlider
-                key={row.key}
-                label={row.label}
-                grade={rowData.grade}
-                notes={rowData.notes}
-                onGradeChange={(v) => updateHands(row.key, { grade: v })}
-                onNotesChange={(v) => updateHands(row.key, { notes: v })}
-              />
-            );
-          })}
-        </div>
-        <DefenseOverallSlider
-          label="Overall Hands / Glove"
-          grade={data.handsGlove.overallGrade}
-          onGradeChange={(v) => setData({ ...data, handsGlove: { ...data.handsGlove, overallGrade: v } })}
-        />
-      </div>
-    </div>
-  );
-}
 
 /* ── Outfield Assessment Form ── */
 
@@ -2797,139 +2508,6 @@ export function OutfieldForm({ data, setData }: { data: OutfieldFormData; setDat
   );
 }
 
-function OutfieldFormLegacy({ data, setData }: { data: OutfieldFormData; setData: (d: OutfieldFormData) => void }) {
-  /* Kept for back-compat alongside InfieldFormLegacy. */
-  const updateArm = (key: keyof OutfieldFormData['arm'], field: Partial<ArmRow>) => {
-    if (key === 'overallGrade') return;
-    setData({
-      ...data,
-      arm: { ...data.arm, [key]: { ...(data.arm[key] as ArmRow), ...field } },
-    });
-  };
-  const updateArmAttempt = (key: keyof OutfieldFormData['arm'], idx: number, val: string) => {
-    if (key === 'overallGrade') return;
-    const row = data.arm[key] as ArmRow;
-    const newAttempts = [...row.attempts];
-    newAttempts[idx] = val;
-    updateArm(key, { attempts: newAttempts });
-  };
-  const updateRoutes = (key: keyof OutfieldFormData['routesReads'], field: Partial<GradeRow>) => {
-    if (key === 'overallGrade') return;
-    setData({
-      ...data,
-      routesReads: { ...data.routesReads, [key]: { ...(data.routesReads[key] as GradeRow), ...field } },
-    });
-  };
-
-  const armRows: { key: keyof OutfieldFormData['arm']; label: string; unit: string }[] = [
-    { key: 'velocity', label: 'Arm Velocity', unit: 'mph' },
-    { key: 'crowHop', label: 'Crow Hop', unit: 'mph' },
-    { key: 'releaseTime', label: 'Release Time (catch-to-throw)', unit: 'sec' },
-    { key: 'accuracy', label: 'Arm Accuracy', unit: '% on target' },
-  ];
-
-  const routesRows: { key: keyof OutfieldFormData['routesReads']; label: string }[] = [
-    { key: 'firstStepJump', label: 'First-Step Jump' },
-    { key: 'flyBallBack', label: 'Fly Ball Read \u2014 Going Back' },
-    { key: 'flyBallIn', label: 'Fly Ball Read \u2014 In' },
-    { key: 'lineDriveRead', label: 'Line Drive Read' },
-    { key: 'routes', label: 'Routes' },
-    { key: 'range', label: 'Range' },
-    { key: 'gloveWork', label: 'Glove Work' },
-  ];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* ── ARM STRENGTH & ACCURACY ── */}
-      <div>
-        <div style={sectionTitleStyle}>
-          <span>💪</span> Arm Strength & Accuracy
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rem(12) }}>
-            <thead>
-              <tr>
-                <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 180 }}>Metric</th>
-                {[1,2,3].map(n => (
-                  <th key={n} style={{ ...headerCellStyle, minWidth: 72 }}>Attempt {n}</th>
-                ))}
-                <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 120 }}>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {armRows.map(row => {
-                const rowData = data.arm[row.key] as ArmRow;
-                return (
-                  <tr key={row.key}>
-                    <td style={metricLabelStyle}>{row.label} — {row.unit}</td>
-                    {rowData.attempts.map((val, i) => (
-                      <td key={i} style={{ padding: '4px 2px' }}>
-                        <input
-                          type="text" inputMode="decimal" style={inputStyle}
-                          value={val} placeholder="—"
-                          onChange={e => updateArmAttempt(row.key, i, e.target.value)}
-                        />
-                      </td>
-                    ))}
-                    <td style={{ padding: '4px 2px' }}>
-                      <input
-                        type="text" style={{ ...inputStyle, textAlign: 'left' }}
-                        value={rowData.notes} placeholder="Notes..."
-                        onChange={e => updateArm(row.key, { notes: e.target.value })}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <DefenseOverallSlider
-          label="Overall Arm Grade"
-          grade={data.arm.overallGrade}
-          onGradeChange={(v) => setData({ ...data, arm: { ...data.arm, overallGrade: v } })}
-        />
-      </div>
-
-      {/* ── ROUTES, RANGE, READS & GLOVE ── */}
-      <div>
-        <div style={sectionTitleStyle}>
-          <span>🏃</span> Routes, Range, Reads & Glove — Scouting Grades (20–80)
-        </div>
-        {/* Grade slider grid — matches the Coach Grades section
-           layout (auto-fit, minmax(280px, 1fr)) so each
-           DefenseGradeSlider lays out at the same horizontal size
-           as a Coach Grade chip (The Gather / Lower Half at Foot
-           Strike / etc.). Was previously a vertical flex stack
-           which made each slider stretch to 100% modal width. */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 12,
-        }}>
-          {routesRows.map(row => {
-            const rowData = data.routesReads[row.key] as GradeRow;
-            return (
-              <DefenseGradeSlider
-                key={row.key}
-                label={row.label}
-                grade={rowData.grade}
-                notes={rowData.notes}
-                onGradeChange={(v) => updateRoutes(row.key, { grade: v })}
-                onNotesChange={(v) => updateRoutes(row.key, { notes: v })}
-              />
-            );
-          })}
-        </div>
-        <DefenseOverallSlider
-          label="Overall Routes / Reads"
-          grade={data.routesReads.overallGrade}
-          onGradeChange={(v) => setData({ ...data, routesReads: { ...data.routesReads, overallGrade: v } })}
-        />
-      </div>
-    </div>
-  );
-}
 
 /* ── Modal ── */
 
@@ -3192,7 +2770,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
      shape (`DefenseCoachGrades = Record<sectionKey, number|null>`)
      across all three so coaches see / grade the same 7 categories
      regardless of position. */
-  const [catchingCoachGrades, setCatchingCoachGrades] = useState<DefenseCoachGrades>(() =>
+  const [catchingCoachGrades] = useState<DefenseCoachGrades>(() =>
     isEdit && existingReport ? getDefenseCoachGrades(existingReport, 'catching') : {}
   );
   const [infieldCoachGrades, setInfieldCoachGrades] = useState<DefenseCoachGrades>(() =>

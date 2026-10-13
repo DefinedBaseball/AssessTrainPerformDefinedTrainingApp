@@ -315,7 +315,7 @@ function LineView({
   );
 }
 
-function ScatterView({ series, bubble = false }: { series: ChartEvaluation['series']; bubble?: boolean }) {
+function ScatterView({ series }: { series: ChartEvaluation['series']; bubble?: boolean }) {
   return <LineView series={series} />;
 }
 

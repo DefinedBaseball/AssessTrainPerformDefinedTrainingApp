@@ -353,14 +353,6 @@ export function PdfBuilderModal({
     [layout.sections],
   );
 
-  /** Sections that actually rendered to a capture (some may have been
-   *  skipped if the player doesn't have data for them, e.g. no infield
-   *  assessment on a pure outfielder). */
-  const captureKeys = useMemo(
-    () => new Set(captures ? Object.keys(captures) : []),
-    [captures],
-  );
-
   const handleApplyPreset = (id: string) => {
     const p = presets.find(p => p.id === id);
     if (!p) return;

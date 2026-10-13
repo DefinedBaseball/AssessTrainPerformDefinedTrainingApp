@@ -4,15 +4,12 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import type { Player, VideoWithPlayer, Metric } from '@/lib/api';
-import VideoThumbnail from '@/components/VideoThumbnail';
+import type { Player, VideoWithPlayer } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import aStyles from '@/components/assessment/assessment.module.css';
-import { bundleVideos, normalizeVideoTitle } from '@/lib/video-titles';
-import { getVideoCategoryColors } from '@/lib/training-colors';
+import { bundleVideos } from '@/lib/video-titles';
 import { VideoBundleModal, VideoBundleCard } from '@/components/assessment';
 import styles from './page.module.css';
-import { tzOpt } from '@/lib/academy';
 
 // Coaching Studio retired - its features (mic-narrated Coach Review
 // recording, drawing tools, sync/unsync grid playback,
@@ -348,96 +345,6 @@ function GradYearFilter({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   VIDEO CARD
-   ═══════════════════════════════════════════ */
-
-function VideoCard({
-  video,
-  onPlay,
-}: {
-  video: VideoWithPlayer;
-  onPlay: () => void;
-}) {
-  const videoUrl = video.hlsUrl || video.originalUrl || '';
-
-  const handleDownload = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const a = document.createElement('a');
-    a.href = videoUrl;
-    a.download = `${video.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
-  const formatDuration = (sec: number | null) => {
-    if (!sec) return null;
-    return `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
-  };
-
-  const catColor: Record<string, string> = {
-    HITTING: '#4ADE80',
-    PITCHING: '#60A5FA',
-    FIELDING: '#F59E0B',
-    CATCHING: '#A78BFA',
-    GAME: '#F87171',
-    WORKOUT_DEMO: '#14B8A6',
-  };
-
-  return (
-    <div className={styles.videoCard} onClick={onPlay}>
-      {/* Thumbnail */}
-      <div className={styles.videoThumb}>
-        <VideoThumbnail
-          thumbnailUrl={video.thumbnailUrl}
-          src={videoUrl || null}
-          className={styles.videoThumbImg}
-        />
-        <div className={styles.playOverlay}>
-          <div className={styles.playBtn}>▶</div>
-        </div>
-        {video.durationSec && (
-          <span className={styles.duration}>{formatDuration(video.durationSec)}</span>
-        )}
-        <span
-          className={styles.catBadge}
-          style={{ background: catColor[video.category] || '#6B7280' }}
-        >
-          {video.category === 'WORKOUT_DEMO' ? 'S&C' : video.category}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className={styles.videoBody}>
-        <div className={styles.videoTitle}>{video.title}</div>
-        <div className={styles.videoPlayerName}>
-          {video.player.firstName} {video.player.lastName}
-          {video.player.positions && (
-            <span className={styles.videoPlayerPos}> · {video.player.positions}</span>
-          )}
-        </div>
-        <div className={styles.videoFooter}>
-          <span className={styles.videoDate}>
-            {new Date(video.createdAt).toLocaleDateString('en-US', { ...tzOpt(), month: 'short', day: 'numeric', year: 'numeric' })}
-          </span>
-          <button
-            className={styles.downloadBtn}
-            onClick={handleDownload}
-            title="Download video"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 2v8M8 10l-3-3M8 10l3-3" />
-              <path d="M2 12h12v2H2z" />
-            </svg>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

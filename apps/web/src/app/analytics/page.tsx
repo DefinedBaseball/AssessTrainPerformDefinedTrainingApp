@@ -2740,7 +2740,6 @@ function LineViewAnnotated({
           if (o.stepped && o.points.length > 0) {
             d = `M ${toX(o.points[0].date).toFixed(1)} ${toY(o.points[0].value).toFixed(1)}`;
             for (let k = 1; k < o.points.length; k++) {
-              const px = toX(o.points[k - 1].date);
               const py = toY(o.points[k - 1].value);
               const x = toX(o.points[k].date);
               const y = toY(o.points[k].value);

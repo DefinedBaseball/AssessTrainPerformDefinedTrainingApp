@@ -26,8 +26,6 @@ const FIELD_H = 486;
 /* Filter-less variant keeps its historic 46-unit-shorter frame. */
 const FIELD_H_NO_FILTERS = FIELD_H - 46;
 
-const SPRAY_BAR_BG = 'rgba(20, 24, 32, 0.92)';
-const SPRAY_BAR_BORDER = '1px solid rgba(255, 255, 255, 0.10)';
 
 /* SSR-safe mobile flag (matches the local hook in SwingTab/PitchingTab):
  * defaults false so server + first client render agree, then corrects in
@@ -1008,38 +1006,6 @@ export function SprayChartView({
   useEffect(() => {
     if (onDataRangeChange) onDataRangeChange(dataRangeLabel);
   }, [dataRangeLabel, onDataRangeChange]);
-
-  // Spray Chart bubble chrome — references the shared
-  // `--bubble-chrome-bg` CSS variable defined in globals.css so it
-  // flips between the dark-mode triple-layer warm-grey gradient and
-  // the light-mode off-white #f8f8f8 → #f1f1f1 in lockstep with
-  // every other movement-plot / pitch-report style bubble across
-  // the Hitting + Pitching tabs (Swing / Quality of Contact /
-  // Coach Diagnosis chip tables, Coach Grades, Full Swing, Blast
-  // Motion, HitTrax, ArsenalCards, etc.).
-  const bubbleChrome: React.CSSProperties = {
-    background: 'var(--bubble-chrome-bg)',
-    border: '1px solid var(--border-light)',
-    borderRadius: 12,
-    /* Drop shadow softened from `0 18px 40px / 0.30` to a much
-       gentler `0 4px 12px / 0.10` per coach-spec so the Spray
-       Chart sits with a subtle lift rather than a heavy halo. */
-    boxShadow: '0 5px 14px rgba(0, 0, 0, 0.21)',
-  };
-
-  // Ball Readout (Metric Readout) chrome — now matches the Spray
-  // Chart bubble + every Hitting chip surface via `--bubble-chrome-bg`
-  // so the Metric Readout, Spray Chart, and Swing GradeRow all read
-  // as the same surface color. The previous dark-navy `.panel`-style
-  // chrome was retired so the whole right column of the Hitting
-  // Snapshot (and the top Ball Readout sibling on the left) sits on
-  // one unified bubble color.
-  const readoutChrome: React.CSSProperties = {
-    background: 'var(--bubble-chrome-bg)',
-    border: '1px solid var(--border-light)',
-    borderRadius: 12,
-    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.10)',
-  };
 
   /* Portal host for the Metric Readout. Falls back to the inline
      position when no id is given or the element isn't there.
