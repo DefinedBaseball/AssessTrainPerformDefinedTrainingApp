@@ -12,7 +12,7 @@ import React from 'react';
 import { Page, View, Text, Svg, Circle, Line, Rect, G } from '@react-pdf/renderer';
 import { s, colors } from './theme';
 import {
-  PdfNotesBox, PageFooter, estimateNotesHeight,
+  PdfNotesBox, PageFooter, ReportHeader, REPORT_HEADER_H, estimateNotesHeight,
 } from './components';
 
 export interface ArsenalRow {
@@ -520,7 +520,7 @@ function PdfReleaseExtensionTable({ rows, compact = false }: { rows: ArsenalRow[
    The page is budgeted before drawing: long notes step their type down
    (to 8pt) before the plots shrink, so everything lands on the one page. */
 const CONTENT_W = 792 - 36 * 2;      // 720
-const CONTENT_H = 612 - 24 - 36;     // 552
+const CONTENT_H = 612 - 24 - 36 - REPORT_HEADER_H;   // below the page title
 const GAP = 8;
 const ROW_PAD_COMPACT = 2.5;
 const TABLE_ROW_H = 16;              // 9pt cell + compact padding + hairline
@@ -574,6 +574,7 @@ export function PitchingReportPages({ data }: { data: PitchingPdfData }) {
 
   return (
     <Page size="LETTER" orientation="landscape" style={s.page}>
+      <ReportHeader title="Pitching Report" subtitle="Pitch metrics, movement & release" />
       {!hasData ? (
         <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 20, marginBottom: 12 }}>
           No TrackMan pitching data on this report.

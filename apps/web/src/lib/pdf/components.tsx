@@ -34,6 +34,21 @@ export function gradeTone(grade: number | null | undefined): string {
   return colors.developing;
 }
 
+/* ── Report page title ──
+   Big title + small subtitle over a black rule, opening each report page
+   ("Hitting Report", "Pitching Report", "Catching Report", ...). The
+   section header without its top margin, since it starts the page.
+   Takes REPORT_HEADER_H of the page's height. */
+export const REPORT_HEADER_H = 34;
+export function ReportHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={[s.sectionHeader, { marginTop: 0 }]}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      <Text style={s.sectionSubtitle}>{subtitle}</Text>
+    </View>
+  );
+}
+
 /* ── Section Header ── */
 export function PdfSectionHeader({
   title,

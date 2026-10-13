@@ -14,7 +14,7 @@
 import React from 'react';
 import { Page, View, Text, Svg, Path, Line, Polygon, Rect, Circle, G } from '@react-pdf/renderer';
 import { s, colors } from './theme';
-import { PageFooter, PdfNotesBox, gradeTone, estimateNotesHeight } from './components';
+import { PageFooter, PdfNotesBox, ReportHeader, REPORT_HEADER_H, gradeTone, estimateNotesHeight } from './components';
 import {
   buildZoneTones, TONE_COLD, TONE_MID, TONE_HOT, type ZoneStat, type ZoneTone,
 } from '@/app/athletes/[id]/components/StrikeZoneDamageView';
@@ -54,7 +54,7 @@ export interface HittingPdfData {
 
 /* ─── Page geometry (landscape LETTER, s.page padding) ─── */
 const CONTENT_W = 792 - 36 * 2;      // 720
-const CONTENT_H = 612 - 24 - 36;     // 552
+const CONTENT_H = 612 - 24 - 36 - REPORT_HEADER_H;   // below the page title
 const GAP = 8;
 const VENDOR_H = 43;                 // one vendor bubble, title + one row
 const ZONE_W = 300;                  // strike zone card width
@@ -352,6 +352,7 @@ export function HittingReportPages({ data }: { data: HittingPdfData }) {
 
   return (
     <Page size="LETTER" orientation="landscape" style={s.page}>
+      <ReportHeader title="Hitting Report" subtitle="Swing, batted ball & strike zone" />
       {vendors.map((v) => <VendorBubble key={v.key} vendor={v} />)}
 
       <View wrap={false} style={{ flexDirection: 'row', gap: GAP, height: chartH, marginBottom: notes.trim() ? GAP : 0 }}>

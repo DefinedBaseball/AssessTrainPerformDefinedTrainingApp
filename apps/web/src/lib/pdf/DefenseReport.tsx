@@ -21,7 +21,7 @@
 import React from 'react';
 import { Page, View, Text, Image, Svg, Rect, Line, Circle, G, Path, Polygon } from '@react-pdf/renderer';
 import { s, colors } from './theme';
-import { PageFooter, PdfNotesBox, gradeTone, estimateNotesHeight } from './components';
+import { PageFooter, PdfNotesBox, ReportHeader, REPORT_HEADER_H, gradeTone, estimateNotesHeight } from './components';
 import { DEFENSE_COACH_GRADE_SECTIONS, type DefensePosition } from '@/app/athletes/[id]/helpers';
 
 export type { DefensePosition };
@@ -58,7 +58,7 @@ const TITLES: Record<DefensePosition, { title: string; subtitle: string; footer:
 const CONTENT_W = 792 - 36 * 2;
 const CONTENT_H = 612 - 24 - 36;
 const GAP = 8;
-const HEADER_H = 34;                 // ReportHeader
+const HEADER_H = REPORT_HEADER_H;
 const FIELDING_ROW_H = 250;          // Defensive Skills · cards · Throwing Grades
 const CATCHING_ROW_H = 270;          // Receiving · Throwing & Blocking
 const GRADES_ROW_H = 72;             // Catching Throwing Grades card
@@ -521,17 +521,6 @@ function CatchingPage({ data, notesSize }: { data: DefensePdfData; notesSize: nu
       )}
       {data.catchingNotes && <PdfNotesBox label="CATCHING NOTES" text={data.catchingNotes} fontSize={notesSize} />}
     </>
-  );
-}
-
-/** Page title row -- the section header without its top margin, since it
- *  opens the page. */
-function ReportHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <View style={[s.sectionHeader, { marginTop: 0 }]}>
-      <Text style={s.sectionTitle}>{title}</Text>
-      <Text style={s.sectionSubtitle}>{subtitle}</Text>
-    </View>
   );
 }
 
