@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 
 /** Profile tabs a coach may hide (matches the web tab keys). Summary and
@@ -7,6 +7,7 @@ const HIDEABLE_TABS = new Set(['hitting', 'pitching', 'catching', 'infield', 'ou
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 
 /* Stat keys per grid for the season stats sheet. Mirrors STAT_GRIDS in the
    web app's lib/season-stats.ts -- keep the two in step. */
@@ -22,10 +23,13 @@ const SEASON_STAT_KEYS: Record<string, Set<string>> = {
 @Injectable()
 export class PlayersService {
   /* MailModule is @Global, so MailService injects without importing it. */
+  private readonly logger = new Logger(PlayersService.name);
+
   constructor(
     private prisma: PrismaService,
     private mail: MailService,
     private notifications: NotificationsService,
+    private leaderboards: LeaderboardsService,
   ) {}
 
   /** Tell coaches an athlete changed their own profile or Season Stats
@@ -232,7 +236,28 @@ export class PlayersService {
     /* The photo link is only ever set by setPhoto / removePhoto -- never
        from a profile save, where it could point at any outside URL. */
     const { profilePhoto: _ignored, ...fields } = data;
-    return this.prisma.player.update({ where: { id }, data: fields });
+    const before = fields.gradYear !== undefined
+      ? await this.prisma.player.findUnique({ where: { id }, select: { gradYear: true } })
+      : null;
+    const updated = await this.prisma.player.update({ where: { id }, data: fields });
+    /* Leaderboards are rebuilt when results change (report saves, CSV
+       imports), not when someone opens the page -- so a class change has to
+       move the athlete between boards here. Both classes are rebuilt. */
+    if (before && before.gradYear !== updated.gradYear) {
+      void this.rebuildLeaderboards([before.gradYear, updated.gradYear]);
+    }
+    return updated;
+  }
+
+  /** Each class rebuild also rebuilds All Ages. */
+  private async rebuildLeaderboards(years: (number | null)[]) {
+    try {
+      for (const year of years) {
+        if (year != null) await this.leaderboards.recompute(year);
+      }
+    } catch (err) {
+      this.logger.warn(`Leaderboard rebuild after class change failed: ${err}`);
+    }
   }
 
   /** Save a new profile picture (a data URL from the browser, already

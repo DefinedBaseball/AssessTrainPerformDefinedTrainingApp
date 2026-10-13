@@ -3225,9 +3225,9 @@ export function InfieldSubTab({
                title only, mirroring the Hitting / Catching headers. */
             silhouette={INFIELDER_SILHOUETTE}
             anchors={{
-              armStrength: [81, 117],  // throwing arm
-              glove:       [141, 190], // glove
-              range:       [98, 209],  // foot
+              armStrength: [110, 104], // throwing shoulder
+              glove:       [118, 193], // glove, down at the ball
+              range:       [170, 209], // right foot
             }}
             callouts={{
               armStrength: { value: armBest != null ? Math.round(armBest) : null, unit: 'mph' },
@@ -3686,7 +3686,7 @@ export function OutfieldSubTab({
             anchors={{
               armStrength: [104, 106], // throwing shoulder
               glove:       [166, 64],  // raised glove
-              range:       [92, 209],  // foot
+              range:       [137, 208], // front foot
             }}
             callouts={{
               armStrength: { value: armBest != null ? Math.round(armBest) : null, unit: 'mph' },

@@ -836,13 +836,15 @@ export default function PlayerProfilePage() {
                       italic caption simply sit on the dark
                       command-deck surface behind, no surrounding
                       bubble. */}
+                  {/* Shown only once the athlete has committed -- no
+                      "Uncommitted" placeholder. */}
+                  {committed && (
                   <div className={styles.commitCol} style={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: 6,
                     flex: '0 0 auto',
-                    opacity: committed ? 1 : 0.9,
                     /* Vertical padding moved to `.commitCol` so a phone media
                        query can collapse the big top inset — on desktop the
                        commitment sits to the RIGHT of the name and the 30px
@@ -885,7 +887,7 @@ export default function PlayerProfilePage() {
                             display: 'block',
                           }}
                         />
-                      ) : committed ? (
+                      ) : (
                         /* Graduation-cap glyph — generic logo placeholder
                            shown when the player IS committed but the
                            matching College record has no `logoUrl` set.
@@ -900,57 +902,39 @@ export default function PlayerProfilePage() {
                           <path d="M22 10L12 5 2 10l10 5 10-5z" />
                           <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" />
                         </svg>
-                      ) : (
-                        /* In-circle "Uncommitted" label — replaces the
-                           glyph + caption pair when the player has no
-                           commitment on file. Rendered small + muted
-                           grey so the badge stays visually subdued
-                           (a player with no commit shouldn't shout). */
-                        <span className={styles.uncommittedLabel} style={{
-                          fontSize: rem(7),
-                          fontWeight: 600,
-                          letterSpacing: '0.06em',
-                          textTransform: 'uppercase',
-                          lineHeight: 1.1,
-                          color: 'var(--text-muted)',
-                          opacity: 0.7,
-                        }}>
-                          Uncommitted
-                        </span>
                       )}
                     </span>
-                    {committed && (
-                      <span style={{
-                        /* Caption bumped 10.5 → 12.6 (20% larger) so
-                           the school name reads as a primary identity
-                           element below the (now smaller) badge. */
-                        fontSize: rem(12.6),
-                        fontWeight: 700,
-                        /* Italic per spec — the school-name caption
-                           and the Player Grade caption below the
-                           sibling gauge are both rendered italic so
-                           the matched pair of HUD-circle labels reads
-                           as accent text rather than plain captions. */
-                        fontStyle: 'italic',
-                        color: 'var(--text-bright)',
-                        letterSpacing: '0.04em',
-                        textAlign: 'center',
-                        /* `maxWidth: 140` retired + `whiteSpace:
-                           'nowrap'` added so long school names (e.g.
-                           "University of Minnesota") read on a single
-                           horizontal line under the badge instead of
-                           wrapping onto two. The parent wrapper uses
-                           `flex: '0 0 auto'`, so it grows to fit the
-                           caption's natural width — the 72 px logo
-                           stays horizontally centered inside the now-
-                           wider column. */
-                        whiteSpace: 'nowrap',
-                        lineHeight: 1.1,
-                      }}>
-                        {player.collegeCommit}
-                      </span>
-                    )}
+                    <span style={{
+                      /* Caption bumped 10.5 → 12.6 (20% larger) so
+                         the school name reads as a primary identity
+                         element below the (now smaller) badge. */
+                      fontSize: rem(12.6),
+                      fontWeight: 700,
+                      /* Italic per spec — the school-name caption
+                         and the Player Grade caption below the
+                         sibling gauge are both rendered italic so
+                         the matched pair of HUD-circle labels reads
+                         as accent text rather than plain captions. */
+                      fontStyle: 'italic',
+                      color: 'var(--text-bright)',
+                      letterSpacing: '0.04em',
+                      textAlign: 'center',
+                      /* `maxWidth: 140` retired + `whiteSpace:
+                         'nowrap'` added so long school names (e.g.
+                         "University of Minnesota") read on a single
+                         horizontal line under the badge instead of
+                         wrapping onto two. The parent wrapper uses
+                         `flex: '0 0 auto'`, so it grows to fit the
+                         caption's natural width — the 72 px logo
+                         stays horizontally centered inside the now-
+                         wider column. */
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.1,
+                    }}>
+                      {player.collegeCommit}
+                    </span>
                   </div>
+                  )}
 
                   {/* Player Score gauge — circular HUD sized to ~90%
                       of the Player Name bubble's height so it matches

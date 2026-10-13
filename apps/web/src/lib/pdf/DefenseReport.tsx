@@ -261,8 +261,8 @@ function SvgValue({ x, y, value, unit, size, color, anchor = 'start' }: {
    x 196, leader lines from each chip to its body anchor. The figure image
    arrives pre-coloured with the app's blue gradient (see generators). */
 const SKILL_ANCHORS: Record<'infield' | 'outfield', { arm: [number, number]; glove: [number, number]; range: [number, number] }> = {
-  infield:  { arm: [81, 117],  glove: [141, 190], range: [98, 209] },
-  outfield: { arm: [104, 106], glove: [166, 64],  range: [92, 209] },
+  infield:  { arm: [110, 104], glove: [118, 193], range: [170, 209] },
+  outfield: { arm: [104, 106], glove: [166, 64],  range: [137, 208] },
 };
 const SKILL_ACCENT = { infield: '#F59E0B', outfield: '#22C55E' } as const;
 

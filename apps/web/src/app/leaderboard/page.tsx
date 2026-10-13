@@ -45,24 +45,15 @@ export default function LeaderboardPage() {
     if (!isLoading && !user) router.replace('/login');
   }, [isLoading, user, router]);
 
-  // Track whether initial recompute has completed (coaches get fresh data on page load)
-  const [recomputeDone, setRecomputeDone] = useState(false);
-
-  // Load available grad years (both roles) + auto-recompute for coaches.
+  // Load available grad years (both roles). No recompute on page load: the
+  // server rebuilds the boards whenever results change (report saves, CSV
+  // imports, a class change), so the stored rankings are already current.
+  // The coach's Recompute button is still there for a manual rebuild.
   useEffect(() => {
     if (!user) return;
     // Dedicated endpoint returns just the year numbers so PLAYERS can build the
     // dropdown too — the coach-only player list left their board blank before.
     api.getLeaderboardGradYears().then(setGradYears).catch(() => setGradYears([]));
-
-    // Coaches: silently recompute leaderboards on page load so data is always fresh
-    if (user.role === 'COACH') {
-      api.recomputeLeaderboard()
-        .then(() => setRecomputeDone(true))
-        .catch(() => setRecomputeDone(true));
-    } else {
-      setRecomputeDone(true);
-    }
   }, [user]);
 
   // Available grad years for the dropdown (from the grad-years endpoint).
@@ -77,29 +68,16 @@ export default function LeaderboardPage() {
     }
   }, [availableGradYears, gradYear]);
 
-  // Fetch the leaderboard. NOTE: this no longer waits on the coach's
-  // recompute — it paints the already-precomputed rankings immediately (a
-  // fast indexed read) so the page loads in well under a second instead of
-  // blocking on the full recompute. `silent` skips the spinner so the
-  // background refresh (after the recompute finishes) updates the board in
-  // place rather than blanking it back to a spinner.
-  const fetchLeaderboard = useCallback((silent = false) => {
+  // Fetch the leaderboard: the precomputed rankings (a fast indexed read).
+  const fetchLeaderboard = useCallback(() => {
     if (!user || gradYear === null) return;
-    if (!silent) setLoading(true);
+    setLoading(true);
     api.getLeaderboard(gradYear, metricType)
       .then(data => { setEntries(data); setLoading(false); })
       .catch(() => { setEntries([]); setLoading(false); });
   }, [user, gradYear, metricType]);
 
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
-
-  // When the coach's background recompute completes, silently refresh so any
-  // newly-computed ranks appear without a spinner flash. Intentionally keyed
-  // only on `recomputeDone` (view changes are handled by the effect above).
-  useEffect(() => {
-    if (recomputeDone) fetchLeaderboard(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recomputeDone]);
 
   // Recompute handler (coach only)
   const handleRecompute = async () => {

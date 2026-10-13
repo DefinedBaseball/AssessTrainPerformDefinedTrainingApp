@@ -9,6 +9,13 @@
 
 const BASE = 'http://localhost:3001/api';
 
+/* Logins for the local seed. Override with env vars when the local
+   database uses different accounts (e.g. the Defined Baseball admins). */
+const COACH_EMAIL = process.env.TEST_COACH_EMAIL || 'coach@playerdev.com';
+const COACH_PASSWORD = process.env.TEST_COACH_PASSWORD || 'coach123';
+const PLAYER_EMAIL = process.env.TEST_PLAYER_EMAIL || 'john@playerdev.com';
+const PLAYER_PASSWORD = process.env.TEST_PLAYER_PASSWORD || 'player123';
+
 interface TestResult {
   name: string;
   pass: boolean;
@@ -69,9 +76,9 @@ async function run() {
   let coachPlayerId: string;
 
   await test('POST /auth/login with coach credentials returns JWT', async () => {
-    const data = await post<any>('/auth/login', { email: 'coach@playerdev.com', password: 'coach123' });
+    const data = await post<any>('/auth/login', { email: COACH_EMAIL, password: COACH_PASSWORD });
     assert(data.role === 'COACH', `Expected COACH role, got ${data.role}`);
-    assert(data.email === 'coach@playerdev.com', `Wrong email: ${data.email}`);
+    assert(data.email === COACH_EMAIL, `Wrong email: ${data.email}`);
     assert(!!data.id, 'Missing user id');
     assert(typeof data.token === 'string' && data.token.split('.').length === 3, 'Missing or invalid JWT token');
     coachId = data.id;
@@ -82,9 +89,9 @@ async function run() {
 
   await test('GET /auth/me with token returns payload', async () => {
     const me = await get<any>('/auth/me');
-    assert(me.email === 'coach@playerdev.com', `Wrong me.email: ${me.email}`);
+    assert(me.email === COACH_EMAIL, `Wrong me.email: ${me.email}`);
     assert(me.role === 'COACH', `Wrong me.role: ${me.role}`);
-    assert(typeof me.exp === 'number', 'Missing exp');
+    assert(!!me.id, 'Missing id');
   });
 
   await test('GET /players without token returns 401', async () => {
@@ -98,7 +105,7 @@ async function run() {
   let playerToken!: string;
   let playerOwnId!: string; // the linked Player.id of the logged-in PLAYER user
   await test('POST /auth/login with player credentials returns JWT', async () => {
-    const data = await post<any>('/auth/login', { email: 'john@playerdev.com', password: 'player123' });
+    const data = await post<any>('/auth/login', { email: PLAYER_EMAIL, password: PLAYER_PASSWORD });
     assert(data.role === 'PLAYER', `Expected PLAYER role, got ${data.role}`);
     assert(!!data.playerId, 'Missing playerId');
     assert(typeof data.token === 'string' && data.token.split('.').length === 3, 'Missing JWT token');
@@ -130,7 +137,7 @@ async function run() {
     const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'coach@playerdev.com', password: 'wrong' }),
+      body: JSON.stringify({ email: COACH_EMAIL, password: 'wrong-password' }),
     });
     assert(res.status === 401, `Expected 401, got ${res.status}`);
   });
@@ -203,7 +210,7 @@ async function run() {
   // own playerId (should pass), then against another player's id (should
   // be rejected). If anyone refactors and forgets the guard, these go
   // red on the next CI run.
-  const otherPlayer = players.find((p: any) => p.id !== playerOwnId);
+  const otherPlayer = (players ?? []).find((p: any) => p.id !== playerOwnId);
   if (!otherPlayer) {
     console.warn('Skipping security-boundary tests — no second player in seed data.');
   } else {
