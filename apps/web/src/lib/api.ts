@@ -135,6 +135,8 @@ export interface Player {
     /** "ACTIVE" | "LOCKED" | "PENDING" | "DECLINED". LOCKED = a coach paused
      *  them: no login, and Apply Calendar skips them. */
     status?: string;
+    /** Set while the athlete's account deletion request awaits an admin. */
+    deletionRequestedAt?: string | null;
   };
 }
 
@@ -223,6 +225,26 @@ export async function resetPassword(token: string, newPassword: string) {
   );
 }
 
+/** Athlete: ask for their account and data to be deleted (an admin confirms). */
+export async function requestAccountDeletion(password: string) {
+  return request<AccountProfile>('/auth/delete-request', { method: 'POST', body: JSON.stringify({ password }) });
+}
+
+/** Athlete: withdraw a deletion request. */
+export async function cancelAccountDeletion() {
+  return request<AccountProfile>('/auth/delete-request', { method: 'DELETE' });
+}
+
+/** Admin: permanently delete an athlete who asked for it. */
+export async function deleteAthleteAccount(playerId: string) {
+  return request<{ ok: boolean; deleted: string }>(`/players/${playerId}/account`, { method: 'DELETE' });
+}
+
+/** Admin: keep the account and clear an athlete's deletion request. */
+export async function dismissDeletionRequest(playerId: string) {
+  return request<{ ok: boolean }>(`/players/${playerId}/deletion-request`, { method: 'DELETE' });
+}
+
 export interface AccountProfile {
   id: string;
   email: string;
@@ -234,6 +256,8 @@ export interface AccountProfile {
   position: string | null;
   isPrimaryAdmin: boolean;
   playerId: string | null;
+  /** Set while an athlete's account deletion request awaits an admin. */
+  deletionRequestedAt?: string | null;
 }
 
 export async function getMe() {
@@ -475,7 +499,8 @@ export type NotificationType =
   | 'SCHEDULE'
   | 'INQUIRY'
   | 'MESSAGE'
-  | 'PROFILE_UPDATE';
+  | 'PROFILE_UPDATE'
+  | 'ACCOUNT_DELETION';
 
 export interface AppNotification {
   id: string;

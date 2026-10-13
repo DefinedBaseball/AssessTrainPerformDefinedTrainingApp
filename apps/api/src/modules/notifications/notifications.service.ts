@@ -20,7 +20,8 @@ export type NotificationType =
   | 'SCHEDULE'
   | 'INQUIRY'
   | 'MESSAGE'
-  | 'PROFILE_UPDATE';
+  | 'PROFILE_UPDATE'
+  | 'ACCOUNT_DELETION';
 
 export interface NotificationPayload {
   type: NotificationType;

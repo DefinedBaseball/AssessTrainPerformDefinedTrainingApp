@@ -275,6 +275,7 @@ export class AuthService {
       position: user.position ?? null,
       isPrimaryAdmin: user.isPrimaryAdmin ?? false,
       playerId: user.player?.id ?? null,
+      deletionRequestedAt: user.deletionRequestedAt ?? null,
     };
   }
 
@@ -503,6 +504,50 @@ export class AuthService {
       this.prisma.passwordResetToken.deleteMany({ where: { userId: row.userId } }),
     ]);
     return { ok: true };
+  }
+
+  /* ── Account deletion (athletes) ──────────────────────────────────────
+     An athlete asks from Settings; admins are told and confirm on the
+     athlete's profile (PlayersService.deleteAthleteAccount). */
+
+  async requestAccountDeletion(userId: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { player: true } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role !== 'PLAYER' || !user.player)
+      throw new ForbiddenException('Coach accounts are removed by an admin in Settings → Staff.');
+    if (!(await this.verifyPassword(password || '', user.password)))
+      throw new UnauthorizedException('Password is incorrect');
+    if (user.deletionRequestedAt) return this.meShape(user);
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { deletionRequestedAt: new Date() },
+      include: { player: true },
+    });
+    const name = `${user.player.firstName} ${user.player.lastName}`.trim();
+    await this.notifications.notifyAdmins({
+      type: 'ACCOUNT_DELETION',
+      title: 'Account deletion request',
+      body: `${name} asked for their account and data to be deleted.`,
+      linkUrl: `/athletes/${user.player.id}`,
+      entityId: user.player.id,
+    });
+    return this.meShape(updated);
+  }
+
+  async cancelAccountDeletion(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { player: true } });
+    if (!user) throw new NotFoundException('User not found');
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { deletionRequestedAt: null },
+      include: { player: true },
+    });
+    if (user.player) {
+      await this.prisma.notification.deleteMany({
+        where: { type: 'ACCOUNT_DELETION', entityId: user.player.id },
+      });
+    }
+    return this.meShape(updated);
   }
 
   /** Raw per-subject notification channel matrix (defaults applied client-side). */

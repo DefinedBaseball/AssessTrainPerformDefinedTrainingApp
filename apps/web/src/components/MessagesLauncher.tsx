@@ -70,6 +70,7 @@ const NOTIF_GLYPH: Record<api.NotificationType, string> = {
   INQUIRY: '📩',
   MESSAGE: '💬',
   PROFILE_UPDATE: '✏️',
+  ACCOUNT_DELETION: '🗑️',
 };
 
 function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: number }) {

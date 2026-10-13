@@ -460,6 +460,106 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
           <button className={styles.btnDanger} onClick={onLogout}>Sign Out</button>
         </div>
       </div>
+
+      {!isCoach && <DeleteAccountCard profile={profile} onChange={setProfile} />}
+    </div>
+  );
+}
+
+/* Athletes ask for their account and data to be deleted here; an admin
+   confirms on the athlete's profile, which deletes everything. (Coach
+   accounts are removed by an admin in Staff.) */
+function DeleteAccountCard({ profile, onChange }: {
+  profile: api.AccountProfile | null;
+  onChange: (p: api.AccountProfile) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [understood, setUnderstood] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const requestedAt = profile?.deletionRequestedAt ? new Date(profile.deletionRequestedAt) : null;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!understood) { setErr('Tick the box to confirm you understand.'); return; }
+    if (!password) { setErr('Enter your password.'); return; }
+    setBusy(true); setErr('');
+    try {
+      onChange(await api.requestAccountDeletion(password));
+      setOpen(false); setPassword(''); setUnderstood(false);
+    } catch (e: any) {
+      setErr(e?.message || 'Could not send the request.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const withdraw = async () => {
+    setBusy(true); setErr('');
+    try {
+      onChange(await api.cancelAccountDeletion());
+    } catch (e: any) {
+      setErr(e?.message || 'Could not cancel the request.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.card}>
+      <h3 className={styles.cardTitle}>Delete account</h3>
+      {requestedAt ? (
+        <>
+          <p className={styles.cardDesc}>
+            You asked for your account to be deleted on {requestedAt.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric', ...tzOpt() })}.
+            Our staff will confirm it, and then your account and all of your data are permanently deleted.
+            Changed your mind? Cancel the request.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className={styles.btn} onClick={withdraw} disabled={busy}>
+              {busy ? 'Cancelling…' : 'Cancel request'}
+            </button>
+          </div>
+        </>
+      ) : !open ? (
+        <>
+          <p className={styles.cardDesc}>
+            Ask for your account and everything in it (profile, reports, videos, stats and messages) to be
+            permanently deleted. Our staff confirm the request first.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className={styles.btnDanger} onClick={() => { setOpen(true); setErr(''); }}>
+              Request account deletion
+            </button>
+          </div>
+        </>
+      ) : (
+        <form onSubmit={submit} autoComplete="off">
+          <p className={styles.cardDesc}>
+            Once our staff confirm it, your account, profile, photo, reports, measurements, videos, schedule,
+            stats and messages are permanently deleted. This can&rsquo;t be undone.
+          </p>
+          <div className={styles.row}>
+            <div className={styles.rowLabel}><span className={styles.rowTitle}>Password</span><span className={styles.rowSub}>To confirm it&rsquo;s you</span></div>
+            <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          </div>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12, cursor: 'pointer' }}>
+            <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} style={{ marginTop: 3 }} />
+            <span className={styles.cardDesc} style={{ margin: 0 }}>I understand my account and data will be permanently deleted.</span>
+          </label>
+          {err && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{err}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+            <button type="button" className={styles.btn} onClick={() => { setOpen(false); setErr(''); setPassword(''); setUnderstood(false); }} disabled={busy}>
+              Never mind
+            </button>
+            <button type="submit" className={styles.btnDanger} disabled={busy}>
+              {busy ? 'Sending…' : 'Request deletion'}
+            </button>
+          </div>
+        </form>
+      )}
+      {requestedAt && err && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{err}</div>}
     </div>
   );
 }

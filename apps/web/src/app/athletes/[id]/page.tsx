@@ -26,6 +26,7 @@ import styles from './page.module.css';
    right): this whole page is a client component behind auth. */
 import nextDynamic from 'next/dynamic';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
+import { DeletionRequestBanner } from '@/components/DeletionRequestBanner';
 
 const tabLoading = () => (
   <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
@@ -167,7 +168,7 @@ async function flattenHeavySvgs(root: HTMLElement): Promise<() => void> {
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user, isCoach, isViewer, isLoading: authLoading } = useAuth();
+  const { user, isCoach, isViewer, isAdmin, isLoading: authLoading } = useAuth();
 
   // When rendered inline (e.g., player dashboard), use playerId from auth
   const id = params?.id || (user as any)?.playerId || '';
@@ -666,6 +667,16 @@ export default function PlayerProfilePage() {
           below) so the player's identity card sits at the very top of
           the profile and the tab nav lives directly underneath as
           the entry point into each report. */}
+
+      {isCoach && player.user?.deletionRequestedAt && (
+        <DeletionRequestBanner
+          player={player}
+          requestedAt={player.user.deletionRequestedAt}
+          isAdmin={isAdmin}
+          onKept={() => setRefreshKey(k => k + 1)}
+          onDeleted={() => router.push('/athletes')}
+        />
+      )}
 
       {/* ── COMMAND DECK HERO (ported from test-3) ── */}
       {(() => {

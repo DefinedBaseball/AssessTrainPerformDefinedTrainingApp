@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
-import { Roles, Public, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, Public, AdminOnly, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
 
 class CreatePlayerDto {
   userId!: string;
@@ -121,6 +121,22 @@ export class PlayersController {
       return saved;
     }
     return this.playersService.update(id, dto);
+  }
+
+  @Delete(':id/account')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Permanently delete an athlete who requested account deletion (admin)' })
+  deleteAccount(@Param('id') id: string) {
+    return this.playersService.deleteAthleteAccount(id);
+  }
+
+  @Delete(':id/deletion-request')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: "Keep the account: clear an athlete's deletion request (admin)" })
+  dismissDeletionRequest(@Param('id') id: string) {
+    return this.playersService.dismissDeletionRequest(id);
   }
 
   @Put(':id/photo')

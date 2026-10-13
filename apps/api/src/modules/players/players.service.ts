@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
+import { BunnyService } from '../videos/bunny.service';
 
 /* Stat keys per grid for the season stats sheet. Mirrors STAT_GRIDS in the
    web app's lib/season-stats.ts -- keep the two in step. */
@@ -30,6 +31,7 @@ export class PlayersService {
     private mail: MailService,
     private notifications: NotificationsService,
     private leaderboards: LeaderboardsService,
+    private bunny: BunnyService,
   ) {}
 
   /** Tell coaches an athlete changed their own profile or Season Stats
@@ -185,7 +187,7 @@ export class PlayersService {
     const player = await this.prisma.player.findUnique({
       where: { id },
       include: {
-        user: { select: { email: true, role: true, phone: true, status: true } },
+        user: { select: { email: true, role: true, phone: true, status: true, deletionRequestedAt: true } },
         metrics: { orderBy: { recordedAt: 'desc' }, take: 50 },
         videos: { orderBy: { createdAt: 'desc' }, take: 20 },
         leaderboardEntries: true,
@@ -193,6 +195,91 @@ export class PlayersService {
     });
     if (!player) throw new NotFoundException('Player not found');
     return player;
+  }
+
+  /**
+   * Permanently delete an athlete who asked for it (Settings → Delete my
+   * account), confirmed by an admin on their profile. Removes the account
+   * and everything that is theirs: profile, photo, reports, metrics, videos
+   * (and the Bunny files behind them), at-bats, schedules, check-ins, stats,
+   * messages and notifications. Raw upload rows whose rows were all this
+   * athlete's go too. Posts that merely tagged them keep the post.
+   */
+  async deleteAthleteAccount(playerId: string) {
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      include: { user: true, videos: { select: { originalUrl: true, hlsUrl: true } } },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+    if (!player.user.deletionRequestedAt) {
+      throw new BadRequestException('This athlete hasn\u2019t asked for their account to be deleted.');
+    }
+    const userId = player.userId;
+
+    /* Gather what lives outside these rows before they disappear. */
+    const uploadIds = (await this.prisma.metric.findMany({
+      where: { playerId, uploadId: { not: null } },
+      select: { uploadId: true },
+      distinct: ['uploadId'],
+    })).map((m) => m.uploadId as string);
+    const sentClips = (await this.prisma.message.findMany({
+      where: { senderId: userId, videoUrl: { not: null } },
+      select: { videoUrl: true },
+    })).map((m) => m.videoUrl as string);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Relations that don't cascade from the player / user.
+      await tx.trainingProgram.deleteMany({ where: { playerId } });
+      await tx.gameReport.deleteMany({ where: { playerId } });
+      await tx.post.updateMany({ where: { taggedPlayerId: playerId }, data: { taggedPlayerId: null } });
+      await tx.postSeen.deleteMany({ where: { userId } });
+      await tx.post.deleteMany({ where: { authorId: userId } });
+      await tx.message.deleteMany({ where: { OR: [{ senderId: userId }, { recipientId: userId }] } });
+      await tx.notification.deleteMany({ where: { recipientId: userId } });
+      // Coaches' bell items about this athlete would point at a missing profile.
+      await tx.notification.deleteMany({ where: { entityId: { in: [playerId, userId] } } });
+      // Everything else hangs off the player (cascade), then the login itself.
+      await tx.player.delete({ where: { id: playerId } });
+      await tx.user.delete({ where: { id: userId } });
+      // Raw uploads that now have no rows left (they were only this athlete's).
+      for (const id of uploadIds) {
+        const left = await tx.metric.count({ where: { uploadId: id } });
+        if (left === 0) await tx.csvUpload.deleteMany({ where: { id } });
+      }
+    }, { timeout: 60_000 }); // years of per-pitch rows can outlast the 5 s default
+
+    /* Storage clean-up after the rows are gone -- best effort, like a video
+       delete: a storage hiccup leaves an orphaned file, never a half-deleted
+       account. */
+    const guids = new Set<string>();
+    for (const v of player.videos) {
+      const g = this.bunny.guidFromUrl(v.originalUrl) ?? this.bunny.guidFromUrl(v.hlsUrl);
+      if (g) guids.add(g);
+    }
+    for (const url of sentClips) {
+      const stillUsed = await this.prisma.message.count({ where: { videoUrl: url } })
+        + await this.prisma.video.count({ where: { OR: [{ originalUrl: url }, { hlsUrl: url }] } });
+      const g = this.bunny.guidFromUrl(url);
+      if (g && stillUsed === 0) guids.add(g);
+    }
+    for (const g of guids) {
+      void this.bunny.deleteVideoObject(g)
+        .then((ok) => { if (!ok) this.logger.warn(`Bunny asset ${g} could not be deleted (athlete account deletion)`); })
+        .catch((e) => this.logger.warn(`Bunny cleanup failed for ${g}: ${e?.message || e}`));
+    }
+    void this.rebuildLeaderboards([player.gradYear]);
+
+    this.logger.log(`Athlete account deleted on request: ${player.firstName} ${player.lastName} (${player.user.email})`);
+    return { ok: true, deleted: `${player.firstName} ${player.lastName}`.trim() };
+  }
+
+  /** Keep the account: clear an athlete's deletion request (admin). */
+  async dismissDeletionRequest(playerId: string) {
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { userId: true } });
+    if (!player) throw new NotFoundException('Player not found');
+    await this.prisma.user.update({ where: { id: player.userId }, data: { deletionRequestedAt: null } });
+    await this.prisma.notification.deleteMany({ where: { type: 'ACCOUNT_DELETION', entityId: playerId } });
+    return { ok: true };
   }
 
   async findByUserId(userId: string) {

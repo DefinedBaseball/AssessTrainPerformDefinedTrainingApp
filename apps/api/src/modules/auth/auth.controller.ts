@@ -151,6 +151,25 @@ export class AuthController {
     return this.authService.resetPassword(dto?.token, dto?.newPassword);
   }
 
+  @Post('delete-request')
+  @UseGuards(JwtAuthGuard)
+  @Roles('PLAYER')
+  @ApiBearerAuth()
+  @Throttle({ short: { limit: 5, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Athlete: ask for their account and data to be deleted (admin confirms)' })
+  requestDeletion(@Req() req: AuthenticatedRequest, @Body() dto: { password?: string }) {
+    return this.authService.requestAccountDeletion(req.user!.sub, dto?.password || '');
+  }
+
+  @Delete('delete-request')
+  @UseGuards(JwtAuthGuard)
+  @Roles('PLAYER')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Athlete: withdraw their account deletion request' })
+  cancelDeletion(@Req() req: AuthenticatedRequest) {
+    return this.authService.cancelAccountDeletion(req.user!.sub);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
