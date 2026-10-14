@@ -167,7 +167,7 @@ export function AcademyTab() {
         <div className={styles.row}>
           <div className={styles.rowLabel}>
             <span className={styles.rowTitle}>Email wording</span>
-            <span className={styles.rowSub}>Subject, heading and message of all 7 emails</span>
+            <span className={styles.rowSub}>Subject, heading and message of each email the app sends</span>
           </div>
           <button className={styles.btnSecondary} onClick={() => setEmailsOpen(true)}>Edit Emails</button>
         </div>

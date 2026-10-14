@@ -9,6 +9,7 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 import { BunnyService } from '../videos/bunny.service';
+import { parsePhotoDataUrl, isPhotoId } from '../../common/photo.util';
 
 /* Stat keys per grid for the season stats sheet. Mirrors STAT_GRIDS in the
    web app's lib/season-stats.ts -- keep the two in step. */
@@ -351,13 +352,7 @@ export class PlayersService {
    *  square-cropped and shrunk there). Replaces any previous one: the new
    *  photo gets a new random id, so the old URL stops working. */
   async setPhoto(playerId: string, dataUrl: unknown): Promise<{ profilePhoto: string }> {
-    if (typeof dataUrl !== 'string') throw new BadRequestException('Choose an image file');
-    const m = /^data:[^;,]*;base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl);
-    if (!m) throw new BadRequestException('Choose an image file');
-    const buf = Buffer.from(m[1], 'base64');
-    if (buf.length > 1_000_000) throw new BadRequestException('Photo must be under 1 MB');
-    const mime = sniffPhoto(buf);
-    if (!mime) throw new BadRequestException('Photo must be a PNG, JPG or WebP image');
+    const { mime, base64 } = parsePhotoDataUrl(dataUrl);
 
     const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
     if (!exists) throw new NotFoundException('Player not found');
@@ -366,7 +361,7 @@ export class PlayersService {
     const profilePhoto = `/api/player-photos/${id}`;
     await this.prisma.$transaction([
       this.prisma.playerPhoto.deleteMany({ where: { playerId } }),
-      this.prisma.playerPhoto.create({ data: { id, playerId, mime, data: buf.toString('base64') } }),
+      this.prisma.playerPhoto.create({ data: { id, playerId, mime, data: base64 } }),
       this.prisma.player.update({ where: { id: playerId }, data: { profilePhoto } }),
     ]);
     return { profilePhoto };
@@ -382,7 +377,7 @@ export class PlayersService {
 
   /** The image behind a photo URL. */
   async getPhoto(photoId: string): Promise<{ mime: string; data: Buffer }> {
-    if (!/^[0-9a-f]{32}$/.test(photoId)) throw new NotFoundException('No photo');
+    if (!isPhotoId(photoId)) throw new NotFoundException('No photo');
     const row = await this.prisma.playerPhoto.findUnique({ where: { id: photoId } });
     if (!row) throw new NotFoundException('No photo');
     return { mime: row.mime, data: Buffer.from(row.data, 'base64') };
@@ -592,10 +587,3 @@ export class PlayersService {
   }
 }
 
-/** PNG / JPEG / WebP by their first bytes -- the file's claimed type is not trusted. */
-function sniffPhoto(buf: Buffer): 'image/png' | 'image/jpeg' | 'image/webp' | null {
-  if (buf.length > 8 && buf[0] === 0x89 && buf.toString('ascii', 1, 4) === 'PNG') return 'image/png';
-  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
-  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
-  return null;
-}

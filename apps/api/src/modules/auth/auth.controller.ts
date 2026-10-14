@@ -1,4 +1,5 @@
-import { Controller, Post, Patch, Put, Delete, Body, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Put, Delete, Body, Get, Param, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -149,6 +150,27 @@ export class AuthController {
   @ApiOperation({ summary: 'Complete a password reset using an emailed token' })
   resetPassword(@Body() dto: { token: string; newPassword: string }) {
     return this.authService.resetPassword(dto?.token, dto?.newPassword);
+  }
+
+  @Put('photo')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ViewerAllowed()
+  @ApiBearerAuth()
+  @Throttle({ short: { limit: 30, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Coach: set your profile picture from a data URL' })
+  setPhoto(@Req() req: AuthenticatedRequest, @Body() dto: { dataUrl?: unknown }) {
+    return this.authService.setMyPhoto(req.user!.sub, dto?.dataUrl);
+  }
+
+  @Delete('photo')
+  @UseGuards(JwtAuthGuard)
+  @Roles('COACH')
+  @ViewerAllowed()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Coach: remove your profile picture' })
+  removePhoto(@Req() req: AuthenticatedRequest) {
+    return this.authService.removeMyPhoto(req.user!.sub);
   }
 
   @Post('delete-request')
@@ -331,5 +353,28 @@ export class AuthController {
   @ApiOperation({ summary: 'Replace the current user’s notification channel matrix' })
   setNotificationPrefs(@Req() req: AuthenticatedRequest, @Body() dto: unknown) {
     return this.authService.setNotificationPrefs(req.user!.sub, dto);
+  }
+}
+
+/** Coach profile pictures by their URL id (the athlete equivalent is
+ *  /api/player-photos). Public like those: the id is random and changes
+ *  with every upload, so it can't be guessed or go stale. */
+@ApiTags('auth')
+@Controller('user-photos')
+export class UserPhotosController {
+  constructor(private authService: AuthService) {}
+
+  @Get(':photoId')
+  @Public()
+  @ApiOperation({ summary: 'A coach profile picture by its URL id' })
+  async get(@Param('photoId') photoId: string, @Res() res: Response) {
+    const photo = await this.authService.getUserPhoto(photoId);
+    res.set({
+      'Content-Type': photo.mime,
+      'Content-Length': String(photo.data.length),
+      'Cache-Control': 'private, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.send(photo.data);
   }
 }

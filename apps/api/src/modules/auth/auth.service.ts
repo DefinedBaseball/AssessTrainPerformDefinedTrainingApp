@@ -16,6 +16,7 @@ import { signJwt, JwtPayload, CoachLevel } from './jwt.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
 import { AcademyService } from '../academy/academy.service';
+import { parsePhotoDataUrl, isPhotoId } from '../../common/photo.util';
 
 /** Full payload from the public /register form: profile + credentials. */
 export interface SignupPlayerPayload {
@@ -276,6 +277,8 @@ export class AuthService {
       isPrimaryAdmin: user.isPrimaryAdmin ?? false,
       playerId: user.player?.id ?? null,
       deletionRequestedAt: user.deletionRequestedAt ?? null,
+      /* Coaches' picture; an athlete's lives on their player profile. */
+      photo: user.photo ?? user.player?.profilePhoto ?? null,
     };
   }
 
@@ -772,10 +775,40 @@ export class AuthService {
     };
   }
 
+  /* ── Coach profile picture (Settings → Account) ─────────────────── */
+
+  async setMyPhoto(userId: string, dataUrl: unknown): Promise<{ photo: string }> {
+    const { mime, base64 } = parsePhotoDataUrl(dataUrl);
+    const id = randomBytes(16).toString('hex');
+    const photo = `/api/user-photos/${id}`;
+    await this.prisma.$transaction([
+      this.prisma.userPhoto.deleteMany({ where: { userId } }),
+      this.prisma.userPhoto.create({ data: { id, userId, mime, data: base64 } }),
+      this.prisma.user.update({ where: { id: userId }, data: { photo } }),
+    ]);
+    return { photo };
+  }
+
+  async removeMyPhoto(userId: string): Promise<{ photo: null }> {
+    await this.prisma.$transaction([
+      this.prisma.userPhoto.deleteMany({ where: { userId } }),
+      this.prisma.user.update({ where: { id: userId }, data: { photo: null } }),
+    ]);
+    return { photo: null };
+  }
+
+  /** The image behind a coach photo URL. */
+  async getUserPhoto(photoId: string): Promise<{ mime: string; data: Buffer }> {
+    if (!isPhotoId(photoId)) throw new NotFoundException('No photo');
+    const row = await this.prisma.userPhoto.findUnique({ where: { id: photoId } });
+    if (!row) throw new NotFoundException('No photo');
+    return { mime: row.mime, data: Buffer.from(row.data, 'base64') };
+  }
+
   async listCoaches() {
     return this.prisma.user.findMany({
       where: { role: 'COACH' },
-      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true, status: true, createdAt: true },
+      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true, status: true, createdAt: true, photo: true },
       orderBy: { createdAt: 'asc' },
     });
   }

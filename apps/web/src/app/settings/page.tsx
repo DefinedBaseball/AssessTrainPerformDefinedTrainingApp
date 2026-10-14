@@ -8,6 +8,8 @@ import * as api from '@/lib/api';
 import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
 import { PageHeader } from '@/components/PageHeader';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
+import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
+import { AthleteAvatar } from '@/components/AthleteAvatar';
 import { AcademyTab } from './AcademyTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
@@ -365,6 +367,19 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
           )}
         </div>
         <p className={styles.cardDesc}>Your account details and contact info.</p>
+
+        {/* Coaches' own picture (athletes set theirs on My Profile). Saves
+            straight away; the sidebar picks it up via refresh(). */}
+        {isCoach && profile && (
+          <ProfilePhotoPicker
+            firstName={firstName || profile.name?.split(/\s+/)[0] || ''}
+            lastName={lastName || profile.name?.split(/\s+/).slice(1).join(' ') || ''}
+            initialPhoto={profile.photo}
+            onSave={async (dataUrl) => (await api.setMyPhoto(dataUrl)).photo}
+            onRemove={async () => { await api.removeMyPhoto(); }}
+            onChange={() => { void refresh(); }}
+          />
+        )}
 
         <div className={styles.row}>
           <div className={styles.rowLabel}>
@@ -952,6 +967,12 @@ function StaffTab() {
             return (
               <div key={c.id}>
                 <div className={`${styles.row} ${styles.staffRow}`}>
+                  <AthleteAvatar
+                    photo={c.photo}
+                    firstName={(c.name || c.email).split(/\s+/)[0]}
+                    lastName={(c.name || '').split(/\s+/)[1]}
+                    className={styles.staffAvatar}
+                  />
                   <div className={styles.rowLabel}>
                     <span className={styles.rowTitle}>
                       {c.name || c.email.split('@')[0]}
@@ -1145,21 +1166,29 @@ const NOTIF_SUBJECTS_PLAYER = [
   { key: 'VIDEO', label: 'New Videos' },
   { key: 'COACH_REVIEW', label: 'Coach Reviews' },
 ];
-const NOTIF_SUBJECTS_COACH = [
+/* adminOnly: only admins receive these (they're the ones who can act). */
+const NOTIF_SUBJECTS_COACH: { key: string; label: string; adminOnly?: boolean }[] = [
   { key: 'ANNOUNCEMENT', label: 'Dashboard Posts' },
-  { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests' },
+  { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests', adminOnly: true },
+  { key: 'ACCOUNT_DELETION', label: 'Account Deletion Requests', adminOnly: true },
   { key: 'VIDEO', label: 'Athlete Video Uploads' },
   { key: 'INQUIRY', label: 'New Inquiries' },
   { key: 'MESSAGE', label: 'New Messages' },
   { key: 'PROFILE_UPDATE', label: 'Athlete Profile & Stats Updates' },
 ];
-/* Subjects with LIVE email delivery (must match the API's
-   EMAIL_DELIVERED_SUBJECTS). Every other subject's Email toggle renders as a
-   muted "Soon" so we don't imply delivery that isn't wired yet. */
-const EMAIL_DELIVERED_SUBJECTS = new Set(['COACH_REVIEW']);
+/* Subjects that are also emailed (must match the API's EMAIL_SUBJECTS for
+   coaches). Others are in-app only. */
+const EMAIL_SUBJECTS = new Set(['ACCOUNT_REQUEST', 'ACCOUNT_DELETION', 'INQUIRY', 'MESSAGE', 'VIDEO', 'PROFILE_UPDATE']);
+/* Alerts that can come often: their email starts off until turned on
+   (matches the API's EMAIL_DEFAULT_OFF). */
+const EMAIL_DEFAULT_OFF = new Set(['MESSAGE', 'VIDEO', 'PROFILE_UPDATE']);
+const channelDefault = (subject: string, channel: keyof api.NotifChannelPrefs) =>
+  channel === 'email' ? !EMAIL_DEFAULT_OFF.has(subject) : NOTIF_CHANNEL_DEFAULTS[channel];
 
 function NotificationsTab({ isCoach }: { isCoach: boolean }) {
-  const subjects = isCoach ? NOTIF_SUBJECTS_COACH : NOTIF_SUBJECTS_PLAYER;
+  const { isAdmin } = useAuth();
+  const subjects = (isCoach ? NOTIF_SUBJECTS_COACH : NOTIF_SUBJECTS_PLAYER)
+    .filter((s) => !('adminOnly' in s && s.adminOnly) || isAdmin);
   const [prefs, setPrefs] = useState<api.NotificationPrefs>({});
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -1172,10 +1201,15 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
   }, []);
 
   const isOn = (subject: string, channel: keyof api.NotifChannelPrefs) =>
-    prefs[subject]?.[channel] ?? NOTIF_CHANNEL_DEFAULTS[channel];
+    prefs[subject]?.[channel] ?? channelDefault(subject, channel);
 
   const toggle = async (subject: string, channel: keyof api.NotifChannelPrefs) => {
-    const current = { ...NOTIF_CHANNEL_DEFAULTS, ...(prefs[subject] || {}) };
+    const saved: Partial<api.NotifChannelPrefs> = prefs[subject] || {};
+    const current: api.NotifChannelPrefs = {
+      app: saved.app ?? channelDefault(subject, 'app'),
+      email: saved.email ?? channelDefault(subject, 'email'),
+      phone: saved.phone ?? channelDefault(subject, 'phone'),
+    };
     const next: api.NotificationPrefs = {
       ...prefs,
       [subject]: { ...current, [channel]: !current[channel] },
@@ -1224,9 +1258,8 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
               /* Account requests are mandatory in-app so a coach can never
                  miss a pending player \u2014 lock that one toggle on. */
               const locked = ch.key === 'app' && s.key === 'ACCOUNT_REQUEST';
-              /* Email delivery is wired for Coach Reviews only right now \u2014 every
-                 other subject's Email toggle shows "Soon" instead of a switch. */
-              const emailNotWired = ch.key === 'email' && !EMAIL_DELIVERED_SUBJECTS.has(s.key);
+              /* Subjects that aren't emailed show "In-app only" instead of a switch. */
+              const emailNotWired = ch.key === 'email' && !EMAIL_SUBJECTS.has(s.key);
               const on = locked || isOn(s.key, ch.key);
               return (
                 <div key={s.key} className={styles.row}>
@@ -1237,10 +1270,10 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
                   {emailNotWired ? (
                     <span
                       className={styles.rowSub}
-                      title="Email delivery for this notification is coming soon"
+                      title="This one only shows in the app's bell"
                       style={{ opacity: 0.7 }}
                     >
-                      Soon
+                      In-app only
                     </span>
                   ) : (
                     <button

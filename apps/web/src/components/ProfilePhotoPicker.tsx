@@ -12,12 +12,20 @@ import styles from './ProfilePhotoPicker.module.css';
 
 const SIZE = 400;
 
-export function ProfilePhotoPicker({ playerId, firstName, lastName, initialPhoto }: {
-  playerId: string;
+export function ProfilePhotoPicker({ playerId, firstName, lastName, initialPhoto, onSave, onRemove, onChange }: {
+  /** An athlete's photo. Omit and pass onSave/onRemove for anything else. */
+  playerId?: string;
   firstName: string;
   lastName: string;
   initialPhoto: string | null | undefined;
+  /** Store the cropped image; resolves to its new link. */
+  onSave?: (dataUrl: string) => Promise<string>;
+  onRemove?: () => Promise<void>;
+  /** Told the new link (or null) after a save / remove. */
+  onChange?: (photo: string | null) => void;
 }) {
+  const save = onSave ?? (async (dataUrl: string) => (await api.setPlayerPhoto(playerId!, dataUrl)).profilePhoto);
+  const clear = onRemove ?? (async () => { await api.removePlayerPhoto(playerId!); });
   const [photo, setPhoto] = useState<string | null>(initialPhoto ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -30,8 +38,9 @@ export function ProfilePhotoPicker({ playerId, firstName, lastName, initialPhoto
     setBusy(true);
     try {
       const dataUrl = await squareJpeg(file);
-      const saved = await api.setPlayerPhoto(playerId, dataUrl);
-      setPhoto(saved.profilePhoto);
+      const saved = await save(dataUrl);
+      setPhoto(saved);
+      onChange?.(saved);
     } catch (e: any) {
       setError(e?.message || 'The photo could not be saved.');
     } finally {
@@ -43,8 +52,9 @@ export function ProfilePhotoPicker({ playerId, firstName, lastName, initialPhoto
     setError('');
     setBusy(true);
     try {
-      await api.removePlayerPhoto(playerId);
+      await clear();
       setPhoto(null);
+      onChange?.(null);
     } catch (e: any) {
       setError(e?.message || 'The photo could not be removed.');
     } finally {

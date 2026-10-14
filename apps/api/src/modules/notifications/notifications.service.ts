@@ -3,12 +3,18 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 
 /**
- * Notification subjects wired for EMAIL delivery. Everything else stays
- * in-app only (the Settings matrix shows those email toggles as "Soon").
- * Kept deliberately small — email is opt-out per subject and we don't want to
- * flood inboxes on high-frequency events. Extend this as more emails are wired.
+ * Notification subjects that are also EMAILED, per recipient role. Must match
+ * the web Settings → Notifications matrix (EMAIL_SUBJECTS there). Athletes
+ * get Coach Review emails; coaches get alerts for things that need them.
  */
-const EMAIL_DELIVERED_SUBJECTS: ReadonlySet<string> = new Set(['COACH_REVIEW']);
+const EMAIL_SUBJECTS: Record<string, ReadonlySet<string>> = {
+  PLAYER: new Set(['COACH_REVIEW']),
+  COACH: new Set(['ACCOUNT_REQUEST', 'ACCOUNT_DELETION', 'INQUIRY', 'MESSAGE', 'VIDEO', 'PROFILE_UPDATE']),
+};
+
+/* Coach alerts that can come often -- their email starts OFF until the coach
+   turns it on in Settings. Everything else defaults ON. */
+const EMAIL_DEFAULT_OFF: ReadonlySet<string> = new Set(['MESSAGE', 'VIDEO', 'PROFILE_UPDATE']);
 
 export type NotificationType =
   | 'ACCOUNT_REQUEST'
@@ -62,19 +68,34 @@ export class NotificationsService {
   }
 
   /**
-   * Does this user want EMAIL for `subject`? Defaults to ON (matches the
-   * Settings matrix default), so a player is emailed about coach reviews
-   * unless they explicitly turn the Email toggle off. Independent of the app
-   * channel — turning the bell off must not silence the email and vice versa.
+   * Does this user want EMAIL for `subject`? A saved toggle wins; otherwise
+   * the default (ON, except the frequent coach alerts in EMAIL_DEFAULT_OFF),
+   * matching the Settings matrix. Independent of the app channel — turning
+   * the bell off must not silence the email and vice versa.
    */
   private emailEnabled(prefsJson: string | null | undefined, subject: string): boolean {
-    if (!prefsJson) return true;
+    const fallback = !EMAIL_DEFAULT_OFF.has(subject);
+    if (!prefsJson) return fallback;
     try {
-      const prefs = JSON.parse(prefsJson);
-      return prefs?.[subject]?.email !== false;
+      const saved = JSON.parse(prefsJson)?.[subject]?.email;
+      return typeof saved === 'boolean' ? saved : fallback;
     } catch {
-      return true;
+      return fallback;
     }
+  }
+
+  /** Email this person about the notification if their role gets it by
+   *  email and they haven't turned it off. Fire-and-forget. */
+  private maybeEmail(
+    u: { role: string; status: string; email: string; name: string | null; notificationPrefs: string | null; player?: { firstName: string } | null },
+    payload: NotificationPayload,
+  ) {
+    if (u.status !== 'ACTIVE' || !u.email) return;
+    if (!EMAIL_SUBJECTS[u.role]?.has(payload.type)) return;
+    /* Athletes have no notification settings: their saved prefs are ignored. */
+    const prefs = u.role === 'PLAYER' ? null : u.notificationPrefs;
+    if (!this.emailEnabled(prefs, payload.type)) return;
+    this.sendNotificationEmail(payload, u.email, u.name || u.player?.firstName || null);
   }
 
   /**
@@ -88,6 +109,7 @@ export class NotificationsService {
         where: { id: recipientId },
         select: {
           role: true,
+          status: true,
           notificationPrefs: true,
           email: true,
           name: true,
@@ -102,13 +124,7 @@ export class NotificationsService {
       // Email + app channels are independent — a player can want the email but
       // not the bell, or vice versa. Fire the email (best-effort) before the
       // app-channel early-return so muting the bell doesn't mute the email.
-      if (
-        EMAIL_DELIVERED_SUBJECTS.has(payload.type) &&
-        u?.email &&
-        this.emailEnabled(u.notificationPrefs, payload.type)
-      ) {
-        this.sendNotificationEmail(payload, u.email, u.name || u.player?.firstName || null);
-      }
+      if (found) this.maybeEmail(found, payload);
 
       if (!this.appEnabled(u?.notificationPrefs, payload.type)) return null;
       return await this.prisma.notification.create({
@@ -137,7 +153,14 @@ export class NotificationsService {
     const link = `${this.mail.webAppUrl}${payload.linkUrl || '/'}`;
     if (payload.type === 'COACH_REVIEW') {
       void this.mail.sendTemplate('COACH_REVIEW', to, { name, url: link });
+      return;
     }
+    /* Coach alerts reuse the bell's own wording inside the branded layout. */
+    void this.mail.sendTemplate('COACH_ALERT', to, { name, url: link }, {
+      subject: payload.title,
+      heading: payload.title,
+      body: payload.body ? `Hi {name},\n\n${payload.body}` : 'Hi {name},',
+    });
   }
 
   /**
@@ -150,8 +173,13 @@ export class NotificationsService {
     try {
       const users = await this.prisma.user.findMany({
         where: { id: { in: ids } },
-        select: { id: true, role: true, notificationPrefs: true },
+        select: {
+          id: true, role: true, status: true, notificationPrefs: true, email: true, name: true,
+          player: { select: { firstName: true } },
+        },
       });
+      /* Email is its own channel: sent even to someone who muted the bell. */
+      for (const u of users) this.maybeEmail(u, payload);
       const allowed = users
         /* Athletes always receive (see create()). */
         .filter((u) => u.role === 'PLAYER' || this.appEnabled(u.notificationPrefs, payload.type))

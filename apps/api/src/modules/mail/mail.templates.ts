@@ -24,7 +24,8 @@ export type EmailKey =
   | 'PASSWORD_RESET'
   | 'COACH_REVIEW'
   | 'PROFILE_REMINDER'
-  | 'REPORT_PDF';
+  | 'REPORT_PDF'
+  | 'COACH_ALERT';
 
 /** The admin-editable part of an email. */
 export interface EmailContent {
@@ -67,12 +68,29 @@ export interface EmailDef {
   defaults: EmailContent;
   /** Fixed small print under the button (expiry etc.); '' for none. */
   note: (v: EmailVars) => string;
+  /** Not shown in Settings → Academy → Edit Emails: its wording is built per
+   *  send (coach alerts reuse the notification's own text). */
+  internal?: boolean;
 }
 
 const inviteNote = (v: EmailVars) =>
   `This link is active for ${v.expiryDays ?? 7} days. If it expires, use "Forgot password?" on the sign-in page to get a new one.`;
 
 export const EMAIL_DEFS: EmailDef[] = [
+  {
+    key: 'COACH_ALERT',
+    label: 'Coach alert',
+    when: 'Something needs a coach: account or deletion requests, inquiries, messages, uploads, profile edits',
+    button: 'Open in App',
+    placeholders: ['name', 'academy'],
+    defaults: {
+      subject: 'New activity in {academy}',
+      heading: 'Something needs your attention',
+      body: 'Hi {name},\n\nThere is something new for you in {academy}.',
+    },
+    note: () => 'You get this email because email alerts are on in Settings → Notifications. You can turn each one off there.',
+    internal: true,
+  },
   {
     key: 'WELCOME',
     label: 'Welcome',

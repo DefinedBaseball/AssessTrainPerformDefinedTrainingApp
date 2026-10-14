@@ -18,6 +18,7 @@ type UserWithPlayer = {
   email: string;
   role: string;
   name: string | null;
+  photo: string | null;
   player: { firstName: string; lastName: string; profilePhoto: string | null } | null;
 };
 
@@ -34,7 +35,7 @@ export class MessagesService {
       id: u.id,
       name,
       role: (u.role === 'COACH' ? 'COACH' : 'PLAYER'),
-      photo: u.player?.profilePhoto ?? null,
+      photo: u.player?.profilePhoto ?? u.photo ?? null,
     };
   }
 
@@ -43,6 +44,7 @@ export class MessagesService {
     email: true,
     role: true,
     name: true,
+    photo: true,
     player: { select: { firstName: true, lastName: true, profilePhoto: true } },
   } as const;
 

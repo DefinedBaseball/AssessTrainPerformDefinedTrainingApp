@@ -532,6 +532,21 @@
 .staffRow { flex-wrap: wrap; }
 .staffRow .rowLabel { flex: 1 1 220px; }
 .staffRow .rowSub { overflow-wrap: anywhere; }
+/* Coach face beside each Staff row: their photo, or initials. */
+.staffAvatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(61, 139, 253, 0.18);
+  border: 1px solid rgba(61, 139, 253, 0.45);
+  color: #7eb6ff;
+  font-size: 12px;
+  font-weight: 700;
+}
 .staffActions {
   display: flex;
   gap: 8px;

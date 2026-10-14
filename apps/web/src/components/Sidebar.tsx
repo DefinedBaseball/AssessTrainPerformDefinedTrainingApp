@@ -365,12 +365,16 @@ export function Sidebar() {
       {user && (
         <div className={styles.userChip} title={user.email}>
           <span className={styles.userChipAvatar} aria-hidden="true">
-            {(user.name || user.email)
-              .split(/[\s@._-]+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map(w => w[0]?.toUpperCase() ?? '')
-              .join('')}
+            {user.photo ? (
+              <img src={user.photo} alt="" className={styles.userChipPhoto} />
+            ) : (
+              (user.name || user.email)
+                .split(/[\s@._-]+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(w => w[0]?.toUpperCase() ?? '')
+                .join('')
+            )}
           </span>
           <span className={styles.userChipText}>
             <strong className={styles.userChipName}>

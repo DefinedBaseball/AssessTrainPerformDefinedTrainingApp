@@ -88,7 +88,7 @@ export class AcademyController {
   @ApiOperation({ summary: 'Every app email with its default and current wording (admin)' })
   async listEmails() {
     const overrides = await this.academy.emailOverrides();
-    return EMAIL_DEFS.map((d) => ({
+    return EMAIL_DEFS.filter((d) => !d.internal).map((d) => ({
       key: d.key,
       label: d.label,
       when: d.when,
@@ -143,7 +143,7 @@ export class AcademyController {
     const def = emailDef(key)!;
     const me = await this.academy.userContact(req.user!.sub);
     const to = me.email;
-    const firstName = me.name?.trim().split(/s+/)[0] || null;
+    const firstName = me.name?.trim().split(/\s+/)[0] || null;
     const emailed = await this.mail.sendTemplate(def.key, to, this.sampleVars(def.key, firstName), draft);
     return { emailed, to };
   }

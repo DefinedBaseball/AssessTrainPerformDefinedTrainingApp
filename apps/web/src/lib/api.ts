@@ -258,6 +258,8 @@ export interface AccountProfile {
   playerId: string | null;
   /** Set while an athlete's account deletion request awaits an admin. */
   deletionRequestedAt?: string | null;
+  /** Profile picture link (a coach's own, or an athlete's player photo). */
+  photo?: string | null;
 }
 
 export async function getMe() {
@@ -363,6 +365,16 @@ export interface CoachAccount {
   /** "ACTIVE", or "LOCKED" while paused by an admin. */
   status?: string;
   createdAt: string;
+  photo?: string | null;
+}
+
+/** Coach: set your profile picture from a (square, shrunk) image data URL. */
+export async function setMyPhoto(dataUrl: string) {
+  return request<{ photo: string }>('/auth/photo', { method: 'PUT', body: JSON.stringify({ dataUrl }) });
+}
+
+export async function removeMyPhoto() {
+  return request<{ photo: null }>('/auth/photo', { method: 'DELETE' });
 }
 
 /** Admin: pause (LOCKED) or restore (ACTIVE) a coach account. */

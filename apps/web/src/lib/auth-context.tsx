@@ -18,6 +18,8 @@ interface AuthUser {
   /** Display name from Settings → Account (null until the user sets it). */
   name: string | null;
   playerId: string | null;
+  /** Profile picture link for the sidebar chip (null = initials). */
+  photo?: string | null;
 }
 
 interface AuthContextType {
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: (me.status as AuthUser['status']) || 'ACTIVE',
         name: me.name ?? null,
         playerId: me.playerId,
+        photo: me.photo ?? null,
       };
       setUser(authUser);
       localStorage.setItem('auth_user', JSON.stringify(authUser));
@@ -112,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     setUser(authUser);
     localStorage.setItem('auth_user', JSON.stringify(authUser));
+    /* The sign-in response has no photo; fill it (and the rest) from /auth/me. */
+    void refresh();
   };
 
   const logout = () => {

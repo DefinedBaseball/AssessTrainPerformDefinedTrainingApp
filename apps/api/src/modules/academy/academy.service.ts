@@ -286,7 +286,7 @@ export class AcademyService {
   /** Validate a draft from the editor. */
   parseEmailContent(key: string, input: unknown): EmailContent {
     const def = emailDef(key);
-    if (!def) throw new NotFoundException('Unknown email');
+    if (!def || def.internal) throw new NotFoundException('Unknown email');
     const b = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
     const subject = str(b.subject).replace(/[\r\n]+/g, ' ').trim();
     const heading = str(b.heading).replace(/[\r\n]+/g, ' ').trim();
@@ -325,7 +325,7 @@ export class AcademyService {
 
   async resetEmail(key: string): Promise<EmailContent> {
     const def = emailDef(key);
-    if (!def) throw new NotFoundException('Unknown email');
+    if (!def || def.internal) throw new NotFoundException('Unknown email');
     const next = { ...(await this.emailOverrides()) };
     delete next[def.key];
     await this.writeOverrides(next);
