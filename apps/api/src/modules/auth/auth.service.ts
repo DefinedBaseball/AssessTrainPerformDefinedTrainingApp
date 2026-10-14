@@ -174,8 +174,18 @@ export class AuthService {
    */
   async signupPlayer(payload: SignupPlayerPayload) {
     /* Closed to new athletes (Settings → Academy) unless the link a coach
-       emailed carries the invite code. */
-    await this.academy.assertAccepting(payload.inviteCode);
+       emailed carries a live invite code. */
+    if (!(await this.isLiveRegistrationInvite(payload.inviteCode))) {
+      try {
+        await this.academy.assertAccepting(payload.inviteCode);
+      } catch (err) {
+        /* A personal link that has run out gets its own explanation. */
+        if (typeof payload.inviteCode === 'string' && /^[0-9a-f]{32}$/.test(payload.inviteCode)) {
+          throw new ForbiddenException('This sign-up link has expired. Ask your coach to send you a new one.');
+        }
+        throw err;
+      }
+    }
     const email = payload.email?.trim().toLowerCase();
     if (!email) throw new BadRequestException('Email is required');
     if (!payload.password || !payload.password.trim())
@@ -234,6 +244,12 @@ export class AuthService {
         },
       },
       include: { player: true },
+    });
+
+    /* They signed up: off the athletes' Pending Invites list. */
+    await this.prisma.registrationInvite.updateMany({
+      where: { acceptedAt: null, OR: [{ email }, ...(typeof payload.inviteCode === 'string' ? [{ id: payload.inviteCode }] : [])] },
+      data: { acceptedAt: new Date() },
     });
 
     const fullName = `${user.player!.firstName} ${user.player!.lastName}`.trim();
@@ -424,6 +440,11 @@ export class AuthService {
     await this.prisma.passwordResetToken.create({
       data: { userId: user.id, tokenHash: this.hashToken(token), expiresAt },
     });
+    /* Pending until they set their password or sign in. Someone who has
+       already signed in isn't "invited" -- this is just a fresh link. */
+    if (!user.lastLoginAt) {
+      await this.prisma.user.update({ where: { id: user.id }, data: { invitedAt: new Date() } });
+    }
 
     /* Mail is config-gated (same pattern as Bunny) — if RESEND_API_KEY isn't
        set the send is a no-op. Report that back instead of implying the
@@ -459,7 +480,9 @@ export class AuthService {
    * the Create an Account form would only dead-end at "Email already
    * registered", and the coach would never know why nothing happened.
    */
-  async sendRegistrationInvite(rawEmail: string): Promise<{ ok: boolean; emailed: boolean; to: string }> {
+  async sendRegistrationInvite(
+    rawEmail: string, rawName?: string | null, invitedById?: string | null,
+  ): Promise<{ ok: boolean; emailed: boolean; to: string }> {
     const to = rawEmail?.trim().toLowerCase();
     if (!to) throw new BadRequestException('Email is required');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to))
@@ -472,15 +495,22 @@ export class AuthService {
       );
     }
 
-    /* The code lets this link open the sign-up form even while new athletes
-       are switched off in Settings → Academy. */
-    const registerUrl = `${this.mail.webAppUrl}/register?invite=${this.academy.registrationInviteCode()}`;
+    /* Recorded so it shows under Pending Invites. Its id is the link's
+       invite code, which opens sign-up even while new athletes are switched
+       off in Settings → Academy -- for 7 days. A newer invite to the same
+       address replaces any older pending one. */
+    const name = rawName?.trim().slice(0, 120) || null;
+    await this.prisma.registrationInvite.deleteMany({ where: { email: to, acceptedAt: null } });
+    const invite = await this.prisma.registrationInvite.create({
+      data: { id: randomBytes(16).toString('hex'), email: to, name, invitedById: invitedById ?? null },
+    });
+    const registerUrl = `${this.mail.webAppUrl}/register?invite=${invite.id}`;
     let emailed = false;
     try {
       /* send() returns false when Resend is unconfigured or the send fails --
          it does not throw -- so this flag, not the absence of an exception,
          is what tells the coach the invite actually left. */
-      emailed = await this.mail.sendTemplate('REGISTRATION_INVITE', to, { url: registerUrl });
+      emailed = await this.mail.sendTemplate('REGISTRATION_INVITE', to, { name, url: registerUrl, expiryDays: AuthService.INVITE_TTL_DAYS });
     } catch (err) {
       this.logger.warn(`Registration invite failed for ${to}: ${err}`);
     }
@@ -502,7 +532,7 @@ export class AuthService {
       throw new BadRequestException('This reset link is invalid or has expired.');
     const hash = await this.hashPassword(newPassword);
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: row.userId }, data: { password: hash } }),
+      this.prisma.user.update({ where: { id: row.userId }, data: { password: hash, invitedAt: null } }),
       // Burn all of this user's tokens (the one just used + any stragglers).
       this.prisma.passwordResetToken.deleteMany({ where: { userId: row.userId } }),
     ]);
@@ -551,6 +581,66 @@ export class AuthService {
       });
     }
     return this.meShape(updated);
+  }
+
+  /* ── Pending invites ────────────────────────────────────────────── */
+
+  private static inviteCutoff(): Date {
+    return new Date(Date.now() - AuthService.INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
+  }
+
+  /** An emailed sign-up link that is unused and under 7 days old. */
+  private async isLiveRegistrationInvite(code: unknown): Promise<boolean> {
+    if (typeof code !== 'string' || !/^[0-9a-f]{32}$/.test(code)) return false;
+    const inv = await this.prisma.registrationInvite.findUnique({ where: { id: code } });
+    return !!inv && !inv.acceptedAt && inv.sentAt >= AuthService.inviteCutoff();
+  }
+
+  /** Sign-up links sent to people who haven't registered yet (Athletes →
+   *  Pending Invites). Anyone who now has an account is dropped. */
+  async listRegistrationInvites() {
+    const invites = await this.prisma.registrationInvite.findMany({
+      where: { acceptedAt: null },
+      orderBy: { sentAt: 'desc' },
+    });
+    if (invites.length === 0) return [];
+    const taken = new Set((await this.prisma.user.findMany({
+      where: { email: { in: invites.map((i) => i.email) } },
+      select: { email: true },
+    })).map((u) => u.email));
+    const expiresMs = AuthService.INVITE_TTL_DAYS * 24 * 60 * 60 * 1000;
+    return invites
+      .filter((i) => !taken.has(i.email))
+      .map((i) => ({
+        id: i.id, email: i.email, name: i.name, sentAt: i.sentAt,
+        expiresAt: new Date(i.sentAt.getTime() + expiresMs),
+      }));
+  }
+
+  /** Re-send a sign-up link (a fresh 7 days). */
+  async resendRegistrationInvite(id: string, actorId: string) {
+    const inv = await this.prisma.registrationInvite.findUnique({ where: { id } });
+    if (!inv || inv.acceptedAt) throw new NotFoundException('Invite not found');
+    return this.sendRegistrationInvite(inv.email, inv.name, actorId);
+  }
+
+  async removeRegistrationInvite(id: string) {
+    await this.prisma.registrationInvite.deleteMany({ where: { id, acceptedAt: null } });
+    return { ok: true };
+  }
+
+  /** Re-send the set-password invite to an account that hasn't been set up.
+   *  A coach account needs an admin; athletes any non-viewer coach. */
+  async resendAccountInvite(actor: JwtPayload, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { player: true } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.invitedAt) throw new BadRequestException('This account is already set up.');
+    if (user.role === 'COACH') {
+      const actorLevel = actor.role === 'COACH' ? (actor.coachLevel || 'ADMIN') : null;
+      if (actorLevel !== 'ADMIN') throw new ForbiddenException('Only admins can re-send coach invites.');
+    }
+    const name = user.player ? `${user.player.firstName} ${user.player.lastName}`.trim() : user.name;
+    return this.sendInvite(user.email, name, user.role === 'COACH' ? 'coach' : 'athlete');
   }
 
   /** Raw per-subject notification channel matrix (defaults applied client-side). */
@@ -755,6 +845,12 @@ export class AuthService {
       await this.prisma.user.update({ where: { id: user.id }, data: { password: upgraded } });
     }
 
+    /* Signing in completes account setup: off the Pending Invites lists. */
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), invitedAt: null },
+    });
+
     const token = signJwt({
       sub: user.id,
       email: user.email,
@@ -808,7 +904,10 @@ export class AuthService {
   async listCoaches() {
     return this.prisma.user.findMany({
       where: { role: 'COACH' },
-      select: { id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true, status: true, createdAt: true, photo: true },
+      select: {
+        id: true, email: true, name: true, position: true, isPrimaryAdmin: true, coachLevel: true,
+        status: true, createdAt: true, photo: true, invitedAt: true, lastLoginAt: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

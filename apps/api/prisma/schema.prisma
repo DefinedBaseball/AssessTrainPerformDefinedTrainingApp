@@ -47,6 +47,12 @@ model User {
   // Coach profile picture link (/api/user-photos/<id>), or null. Athletes
   // keep theirs on Player.profilePhoto.
   photo             String?
+  // Last successful sign-in (null until their first one after this was added).
+  lastLoginAt       DateTime?
+  // When an invite (set-password link) was last sent to someone who hasn't
+  // set up their account yet. Null once they set a password or sign in --
+  // that is what moves them off the "Pending Invites" lists.
+  invitedAt         DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -109,6 +115,21 @@ model UserPhoto {
   mime      String
   data      String   // base64
   createdAt DateTime @default(now())
+}
+
+/// A link to the public sign-up form, emailed by a coach to someone with no
+/// account yet (Add Athlete → Email). The id is the link's invite code: it
+/// opens sign-up even while new athletes are switched off, for 7 days from
+/// sentAt. acceptedAt is set when that person registers.
+model RegistrationInvite {
+  id          String    @id
+  email       String
+  name        String?
+  invitedById String?
+  sentAt      DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  @@index([email])
 }
 
 model Player {

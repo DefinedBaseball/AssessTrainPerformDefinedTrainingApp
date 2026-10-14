@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
 import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
+import { PendingInvites, type PendingInviteRow } from '@/components/PendingInvites';
 import { AcademyTab } from './AcademyTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
@@ -757,8 +758,22 @@ function StaffTab() {
   };
   useEffect(() => { loadCoaches(); }, []);
 
-  const activeCoaches = coaches.filter((c) => c.status !== 'LOCKED');
+  /* Invited coaches who haven't set up their account yet sit in Pending
+     Invites at the bottom of the card, not the main list. */
+  const activeCoaches = coaches.filter((c) => c.status !== 'LOCKED' && !c.invitedAt);
   const pausedCoaches = coaches.filter((c) => c.status === 'LOCKED');
+  const pendingCoachRows: PendingInviteRow[] = coaches
+    .filter((c) => c.status !== 'LOCKED' && c.invitedAt)
+    .sort((a, b) => new Date(b.invitedAt!).getTime() - new Date(a.invitedAt!).getTime())
+    .map((c) => ({
+      key: c.id,
+      name: c.name,
+      email: c.email,
+      sentAt: c.invitedAt!,
+      resend: () => api.resendAccountInvite(c.id),
+      /* Withdrawing a coach invite removes the unused account. */
+      remove: () => api.deleteCoach(c.id),
+    }));
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1143,6 +1158,7 @@ function StaffTab() {
             );
           })
         )}
+        <PendingInvites rows={pendingCoachRows} onChanged={() => void loadCoaches()} tone="plain" inCard />
       </div>
     </div>
   );

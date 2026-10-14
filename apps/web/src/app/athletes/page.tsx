@@ -12,6 +12,7 @@ import { getAgeFromBirthDate } from './[id]/helpers';
 import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
 import styles from './page.module.css';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
+import { PendingInvites, useAthletePendingInvites } from '@/components/PendingInvites';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
 
@@ -21,7 +22,7 @@ const TYPE_FILTER_KEY = 'athleteHub.typeFilter';
 
 export default function AthletesPage() {
   const router = useRouter();
-  const { user, isCoach, isLoading } = useAuth();
+  const { user, isCoach, isViewer, isLoading } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('All');
@@ -113,8 +114,18 @@ export default function AthletesPage() {
     .filter(api.isPlayerLocked)
     .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
 
+  /* Invited athletes who haven't set up their account yet live in Pending
+     Invites at the bottom, not the main roster. */
+  const pending = useAthletePendingInvites(players, loadPlayers, !!user && isCoach);
+  const isPendingInvite = pending.isPendingInvite;
+  const pendingRows = pending.rows;
+  const pendingSection = (
+    <PendingInvites rows={pendingRows} onChanged={pending.refresh} canManage={!isViewer} />
+  );
+
   const filtered = players.filter(p => {
     if (api.isPlayerLocked(p)) return false;
+    if (isPendingInvite(p)) return false;
     const name = `${p.firstName} ${p.lastName}`.toLowerCase();
     const matchesSearch = !search || name.includes(search.toLowerCase());
     const matchesPos = posFilter === 'All' || p.positions.includes(posFilter);
@@ -252,9 +263,12 @@ export default function AthletesPage() {
           </button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className={styles.empty}>
-          <p>{players.length === 0 ? 'No athletes yet' : 'No athletes found'}</p>
-        </div>
+        <>
+          <div className={styles.empty}>
+            <p>{players.length === 0 ? 'No athletes yet' : 'No athletes found'}</p>
+          </div>
+          {pendingRows.length > 0 && <div className={styles.listWrap}>{pendingSection}</div>}
+        </>
       ) : (
         <div className={styles.listWrap}>
           <div className={styles.listHeader}>
@@ -328,10 +342,11 @@ export default function AthletesPage() {
               </div>
             );
           })}
+          {pendingSection}
         </div>
       )}
 
-      {addOpen && <AddAthleteModal onClose={() => setAddOpen(false)} />}
+      {addOpen && <AddAthleteModal onClose={() => setAddOpen(false)} onSent={() => void pending.loadInvites()} />}
     </div>
   );
 }

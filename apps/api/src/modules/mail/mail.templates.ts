@@ -146,7 +146,7 @@ export const EMAIL_DEFS: EmailDef[] = [
       body:
         'Your coach at {academy} has asked you to set up your player profile. It takes a couple of minutes, and it is what your reports, video and training plan get built on.',
     },
-    note: () => '',
+    note: (v) => `This link is active for ${v.expiryDays ?? 7} days. If it expires, ask your coach to send a new one.`,
   },
   {
     key: 'PASSWORD_RESET',

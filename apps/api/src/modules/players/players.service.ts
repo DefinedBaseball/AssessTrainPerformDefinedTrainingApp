@@ -180,7 +180,7 @@ export class PlayersService {
       orderBy: { firstName: 'asc' },
       /* status drives the Athlete Hub's locked/unlocked split and keeps
          locked athletes out of Apply Calendar's target list. */
-      include: { user: { select: { email: true, role: true, phone: true, status: true } } },
+      include: { user: { select: { id: true, email: true, role: true, phone: true, status: true, invitedAt: true } } },
     });
   }
 

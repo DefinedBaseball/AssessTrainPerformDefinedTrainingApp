@@ -69,8 +69,42 @@ export class AuthController {
    * message, and a coach inviting a squad would trip a tighter limit. */
   @Throttle({ short: { limit: 20, ttl: 600_000 } })
   @ApiOperation({ summary: 'Email a registration link to a prospective athlete (COACH only)' })
-  inviteRegistration(@Body() dto: { email: string }) {
-    return this.authService.sendRegistrationInvite(dto?.email);
+  inviteRegistration(@Req() req: AuthenticatedRequest, @Body() dto: { email: string; name?: string }) {
+    return this.authService.sendRegistrationInvite(dto?.email, dto?.name, req.user!.sub);
+  }
+
+  @Get('registration-invites')
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Sign-up links sent to people who have not registered yet (COACH)' })
+  listRegistrationInvites() {
+    return this.authService.listRegistrationInvites();
+  }
+
+  @Post('registration-invites/:id/resend')
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Re-send a sign-up link for another 7 days (COACH)' })
+  resendRegistrationInvite(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.authService.resendRegistrationInvite(id, req.user!.sub);
+  }
+
+  @Delete('registration-invites/:id')
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Withdraw a sign-up link (COACH)' })
+  removeRegistrationInvite(@Param('id') id: string) {
+    return this.authService.removeRegistrationInvite(id);
+  }
+
+  @Post('users/:userId/resend-invite')
+  @Roles('COACH')
+  @ApiBearerAuth()
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Re-send the set-password invite to an account not set up yet (COACH; coaches need admin)' })
+  resendAccountInvite(@Req() req: AuthenticatedRequest, @Param('userId') userId: string) {
+    return this.authService.resendAccountInvite(req.user!, userId);
   }
 
   @Public()

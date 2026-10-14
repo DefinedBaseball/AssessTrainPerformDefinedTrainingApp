@@ -129,9 +129,13 @@ export interface Player {
    *  details — they live on User, not Player, so the Client Directory reads
    *  them from here. */
   user?: {
+    id?: string;
     email: string;
     role: string;
     phone?: string | null;
+    /** Set while a set-password invite is out and the athlete hasn't set up
+     *  their account yet (Athletes → Pending Invites). */
+    invitedAt?: string | null;
     /** "ACTIVE" | "LOCKED" | "PENDING" | "DECLINED". LOCKED = a coach paused
      *  them: no login, and Apply Calendar skips them. */
     status?: string;
@@ -366,6 +370,9 @@ export interface CoachAccount {
   status?: string;
   createdAt: string;
   photo?: string | null;
+  /** Set while their invite is out and they haven't set up the account. */
+  invitedAt?: string | null;
+  lastLoginAt?: string | null;
 }
 
 /** Coach: set your profile picture from a (square, shrunk) image data URL. */
@@ -458,11 +465,43 @@ export interface SignupPlayerInput {
  *  (COACH only). Rejects an address that already has an account, since
  *  that person would only dead-end on the register form. `emailed` is
  *  false when the server has no mail provider configured. */
-export async function sendRegistrationInvite(email: string) {
+export async function sendRegistrationInvite(email: string, name?: string) {
   return request<{ ok: boolean; emailed: boolean; to: string }>('/auth/invite-registration', {
     method: 'POST',
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, name }),
   });
+}
+
+/** Invites expire 7 days after they're sent (server: INVITE_TTL_DAYS). */
+export const INVITE_TTL_DAYS = 7;
+export function isInviteExpired(sentAt: string | Date): boolean {
+  return Date.now() - new Date(sentAt).getTime() > INVITE_TTL_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/** A sign-up link emailed to someone without an account yet. */
+export interface RegistrationInvite {
+  id: string;
+  email: string;
+  name: string | null;
+  sentAt: string;
+  expiresAt: string;
+}
+
+export async function getRegistrationInvites() {
+  return request<RegistrationInvite[]>('/auth/registration-invites');
+}
+
+export async function resendRegistrationInvite(id: string) {
+  return request<{ ok: boolean; emailed: boolean; to: string }>(`/auth/registration-invites/${id}/resend`, { method: 'POST' });
+}
+
+export async function removeRegistrationInvite(id: string) {
+  return request<{ ok: boolean }>(`/auth/registration-invites/${id}`, { method: 'DELETE' });
+}
+
+/** Re-send the set-password invite to an account that isn't set up yet. */
+export async function resendAccountInvite(userId: string) {
+  return request<{ ok: boolean; emailed: boolean }>(`/auth/users/${userId}/resend-invite`, { method: 'POST' });
 }
 
 /** Public player self-registration → pending account + a session token. */

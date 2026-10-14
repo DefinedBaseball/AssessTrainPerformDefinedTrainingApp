@@ -19,9 +19,14 @@ import * as api from '@/lib/api';
 
 type Mode = 'choose' | 'email';
 
-export function AddAthleteModal({ onClose }: { onClose: () => void }) {
+export function AddAthleteModal({ onClose, onSent }: {
+  onClose: () => void;
+  /** After an email invite goes out (the page refreshes Pending Invites). */
+  onSent?: () => void;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('choose');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -44,7 +49,9 @@ export function AddAthleteModal({ onClose }: { onClose: () => void }) {
     setSending(true);
     setError('');
     try {
-      const res = await api.sendRegistrationInvite(v);
+      const res = await api.sendRegistrationInvite(v, name.trim() || undefined);
+      /* Recorded either way, so it shows under Pending Invites. */
+      onSent?.();
       /* A 2xx does NOT mean it was delivered -- the server no-ops when Resend
          is unconfigured -- so report what actually happened. */
       if (res.emailed) {
@@ -133,9 +140,24 @@ export function AddAthleteModal({ onClose }: { onClose: () => void }) {
             </p>
 
             <input
+              type="text"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Athlete name (optional)"
+              maxLength={120}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'var(--surface-bright)',
+                border: '1px solid var(--border)',
+                borderRadius: 10, padding: '10px 12px',
+                color: 'var(--text)', fontSize: 13.5, fontFamily: 'inherit',
+                marginBottom: 10,
+              }}
+            />
+            <input
               type="email"
               value={email}
-              autoFocus
               onChange={(e) => { setEmail(e.target.value); setError(''); }}
               onKeyDown={(e) => { if (e.key === 'Enter') void send(); }}
               placeholder="athlete@example.com"
@@ -169,8 +191,8 @@ export function AddAthleteModal({ onClose }: { onClose: () => void }) {
               Invite sent
             </div>
             <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.55 }}>
-              {sentTo} has been emailed a link to create their account. They&rsquo;ll appear
-              here for approval once they finish signing up.
+              {sentTo} has been emailed a link to create their account. It&rsquo;s listed under
+              Pending Invites until they sign up, and the link works for 7 days.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button type="button" style={primaryBtn} onClick={onClose}>Done</button>

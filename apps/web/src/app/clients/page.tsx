@@ -12,6 +12,7 @@ import { getAgeFromBirthDate } from '../athletes/[id]/helpers';
 import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
+import { PendingInvites, useAthletePendingInvites } from '@/components/PendingInvites';
 
 
 /**
@@ -50,7 +51,7 @@ function ContactCell({ value, href }: { value: string | null | undefined; href: 
 
 export default function ClientsPage() {
   const router = useRouter();
-  const { user, isCoach, isLoading } = useAuth();
+  const { user, isCoach, isViewer, isLoading } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -91,8 +92,13 @@ export default function ClientsPage() {
     void load();
   }, [isLoading, user, isCoach, load]);
 
+  /* Invited athletes who haven't set up yet: in Pending Invites at the
+     bottom (same as the Athletes tab), not the directory itself. */
+  const pending = useAthletePendingInvites(players, load, !isLoading && !!user && isCoach);
+  const isPendingInvite = pending.isPendingInvite;
+
   const rows = useMemo(() => {
-    const sorted = [...players].sort((a, b) =>
+    const sorted = [...players].filter((p) => !isPendingInvite(p)).sort((a, b) =>
       (a.lastName || '').localeCompare(b.lastName || '') ||
       (a.firstName || '').localeCompare(b.firstName || ''),
     );
@@ -104,7 +110,7 @@ export default function ClientsPage() {
       p.firstName, p.lastName, teamFor(p),
       p.user?.email, p.user?.phone, p.parentEmail, p.parentPhone,
     ].some((v) => (v || '').toLowerCase().includes(q)));
-  }, [players, query]);
+  }, [players, query, isPendingInvite]);
 
   if (isLoading || !user) return null;
 
@@ -142,10 +148,17 @@ export default function ClientsPage() {
           Couldn&apos;t load the client list.{' '}
           <button type="button" className={styles.retry} onClick={() => void load()}>Retry</button>
         </div>
-      ) : players.length === 0 ? (
-        <div className={aStyles.empty}>No athletes on the roster yet.</div>
-      ) : rows.length === 0 ? (
-        <div className={aStyles.empty}>No clients match “{query}”.</div>
+      ) : players.length === 0 || rows.length === 0 ? (
+        <>
+          <div className={aStyles.empty}>
+            {players.length === 0 || !query.trim() ? 'No athletes on the roster yet.' : <>No clients match “{query}”.</>}
+          </div>
+          {pending.rows.length > 0 && (
+            <div className={aStyles.listWrap}>
+              <PendingInvites rows={pending.rows} onChanged={pending.refresh} canManage={!isViewer} />
+            </div>
+          )}
+        </>
       ) : (
         <div className={aStyles.listWrap}>
           <div className={styles.scrollX}>
@@ -192,6 +205,7 @@ export default function ClientsPage() {
               );
             })}
           </div>
+          <PendingInvites rows={pending.rows} onChanged={pending.refresh} canManage={!isViewer} />
         </div>
       )}
     </div>
