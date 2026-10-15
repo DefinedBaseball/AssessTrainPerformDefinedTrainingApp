@@ -6,11 +6,15 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { AddAthleteModal } from '@/components/AddAthleteModal';
 import { getAgeFromBirthDate } from './[id]/helpers';
 import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconAthletes } from '../education/EduHeader';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
 import { PendingInvites, useAthletePendingInvites } from '@/components/PendingInvites';
 
@@ -146,11 +150,14 @@ export default function AthletesPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={styles.pageRoot}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconAthletes />}
         eyebrow="Roster"
         title="Athlete"
-        titleAccent="Hub"
+        accent="Hub"
         actions={
           <div className={styles.hubActions}>
             <input
@@ -158,7 +165,7 @@ export default function AthletesPage() {
               placeholder="Search athletes..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className={styles.searchInput}
+              className={`${styles.searchInput} ${theme.field}`}
             />
             {/* Athlete-type filter — All / Program / Lesson / Membership /
                 Remote. Membership athletes also surface under Program (the
@@ -169,7 +176,7 @@ export default function AthletesPage() {
                 setTypeFilter(e.target.value);
                 try { localStorage.setItem(TYPE_FILTER_KEY, e.target.value); } catch { /* storage unavailable */ }
               }}
-              className={styles.typeFilter}
+              className={`${styles.typeFilter} ${theme.field}`}
               style={{ whiteSpace: 'nowrap' }}
               title="Filter by athlete type"
               aria-label="Filter by athlete type"
@@ -194,7 +201,7 @@ export default function AthletesPage() {
             {isCoach && (
               <Link
                 href="/athletes/locked"
-                className={`btn btn-outline ${styles.iconBtn}`}
+                className={`btn btn-outline ${styles.iconBtn} ${theme.field}`}
                 title={`Locked athletes (${lockedPlayers.length})`}
                 aria-label={`Locked athletes (${lockedPlayers.length})`}
               >
@@ -212,7 +219,7 @@ export default function AthletesPage() {
             {isCoach && (
               <Link
                 href="/inquiries"
-                className={`btn btn-outline ${styles.iconBtn}`}
+                className={`btn btn-outline ${styles.iconBtn} ${theme.field}`}
                 title="Athlete inquiries"
                 aria-label="Athlete inquiries"
               >
@@ -236,11 +243,11 @@ export default function AthletesPage() {
       )}
 
       {/* Position filter */}
-      <div className={styles.filterRow}>
+      <div className={`${styles.filterRow} ${theme.bubble} ${theme.pad}`}>
         {POSITIONS.map(pos => (
           <button
             key={pos}
-            className={`${styles.filterChip} ${posFilter === pos ? styles.filterChipActive : ''}`}
+            className={`${styles.filterChip} ${posFilter === pos ? styles.filterChipActive : theme.field}`}
             onClick={() => setPosFilter(pos)}
           >
             {pos}
@@ -251,7 +258,7 @@ export default function AthletesPage() {
       {loading ? (
         <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Loading athletes...</p>
       ) : loadError ? (
-        <div className={styles.empty}>
+        <div className={`${styles.empty} ${theme.inner}`}>
           <p>Couldn&apos;t load the roster.</p>
           <button
             type="button"
@@ -264,13 +271,13 @@ export default function AthletesPage() {
         </div>
       ) : filtered.length === 0 ? (
         <>
-          <div className={styles.empty}>
+          <div className={`${styles.empty} ${theme.inner}`}>
             <p>{players.length === 0 ? 'No athletes yet' : 'No athletes found'}</p>
           </div>
-          {pendingRows.length > 0 && <div className={styles.listWrap}>{pendingSection}</div>}
+          {pendingRows.length > 0 && <div className={`${styles.listWrap} ${theme.inner}`} style={{ marginTop: 12 }}>{pendingSection}</div>}
         </>
       ) : (
-        <div className={styles.listWrap}>
+        <div className={`${styles.listWrap} ${theme.inner}`}>
           <div className={styles.listHeader}>
             <span
               className={styles.colName}

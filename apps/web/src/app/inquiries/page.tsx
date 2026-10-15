@@ -6,9 +6,13 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Inquiry } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconBook } from '../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
 
 function initials(f: string, l: string) {
@@ -253,34 +257,37 @@ export default function InquiriesPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={aStyles.pageRoot}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconBook />}
         eyebrow="Prospective Athletes"
         title="Athlete"
-        titleAccent="Inquiries"
+        accent="Inquiries"
         actions={
-          <Link href="/athletes" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
+          <Link href="/athletes" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
             ← Athlete Hub
           </Link>
         }
       />
 
       {loading ? (
-        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Loading inquiries…</p>
+        <p className={theme.inner} style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48, margin: 0 }}>Loading inquiries…</p>
       ) : loadError ? (
-        <div className={aStyles.empty}>
+        <div className={`${aStyles.empty} ${theme.inner}`}>
           <p>Couldn&apos;t load inquiries.</p>
           <button type="button" className="btn btn-primary" style={{ marginTop: 14 }} onClick={load}>Retry</button>
         </div>
       ) : inquiries.length === 0 ? (
-        <div className={aStyles.empty}>
+        <div className={`${aStyles.empty} ${theme.inner}`}>
           <p>No inquiries yet</p>
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>
             Submissions from the public inquiry form will appear here.
           </p>
         </div>
       ) : (
-        <div className={aStyles.listWrap}>
+        <div className={`${aStyles.listWrap} ${theme.inner}`}>
           <div className={styles.scrollX}>
             <div className={styles.head}>
               <span>Name</span>

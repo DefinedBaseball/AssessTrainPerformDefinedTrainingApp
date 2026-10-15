@@ -238,7 +238,7 @@ export default function WorkoutsPage() {
         accent="Workouts"
         subtitle="Who is scheduled today, who checked in, and who finished."
         actions={
-          <Link href="/training" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
+          <Link href="/training" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
             Training Calendar →
           </Link>
         }

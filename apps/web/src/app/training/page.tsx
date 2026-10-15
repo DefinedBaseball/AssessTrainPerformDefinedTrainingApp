@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Drill, ScheduledDrill } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import nextDynamic from 'next/dynamic';
 /* Code-split: ScheduleDownloadModal drags the whole @react-pdf/renderer
    engine with it (~the majority of this route's old 625kB First Load).
@@ -20,8 +19,12 @@ import { SaveTemplateModal, TemplatePreviewModal } from '@/components/TemplatePi
 import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
 import { CheckInFlow } from './CheckInFlow';
-import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconAttendance } from '../education/EduHeader';
 /* Tab + category color system lives in a shared module so the Player
    Summary's Upcoming Drills panel renders the same color treatment as
    the Training day-column cards do here — single source of truth. */
@@ -1123,16 +1126,19 @@ export default function TrainingPage() {
 
 
   return (
-    <div className={styles.page}>
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
       {/* ── Header ── */}
-      <PageHeader
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconAttendance />}
         eyebrow="Training Calendar"
         title={
           isCoach
             ? (selectedPlayer ? selectedPlayer.firstName : 'Select')
             : 'My'
         }
-        titleAccent={
+        accent={
           isCoach
             ? (selectedPlayer ? selectedPlayer.lastName : 'Athlete')
             : 'Training'
@@ -1148,8 +1154,8 @@ export default function TrainingPage() {
           The calendar grid itself uses the darker `innerPanel` tone, so
           the page reads as a clear two-tone hierarchy. */}
       <div
-        className={aStyles.profilePanel}
-        style={{ marginTop: 0, padding: 18, display: 'flex', flexDirection: 'column' }}
+        className={theme.bubble}
+        style={{ padding: 18, display: 'flex', flexDirection: 'column' }}
       >
 
       {/* ── Athlete Selector (Coach Only) ── */}
@@ -1157,7 +1163,7 @@ export default function TrainingPage() {
         <div className={styles.athleteBar}>
           <span className={styles.athleteLabel}>Athlete</span>
           <select
-            className={styles.athleteSelect}
+            className={`${styles.athleteSelect} ${theme.field}`}
             value={selectedPlayerId}
             onChange={e => setSelectedPlayerId(e.target.value)}
           >
@@ -1176,7 +1182,7 @@ export default function TrainingPage() {
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
-                className={styles.applyTrigger}
+                className={`${styles.applyTrigger} ${theme.field}`}
                 onClick={() => setShowApply(o => !o)}
                 title="Copy this athlete's schedule to other athletes or a program"
               >
@@ -1204,7 +1210,7 @@ export default function TrainingPage() {
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
-                className={styles.clearTrigger}
+                className={`${styles.clearTrigger} ${theme.field}`}
                 onClick={() => setShowClear(o => !o)}
                 title="Clear this athlete's schedule"
               >
@@ -1248,39 +1254,13 @@ export default function TrainingPage() {
         </div>
       )}
 
-      {/* ── Tab Bar (only shown in Week view — Month shows all tabs, Day uses columns) ── */}
-      {view === 'week' && (
-        <div className={styles.tabBar}>
-          <button
-            className={`${styles.tab} ${activeTab === 'all' ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab('all')}
-          >
-            All
-          </button>
-          {visibleTabs.map(t => {
-            const isActive = activeTab === t.key;
-            const tColor = TAB_COLORS[t.key];
-            return (
-              <button
-                key={t.key}
-                className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
-                style={isActive ? { color: tColor.text, borderBottomColor: tColor.text } : undefined}
-                onClick={() => setActiveTab(t.key)}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* ── Calendar Controls ── */}
       <div className={styles.calControls}>
         <div className={styles.calNav}>
-          <button className={styles.navBtn} onClick={() => navigate(-1)}>‹</button>
+          <button className={`${styles.navBtn} ${theme.field}`} onClick={() => navigate(-1)}>‹</button>
           <span className={styles.calTitle}>{calTitle}</span>
-          <button className={styles.navBtn} onClick={() => navigate(1)}>›</button>
-          <button className={styles.todayBtn} onClick={goToday}>Today</button>
+          <button className={`${styles.navBtn} ${theme.field}`} onClick={() => navigate(1)}>›</button>
+          <button className={`${styles.todayBtn} ${theme.field}`} onClick={goToday}>Today</button>
           {/* Day/week actions live here next to Today. Edit/Copy/Paste act on
               the selected day (Day view); Copy Week / Paste Week act on the
               whole week and are available in Day + Week view. */}
@@ -1293,7 +1273,7 @@ export default function TrainingPage() {
                       inline in the columns below, and nothing reaches the
                       athlete until this is pressed. */}
                   <button
-                    className={dayDirty ? styles.dayActionBtnAccent : styles.dayActionBtn}
+                    className={dayDirty ? styles.dayActionBtnAccent : `${styles.dayActionBtn} ${theme.field}`}
                     onClick={handleSaveDay}
                     disabled={savingDay || !dayDirty}
                     title={dayDirty
@@ -1302,20 +1282,20 @@ export default function TrainingPage() {
                   >
                     {savingDay ? 'Saving…' : dayDirty ? 'Save' : 'Saved'}
                   </button>
-                  <button className={styles.dayActionBtn} onClick={() => handleCopyDay(todayDateStr)} title="Copy this day's drills">Copy</button>
+                  <button className={`${styles.dayActionBtn} ${theme.field}`} onClick={() => handleCopyDay(todayDateStr)} title="Copy this day's drills">Copy</button>
                   {copiedDrills.length > 0 && (
                     <button className={styles.dayActionBtnAccent} onClick={() => handlePasteDay(todayDateStr)} title={copiedDate ? `Paste day from ${copiedDate}` : 'Paste copied day'}>Paste</button>
                   )}
                 </>
               )}
-              <button className={styles.dayActionBtn} onClick={handleCopyWeek} title="Copy this whole week's drills">Copy Week</button>
+              <button className={`${styles.dayActionBtn} ${theme.field}`} onClick={handleCopyWeek} title="Copy this whole week's drills">Copy Week</button>
               {copiedWeek.length > 0 && (
                 <button className={styles.dayActionBtnAccent} onClick={handlePasteWeek} title={copiedWeekStart ? `Paste week from ${copiedWeekStart}` : 'Paste copied week'}>Paste Week</button>
               )}
             </>
           )}
         </div>
-        <div className={styles.viewSwitcher}>
+        <div className={`${styles.viewSwitcher} ${theme.field}`}>
           {(['month', 'week', 'day'] as const).map(v => (
             <button
               key={v}
@@ -1346,6 +1326,33 @@ export default function TrainingPage() {
         </div>
       </div>
 
+      {/* ── Tab Bar (Week view only — Month shows all tabs, Day uses columns).
+          Sits UNDER the date / arrows / Today / Copy Week line. ── */}
+      {view === 'week' && (
+        <div className={styles.tabBar} style={{ marginTop: 0, marginBottom: 12 }}>
+          <button
+            className={`${styles.tab} ${activeTab === 'all' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('all')}
+          >
+            All
+          </button>
+          {visibleTabs.map(t => {
+            const isActive = activeTab === t.key;
+            const tColor = TAB_COLORS[t.key];
+            return (
+              <button
+                key={t.key}
+                className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
+                style={isActive ? { color: tColor.text, borderBottomColor: tColor.text } : undefined}
+                onClick={() => setActiveTab(t.key)}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── Legend (only shown in Week view when a specific tab is selected) ── */}
       {view === 'week' && activeTab !== 'all' && (
         <div className={styles.legend}>
@@ -1360,7 +1367,7 @@ export default function TrainingPage() {
 
       {/* ── No player selected ── */}
       {!selectedPlayerId && (
-        <div className={styles.empty}>
+        <div className={`${styles.empty} ${theme.inner}`}>
           Select an athlete to view their training calendar.
         </div>
       )}
@@ -1530,7 +1537,7 @@ function MonthView({
   }
 
   return (
-    <div className={styles.monthGrid}>
+    <div className={`${styles.monthGrid} ${theme.inner}`}>
       {DAYS.map(d => <div key={d} className={styles.dayHeader}>{d}</div>)}
       {cells.map(cell => {
         const dayTabs = tabsByDate[cell.date] || [];
@@ -1545,7 +1552,7 @@ function MonthView({
             {dayTabs.map(tab => {
               const color = TAB_COLORS[tab] || TAB_COLORS.hitting;
               return (
-                <div key={tab} className={styles.eventPill} style={{ background: color.bg, color: color.text }}>
+                <div key={tab} className={styles.eventPill} style={{ background: color.bg, color: 'var(--tab-ink)', '--tab-c': color.text } as React.CSSProperties}>
                   {TAB_LABELS[tab] || tab}
                 </div>
               );
@@ -1601,7 +1608,7 @@ function WeekView({
   }, [allEvents, isAll]);
 
   return (
-    <div className={styles.weekListGrid}>
+    <div className={`${styles.weekListGrid} ${theme.inner}`}>
       {weekDays.map(({ date, dateStr }) => {
         const isToday = dateStr === today;
         return (
@@ -1662,7 +1669,8 @@ function WeekView({
    ══════════════════════════════════════════════════════════════════ */
 
 function DayView({
-  currentDate,
+  /* Still passed in, no longer shown (the date header was removed). */
+  currentDate: _currentDate,
   allDayEvents,
   isCoach,
   onDelete,
@@ -1717,7 +1725,6 @@ function DayView({
   /** Tick / untick one drill in one section. */
   onToggleDd: (ddKey: string, drillId: string) => void;
 }) {
-  const dateLabel = currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   /* Focused-tab state — null means "show full day across every visible
    * column". Clicking a column header narrows the view to just that tab
@@ -1979,7 +1986,7 @@ function DayView({
   };
 
   return (
-    <div className={styles.dayView}>
+    <div className={`${styles.dayView} ${theme.inner}`}>
       <DndContext
         sensors={sensors}
         collisionDetection={calReorderCollision}
@@ -1987,24 +1994,15 @@ function DayView({
         onDragEnd={handleDragEnd}
         onDragCancel={() => setDragLabel(null)}
       >
-      {/* Header with date + action buttons */}
-      <div className={styles.dayViewHeader}>
-        <div className={styles.dayViewHeadLeft}>
-          <span className={styles.dayViewTitle}>{dateLabel}</span>
-          <span className={styles.dayViewSubtitle}>
-            {focusedTabMeta ? (
-              <>
-                {focusedTabMeta.label} only · {focusedEvents.length} drill{focusedEvents.length !== 1 ? 's' : ''}
-              </>
-            ) : (
-              <>{allDayEvents.length} drill{allDayEvents.length !== 1 ? 's' : ''} scheduled</>
-            )}
-          </span>
-        </div>
+      {/* Action row — only in the single-area (focused) view, where it holds
+          ← All areas / templates / Copy / +Temp / Paste. The date + drill-count
+          line was removed: the date already sits in the calendar controls. */}
+      {focusedTabMeta && (
+      <div className={styles.dayViewHeader} style={{ justifyContent: 'flex-start' }}>
         <div className={styles.dayActions}>
           {focusedTabMeta && (
             <button
-              className={styles.dayActionBtn}
+              className={`${styles.dayActionBtn} ${theme.field}`}
               onClick={() => setFocusedTab(null)}
               title="Back to the full day across every area"
             >
@@ -2021,7 +2019,7 @@ function DayView({
               onToggle={onToggleTemplate}
               onDelete={onDeleteTemplate}
               color={(TAB_COLORS[focusedTabMeta.key] || TAB_COLORS.hitting).text}
-              className={styles.dayActionBtn}
+              className={`${styles.dayActionBtn} ${theme.field}`}
             />
           )}
           {/* While focused on a single tab the coach can still copy
@@ -2030,7 +2028,7 @@ function DayView({
               when the focused tab has no drills to copy. */}
           {isCoach && focusedTabMeta && focusedEvents.length > 0 && (
             <button
-              className={styles.dayActionBtn}
+              className={`${styles.dayActionBtn} ${theme.field}`}
               onClick={() => onCopyTab(focusedTabMeta.key)}
               title={`Copy ${focusedTabMeta.label} drills only`}
             >
@@ -2040,7 +2038,7 @@ function DayView({
           {/* Save the focused sport's day as a named reusable template. */}
           {isCoach && focusedTabMeta && focusedEvents.length > 0 && (
             <button
-              className={styles.dayActionBtn}
+              className={`${styles.dayActionBtn} ${theme.field}`}
               onClick={() => onSaveTemplate(focusedTabMeta.key, buildTemplateItems(focusedTabMeta.key))}
               title={`Save this ${focusedTabMeta.label} day as a reusable template`}
             >
@@ -2063,6 +2061,7 @@ function DayView({
           )}
         </div>
       </div>
+      )}
 
       {focusedTabMeta && focusedColor ? (
         /* ── Focused single-tab view ──
@@ -2072,13 +2071,14 @@ function DayView({
          * keep the click → DrillVideoModal behavior. */
         <div
           className={styles.dayFocus}
-          style={{ borderTop: `3px solid ${focusedColor.text}` }}
+          /* --tab-c drives --tab-ink (darker in light theme) for the card titles. */
+          style={{ borderTop: `3px solid ${focusedColor.text}`, '--tab-c': focusedColor.text } as React.CSSProperties}
         >
           <div
             className={styles.dayFocusHeader}
             style={{ background: focusedColor.bg }}
           >
-            <span className={styles.dayFocusTitle} style={{ color: focusedColor.text }}>
+            <span className={styles.dayFocusTitle} style={{ color: 'var(--tab-ink)' }}>
               {focusedTabMeta.label}
             </span>
             <span className={styles.dayFocusCount}>
@@ -2187,7 +2187,9 @@ function DayView({
             const tabEvents = displayByTab[tab.key] || [];
             const tabColor = TAB_COLORS[tab.key] || TAB_COLORS.hitting;
             return (
-              <div key={tab.key} className={styles.dayCol}>
+              /* --tab-c = this column's sport colour; CSS derives --tab-ink (a darker
+                 version in light theme) for the header, chips and section labels. */
+              <div key={tab.key} className={styles.dayCol} style={{ '--tab-c': tabColor.text } as React.CSSProperties}>
                 {/* Column header — `<div>` wrapper instead of a single
                     `<button>` so the focus-tab click and the per-tab
                     Copy click can each be their own buttons (nested
@@ -2196,7 +2198,7 @@ function DayView({
                     selector matches class only, not element type. */}
                 <div
                   className={styles.dayColHeader}
-                  style={{ borderBottomColor: tabColor.text, cursor: 'default' }}
+                  style={{ borderBottomColor: 'var(--tab-ink)', cursor: 'default' }}
                 >
                   <button
                     type="button"
@@ -2214,9 +2216,9 @@ function DayView({
                       color: 'inherit',
                     }}
                   >
-                    <span className={styles.dayColTitle} style={{ color: tabColor.text }}>{tab.label}</span>
+                    <span className={styles.dayColTitle} style={{ color: 'var(--tab-ink)' }}>{tab.label}</span>
                     {tabEvents.length > 0 && (
-                      <span className={styles.dayColCount} style={{ background: tabColor.bg, color: tabColor.text }}>
+                      <span className={styles.dayColCount} style={{ background: tabColor.bg, color: 'var(--tab-ink)' }}>
                         {tabEvents.length}
                       </span>
                     )}
@@ -2232,7 +2234,7 @@ function DayView({
                         selectedIds={selectedTemplateIds}
                         onToggle={onToggleTemplate}
                         onDelete={onDeleteTemplate}
-                        color={tabColor.text}
+                        color="var(--tab-ink)"
                         spanColumn
                       />
                       <button
@@ -2246,7 +2248,7 @@ function DayView({
                         title={tabEvents.length > 0
                           ? `Save this ${tab.label} column as a reusable template`
                           : `Nothing in ${tab.label} to save as a template`}
-                        style={{ borderColor: tabColor.text, color: tabColor.text }}
+                        style={{ borderColor: 'var(--tab-ink)', color: 'var(--tab-ink)' }}
                       >
                         +Temp
                       </button>
@@ -2262,8 +2264,8 @@ function DayView({
                           ? `Copy ${tab.label} drills only`
                           : `No ${tab.label} drills to copy`}
                         style={{
-                          borderColor: tabColor.text,
-                          color: tabColor.text,
+                          borderColor: 'var(--tab-ink)',
+                          color: 'var(--tab-ink)',
                           background: tabEvents.length > 0 ? tabColor.bg : undefined,
                         }}
                       >
@@ -2298,13 +2300,15 @@ function DayView({
                                 drills={drillsByTabDd[tab.key]?.[dd.key] || []}
                                 selected={draftSel[dd.key] || EMPTY_SET}
                                 onToggle={(id) => onToggleDd(dd.key, id)}
-                                color={dd.color}
+                                /* One colour per column (the darker sport colour),
+                                   not a different shade per section. */
+                                color="var(--tab-ink)"
                                 compact
                               />
                               {rows.length > 0 && (
                                 <div
                                   className={styles.dayColSectionList}
-                                  style={{ borderLeftColor: dd.color }}
+                                  style={{ borderLeftColor: 'var(--tab-ink)' }}
                                 >
                                   <SortableContext
                                     items={rows.filter((ev) => !isPendingRow(ev.id)).map((ev) => ev.id)}

@@ -128,7 +128,7 @@ export default function ClientsPage() {
         title="Client"
         accent="Contacts"
         actions={
-          <Link href="/athletes" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
+          <Link href="/athletes" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
             ← Athlete Hub
           </Link>
         }

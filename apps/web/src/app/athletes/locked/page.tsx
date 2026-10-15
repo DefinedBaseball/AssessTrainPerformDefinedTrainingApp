@@ -18,9 +18,13 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { getAgeFromBirthDate } from '../[id]/helpers';
 import styles from '../page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../../education/page.module.css';
+import dashStyles from '../../page.module.css';
+import theme from '../../dashTheme.module.css';
+import { EduHeader, IconLock } from '../../education/EduHeader';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
 
 export default function LockedAthletesPage() {
@@ -89,11 +93,14 @@ export default function LockedAthletesPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={styles.pageRoot}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconLock />}
         eyebrow="Paused Accounts"
         title="Locked"
-        titleAccent="Athletes"
+        accent="Athletes"
         actions={
           <div className={styles.hubActions}>
             <input
@@ -101,9 +108,9 @@ export default function LockedAthletesPage() {
               placeholder="Search locked athletes..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className={styles.searchInput}
+              className={`${styles.searchInput} ${theme.field}`}
             />
-            <Link href="/athletes" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
+            <Link href="/athletes" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
               ← Athlete Hub
             </Link>
           </div>
@@ -117,28 +124,28 @@ export default function LockedAthletesPage() {
         </div>
       )}
 
-      <p className={styles.lockedIntro}>
+      <p className={`${styles.lockedIntro} ${theme.bubble} ${theme.pad}`}>
         A locked athlete cannot sign in, and program schedules skip them. Unlocking
         restores both immediately.
       </p>
 
       {loading ? (
-        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>Loading…</p>
+        <p className={theme.inner} style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48, margin: 0 }}>Loading…</p>
       ) : loadError ? (
-        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>
+        <p className={theme.inner} style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48, margin: 0 }}>
           Couldn&apos;t load the roster.{' '}
           <button type="button" className={styles.unlockBtn} onClick={() => load()}>Retry</button>
         </p>
       ) : totalLocked === 0 ? (
-        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>
+        <p className={theme.inner} style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48, margin: 0 }}>
           No locked athletes. Lock one from the <Link href="/athletes">Athlete Hub</Link>.
         </p>
       ) : locked.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48 }}>
+        <p className={theme.inner} style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 48, margin: 0 }}>
           No locked athletes match “{search}”.
         </p>
       ) : (
-        <div className={styles.listWrap}>
+        <div className={`${styles.listWrap} ${theme.inner}`}>
           {/* Same columns and widths as the Hub — only the action differs. */}
           <div className={styles.listHeader}>
             <span className={styles.colName}>Name</span>

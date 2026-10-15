@@ -170,7 +170,9 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: var(--surface);
+  /* Transparent: the switcher box carries the dashboard theme's solid
+     .field surface. */
+  background: transparent;
   border: none;
   border-right: 1px solid var(--border);
   color: var(--text-muted);
@@ -178,11 +180,12 @@
   transition: all 0.15s;
 }
 .viewBtn:last-child { border-right: none; }
-.viewBtn:hover { background: var(--surface2); color: var(--text); }
+.viewBtn:hover { background: rgba(127, 127, 127, 0.12); color: var(--text); }
+/* Selected view: a solid pill against the plain switcher. */
 .viewBtnActive {
-  background: rgba(255,255,255,0.08);
-  color: #f1f4f6;
-  border-color: rgba(255,255,255,0.14);
+  background: #ecebe6;
+  color: #0b0c0e;
+  border-color: #ecebe6;
 }
 /* Light theme: translucent-white fill + near-white text → white-on-light.
    Solid accent pill reads as clearly active. */
@@ -411,9 +414,10 @@
   box-shadow: var(--shadow-card);
 }
 
+/* Transparent so the Day view's solid list surface (dashboard theme) shows through. */
 .dayViewHeader {
   padding: 14px 16px;
-  background: var(--surface);
+  background: transparent;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -459,7 +463,7 @@
 .dayColHeader {
   padding: 10px 8px;
   text-align: center;
-  background: var(--surface);
+  background: transparent;
   border-bottom: 2px solid var(--border);
   display: flex;
   align-items: center;
@@ -480,7 +484,7 @@
   transition: background 0.12s;
 }
 .dayColHeader:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(127, 127, 127, 0.08);
 }
 .dayColHeader:focus-visible {
   outline: 2px solid var(--accent);
@@ -2189,3 +2193,45 @@
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* ── Day view, dashboard theme ──
+   Section drill dropdowns and the drills already picked under them are
+   solid white in light theme (lighter charcoal in dark theme), standing
+   out from the column's list grey. */
+.multiTriggerCompact {
+  background: #2a2c31;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .multiTriggerCompact {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: #111214;
+}
+.dayColSectionList .dayColCardItem {
+  background: #2a2c31;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 5px 6px;
+}
+.dayColSectionList .dayColCardItem:hover { background: #33353b; }
+[data-theme="light"] .dayColSectionList .dayColCardItem {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .dayColSectionList .dayColCardItem:hover { background: #f3f2ee; }
+
+/* Day column colours: the sport colour as-is in dark theme, a darker
+   version of the same colour in light theme so the header, chips and
+   section labels read on the grey. */
+.dayCol, .dayFocus, .eventPill { --tab-ink: var(--tab-c); }
+[data-theme="light"] .dayCol, [data-theme="light"] .dayFocus, [data-theme="light"] .eventPill { --tab-ink: color-mix(in srgb, var(--tab-c) 60%, #000); }
+/* Category card titles (MOVEMENT PREP, VISION…) in the read-only / focused
+   layouts: the column's darker colour. !important beats the per-category
+   inline colour (getTabCatStyle textStyle). */
+.dayCol .dayColCardCat,
+.dayFocus .dayColCardCat { color: var(--tab-ink) !important; }
+/* Section labels and the "Select Movement Prep…" text in each picker, in
+   the column's colour (one colour per column, not a shade per section). */
+.dayCol .dayColFieldLabel,
+.dayCol .multiTriggerCompact .multiPlaceholder { color: var(--tab-ink); font-weight: 700; }

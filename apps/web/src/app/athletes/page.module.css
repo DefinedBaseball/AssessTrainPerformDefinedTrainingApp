@@ -19,9 +19,9 @@
   gap: 10px;
 }
 
+/* Surface comes from the dashboard theme's .field class. */
 .searchInput {
   width: 260px;
-  background: var(--surface) !important;
 }
 
 /* Athlete-type filter dropdown — narrower than the 260px search box so the
@@ -31,7 +31,6 @@
    as before. */
 .typeFilter {
   width: 180px;
-  background: var(--surface) !important;
   cursor: pointer;
 }
 
@@ -94,10 +93,12 @@
   color: var(--text-secondary);
 }
 
+/* Unselected chips take the dashboard theme's solid .field surface; the
+   selected one is a solid off-white pill so it reads against them. */
 .filterChipActive {
-  background: rgba(255,255,255,0.08);
-  color: #f1f4f6;
-  border-color: rgba(255,255,255,0.14);
+  background: #ecebe6;
+  color: #0b0c0e;
+  border-color: #ecebe6;
 }
 /* Light theme: the translucent-white fill + near-white text collapses
    to white-on-light (~1.2:1). Render the selected chip as a solid
