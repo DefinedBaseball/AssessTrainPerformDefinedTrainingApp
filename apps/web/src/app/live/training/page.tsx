@@ -38,10 +38,14 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, LiveSession } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { getCameraLabel } from '@/lib/camera-labels';
 import pageStyles from '../page.module.css';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../../education/page.module.css';
+import dashStyles from '../../page.module.css';
+import theme from '../../dashTheme.module.css';
+import { EduHeader, IconTraining } from '../../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
 
 /* ── Position config ──
@@ -1029,9 +1033,12 @@ export default function LiveTrainingPage() {
   if (isLoading || !user || !isCoach) return null;
 
   return (
-    <div className={pageStyles.page}>
-      <PageHeader
-        size="bar"
+    <div className={`${eduStyles.page} ${dashStyles.coachDash} ${pageStyles.page}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconTraining />}
+        eyebrow="Session Capture"
         title="Training"
         subtitle={
           step === 'setup' ? 'Pick a position and roster' :
@@ -1062,7 +1069,7 @@ export default function LiveTrainingPage() {
               Name bubble on the athlete profile. Without the markers
               every `.panel` would render identical and the
               picker-vs-action hierarchy wouldn't read. */}
-          <section className={styles.panel} data-panel-kind="position">
+          <section className={`${styles.panel} ${theme.bubble}`} data-panel-kind="position">
             <div className={styles.panelHead}>
               <h2 className={styles.panelTitle}>Position</h2>
             </div>
@@ -1084,7 +1091,7 @@ export default function LiveTrainingPage() {
           </section>
 
           {position && (
-            <section className={styles.panel} data-panel-kind="players">
+            <section className={`${styles.panel} ${theme.bubble}`} data-panel-kind="players">
               <div className={styles.panelHead}>
                 <h2 className={styles.panelTitle}>Athletes</h2>
                 <span className={styles.countChip}>{selectedIds.size} selected</span>
@@ -1137,7 +1144,7 @@ export default function LiveTrainingPage() {
       {step === 'recording' && (
         <div className={styles.recordLayout}>
           {/* Roster column */}
-          <aside className={styles.rosterColumn}>
+          <aside className={`${styles.rosterColumn} ${theme.bubble}`}>
             <div className={styles.rosterColumnHead}>Roster</div>
             <div className={styles.rosterColumnList}>
               {selectedPlayers.map(p => {
@@ -1161,7 +1168,7 @@ export default function LiveTrainingPage() {
           </aside>
 
           {/* Camera + record column */}
-          <section className={styles.cameraColumn}>
+          <section className={`${styles.cameraColumn} ${theme.bubble}`}>
             {/* Implement / drill-type tag bar — sits above the camera
                 frame so the coach can see and switch the current
                 tag at a glance. Changing the tag mid-recording is
@@ -1437,7 +1444,7 @@ export default function LiveTrainingPage() {
 
       {/* ──────────── STEP 3 — SAVE ──────────── */}
       {step === 'save' && (
-        <section className={styles.panel} data-panel-kind="save">
+        <section className={`${styles.panel} ${theme.bubble}`} data-panel-kind="save">
           <div className={styles.panelHead}>
             <h2 className={styles.panelTitle}>Save Clips</h2>
             <span className={styles.countChip}>{clips.length} recording{clips.length === 1 ? '' : 's'}</span>
@@ -1604,7 +1611,7 @@ export default function LiveTrainingPage() {
                           <label className={styles.bundleAttachRow}>
                             <span className={styles.bundleAttachLabel}>Attach to:</span>
                             <select
-                              className={styles.bundleAttachSelect}
+                              className={`${styles.bundleAttachSelect} ${theme.field}`}
                               value={sel}
                               onChange={(e) => setBundleReportSel(prev => ({ ...prev, [bundleKey]: e.target.value }))}
                             >

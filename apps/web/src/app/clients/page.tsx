@@ -6,11 +6,15 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { getAgeFromBirthDate } from '../athletes/[id]/helpers';
 import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconAthletes } from '../education/EduHeader';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
 import { PendingInvites, useAthletePendingInvites } from '@/components/PendingInvites';
 
@@ -115,11 +119,14 @@ export default function ClientsPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={aStyles.pageRoot}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconAthletes />}
         eyebrow="Client Directory"
         title="Client"
-        titleAccent="Contacts"
+        accent="Contacts"
         actions={
           <Link href="/athletes" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
             ← Athlete Hub
@@ -127,9 +134,9 @@ export default function ClientsPage() {
         }
       />
 
-      <div className={styles.toolbar}>
+      <div className={`${styles.toolbar} ${theme.bubble} ${theme.pad}`}>
         <input
-          className={styles.search}
+          className={`${styles.search} ${theme.field}`}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -142,25 +149,25 @@ export default function ClientsPage() {
       </div>
 
       {loading ? (
-        <div className={aStyles.empty}>Loading clients…</div>
+        <div className={`${aStyles.empty} ${theme.inner}`}>Loading clients…</div>
       ) : loadError ? (
-        <div className={aStyles.empty}>
+        <div className={`${aStyles.empty} ${theme.inner}`}>
           Couldn&apos;t load the client list.{' '}
           <button type="button" className={styles.retry} onClick={() => void load()}>Retry</button>
         </div>
       ) : players.length === 0 || rows.length === 0 ? (
         <>
-          <div className={aStyles.empty}>
+          <div className={`${aStyles.empty} ${theme.inner}`}>
             {players.length === 0 || !query.trim() ? 'No athletes on the roster yet.' : <>No clients match “{query}”.</>}
           </div>
           {pending.rows.length > 0 && (
-            <div className={aStyles.listWrap}>
+            <div className={`${aStyles.listWrap} ${theme.inner}`} style={{ marginTop: 12 }}>
               <PendingInvites rows={pending.rows} onChanged={pending.refresh} canManage={!isViewer} />
             </div>
           )}
         </>
       ) : (
-        <div className={aStyles.listWrap}>
+        <div className={`${aStyles.listWrap} ${theme.inner}`}>
           <div className={styles.scrollX}>
             <div className={styles.head}>
               <span>Name</span>

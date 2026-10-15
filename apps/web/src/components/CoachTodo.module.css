@@ -449,3 +449,108 @@
   font-family: inherit;
 }
 .addTypeBtn:hover { border-color: var(--text-muted); }
+
+/* ── Coach Dashboard (Education Hub theme) ──
+   `.coach-dash` is a global marker on the dashboard wrapper. The To Do
+   bubble becomes a charcoal banner-style card in both themes with its own
+   dark tokens; the dialogs it renders get the light page tokens back in
+   light theme so they keep their normal look. */
+:global(.coach-dash) .card.card {
+  --bg: #0c0d0f;
+  --surface: #141518;
+  --text: #f2f1ed;
+  --text-bright: #f2f1ed;
+  --text-secondary: #b9b7b0;
+  --text-muted: #8d8b86;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-light: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
+  color: var(--text);
+  position: relative;
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 11px),
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    radial-gradient(50% 90% at 0% 100%, rgba(236, 235, 230, 0.035) 0%, rgba(236, 235, 230, 0) 70%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
+    0 18px 44px rgba(0, 0, 0, calc(0.4 * var(--edu-shade, 1)));
+}
+:global(.coach-dash) .card.card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 56px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #ecebe6;
+  box-shadow: 0 0 16px rgba(236, 235, 230, 0.6);
+  pointer-events: none;
+}
+:global(.coach-dash) .card .title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+:global(.coach-dash) .column.column {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+:global(.coach-dash) .columnTitle { font-family: var(--font-mono); letter-spacing: 0.18em; }
+:global(.coach-dash) .task.task { border-color: rgba(255, 255, 255, 0.16); }
+/* The dialogs render inside the card: hand them the light tokens back. */
+:global([data-theme="light"] .coach-dash) .overlay {
+  --bg: #f1f0ec;
+  --surface: #ffffff;
+  --text: #131417;
+  --text-bright: #131417;
+  --text-secondary: #45464b;
+  --text-muted: #6f6e6a;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-light: rgba(0, 0, 0, 0.12);
+  color-scheme: light;
+  color: var(--text);
+}
+
+/* ── Coach Dashboard, LIGHT theme: the solid mid-grey banner treatment
+   with dark type; coach columns are a lighter solid grey. ── */
+:global([data-theme="light"] .coach-dash) .card.card {
+  --bg: #f1f0ec;
+  --surface: #ffffff;
+  --text: #111214;
+  --text-bright: #111214;
+  --text-soft: #2e2f33;
+  --text-secondary: #2e2f33;
+  --text-muted: #34353a;
+  --faint: #45464b;
+  --border: rgba(0, 0, 0, 0.14);
+  --border-light: rgba(0, 0, 0, 0.18);
+  --accent: #16171a;
+  --accent-light: #16171a;
+  --accent-dim: rgba(22, 23, 26, 0.08);
+  --on-accent: #f6f5f1;
+  color-scheme: light;
+  color: var(--text);
+  border-color: rgba(0, 0, 0, 0.12);
+  background:
+    repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 11px),
+    linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 18px 44px rgba(0, 0, 0, 0.12);
+}
+:global([data-theme="light"] .coach-dash) .card.card::after { background: #16171a; box-shadow: none; }
+:global([data-theme="light"] .coach-dash) .column.column {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+:global([data-theme="light"] .coach-dash) .task.task { border-color: rgba(0, 0, 0, 0.14); }

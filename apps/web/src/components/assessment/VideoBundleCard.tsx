@@ -21,6 +21,7 @@ import { formatBubbleLabel, normalizeVideoTitle } from '@/lib/video-titles';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { tzOpt } from '@/lib/academy';
+import dashTheme from '@/app/dashTheme.module.css';
 
 /* SSR-safe mobile flag (same pattern as the profile tabs). On phones the
  * per-thumbnail download button is hidden — download lives inside the open
@@ -75,6 +76,10 @@ interface VideoBundleCardProps {
    *  its own list/counts. Deletion already works without it (the card hides
    *  itself + tombstones the ids), so it's optional. */
   onDeleted?: () => void;
+  /** Coach Dashboard theme (Video Library): the card becomes a solid inner
+   *  bubble (grey in light theme, charcoal in dark) with a header row, a
+   *  framed preview and a footer, instead of bars laid over the video. */
+  themed?: boolean;
 }
 
 export function VideoBundleCard({
@@ -88,6 +93,7 @@ export function VideoBundleCard({
   subtitle,
   hideLabel = false,
   onDeleted,
+  themed = false,
 }: VideoBundleCardProps) {
   const [open, setOpen] = useState(false);
   const { isCoach } = useAuth();
@@ -182,6 +188,194 @@ export function VideoBundleCard({
       setConfirming(false);
     }
   };
+
+  /* Inline delete confirmation — covers the bubble. stopPropagation on the
+     overlay + buttons so nothing reaches the card's open-modal click. */
+  const confirmOverlay = confirming && (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 5,
+        background: 'rgba(0,0,0,0.80)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: rem(10),
+        padding: rem(12),
+        textAlign: 'center',
+      }}
+    >
+      <span style={{ color: '#ffffff', fontSize: rem(12 * s), fontWeight: 600, lineHeight: 1.3 }}>
+        Would you like to delete this video?
+      </span>
+      <div style={{ display: 'flex', gap: rem(8) }}>
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={(e) => { e.stopPropagation(); void handleDelete(); }}
+          style={{
+            padding: `${rem(5)} ${rem(16)}`,
+            borderRadius: 6,
+            border: '1px solid #dc2626',
+            background: '#dc2626',
+            color: '#ffffff',
+            fontWeight: 700,
+            fontSize: rem(11 * s),
+            cursor: deleting ? 'wait' : 'pointer',
+          }}
+        >
+          {deleting ? '…' : 'Yes'}
+        </button>
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
+          style={{
+            padding: `${rem(5)} ${rem(16)}`,
+            borderRadius: 6,
+            border: '1px solid rgba(255,255,255,0.4)',
+            background: 'rgba(255,255,255,0.08)',
+            color: '#ffffff',
+            fontWeight: 600,
+            fontSize: rem(11 * s),
+            cursor: 'pointer',
+          }}
+        >
+          No
+        </button>
+      </div>
+    </div>
+  );
+
+  const modal = open && (
+    <VideoBundleModal
+      videos={videos}
+      label={displayLabel}
+      onClose={() => setOpen(false)}
+      playerId={playerId}
+      recordingCategory={recordingCategory}
+      onUploaded={onUploaded}
+      reports={reports}
+    />
+  );
+
+  /* ── Coach Dashboard theme ── */
+  if (themed) {
+    const iconBtn: CSSProperties = {
+      width: 24,
+      height: 24,
+      borderRadius: 7,
+      border: '1px solid var(--border-light)',
+      background: 'transparent',
+      color: 'var(--text-muted)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      padding: 0,
+      flexShrink: 0,
+    };
+    return (
+      <>
+        <div
+          className={`${dashTheme.inner} ${dashTheme.innerStrong}`}
+          style={{
+            position: 'relative',
+            width: '100%',
+            maxWidth,
+            padding: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            overflow: 'hidden',
+            cursor: 'pointer',
+          }}
+          onClick={() => setOpen(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); }
+          }}
+          title={displayLabel}
+        >
+          {/* Header — category dot + label, then download / delete. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: '2px 2px 0' }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: colors.border, flexShrink: 0, boxShadow: `0 0 8px ${colors.border}` }} />
+            {!hideLabel && (
+              <span style={{
+                flex: 1, minWidth: 0, fontFamily: 'var(--font-mono)', fontSize: rem(10), fontWeight: 600,
+                letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {displayLabel}
+              </span>
+            )}
+            {hideLabel && <span style={{ flex: 1 }} />}
+            {first.originalUrl && !isMobile && (
+              <button type="button" onClick={handleDownload} onKeyDown={(e) => e.stopPropagation()}
+                title="Download video" aria-label="Download video" style={iconBtn}>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 2.5v7" />
+                  <path d="M4.5 6.5 8 10l3.5-3.5" />
+                  <path d="M3 13.5h10" />
+                </svg>
+              </button>
+            )}
+            {isCoach && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+                onKeyDown={(e) => e.stopPropagation()} title="Delete video" aria-label="Delete video"
+                style={{ ...iconBtn, fontSize: rem(12), lineHeight: 1 }}>
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Preview — framed in the category colour. */}
+          <div style={{
+            position: 'relative', aspectRatio: '4 / 3', borderRadius: 10, overflow: 'hidden', background: '#000',
+            border: `1.5px solid ${colors.border}`,
+          }}>
+            {first.originalUrl ? (
+              <video
+                src={first.originalUrl}
+                preload="metadata"
+                muted
+                playsInline
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+              />
+            ) : null}
+            <div aria-hidden="true" style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              width: 38, height: 38, borderRadius: '50%', background: 'rgba(236,235,230,0.92)', color: '#0b0c0e',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: rem(14),
+              boxShadow: '0 6px 18px rgba(0,0,0,0.45)', pointerEvents: 'none',
+            }}>
+              ▶
+            </div>
+          </div>
+
+          {/* Footer — player · date, clip count. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 2px 2px', minWidth: 0 }}>
+            <span style={{ fontSize: rem(11.5), fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {subtitle ? `${subtitle} · ` : ''}<span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{dateStr}</span>
+            </span>
+            <span style={{
+              flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: rem(9.5), letterSpacing: '0.1em', textTransform: 'uppercase',
+              padding: '2px 7px', borderRadius: 999, border: '1px solid var(--border-light)', color: 'var(--text-muted)',
+            }}>
+              {count} {count === 1 ? 'clip' : 'clips'}
+            </span>
+          </div>
+
+          {confirmOverlay}
+        </div>
+        {modal}
+      </>
+    );
+  }
 
   return (
     <>
@@ -356,79 +550,10 @@ export function VideoBundleCard({
           <span style={{ flexShrink: 0 }}>{count} {count === 1 ? 'video' : 'videos'}</span>
         </div>
 
-        {/* Inline delete confirmation — covers the bubble. stopPropagation on
-            the overlay + buttons so nothing reaches the card's open-modal click. */}
-        {confirming && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 5,
-              background: 'rgba(0,0,0,0.80)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: rem(10),
-              padding: rem(12),
-              textAlign: 'center',
-            }}
-          >
-            <span style={{ color: '#ffffff', fontSize: rem(12 * s), fontWeight: 600, lineHeight: 1.3 }}>
-              Would you like to delete this video?
-            </span>
-            <div style={{ display: 'flex', gap: rem(8) }}>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={(e) => { e.stopPropagation(); void handleDelete(); }}
-                style={{
-                  padding: `${rem(5)} ${rem(16)}`,
-                  borderRadius: 6,
-                  border: '1px solid #dc2626',
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: rem(11 * s),
-                  cursor: deleting ? 'wait' : 'pointer',
-                }}
-              >
-                {deleting ? '…' : 'Yes'}
-              </button>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
-                style={{
-                  padding: `${rem(5)} ${rem(16)}`,
-                  borderRadius: 6,
-                  border: '1px solid rgba(255,255,255,0.4)',
-                  background: 'rgba(255,255,255,0.08)',
-                  color: '#ffffff',
-                  fontWeight: 600,
-                  fontSize: rem(11 * s),
-                  cursor: 'pointer',
-                }}
-              >
-                No
-              </button>
-            </div>
-          </div>
-        )}
+        {confirmOverlay}
       </div>
 
-      {open && (
-        <VideoBundleModal
-          videos={videos}
-          label={displayLabel}
-          onClose={() => setOpen(false)}
-          playerId={playerId}
-          recordingCategory={recordingCategory}
-          onUploaded={onUploaded}
-          reports={reports}
-        />
-      )}
+      {modal}
     </>
   );
 }

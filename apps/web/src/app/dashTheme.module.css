@@ -1,0 +1,112 @@
+/* ── Coach Dashboard theme for secondary pages ──
+   Pages wrap themselves in the Education `.page` + dashboard `.coachDash`
+   classes (canvas, tokens, full-bleed) and use the EduHeader banner. Their
+   main panels add `.bubble`: the dashboard's solid light grey in light theme,
+   the charcoal banner surface in dark theme.
+
+   The class is tripled so it beats each page's own single- and
+   theme-prefixed panel rules regardless of stylesheet order. Stripes are
+   a background layer (no `isolation`), so modals rendered inside a panel
+   are never trapped under the sidebar. */
+
+.bubble.bubble.bubble {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 11px),
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.08) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
+    0 14px 34px rgba(0, 0, 0, calc(0.38 * var(--edu-shade, 1)));
+}
+[data-theme="light"] .bubble.bubble.bubble {
+  /* Muted text darkened so it reads on the grey. */
+  --text-muted: #34353a;
+  --text-secondary: #2e2f33;
+  --faint: #45464b;
+  border-color: rgba(0, 0, 0, 0.12);
+  background:
+    repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.018) 0 2px, transparent 2px 11px),
+    linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* The lighter, solid, unstriped surface of the dashboard's coach columns /
+   posts -- used for inner rows and for list containers (Athletes,
+   Attendance) that sit straight on the canvas. */
+.inner.inner.inner {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .inner.inner.inner {
+  --text-muted: #34353a;
+  --text-secondary: #2e2f33;
+  --faint: #45464b;
+  border-color: rgba(0, 0, 0, 0.1);
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Spacing between stacked bubbles (the app's 12px rule). */
+.stack { display: flex; flex-direction: column; gap: 12px; }
+
+/* Padding for a bar (toolbar / search row) that becomes a bubble. */
+.pad { padding: 10px 14px; }
+
+/* Search bars, dropdown buttons, selects and date fields: the same lighter
+   solid surface as .inner (the coach-column colour). Opt-in per element so
+   the pop-up forms (Create Post, Add Task…) keep their own look. */
+.field.field.field {
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #1a1b1f;
+  background-image: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.field.field.field::placeholder { color: #8d8b86; }
+.field.field.field:focus,
+.field.field.field:focus-visible {
+  outline: none;
+  border-color: rgba(236, 235, 230, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 3px rgba(236, 235, 230, 0.12);
+}
+[data-theme="light"] .field.field.field {
+  color: #111214;
+  border-color: rgba(0, 0, 0, 0.14);
+  background-color: #c5c6c6;
+  background-image: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+[data-theme="light"] .field.field.field::placeholder { color: #4e4f54; }
+[data-theme="light"] .field.field.field:focus,
+[data-theme="light"] .field.field.field:focus-visible {
+  border-color: rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Firmer outline for inner cards that sit in a grid (Video Library). */
+.innerStrong.innerStrong.innerStrong.innerStrong {
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.innerStrong.innerStrong.innerStrong.innerStrong:hover { border-color: rgba(255, 255, 255, 0.4); }
+[data-theme="light"] .innerStrong.innerStrong.innerStrong.innerStrong {
+  border: 1.5px solid rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 8px 20px rgba(0, 0, 0, 0.14);
+}
+[data-theme="light"] .innerStrong.innerStrong.innerStrong.innerStrong:hover { border-color: rgba(0, 0, 0, 0.5); }

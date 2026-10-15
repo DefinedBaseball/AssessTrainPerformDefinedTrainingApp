@@ -1,9 +1,9 @@
 'use client';
 
 /* ─────────────────────────────────────────────────────────────────────
-   /videos — mode picker landing screen.
-   Three big dark-navy "Training-style" bubbles (matching the
-   /live page's mode-card chrome exactly) let the user pick:
+   /videos — mode picker landing screen, in the Coach Dashboard theme
+   (banner + hub-style tiles, grey in light theme / charcoal in dark).
+   Three tiles let the user pick:
      • Video Library — the full filterable Film Room (was the
                        previous /videos page, now at /videos/library)
      • Training      — per-player clip recording session (existing
@@ -19,14 +19,22 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PageHeader } from '@/components/PageHeader';
-import liveStyles from '@/app/live/page.module.css';
+/* Coach Dashboard theme: the Education canvas + tokens, the dashboard's
+   canvas shade, the banner, and hub-style mode tiles. */
+import eduStyles from '@/app/education/page.module.css';
+import dashStyles from '@/app/page.module.css';
+import { EduHeader, IconFilm } from '@/app/education/EduHeader';
+import styles from './hub.module.css';
 
 interface ModeCard {
   href: string;
   label: string;
   blurb: string;
   icon: React.ReactNode;
+  /** Small mono label above the title. */
+  eyebrow: string;
+  /** Accent ("r,g,b") for the icon chip, eyebrow and round arrow. */
+  rgb: string;
   /** Player visibility — players can view the library but not run
    *  Training or Live capture sessions, those are coach-only. */
   coachOnly?: boolean;
@@ -36,6 +44,8 @@ const MODES: ModeCard[] = [
   {
     href: '/videos/library',
     label: 'Video Library',
+    eyebrow: 'Film Room',
+    rgb: '232,175,52',
     blurb:
       "Browse, filter, and play every clip on the roster. Search by player, position, category, grad year, or date range. Open a bubble to scrub, draw, compare angles, or record a narrated Coach Review — all of the Film Room's tools in one place.",
     icon: (
@@ -56,6 +66,8 @@ const MODES: ModeCard[] = [
   {
     href: '/live/training',
     label: 'Training',
+    eyebrow: 'Session Capture',
+    rgb: '61,139,253',
     blurb:
       'Record one clip per athlete during a focused training session. Pick a position, select the roster, then tap a player and hit Start Video. Switching players auto-saves the previous clip. Save the clips to each athlete on session end.',
     coachOnly: true,
@@ -73,6 +85,8 @@ const MODES: ModeCard[] = [
   {
     href: '/live/at-bat',
     label: 'Live',
+    eyebrow: 'At-Bat Tracking',
+    rgb: '229,72,77',
     blurb:
       "Capture pitch-by-pitch at-bats during a scrimmage or bullpen. Pick a pitcher + hitter, tag each pitch's type / ball-strike / result, and record video per at-bat. Saved at-bats feed the Hitting tab's Swing Decision bubble and the Pitching tab's Live Results bubble.",
     coachOnly: true,
@@ -108,24 +122,41 @@ export default function VideosPage() {
   const visibleModes = MODES.filter((m) => !m.coachOnly || isCoach);
 
   return (
-    /* Reuse the /live mode-picker CSS module so the cards here look
-       pixel-identical to the Training / Live cards on /live. Same
-       dark-navy main-bubble chrome (`.modeCard`), same icon plate
-       (`.modeIcon`), same hero label (`.modeLabel`), same blurb. */
-    /* padding:0 overrides Live's .page 24px so the header bubble sits at the
-       same app-main 24px gutter as the Athletes hub bubble. */
-    <div className={liveStyles.page} style={{ padding: 0 }}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconFilm />}
         eyebrow="Film Room"
         title="Videos"
+        subtitle="Every clip on the roster, plus the Training and Live capture sessions."
       />
 
-      <div className={liveStyles.modeGrid}>
-        {visibleModes.map((mode) => (
-          <Link key={mode.href} href={mode.href} className={liveStyles.modeCard}>
-            <div className={liveStyles.modeIcon}>{mode.icon}</div>
-            <div className={liveStyles.modeLabel}>{mode.label}</div>
-            <div className={liveStyles.modeBlurb}>{mode.blurb}</div>
+      <div className={styles.grid}>
+        {visibleModes.map((mode, i) => (
+          <Link
+            key={mode.href}
+            href={mode.href}
+            className={styles.tile}
+            style={{ '--tile-rgb': mode.rgb } as React.CSSProperties}
+          >
+            <span className={styles.tileRule} aria-hidden="true" />
+            <span className={styles.tileWatermark} aria-hidden="true">{mode.icon}</span>
+            <span className={styles.tileHead}>
+              <span className={styles.tileIcon} aria-hidden="true">{mode.icon}</span>
+              <span className={styles.tileIndex}>{String(i + 1).padStart(2, '0')}</span>
+            </span>
+            <span className={styles.tileBody}>
+              <span className={styles.tileEyebrow}>{mode.eyebrow}</span>
+              <span className={styles.tileTitle}>{mode.label}</span>
+              <span className={styles.tileDesc}>{mode.blurb}</span>
+            </span>
+            <span className={styles.tileFoot}>
+              <span className={styles.tileHint}>Open</span>
+              <span className={styles.tileGo} aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
+            </span>
           </Link>
         ))}
       </div>

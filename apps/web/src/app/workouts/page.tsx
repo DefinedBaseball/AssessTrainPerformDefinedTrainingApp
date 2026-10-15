@@ -19,9 +19,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
-import aStyles from '../athletes/page.module.css';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconAttendance } from '../education/EduHeader';
 
 /** Local YYYY-MM-DD — a training day is the calendar day, not a UTC instant. */
 function toDateStr(d: Date): string {
@@ -225,11 +228,14 @@ export default function WorkoutsPage() {
   const finishedCount = rows?.filter((r) => r.finished).length ?? 0;
 
   return (
-    <div className={aStyles.pageRoot}>
-      <PageHeader
-        eyebrow="Training"
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconAttendance />}
+        eyebrow="Attendance"
         title="Athlete"
-        titleAccent="Workouts"
+        accent="Workouts"
         subtitle="Who is scheduled today, who checked in, and who finished."
         actions={
           <Link href="/training" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
@@ -240,7 +246,7 @@ export default function WorkoutsPage() {
 
       {/* ── Day bar ── the page is a window onto the calendar, so it moves
           day by day rather than being pinned to today. */}
-      <div className={styles.dayBar}>
+      <div className={`${styles.dayBar} ${theme.bubble}`}>
         <button type="button" className={styles.navBtn} onClick={() => shiftDay(-1)} aria-label="Previous day">‹</button>
         <div className={styles.dayText}>
           {/* The date IS the picker. Arrows stay for day-at-a-time stepping. */}
@@ -277,7 +283,7 @@ export default function WorkoutsPage() {
       </div>
 
       {selected ? (
-        <div className={styles.panel}>
+        <div className={`${styles.panel} ${theme.inner}`}>
           <button type="button" className={styles.back} onClick={() => setOpenKey(null)}>
             {isSearch ? '‹ All results' : '‹ All athletes'}
           </button>
@@ -312,10 +318,10 @@ export default function WorkoutsPage() {
           </div>
         </div>
       ) : (
-        <div className={styles.panel}>
+        <div className={`${styles.panel} ${theme.inner}`}>
           <div className={styles.toolbar}>
             <input
-              className={styles.search}
+              className={`${styles.search} ${theme.field}`}
               placeholder="Search athletes…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}

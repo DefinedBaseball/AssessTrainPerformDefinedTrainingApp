@@ -54,10 +54,14 @@ import type {
   Player, LiveSession, AtBat, Pitch, PitchType, PitchResult, QualityOfContact,
 } from '@/lib/api';
 import { TERMINAL_PITCH_RESULTS, QUALITY_OF_CONTACT } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import pageStyles from '../page.module.css';
 import trainingStyles from '../training/page.module.css';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../../education/page.module.css';
+import dashStyles from '../../page.module.css';
+import theme from '../../dashTheme.module.css';
+import { EduHeader, IconLive } from '../../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
 
 /* ── Position split for the roster ──
@@ -1032,10 +1036,14 @@ export default function LiveAtBatPage() {
   if (isLoading || !user || !isCoach) return null;
 
   return (
-    <div className={pageStyles.page}>
-      <PageHeader
-        size="bar"
-        title="Training — At-Bat"
+    <div className={`${eduStyles.page} ${dashStyles.coachDash} ${pageStyles.page}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconLive />}
+        eyebrow="At-Bat Tracking"
+        title="Live"
+        accent="At-Bat"
         subtitle={
           step === 'setup'
             ? 'Pick pitchers and hitters for this session'
@@ -1111,7 +1119,7 @@ export default function LiveAtBatPage() {
             near-white `--bubble-chrome-bg` fill in light theme — the
             same Swing color the /live/training Save Clips panel +
             the Position picker + Setup Record / camera column wear. */
-        <section className={trainingStyles.panel} data-panel-kind="save">
+        <section className={`${trainingStyles.panel} ${theme.bubble}`} data-panel-kind="save">
           <div className={trainingStyles.panelHead}>
             <h2 className={trainingStyles.panelTitle}>Save Recordings</h2>
             <span className={trainingStyles.countChip}>
@@ -1141,7 +1149,7 @@ export default function LiveAtBatPage() {
                         <label className={styles.savePickerRow}>
                           <span className={trainingStyles.dim}>Attach to:</span>
                           <select
-                            className={styles.savePickerSelect}
+                            className={`${styles.savePickerSelect} ${theme.field}`}
                             value={reportSel}
                             disabled={!!clip.uploading}
                             onChange={(e) => setClipReportSel(prev => ({ ...prev, [clip.clientId]: e.target.value }))}
@@ -1257,7 +1265,7 @@ export default function LiveAtBatPage() {
              and the "End Session" button moved up to the PageHeader's
              `actions` slot at the top of the page, freeing this
              column to lead with the matchup row. */}
-          <section className={styles.trackerPanel}>
+          <section className={`${styles.trackerPanel} ${theme.bubble}`}>
             {!activePitcher || !activeHitter ? (
               <div className={trainingStyles.dim}>
                 Pick a pitcher and a hitter from the lists on the left to start an at-bat.
@@ -1556,7 +1564,7 @@ export default function LiveAtBatPage() {
               its content on `activePitcher && activeHitter` — until
               both are picked there's no AB to record, so the panel
               shows a quiet placeholder instead of the live preview. */}
-          <section className={styles.videoPanel}>
+          <section className={`${styles.videoPanel} ${theme.bubble}`}>
             <div className={trainingStyles.panelHead}>
               <h2 className={trainingStyles.panelTitle}>Video</h2>
             </div>
@@ -1691,7 +1699,7 @@ function RosterPicker({
         Athletes panel + the /videos & /training picker bubbles use, so
         every player-select surface across the coaching app reads in
         one unified outer tone. */
-    <section className={trainingStyles.panel} data-panel-kind="players">
+    <section className={`${trainingStyles.panel} ${theme.bubble}`} data-panel-kind="players">
       <div className={trainingStyles.panelHead}>
         <h2 className={trainingStyles.panelTitle}>{title}</h2>
         <span className={trainingStyles.countChip}>{countLabel}</span>
@@ -1742,7 +1750,7 @@ function RosterColumn({
   metaById?: Record<string, string>;
 }) {
   return (
-    <aside className={trainingStyles.rosterColumn}>
+    <aside className={`${trainingStyles.rosterColumn} ${theme.bubble}`}>
       <div className={trainingStyles.rosterColumnHead}>{title}</div>
       <div className={trainingStyles.rosterColumnList}>
         {players.length === 0 ? (

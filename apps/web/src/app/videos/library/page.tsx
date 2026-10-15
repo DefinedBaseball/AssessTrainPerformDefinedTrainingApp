@@ -5,11 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, VideoWithPlayer } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
-import aStyles from '@/components/assessment/assessment.module.css';
 import { bundleVideos } from '@/lib/video-titles';
 import { VideoBundleModal, VideoBundleCard } from '@/components/assessment';
 import styles from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../../education/page.module.css';
+import dashStyles from '../../page.module.css';
+import theme from '../../dashTheme.module.css';
+import { EduHeader, IconFilm } from '../../education/EduHeader';
 
 // Coaching Studio retired - its features (mic-narrated Coach Review
 // recording, drawing tools, sync/unsync grid playback,
@@ -166,7 +169,7 @@ function AthleteDropdown({
     <div className={styles.athleteDropdown} ref={dropRef}>
       <button
         type="button"
-        className={`${styles.athleteDropdownBtn} ${open ? styles.athleteDropdownBtnOpen : ''}`}
+        className={`${styles.athleteDropdownBtn} ${theme.field} ${open ? styles.athleteDropdownBtnOpen : ''}`}
         onClick={() => { setOpen(o => !o); setSearch(''); }}
       >
         <span className={styles.athleteDropdownIcon}>👤</span>
@@ -184,7 +187,7 @@ function AthleteDropdown({
               placeholder="Search athletes..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className={styles.athleteDropdownInput}
+              className={`${styles.athleteDropdownInput} ${theme.field}`}
             />
           </div>
 
@@ -252,7 +255,7 @@ function DateRangeFilter({
       <div className={styles.dateInputs}>
         <input
           type="date"
-          className={styles.dateInput}
+          className={`${styles.dateInput} ${theme.field}`}
           value={from}
           onChange={e => onChange(e.target.value, to)}
           placeholder="From"
@@ -260,7 +263,7 @@ function DateRangeFilter({
         <span className={styles.dateSep}>—</span>
         <input
           type="date"
-          className={styles.dateInput}
+          className={`${styles.dateInput} ${theme.field}`}
           value={to}
           onChange={e => onChange(from, e.target.value)}
           placeholder="To"
@@ -314,7 +317,7 @@ function GradYearFilter({
       <label className={styles.filterLabel}>Grad Year</label>
       <button
         type="button"
-        className={styles.gradYearBtn}
+        className={`${styles.gradYearBtn} ${theme.field}`}
         onClick={() => setOpen(o => !o)}
       >
         <span className={styles.gradYearBtnText}>{label}</span>
@@ -496,12 +499,15 @@ export default function VideosPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={styles.pageWrap}>
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
       {/* ── Header ── */}
-      <PageHeader
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconFilm />}
         eyebrow="Film Room"
         title={isCoach ? 'Video' : 'My Video'}
-        titleAccent="Library"
+        accent="Library"
         subtitle={isCoach ? 'Browse, play, and download player video.' : 'View and download your videos.'}
         readout={videos.length > 0
           ? `${videos.length} video${videos.length !== 1 ? 's' : ''}`
@@ -514,14 +520,11 @@ export default function VideosPage() {
           any video tile is clicked. The /videos page is library-only:
           a filterable, downloadable browse view of every video. */}
 
-      {/* Outer dark-navy panel — same `aStyles.profilePanel` chrome
-          the Leaderboards page wraps itself in. Contains the athlete
-          dropdown + filters + video grid so the whole page reads as
-          one big dark-blue bubble with the grey video tiles laid
-          inside it. */}
+      {/* One dashboard-theme bubble holding the athlete dropdown,
+          filters and video grid, with the video tiles laid inside it. */}
       <div
-        className={aStyles.profilePanel}
-        style={{ marginTop: 0, padding: 20, display: 'flex', flexDirection: 'column' }}
+        className={theme.bubble}
+        style={{ padding: 20, display: 'flex', flexDirection: 'column' }}
       >
         {/* ── Athlete Selector (Coach Only) ── */}
         {isCoach && (
@@ -535,7 +538,7 @@ export default function VideosPage() {
         {/* ── Library content ── */}
         <>
       {/* ── Filters Row ── */}
-      <div className={styles.filtersRow}>
+      <div className={`${styles.filtersRow} ${theme.inner}`}>
         {/* Category chips */}
         <div className={styles.filterGroup}>
           <label className={styles.filterLabel}>Position / Category</label>
@@ -650,6 +653,7 @@ export default function VideosPage() {
             return (
               <VideoBundleCard
                 key={b.key}
+                themed
                 videos={cardVideos}
                 size="lg"
                 playerId={first.player.id}

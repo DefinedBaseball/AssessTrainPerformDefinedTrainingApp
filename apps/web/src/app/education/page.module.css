@@ -1,158 +1,636 @@
-/* ── Education Hub ── */
-/* Full-bleed so the title bubble spans the full width like the Athletes hub bubble. */
-.page { max-width: none; }
+/* ── Education Hub ──
+   Black / charcoal / grey / off-white. Dark theme: a charcoal canvas with
+   off-white highlights. Light theme: an off-white pinstriped canvas with
+   near-black controls. Every "bubble" -- hero banners, hub tiles, detail
+   heads and the library cards -- stays charcoal in both themes, and each
+   library carries its tile's accent (--sec-rgb, set on .page). Every colour
+   below is a token so the two themes share one set of rules; the app's own
+   tokens (--text, --border, …) are redefined too so inline var() uses,
+   modals and shared inputs follow along. */
+.page,
+.hero,
+.playerDetailHead,
+.classDetailHeader,
+.classDetailBody,
+.classDetailEmpty,
+.classCard,
+.drillCard,
+.playerCard,
+.videoCard,
+.docRow,
+.empty,
+.searchInput,
+.mlbFilters,
+.sportTabs,
+.filterBar {
+  --edu-hi: #ecebe6;
+  --edu-hi-rgb: 236, 235, 230;
+  --edu-on-hi: #0b0c0e;
+  --edu-hi-grad: linear-gradient(180deg, #f6f5f1, #dcdad3);
+  --edu-hi-inset: inset 0 1px 0 #ffffff;
+  --edu-line-rgb: 255, 255, 255;
+  --edu-panel: linear-gradient(180deg, #141518 0%, #0f1012 100%);
+  --edu-raised: linear-gradient(160deg, #24262b, #15161a);
+  --edu-modal: linear-gradient(180deg, #17181b, #111215);
+  --edu-thumb: linear-gradient(160deg, #202227, #121316);
+  --edu-thumb-fade: rgba(11, 12, 14, 0.7);
+  --bg: #0c0d0f;
+  --surface: #141518;
+  --surface2: #1b1c20;
+  --text: #f2f1ed;
+  --text-bright: #f2f1ed;
+  --text-soft: #b9b7b0;
+  --text-secondary: #b9b7b0;
+  --text-muted: #8d8b86;
+  --faint: #5c5b58;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.11);
+  --accent: #ecebe6;
+  --accent-light: #ecebe6;
+  --accent-dim: rgba(236, 235, 230, 0.1);
+  --on-accent: #0b0c0e;
+  --red: #e07070;
+  --red-dim: rgba(224, 112, 112, 0.12);
+  --card-elev: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+  --card-elev-bg: #131417;
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 24px rgba(0, 0, 0, 0.28);
+  --shadow-card-hi: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(236, 235, 230, 0.12), 0 18px 40px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+[data-theme="light"] .page {
+  --edu-hi: #16171a;
+  --edu-hi-rgb: 22, 23, 26;
+  --edu-on-hi: #f6f5f1;
+  --edu-hi-grad: linear-gradient(180deg, #2c2e33, #121316);
+  --edu-hi-inset: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --edu-line-rgb: 0, 0, 0;
+  --edu-panel: linear-gradient(180deg, #f9f8f5 0%, #f2f1ed 100%);
+  --edu-raised: linear-gradient(160deg, #f1f0ec, #e2e1dc);
+  --edu-modal: linear-gradient(180deg, #ffffff, #f6f5f2);
+  --edu-thumb: linear-gradient(160deg, #e9e8e3, #d9d8d2);
+  --edu-thumb-fade: rgba(11, 12, 14, 0.28);
+  --edu-shade: 0.3;
+  --bg: #f1f0ec;
+  --surface: #ffffff;
+  --surface2: #ecebe7;
+  --text: #131417;
+  --text-bright: #131417;
+  --text-soft: #45464b;
+  --text-secondary: #45464b;
+  --text-muted: #6f6e6a;
+  --faint: #9c9a95;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-light: rgba(0, 0, 0, 0.11);
+  --accent: #16171a;
+  --accent-light: #16171a;
+  --accent-dim: rgba(22, 23, 26, 0.07);
+  --on-accent: #f6f5f1;
+  --red: #c64545;
+  --red-dim: rgba(198, 69, 69, 0.1);
+  --card-elev: linear-gradient(180deg, #ffffff, #fcfbf9);
+  --card-elev-bg: #ffffff;
+  --shadow-card: 0 1px 2px rgba(20, 20, 25, 0.05), 0 6px 16px rgba(20, 20, 25, 0.06);
+  --shadow-card-hi: 0 0 0 1px rgba(22, 23, 26, 0.1), 0 14px 30px rgba(20, 20, 25, 0.12);
+  color-scheme: light;
+}
+[data-theme="light"] .page {
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(255, 255, 255, 0.28) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(22, 23, 26, 0.06) 0 1px, transparent 1px 4px, rgba(22, 23, 26, 0.06) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(255, 255, 255, 0.33), transparent 60%),
+    /* Off-white canvas taken 20% darker twice (#efeeea → #e6e5e0, then
+       #bfbebb → #b8b7b3, now this). */
+    linear-gradient(180deg, #999896 0%, #93928f 420px);
+}
+/* Canvas behind the bubbles (both themes, as background layers so .page
+   never becomes a stacking context that would trap the modals): a
+   full-bleed double pinstripe running 45deg (mirroring the tiles' 135deg
+   stripe) under a broad soft sheen, like the tiles' hover light-sweep. */
+.page {
+  --edu-shade: 1;
+  max-width: none;
+  /* Full-bleed: cancel .app-main's padding so the canvas reaches the edges. */
+  margin: -24px;
+  padding: 24px 24px 40px;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(236, 235, 230, 0.025) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(236, 235, 230, 0.03) 0 1px, transparent 1px 4px, rgba(236, 235, 230, 0.03) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(236, 235, 230, 0.05), transparent 60%),
+    linear-gradient(180deg, #101114 0%, #0b0c0e 420px);
+}
+@media (max-width: 768px) {
+  .page { margin: -16px -12px; padding: 16px 12px 32px; }
+}
+@media (max-width: 480px) {
+  .page { margin: -12px -8px; padding: 12px 8px 28px; }
+}
 
 /* ── Breadcrumb ── */
-.breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
-.bcLink { color: var(--text-muted); background: none; border: none; padding: 0; font-size: 13px; cursor: pointer; transition: color .15s; font-family: inherit; }
+.breadcrumb {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.bcLink { color: var(--text-muted); background: none; border: none; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; transition: color .15s; }
 .bcLink:hover { color: var(--text); }
 .bcSep { color: var(--faint); }
 .bcCurrent { color: var(--text); font-weight: 600; }
+
+/* ── Hero banner (EduHeader) ── */
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+  padding: 30px 32px 28px;
+  border-radius: 22px;
+  border: 1px solid rgba(var(--edu-line-rgb), 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(var(--edu-hi-rgb), 0.11) 0%, rgba(var(--edu-hi-rgb), 0) 62%),
+    radial-gradient(50% 90% at 0% 100%, rgba(var(--edu-hi-rgb), 0.04) 0%, rgba(var(--edu-hi-rgb), 0) 70%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--edu-line-rgb), 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade))),
+    0 18px 44px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: repeating-linear-gradient(135deg, rgba(var(--edu-line-rgb), 0.028) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  pointer-events: none;
+}
+/* Off-white signature rule along the top edge. */
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 32px;
+  width: 56px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--edu-hi);
+  box-shadow: 0 0 16px rgba(var(--edu-hi-rgb), 0.6);
+}
+.heroWatermark {
+  position: absolute;
+  z-index: -1;
+  right: 4%;
+  top: 50%;
+  width: 230px;
+  height: 230px;
+  color: var(--edu-hi);
+  opacity: 0.06;
+  transform: translateY(-50%) rotate(-10deg);
+  pointer-events: none;
+}
+.heroWatermark svg { width: 100%; height: 100%; }
+.heroMain { min-width: 0; }
+.heroEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(var(--edu-hi-rgb), 0.62);
+}
+.heroDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--edu-hi);
+  box-shadow: 0 0 10px rgba(var(--edu-hi-rgb), 0.8);
+}
+.heroTitle {
+  margin: 14px 0 0;
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #f2f1ed;
+}
+.heroAccent {
+  background: linear-gradient(180deg, #ecebe6 0%, #8d8b86 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.heroSub {
+  margin: 12px 0 0;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(242, 241, 237, 0.56);
+}
+.heroSide {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.heroReadout {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--edu-line-rgb), 0.12);
+  background: rgba(var(--edu-line-rgb), 0.04);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--edu-hi-rgb), 0.75);
+  white-space: nowrap;
+}
+
+/* ── Content panel (one per library screen) ── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border-radius: 20px;
+  border: 1px solid rgba(var(--edu-line-rgb), 0.07);
+  background: var(--edu-panel);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--edu-line-rgb), 0.05),
+    0 14px 34px rgba(0, 0, 0, calc(0.32 * var(--edu-shade)));
+}
 
 /* ── Landing ── */
 .landingEyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin-bottom: 8px; }
 .landingTitle { font-size: 32px; font-weight: 700; line-height: 1.2; margin-bottom: 10px; }
 .landingSub { font-size: 15px; color: var(--text-muted); max-width: 520px; margin-bottom: 40px; }
 
-/* Curated set of sport cards — keep the designed 3-up on desktop, but add
-   an explicit 2-up step (below) so it no longer jumps straight 3→1.
-   (auto-fit was rejected here: with only ~6 cards it over-expanded to 4+
-   columns on wide screens, breaking the intended balanced layout.) */
+/* 4-up on desktop → 2×2 → 1-up on phones (see RESPONSIVE). */
 .hubGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.hubCard {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-  padding: 28px; cursor: pointer; transition: all .2s; position: relative; overflow: hidden;
+/* ── Hub tiles ──
+   Same charcoal surface as the hero banner in BOTH themes (off-white
+   corner glow, top rule and faded watermark icon, stripe texture, light
+   sweep on hover). Only the icon chip, the eyebrow and the round arrow
+   button carry the section's accent (--tile-rgb, "r,g,b"). */
+.tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  padding: 22px 22px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 85% at 100% 0%, rgba(236, 235, 230, 0.11) 0%, rgba(236, 235, 230, 0) 56%),
+    radial-gradient(90% 60% at 0% 100%, rgba(236, 235, 230, 0.04) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade))),
+    0 14px 34px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
+  color: #ffffff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s, border-color 0.28s;
 }
-.hubCard:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.3); }
-.hubIcon { width: 48px; height: 48px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 18px; }
-.hubCardTitle { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-.hubCardDesc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
-.hubCardCount { margin-top: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
-.hubCardArrow { margin-left: auto; color: var(--faint); font-size: 18px; transition: transform .2s; }
-.hubCard:hover .hubCardArrow { transform: translateX(4px); }
+/* Fine diagonal stripe texture, strongest at the top. */
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+  pointer-events: none;
+}
+/* Light sweep across on hover. */
+.tile::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+.tile:hover {
+  transform: translateY(-4px);
+  border-color: rgba(236, 235, 230, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(236, 235, 230, 0.1),
+    0 22px 50px rgba(0, 0, 0, calc(0.5 * var(--edu-shade)));
+}
+.tile:hover::after { left: 125%; }
+.tile:active { transform: translateY(-1px); }
+.tile:focus-visible {
+  outline: 2px solid rgb(var(--tile-rgb));
+  outline-offset: 3px;
+}
+.tileRule {
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 46px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #ecebe6;
+  box-shadow: 0 0 14px rgba(236, 235, 230, 0.6);
+}
+.tileWatermark {
+  position: absolute;
+  z-index: -1;
+  right: -30px;
+  top: 34px;
+  width: 175px;
+  height: 175px;
+  color: #ecebe6;
+  opacity: 0.06;
+  transform: rotate(-10deg);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s;
+  pointer-events: none;
+}
+.tileWatermark svg { width: 100%; height: 100%; }
+.tile:hover .tileWatermark { transform: rotate(-4deg) scale(1.06); opacity: 0.1; }
+.tileHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tileIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--tile-rgb));
+  background: linear-gradient(180deg, rgba(var(--tile-rgb), 0.24), rgba(var(--tile-rgb), 0.08));
+  border: 1px solid rgba(var(--tile-rgb), 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(var(--tile-rgb), 0.22);
+}
+.tileIcon svg { width: 25px; height: 25px; }
+.tileIndex {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.38);
+}
+.tileBody {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  padding-top: 28px;
+}
+.tileEyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgb(var(--tile-rgb));
+  margin-bottom: 8px;
+}
+.tileTitle {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  margin-bottom: 9px;
+}
+.tileDesc {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.6);
+}
+.tileFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tileStat { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.tileStatNum {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.tileStatLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.tileGo {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #0a0d13;
+  background: rgb(var(--tile-rgb));
+  box-shadow: 0 6px 18px rgba(var(--tile-rgb), 0.45);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tileGo svg { width: 17px; height: 17px; }
+.tile:hover .tileGo { transform: translateX(3px); }
+/* Members-only, for an athlete without Membership: muted, no lift. */
+.tileLocked { cursor: not-allowed; }
+.tileLocked .tileIcon,
+.tileLocked .tileGo,
+.tileLocked .tileRule { filter: grayscale(1); opacity: 0.55; }
+.tileLocked .tileWatermark,
+.tileLocked:hover .tileWatermark { filter: grayscale(1); opacity: 0.04; transform: rotate(-10deg); }
+.tileLocked:hover { transform: none; border-color: rgba(255, 255, 255, 0.08); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 14px 34px rgba(0, 0, 0, calc(0.4 * var(--edu-shade))); }
+.tileLocked:hover::after { left: -70%; }
+.tileLockChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+.tileLockChip svg { width: 13px; height: 13px; }
+@media (prefers-reduced-motion: reduce) {
+  .tile, .tile::after, .tileWatermark, .tileGo { transition: none; }
+  .tile:hover { transform: none; }
+}
 
 /* ── Section Header ── */
 .sectionHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .sectionTitle { font-size: 24px; font-weight: 700; }
 .sectionSub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 .addBtn {
-  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85)); color: #010101; border: none; border-radius: 14px;
-  font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s;
+  display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px;
+  background: var(--edu-hi-grad); color: var(--edu-on-hi);
+  border: 1px solid rgba(var(--edu-line-rgb), 0.6); border-radius: 999px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; cursor: pointer;
+  box-shadow: var(--edu-hi-inset), 0 8px 22px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
+  transition: transform .15s, box-shadow .15s;
 }
-.addBtn:hover { background: rgba(255,255,255,0.85); }
+.addBtn:hover { transform: translateY(-1px); box-shadow: var(--edu-hi-inset), 0 0 0 4px rgba(var(--edu-hi-rgb), 0.1), 0 12px 26px rgba(0, 0, 0, calc(0.45 * var(--edu-shade))); }
 
-/* ── Sport Tabs — lighter graphite (reversed scheme) ── */
+/* ── Sport Tabs — segmented control, active = off-white ── */
 .sportTabs {
   display: flex;
   gap: 4px;
-  background: var(--card-elev), var(--card-elev-bg);
-  border: 1px solid var(--border-light);
+  align-self: flex-start;
+  max-width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 4px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   overflow-x: auto;
-  box-shadow: var(--shadow-card);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, calc(0.5 * var(--edu-shade)));
 }
 .sportTab {
-  padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 600;
+  padding: 9px 18px; border-radius: 10px; font-size: 13px; font-weight: 600;
   color: var(--text-muted); background: none; border: none; white-space: nowrap;
-  cursor: pointer; transition: all .15s;
+  cursor: pointer; transition: color .15s, background .15s;
 }
-.sportTab:hover { color: var(--text); }
-.sportTabActive { color: #f1f4f6 !important; background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.14); }
-[data-theme="light"] .sportTabActive { color: var(--on-accent) !important; background: var(--accent); border-color: var(--accent); }
+.sportTab:hover { color: var(--text); background: rgba(var(--edu-line-rgb), 0.04); }
+.sportTabActive,
+.sportTabActive:hover {
+  color: var(--edu-on-hi) !important;
+  background: var(--edu-hi-grad);
+  box-shadow: var(--edu-hi-inset), 0 4px 12px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
+}
 
-/* ── Filter Pills — Movement-Plot tone per pill ── */
+/* ── Filter Pills ── */
 .filterRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .pill {
-  padding: 6px 14px;
-  border-radius: 24px;
+  padding: 7px 14px;
+  border-radius: 999px;
   border: 1px solid var(--border-light);
-  background: var(--card-elev), var(--card-elev-bg);
-  box-shadow: var(--shadow-card);
+  background: rgba(var(--edu-line-rgb), 0.02);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all .15s;
+  transition: color .15s, border-color .15s, background .15s;
 }
-.pill:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.20); }
-.pillActive { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-light); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+.pill:hover { color: var(--text); border-color: rgba(var(--edu-line-rgb), 0.22); }
+.pillActive,
+.pillActive:hover { border-color: rgba(var(--edu-hi-rgb), 0.55); background: rgba(var(--edu-hi-rgb), 0.1); color: var(--text); box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.06); }
 
 /* ── Classes ── */
-.levelBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 24px; text-transform: uppercase; letter-spacing: .05em; }
-.levelBeginner { background: var(--green-dim); color: var(--green); border: 1px solid rgba(109,170,69,.3); }
-.levelIntermediate { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(232,175,52,.3); }
-.levelAdvanced { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(253,171,67,.3); }
-.levelExpert { background: var(--red-dim); color: var(--red); border: 1px solid rgba(221,105,116,.3); }
+/* Levels read as a grey ramp: faint outline → solid off-white. */
+.levelBadge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .12em; border: 1px solid; }
+.levelBeginner { background: transparent; color: var(--text-muted); border-color: rgba(var(--edu-line-rgb), 0.16); }
+.levelIntermediate { background: rgba(var(--edu-line-rgb), 0.05); color: var(--text-secondary); border-color: rgba(var(--edu-line-rgb), 0.24); }
+.levelAdvanced { background: rgba(var(--edu-hi-rgb), 0.12); color: var(--text); border-color: rgba(var(--edu-hi-rgb), 0.4); }
+.levelExpert { background: var(--edu-hi); color: var(--edu-on-hi); border-color: var(--edu-hi); }
 
-.classGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-/* Each class card uses Movement-Plot tone */
+.classGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .classCard {
   position: relative;
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
-  border-radius: 14px;
-  padding: 18px;
+  border-radius: 16px;
+  padding: 16px;
   display: flex;
   gap: 14px;
-  transition: all .15s;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
   box-shadow: var(--shadow-card);
 }
 .classCard:hover {
-  border-color: var(--accent);
-  transform: translateY(-1px);
+  border-color: rgba(var(--edu-hi-rgb), 0.32);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-card-hi);
 }
-.classThumb { width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.classThumb {
+  width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+  background: var(--edu-raised);
+  border: 1px solid rgba(var(--edu-line-rgb), 0.08);
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.06);
+}
 .classBody { flex: 1; min-width: 0; }
-.className { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.className { font-size: 14.5px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
 .classMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-.classDesc { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.classDesc { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .classLessons { font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 4px; }
 .classActions { display: flex; gap: 4px; margin-top: 8px; }
 .classCardActions { display: flex; gap: 4px; margin-left: auto; opacity: 0; transition: opacity .15s; }
 .classCard:hover .classCardActions { opacity: 1; }
 
 /* ── Drills ── */
-.catGroup { margin-bottom: 32px; }
+.catGroup { margin-bottom: 28px; }
+.catGroup:last-child { margin-bottom: 0; }
 .catHeader { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.catLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
-.catLine { flex: 1; height: 1px; background: var(--border); }
-.catCount { font-size: 11px; color: var(--faint); }
+.catLabel { font-family: var(--font-mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .2em; color: var(--text); }
+.catLine { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(var(--edu-line-rgb), 0.14), rgba(var(--edu-line-rgb), 0)); }
+.catCount { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
 
-/* Drill cards — Movement-Plot tone */
 .drillCard {
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px 16px;
   display: flex;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 8px;
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
   position: relative;
   box-shadow: var(--shadow-card);
 }
-.drillCard:hover { border-color: var(--accent); box-shadow: var(--shadow-card-hi); }
+.drillCard:hover { border-color: rgba(var(--edu-hi-rgb), 0.3); box-shadow: var(--shadow-card-hi); transform: translateX(2px); }
 .drillCard:hover .cardActions { opacity: 1; }
-.colorBar { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 36px; }
+.colorBar {
+  width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 36px;
+  background: linear-gradient(180deg, var(--edu-hi), rgba(var(--edu-hi-rgb), 0.12));
+  box-shadow: 0 0 10px rgba(var(--edu-hi-rgb), 0.25);
+}
 .cardBody { flex: 1; min-width: 0; }
-.cardName { font-size: 14px; font-weight: 600; }
+.cardName { font-size: 14px; font-weight: 700; color: var(--text); }
 .cardDesc { font-size: 13px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cardMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
-.metaItem { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--faint); }
+.metaItem { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 .tag { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 24px; padding: 2px 8px; }
 .cardActions { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
-.cardBtn { width: 28px; height: 28px; border-radius: 7px; border: none; background: transparent; color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; font-size: 14px; }
-.cardBtn:hover { background: var(--surface2); color: var(--text); }
-.cardBtnEdit:hover { background: var(--accent-dim); color: var(--accent-light); }
-.cardBtnDel:hover { background: var(--red-dim); color: var(--red); }
+.cardBtn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; font-size: 14px; }
+.cardBtn:hover { background: var(--surface2); border-color: var(--border-light); color: var(--text); }
+.cardBtnEdit:hover { background: var(--accent-dim); color: var(--text); }
+.cardBtnDel:hover { background: var(--red-dim); color: var(--red); border-color: rgba(224, 112, 112, 0.3); }
 /* Row-level video actions. Same 28x28 chrome as edit / delete; the SVG
    glyphs inherit currentColor so they follow the shared hover tint. */
-.cardBtnVideo:hover { background: var(--accent-dim); color: var(--accent-light); }
-.cardBtnFile:hover  { background: var(--accent-dim); color: var(--accent-light); }
+.cardBtnVideo:hover { background: var(--accent-dim); color: var(--text); }
+.cardBtnFile:hover  { background: var(--accent-dim); color: var(--text); }
 /* Replaces the button cluster while a clip is uploading. */
 .cardUploading { display: flex; align-items: center; height: 28px; padding: 0 8px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .cardUploadError { display: block; margin-top: 4px; font-size: 11px; color: var(--red); }
@@ -163,95 +641,134 @@
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
-  padding: 16px 20px;
-  background: var(--card-elev), var(--card-elev-bg);
-  border: 1px solid var(--border-light);
+  margin: 16px 0 20px;
+  padding: 14px 18px;
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: var(--shadow-card);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, calc(0.5 * var(--edu-shade)));
 }
-.mlbFilterGroup { display: flex; flex-direction: column; gap: 6px; }
-.mlbFilterLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.mlbFilterGroup { display: flex; flex-direction: column; gap: 8px; }
+.mlbFilterLabel { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .2em; color: var(--faint); }
 .mlbFilterPills { display: flex; gap: 5px; flex-wrap: wrap; }
 .mlbDivider { width: 1px; height: 40px; background: var(--border); align-self: center; }
 
-.playerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.playerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .playerCard {
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: all .2s;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
   box-shadow: var(--shadow-card);
 }
-.playerCard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-card-hi); }
-.playerThumb { height: 100px; display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; }
-.playerPosBadge { position: absolute; bottom: 8px; right: 8px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 24px; text-transform: uppercase; letter-spacing: .04em; }
+.playerCard:hover { border-color: rgba(var(--edu-hi-rgb), 0.32); transform: translateY(-3px); box-shadow: var(--shadow-card-hi); }
+.playerThumb {
+  height: 120px; display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; overflow: hidden;
+  background:
+    repeating-linear-gradient(135deg, rgba(var(--edu-line-rgb), 0.025) 0 2px, transparent 2px 11px),
+    radial-gradient(80% 120% at 100% 0%, rgba(var(--edu-hi-rgb), 0.08), transparent 60%),
+    var(--edu-thumb);
+}
+/* Fade the thumb into the card body. */
+.playerThumb::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 50%; pointer-events: none;
+  background: linear-gradient(180deg, transparent, var(--edu-thumb-fade));
+}
+.playerPosBadge {
+  position: absolute; z-index: 1; bottom: 10px; right: 10px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: .12em;
+  color: #f2f1ed; background: rgba(11, 12, 14, 0.72); border: 1px solid rgba(255, 255, 255, 0.18);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
 .playerInfo { padding: 14px; }
-.playerName { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-.playerTags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.playerTag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 24px; border: 1px solid; }
-.videoCount { font-size: 11px; color: var(--faint); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.playerName { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.playerTags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.playerTag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(var(--edu-line-rgb), 0.16); color: var(--text-secondary); }
+.tagStrong { border-color: rgba(var(--edu-hi-rgb), 0.5); color: var(--text); background: rgba(var(--edu-hi-rgb), 0.06); }
+.videoCount { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 10px; display: flex; align-items: center; gap: 4px; }
 
 /* ── Player Detail ── */
-.playerDetailHead { display: flex; align-items: center; gap: 20px; margin-bottom: 28px; padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
-.playerAvatar { width: 72px; height: 72px; border-radius: 50%; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; border: 2px solid var(--border); }
-.playerDetailName { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-.playerDetailMeta { display: flex; gap: 8px; flex-wrap: wrap; }
+.playerDetailHead {
+  display: flex; align-items: center; gap: 20px; margin-bottom: 12px; padding: 24px;
+  border-radius: 20px; border: 1px solid rgba(var(--edu-line-rgb), 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(var(--edu-hi-rgb), 0.08), transparent 62%),
+    linear-gradient(160deg, #1d1e22, #121316 60%, #0c0d0f);
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.07), 0 14px 34px rgba(0, 0, 0, calc(0.35 * var(--edu-shade)));
+}
+.playerAvatar { width: 72px; height: 72px; border-radius: 50%; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; border: 2px solid rgba(var(--edu-hi-rgb), 0.3); box-shadow: 0 0 0 4px rgba(var(--edu-hi-rgb), 0.05); }
+.playerDetailName { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 8px; color: var(--text); }
+.playerDetailMeta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-.videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.videoCard { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; cursor: pointer; transition: all .15s; }
-.videoCard:hover { border-color: #3a4560; }
-.videoThumb { height: 120px; background: var(--surface2); display: flex; align-items: center; justify-content: center; position: relative; }
-.playBtn { width: 44px; height: 44px; background: rgba(60,60,60,.85); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; transition: transform .15s; }
-.videoCard:hover .playBtn { transform: scale(1.1); }
+.videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.videoCard { background: var(--card-elev), var(--card-elev-bg); border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s; box-shadow: var(--shadow-card); }
+.videoCard:hover { border-color: rgba(var(--edu-hi-rgb), 0.32); transform: translateY(-2px); box-shadow: var(--shadow-card-hi); }
+.videoThumb { height: 130px; background: var(--edu-thumb); display: flex; align-items: center; justify-content: center; position: relative; }
+.playBtn { width: 46px; height: 46px; background: rgba(var(--edu-hi-rgb), 0.92); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--edu-on-hi); font-size: 16px; box-shadow: 0 8px 22px rgba(0, 0, 0, calc(0.5 * var(--edu-shade))); transition: transform .15s; }
+.videoCard:hover .playBtn { transform: scale(1.08); }
 .videoInfo { padding: 12px 14px; }
-.videoTitle { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.videoTitle { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
 .videoMeta { font-size: 11px; color: var(--text-muted); }
 .videoNotes { font-size: 11px; color: var(--faint); margin-top: 4px; font-style: italic; }
 .videoActions { display: flex; gap: 4px; margin-top: 6px; }
 
 /* ── Shared ── */
-.empty { text-align: center; padding: 60px 20px; color: var(--faint); font-size: 14px; }
+.empty {
+  text-align: center; padding: 56px 20px; color: var(--text-muted); font-size: 14px;
+  border: 1px dashed rgba(var(--edu-line-rgb), 0.1); border-radius: 16px; background: rgba(var(--edu-line-rgb), 0.015);
+}
 .searchWrap { position: relative; margin-bottom: 20px; }
 .searchInput {
   width: 100%;
-  max-width: 320px;
-  background: var(--card-elev), var(--card-elev-bg);
+  max-width: 360px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238d8b86' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 0.9333rem center / 1rem 1rem,
+    var(--bg);
   border: 1px solid var(--border-light);
   border-radius: 12px;
-  padding: 8px 12px;
+  padding: 10px 14px 10px 38px;
   font-size: 13px;
   color: var(--text);
   outline: none;
   transition: border-color .15s, box-shadow .15s;
-  box-shadow: var(--shadow-card);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, calc(0.5 * var(--edu-shade)));
 }
-.searchInput:focus { border-color: var(--accent); }
+.searchInput:focus { border-color: rgba(var(--edu-hi-rgb), 0.45); box-shadow: inset 0 1px 2px rgba(0, 0, 0, calc(0.5 * var(--edu-shade))), 0 0 0 3px rgba(var(--edu-hi-rgb), 0.08); }
 .searchInput::placeholder { color: var(--faint); }
 
-/* ── Modal (reuse from training) ── */
-.modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
-.modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-.modalTitle { font-size: 16px; font-weight: 700; }
-.modalClose { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 18px; border-radius: 6px; }
-.modalClose:hover { background: var(--surface2); color: var(--text); }
-.modalBody { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
-.field { display: flex; flex-direction: column; gap: 5px; }
-.fieldLabel { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
-.fieldInput { padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
-.fieldInput:focus { border-color: var(--accent); outline: none; }
+/* ── Modals ── */
+.modalOverlay { position: fixed; inset: 0; background: rgba(4, 5, 6, .72); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.modal {
+  background: var(--edu-modal); border: 1px solid rgba(var(--edu-line-rgb), 0.1); border-radius: 20px;
+  width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.06), 0 30px 80px rgba(0, 0, 0, calc(0.6 * var(--edu-shade)));
+}
+.modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.modalTitle { font-family: var(--font-display); font-size: 18px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+.modalClose { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; color: var(--text-muted); cursor: pointer; font-size: 18px; border-radius: 8px; }
+.modalClose:hover { background: var(--surface2); border-color: var(--border-light); color: var(--text); }
+.modalBody { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.fieldLabel { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .18em; color: var(--text-muted); }
+/* Doubled class beats the global input[type="number"] rule. */
+.fieldInput.fieldInput { padding: 9px 12px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; color: var(--text); font-size: 13px; }
+.fieldInput:focus { border-color: rgba(var(--edu-hi-rgb), 0.45); outline: none; box-shadow: 0 0 0 3px rgba(var(--edu-hi-rgb), 0.08); }
 .fieldRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.modalFooter { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
-.btnCancel { padding: 8px 16px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; }
-.btnSave { padding: 8px 20px; font-size: 12px; font-weight: 600; background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85)); border: none; border-radius: 6px; color: #010101; cursor: pointer; }
+.modalFooter { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.btnCancel { padding: 9px 16px; font-size: 12px; font-weight: 600; background: none; border: 1px solid var(--border-light); border-radius: 999px; color: var(--text-muted); cursor: pointer; }
+.btnCancel:hover { color: var(--text); border-color: rgba(var(--edu-line-rgb), 0.24); }
+.btnSave { padding: 9px 20px; font-size: 12px; font-weight: 700; background: var(--edu-hi-grad); border: none; border-radius: 999px; color: var(--edu-on-hi); cursor: pointer; box-shadow: var(--edu-hi-inset), 0 6px 16px rgba(0, 0, 0, calc(0.4 * var(--edu-shade))); }
 .btnSave:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Drill Card extras ── */
 .cardNameRow { display: flex; align-items: center; gap: 8px; }
-.cardVideoIcon { color: var(--accent-light); font-size: 11px; flex-shrink: 0; }
+.cardVideoIcon {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  font-size: 8px; color: var(--edu-on-hi); background: var(--edu-hi);
+}
 
 /* ── File Upload ── */
 .fileUpload { display: block; cursor: pointer; }
@@ -259,26 +776,26 @@
   display: block;
   padding: 10px 14px;
   background: var(--bg);
-  border: 1px dashed var(--border);
-  border-radius: 6px;
+  border: 1px dashed rgba(var(--edu-line-rgb), 0.16);
+  border-radius: 10px;
   color: var(--text-muted);
   font-size: 13px;
   text-align: center;
   transition: all 0.15s;
 }
-.fileUploadBtn:hover { border-color: var(--accent); color: var(--text); }
+.fileUploadBtn:hover { border-color: rgba(var(--edu-hi-rgb), 0.45); color: var(--text); }
 .fileUploadMeta { font-size: 11px; color: var(--faint); margin-top: 4px; display: block; }
 
 /* ── Video Player Modal ── */
 .videoModal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  background: var(--edu-modal);
+  border: 1px solid rgba(var(--edu-line-rgb), 0.1);
+  border-radius: 20px;
   width: 720px;
   max-width: 95vw;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.06), 0 30px 80px rgba(0, 0, 0, calc(0.6 * var(--edu-shade)));
 }
 
 .videoContainer {
@@ -304,15 +821,16 @@
 }
 
 .videoDesc {
-  padding: 16px 20px;
+  padding: 16px 22px;
   border-top: 1px solid var(--border);
 }
 
 .videoDescLabel {
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.18em;
   color: var(--text-muted);
   margin-bottom: 6px;
 }
@@ -324,25 +842,25 @@
 }
 
 .videoMeta {
-  padding: 12px 20px;
+  padding: 12px 22px;
   border-top: 1px solid var(--border);
   display: flex;
   gap: 8px;
 }
 
 .videoMetaTag {
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
   padding: 3px 10px;
-  background: var(--surface2, var(--surface));
-  border: 1px solid var(--border);
+  background: var(--surface2);
+  border: 1px solid var(--border-light);
   border-radius: 100px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
-/* ── Responsive ── */
 /* ══════════════════════════════════════════════
    CLASS DETAIL VIEW
    ══════════════════════════════════════════════ */
@@ -350,28 +868,47 @@
 .classDetailPage {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 12px;
 }
 
 .classDetailHeader {
+  position: relative;
+  overflow: hidden;
   display: flex;
   gap: 20px;
   align-items: flex-start;
   padding: 28px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 22px;
+  border: 1px solid rgba(var(--edu-line-rgb), 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(var(--edu-hi-rgb), 0.1), transparent 62%),
+    linear-gradient(160deg, #1d1e22, #131417 55%, #0c0d0f);
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.08), 0 18px 44px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
+}
+.classDetailHeader::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 28px;
+  width: 56px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--edu-hi);
+  box-shadow: 0 0 16px rgba(var(--edu-hi-rgb), 0.6);
 }
 
 .classDetailEmoji {
   width: 72px;
   height: 72px;
-  border-radius: var(--radius-md);
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 36px;
   flex-shrink: 0;
+  background: var(--edu-raised);
+  border: 1px solid rgba(var(--edu-line-rgb), 0.1);
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.08), 0 10px 24px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
 }
 
 .classDetailInfo {
@@ -380,12 +917,13 @@
 }
 
 .classDetailName {
-  font-family: 'Clash Grotesk', 'Satoshi', system-ui, sans-serif;
-  font-size: 26px;
+  font-family: var(--font-display);
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
   color: var(--text);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .classDetailTags {
@@ -397,36 +935,42 @@
 }
 
 .classDetailSport {
-  font-size: 11px;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-  border: 1px solid;
+  letter-spacing: 0.14em;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--edu-hi-rgb), 0.5);
+  background: rgba(var(--edu-hi-rgb), 0.08);
+  color: var(--text);
 }
 
 .classDetailMeta {
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  font-weight: 600;
 }
 
 .classDetailSummary {
   font-size: 15px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 /* ── Video Player ── */
 
 .classDetailVideo {
   width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(var(--edu-line-rgb), 0.08);
   background: #000;
   aspect-ratio: 16 / 9;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, calc(0.45 * var(--edu-shade)));
 }
 
 .classDetailIframe {
@@ -445,16 +989,18 @@
 
 .classDetailBody {
   padding: 28px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 20px;
+  border: 1px solid rgba(var(--edu-line-rgb), 0.07);
+  background: var(--edu-panel);
+  box-shadow: inset 0 1px 0 rgba(var(--edu-line-rgb), 0.05), 0 14px 34px rgba(0, 0, 0, calc(0.32 * var(--edu-shade)));
 }
 
 .classDetailBodyLabel {
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.2em;
   color: var(--text-muted);
   margin-bottom: 14px;
 }
@@ -471,9 +1017,9 @@
   padding: 64px 24px;
   color: var(--text-muted);
   font-size: 15px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px dashed rgba(var(--edu-line-rgb), 0.1);
+  border-radius: 20px;
+  background: rgba(var(--edu-line-rgb), 0.015);
 }
 
 /* ══════════════════════════════════════════════
@@ -489,54 +1035,27 @@
 
 @media (max-width: 768px) {
   .hubGrid { grid-template-columns: 1fr; }
+  /* Phones: shorter tiles -- the stack is one column, no need for height. */
+  .tile { min-height: 0; }
+  .tileBody { padding-top: 20px; }
+  .hero { flex-direction: column; align-items: flex-start; gap: 16px; padding: 24px 18px 20px; border-radius: 18px; }
+  .hero::after { left: 18px; }
+  .heroTitle { font-size: 31px; }
+  .heroSub { font-size: 13px; }
+  .heroWatermark { width: 150px; height: 150px; right: -20px; top: 38%; }
+  .heroSide { justify-content: flex-start; }
+  .panel { padding: 14px; border-radius: 16px; }
+  .searchInput { max-width: none; }
   .playerGrid { grid-template-columns: repeat(2, 1fr); }
   .videoGrid { grid-template-columns: 1fr; }
   .classGrid { grid-template-columns: 1fr; }
   .mlbDivider { display: none; }
+  .playerDetailHead { flex-wrap: wrap; padding: 18px; }
   .classDetailHeader { flex-direction: column; padding: 20px; }
+  .classDetailHeader::after { left: 20px; }
   .classDetailEmoji { width: 56px; height: 56px; font-size: 28px; }
-  .classDetailName { font-size: 22px; }
+  .classDetailName { font-size: 24px; }
   .classDetailBody { padding: 20px; }
-}
-
-/* ════════════════════════════════════════════════════════════════════
-   LIGHT THEME OVERRIDES — every "outer bubble" surface on the
-   Education hub flips to the canonical Player Name bubble fill
-   (`--panel-bg-light`, currently #e6e6e6) so each card reads as
-   the same neutral grey panel as the rest of the bubble system
-   app-wide (Tool Grades, Coach Grades, page headers, etc.).
-   Applies to:
-     • Classes / Drills / Major League Video hub cards
-     • Each row in the Classes list
-     • Each row in the Drills list
-     • Each MLB player card
-   ════════════════════════════════════════════════════════════════════ */
-[data-theme="light"] .hubCard,
-[data-theme="light"] .classCard,
-[data-theme="light"] .drillCard,
-[data-theme="light"] .playerCard {
-  background: var(--panel-bg-light);
-  border-color: rgba(0, 0, 0, 0.10);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 8px 22px rgba(15, 20, 30, 0.08);
-}
-
-/* Hub card title labels (Classes / Drills / Major League
-   Video) pick up the same dark-graphite gradient the
-   PageHeader title uses for "Assess / Train / Athletes / …"
-   — keeps the type system consistent across page headers and
-   card titles in light theme. */
-[data-theme="light"] .hubCardTitle {
-  background: linear-gradient(180deg,
-    #1a1f25 0%,
-    #2a3138 40%,
-    #404a52 85%,
-    #5a646c 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
 }
 
 /* ── Drill Video Recorder ──
@@ -548,7 +1067,7 @@
   aspect-ratio: 16 / 9;
   background: #000;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 .recorderVideo { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
@@ -568,13 +1087,11 @@
   padding: 14px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 13px;
   color: var(--text-muted);
   line-height: 1.5;
 }
-/* File picker and Take Video sit side by side; the picker takes the
-   remaining width so long filenames stay readable. */
 /* Inline preview inside the Edit Drill form. Deliberately smaller than
    the .videoContainer used by the full viewer modal — this sits between
    two form fields, so it is capped at 220px and rounded to read as part
@@ -582,8 +1099,10 @@
 .editVideoPreview { position: relative; margin: 6px 0 8px; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid var(--border-light); }
 .editVideoPreviewPlayer { display: block; width: 100%; max-height: 220px; background: #000; }
 .confirmReplaceWarn { display: block; margin-top: 6px; font-size: 11px; color: var(--red); }
-.editVideoPreviewTag { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(0, 0, 0, .62); pointer-events: none; }
+.editVideoPreviewTag { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: rgba(0, 0, 0, calc(.62 * var(--edu-shade))); pointer-events: none; }
 
+/* File picker and Take Video sit side by side; the picker takes the
+   remaining width so long filenames stay readable. */
 .videoSourceRow { display: flex; gap: 8px; align-items: stretch; }
 .videoSourceRow .fileUpload { flex: 1; min-width: 0; }
 .videoSourceRow button { flex-shrink: 0; cursor: pointer; font-family: inherit; }
@@ -597,54 +1116,317 @@
 }
 
 /* ── Members-only lock (Classes + Information) ── */
-.hubCardLocked { opacity: 0.6; cursor: not-allowed; }
-.hubCardLocked:hover { transform: none; box-shadow: none; }
-.hubCardLocked .hubCardCount { color: var(--text-muted); }
 .lockedNotice {
-  margin: 0 0 16px; padding: 10px 14px; border-radius: 10px;
-  border: 1px solid rgba(232, 175, 52, 0.45); background: rgba(232, 175, 52, 0.10);
+  margin: 0 0 12px; padding: 12px 16px; border-radius: 14px;
+  border: 1px solid rgba(var(--edu-hi-rgb), 0.22); background: rgba(var(--edu-hi-rgb), 0.05);
   color: var(--text); font-size: 13px;
 }
 
 /* ── Information documents ── */
-.docList { display: flex; flex-direction: column; gap: 10px; }
+.docList { display: flex; flex-direction: column; gap: 8px; }
 .docRow {
   display: flex; align-items: center; gap: 14px; padding: 14px 16px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  background: var(--card-elev), var(--card-elev-bg); border: 1px solid var(--border-light); border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  transition: border-color .15s, box-shadow .15s;
 }
+.docRow:hover { border-color: rgba(var(--edu-hi-rgb), 0.28); box-shadow: var(--shadow-card-hi); }
 .docIcon {
-  width: 42px; height: 42px; flex: 0 0 42px; border-radius: 10px;
+  width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center; font-size: 20px;
-  background: var(--surface2);
+  background: var(--edu-raised);
+  border: 1px solid rgba(var(--edu-line-rgb), 0.08);
 }
 .docBody { flex: 1; min-width: 0; }
 .docTitle { font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
 .docDesc { margin-top: 3px; font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
 .docMeta { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-muted); }
 .docBadge {
-  padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase;
-  background: rgba(124, 141, 255, 0.14); color: #8f9bff;
+  padding: 2px 9px; border-radius: 999px; font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid rgba(var(--edu-hi-rgb), 0.4); background: rgba(var(--edu-hi-rgb), 0.07); color: var(--text);
 }
 .docActions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .docOpen {
-  padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--surface2); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer;
+  padding: 8px 16px; border-radius: 999px; border: none;
+  background: var(--edu-hi-grad); color: var(--edu-on-hi); font-size: 12px; font-weight: 700; cursor: pointer;
+  box-shadow: var(--edu-hi-inset), 0 6px 16px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
 }
-.docOpen:hover { border-color: var(--accent); }
+.docOpen:hover { box-shadow: var(--edu-hi-inset), 0 0 0 3px rgba(var(--edu-hi-rgb), 0.1), 0 6px 16px rgba(0, 0, 0, calc(0.4 * var(--edu-shade))); }
 .docOpen:disabled { opacity: 0.6; cursor: wait; }
 .docPick {
-  padding: 12px; border-radius: 8px; border: 1px dashed var(--border);
+  padding: 12px; border-radius: 10px; border: 1px dashed rgba(var(--edu-line-rgb), 0.16);
   background: var(--bg); color: var(--text-muted); font-size: 13px; text-align: left; cursor: pointer;
   overflow-wrap: anywhere;
 }
-.docPick:hover { border-color: var(--accent); color: var(--text); }
+.docPick:hover { border-color: rgba(var(--edu-hi-rgb), 0.45); color: var(--text); }
 .docError {
-  margin: 0 0 12px; padding: 8px 12px; border-radius: 8px;
-  border: 1px solid var(--red, #ef4444); background: rgba(239, 68, 68, 0.08);
+  margin: 0 0 12px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(224, 112, 112, 0.5); background: var(--red-dim);
   color: var(--text); font-size: 12.5px;
 }
 @media (max-width: 768px) {
   .docRow { flex-wrap: wrap; }
   .docActions { width: 100%; justify-content: flex-end; }
 }
+
+/* ══════════════════════════════════════════════
+   LIBRARY SCREENS — same language as the hub
+   Under each section banner sits one charcoal panel built like the
+   banner (corner glow, stripe texture, off-white top rule) holding the
+   search, filters and an off-white card per item. The section accent
+   (--sec-rgb) lands where the hub tile puts its colour: icon chips,
+   eyebrow + dot, drill strip, play / open buttons.
+   ══════════════════════════════════════════════ */
+.classDetailBody,
+.classDetailEmpty {
+  position: relative;
+  isolation: isolate;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    radial-gradient(50% 90% at 0% 100%, rgba(236, 235, 230, 0.035) 0%, rgba(236, 235, 230, 0) 70%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade))),
+    0 18px 44px rgba(0, 0, 0, calc(0.4 * var(--edu-shade)));
+}
+.panel { padding: 0; border: none; border-radius: 0; background: none; box-shadow: none; }
+.classDetailBody::before,
+.classDetailEmpty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 420px);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 420px);
+  pointer-events: none;
+}
+.classDetailBody::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  width: 56px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #ecebe6;
+  box-shadow: 0 0 16px rgba(236, 235, 230, 0.6);
+  pointer-events: none;
+}
+@media (max-width: 768px) {
+  .panel { padding: 0; border-radius: 0; }
+}
+
+.heroChip {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 16px;
+  border-radius: 13px;
+  color: rgb(var(--sec-rgb, 236, 235, 230));
+  background: linear-gradient(180deg, rgba(var(--sec-rgb, 236, 235, 230), 0.24), rgba(var(--sec-rgb, 236, 235, 230), 0.08));
+  border: 1px solid rgba(var(--sec-rgb, 236, 235, 230), 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(var(--sec-rgb, 236, 235, 230), 0.22);
+}
+.heroChip svg { width: 23px; height: 23px; }
+.heroMain { display: flex; flex-direction: column; align-items: flex-start; }
+.heroEyebrow { color: rgb(var(--sec-rgb, 236, 235, 230)); }
+.heroDot { background: rgb(var(--sec-rgb, 236, 235, 230)); box-shadow: 0 0 10px rgba(var(--sec-rgb, 236, 235, 230), 0.8); }
+
+/* Cards, the search box and the filter / sport-tab bars all wear the
+   section banner's charcoal surface, straight on the canvas. */
+.classCard,
+.drillCard,
+.playerCard,
+.videoCard,
+.docRow,
+.empty,
+.mlbFilters {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    radial-gradient(50% 90% at 0% 100%, rgba(236, 235, 230, 0.035) 0%, rgba(236, 235, 230, 0) 70%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade))),
+    0 12px 28px rgba(0, 0, 0, calc(0.36 * var(--edu-shade)));
+}
+.searchInput.searchInput,
+.sportTabs {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    radial-gradient(50% 90% at 0% 100%, rgba(236, 235, 230, 0.035) 0%, rgba(236, 235, 230, 0) 70%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade))),
+    0 12px 28px rgba(0, 0, 0, calc(0.36 * var(--edu-shade)));
+}
+.searchInput.searchInput {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238d8b86' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 0.9333rem center / 1rem 1rem,
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+}
+.searchInput.searchInput:focus {
+  border-color: rgba(236, 235, 230, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 3px rgba(236, 235, 230, 0.14), 0 12px 28px rgba(0, 0, 0, calc(0.36 * var(--edu-shade)));
+}
+.classCard::before,
+.drillCard::before,
+.playerCard::before,
+.videoCard::before,
+.docRow::before,
+.empty::before,
+.mlbFilters::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  pointer-events: none;
+}
+.classCard:hover,
+.drillCard:hover,
+.playerCard:hover,
+.videoCard:hover,
+.docRow:hover {
+  border-color: rgba(236, 235, 230, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(236, 235, 230, 0.1),
+    0 20px 44px rgba(0, 0, 0, calc(0.5 * var(--edu-shade)));
+}
+.docRow:hover { transform: translateY(-2px); }
+
+/* Accent chips: same recipe as the hub tile's icon. */
+.classThumb,
+.docIcon,
+.classDetailEmoji {
+  background: linear-gradient(180deg, rgba(var(--sec-rgb, 236, 235, 230), 0.24), rgba(var(--sec-rgb, 236, 235, 230), 0.08));
+  border: 1px solid rgba(var(--sec-rgb, 236, 235, 230), 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(var(--sec-rgb, 236, 235, 230), 0.2);
+}
+.colorBar {
+  background: linear-gradient(180deg, rgb(var(--sec-rgb, 236, 235, 230)), rgba(var(--sec-rgb, 236, 235, 230), 0.12));
+  box-shadow: 0 0 10px rgba(var(--sec-rgb, 236, 235, 230), 0.45);
+}
+/* Accent buttons: same recipe as the hub tile's round arrow. */
+.cardVideoIcon,
+.playBtn,
+.docOpen {
+  color: #0a0d13;
+  background: rgb(var(--sec-rgb, 236, 235, 230));
+  box-shadow: 0 6px 18px rgba(var(--sec-rgb, 236, 235, 230), 0.4);
+}
+.cardVideoIcon { box-shadow: 0 0 10px rgba(var(--sec-rgb, 236, 235, 230), 0.5); }
+.docOpen:hover { box-shadow: 0 0 0 3px rgba(var(--sec-rgb, 236, 235, 230), 0.2), 0 6px 18px rgba(var(--sec-rgb, 236, 235, 230), 0.45); }
+.classDetailSport {
+  color: rgb(var(--sec-rgb, 236, 235, 230));
+  border-color: rgba(var(--sec-rgb, 236, 235, 230), 0.5);
+  background: rgba(var(--sec-rgb, 236, 235, 230), 0.12);
+}
+
+/* ── Light banner (EduHeader tone="light", Coach Dashboard) ──
+   The charcoal banner taken 50% lighter to a SOLID mid-grey: no white glow
+   (that read as see-through), ink stripes / rule / watermark, dark type.
+   Light theme only -- in dark theme the banner keeps the charcoal of the
+   Tasks / Announcements bubbles. */
+[data-theme="light"] .heroLight {
+  /* Dark type for anything in the banner that reads the tokens (buttons). */
+  --text: #111214;
+  --text-bright: #111214;
+  --text-secondary: #2e2f33;
+  --text-muted: #34353a;
+  --border: rgba(0, 0, 0, 0.18);
+  --border-light: rgba(0, 0, 0, 0.22);
+  border-color: rgba(0, 0, 0, 0.12);
+  background: linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
+    0 18px 44px rgba(0, 0, 0, calc(0.4 * var(--edu-shade, 1)));
+}
+[data-theme="light"] .heroLight::before { background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.025) 0 2px, transparent 2px 11px); }
+[data-theme="light"] .heroLight::after { background: #16171a; box-shadow: none; }
+[data-theme="light"] .heroLight .heroWatermark { color: #16171a; opacity: 0.08; }
+[data-theme="light"] .heroLight .heroTitle { color: #111214; }
+[data-theme="light"] .heroLight .heroAccent { background: linear-gradient(180deg, #2a2b2f 0%, #4f5055 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-theme="light"] .heroLight .heroEyebrow { color: rgba(17, 18, 20, 0.78); }
+[data-theme="light"] .heroLight .heroDot { background: #111214; box-shadow: none; }
+[data-theme="light"] .heroLight .heroSub { color: rgba(17, 18, 20, 0.7); }
+[data-theme="light"] .heroLight .heroChip {
+  color: #111214;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .heroLight .heroReadout { color: rgba(17, 18, 20, 0.8); border-color: rgba(0, 0, 0, 0.18); background: rgba(255, 255, 255, 0.18); }
+
+/* ══════════════════════════════════════════════
+   TOOLBARS — search lives inside the filter bubbles
+   Sport tabs + search (Drills, Classes), the MLB Position / Batter /
+   Pitcher bubble + search, and a charcoal pill bar for the category /
+   level pills (Information's also holds its search). The search sits
+   flush right as an inset field; on phones it drops to its own row.
+   ══════════════════════════════════════════════ */
+.sportTabs {
+  align-self: stretch;
+  align-items: center;
+  flex-wrap: wrap;
+  overflow: visible;
+  margin-bottom: 12px;
+}
+.filterBar {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade))),
+    0 12px 28px rgba(0, 0, 0, calc(0.36 * var(--edu-shade)));
+}
+.mlbFilters { margin: 0 0 12px; }
+.searchInput.searchInput.searchInline {
+  flex: 0 1 280px;
+  min-width: 180px;
+  max-width: 280px;
+  margin-left: auto;
+  padding: 8px 12px 8px 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238d8b86' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 0.8rem center / 0.95rem 0.95rem,
+    #0c0d0f;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.searchInput.searchInput.searchInline:focus {
+  border-color: rgba(236, 235, 230, 0.45);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 3px rgba(236, 235, 230, 0.12);
+}
+@media (max-width: 768px) {
+  .searchInput.searchInput.searchInline { flex: 1 1 100%; max-width: none; margin-left: 0; }
+}
+
+/* Icon chip beside the eyebrow (EduHeader chipInline: Dashboard, Videos). */
+.heroEyebrowRow { display: flex; align-items: center; gap: 12px; }
+.heroEyebrowRow .heroChip { margin-bottom: 0; }

@@ -11,8 +11,7 @@
 import { useMemo, useRef, useState } from 'react';
 import * as api from '@/lib/api';
 import type { EduDocument, EduDocCategory } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
-import aStyles from '@/components/assessment/assessment.module.css';
+import { EduHeader, IconBook } from './EduHeader';
 import styles from './page.module.css';
 import { tzOpt } from '@/lib/academy';
 
@@ -107,16 +106,16 @@ export function InformationView({
 
   return (
     <>
-      <PageHeader
-        eyebrow="Education Library"
+      <EduHeader
+        icon={<IconBook />}
+        eyebrow="04 · Resource Library"
         title="Information"
-        titleAccent="Library"
+        accent="Library"
         subtitle="Recruiting guides, training programs and other documents for members."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowUpload(true)}>+ Add Document</button> : undefined}
       />
-      <div className={aStyles.profilePanel} style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}>
-        <input className={styles.searchInput} placeholder="Search documents..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <div className={styles.filterRow} style={{ marginTop: 16 }}>
+      <div className={styles.panel}>
+        <div className={`${styles.filterRow} ${styles.filterBar}`}>
           <button className={`${styles.pill} ${category === 'ALL' ? styles.pillActive : ''}`} onClick={() => setCategory('ALL')}>
             All ({documents.length})
           </button>
@@ -125,6 +124,7 @@ export function InformationView({
               {c.label} ({documents.filter((d) => d.category === c.id).length})
             </button>
           ))}
+          <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search documents..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
         {error && <div role="alert" className={styles.docError}>{error}</div>}

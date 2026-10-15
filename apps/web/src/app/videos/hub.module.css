@@ -1,0 +1,221 @@
+/* ── Videos / Film Room landing: Coach Dashboard theme ──
+   The page wears the dashboard canvas + banner (Education `.page`,
+   dashboard `.coachDash`, EduHeader tone="light"). The three modes are
+   hub-style tiles: charcoal in dark theme, the dashboard's solid light
+   grey with dark type in light theme. Each carries its accent
+   (--tile-rgb, "r,g,b") on the icon chip, eyebrow and round arrow. */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  padding: 22px 22px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 85% at 100% 0%, rgba(236, 235, 230, 0.11) 0%, rgba(236, 235, 230, 0) 56%),
+    radial-gradient(90% 60% at 0% 100%, rgba(236, 235, 230, 0.04) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
+    0 14px 34px rgba(0, 0, 0, calc(0.4 * var(--edu-shade, 1)));
+  color: #ffffff;
+  text-decoration: none;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s, border-color 0.28s;
+}
+/* Fine diagonal stripe texture, strongest at the top. */
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+  pointer-events: none;
+}
+/* Light sweep across on hover. */
+.tile::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+.tile:hover {
+  transform: translateY(-4px);
+  border-color: rgba(236, 235, 230, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(236, 235, 230, 0.1),
+    0 22px 50px rgba(0, 0, 0, calc(0.5 * var(--edu-shade, 1)));
+}
+.tile:hover::after { left: 125%; }
+.tile:focus-visible { outline: 2px solid rgb(var(--tile-rgb)); outline-offset: 3px; }
+
+.tileRule {
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 46px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #ecebe6;
+  box-shadow: 0 0 14px rgba(236, 235, 230, 0.6);
+}
+.tileWatermark {
+  position: absolute;
+  z-index: -1;
+  right: -30px;
+  top: 34px;
+  width: 180px;
+  height: 180px;
+  color: #ecebe6;
+  opacity: 0.06;
+  transform: rotate(-10deg);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s;
+  pointer-events: none;
+}
+.tile:hover .tileWatermark { transform: rotate(-4deg) scale(1.06); opacity: 0.1; }
+
+/* Every glyph is line art drawn in currentColor. */
+.tile svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tileHead { display: flex; align-items: center; justify-content: space-between; }
+.tileIcon {
+  width: 48px;
+  height: 48px;
+  padding: 11px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--tile-rgb));
+  background: linear-gradient(180deg, rgba(var(--tile-rgb), 0.24), rgba(var(--tile-rgb), 0.08));
+  border: 1px solid rgba(var(--tile-rgb), 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(var(--tile-rgb), 0.22);
+}
+.tileIndex {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.38);
+}
+.tileBody { display: flex; flex-direction: column; margin-top: auto; padding-top: 28px; }
+.tileEyebrow {
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgb(var(--tile-rgb));
+}
+.tileTitle {
+  margin-bottom: 9px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+.tileDesc { font-size: 12.5px; line-height: 1.55; color: rgba(255, 255, 255, 0.6); }
+.tileFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tileHint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.tileGo {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  padding: 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #0a0d13;
+  background: rgb(var(--tile-rgb));
+  box-shadow: 0 6px 18px rgba(var(--tile-rgb), 0.45);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tileGo svg { stroke-width: 2.2; }
+.tile:hover .tileGo { transform: translateX(3px); }
+
+/* ── Light theme: the dashboard's solid light grey with dark type ── */
+[data-theme="light"] .tile {
+  color: #111214;
+  border-color: rgba(0, 0, 0, 0.12);
+  background: linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .tile::before {
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.025) 0 2px, transparent 2px 11px);
+}
+[data-theme="light"] .tile:hover {
+  border-color: rgba(0, 0, 0, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 20px 40px rgba(0, 0, 0, 0.18);
+}
+[data-theme="light"] .tileRule { background: #16171a; box-shadow: none; }
+[data-theme="light"] .tileWatermark { color: #16171a; opacity: 0.07; }
+[data-theme="light"] .tileIcon {
+  color: color-mix(in srgb, rgb(var(--tile-rgb)) 72%, #000);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  border-color: rgba(var(--tile-rgb), 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .tileIndex { color: rgba(17, 18, 20, 0.5); }
+[data-theme="light"] .tileEyebrow { color: color-mix(in srgb, rgb(var(--tile-rgb)) 50%, #000); }
+[data-theme="light"] .tileTitle { color: #111214; }
+[data-theme="light"] .tileDesc { color: rgba(17, 18, 20, 0.72); }
+[data-theme="light"] .tileFoot { border-top-color: rgba(0, 0, 0, 0.12); }
+[data-theme="light"] .tileHint { color: rgba(17, 18, 20, 0.6); }
+
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: 1fr; }
+  .tile { min-height: 0; }
+  .tileBody { padding-top: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile, .tile::after, .tileWatermark, .tileGo { transition: none; }
+  .tile:hover { transform: none; }
+}

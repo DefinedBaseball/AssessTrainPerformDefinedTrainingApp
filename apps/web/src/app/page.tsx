@@ -20,6 +20,10 @@ import {
 import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
 import { REPORT_TYPE_TO_TAB } from './athletes/[id]/helpers';
 import styles from './page.module.css';
+/* The coach dashboard wears the Education Hub theme: same canvas, tokens,
+   hero banner and tile surfaces. */
+import eduStyles from './education/page.module.css';
+import { EduHeader, IconHub } from './education/EduHeader';
 
 /* Non-breaking space — used as the hero title's placeholder while the
    player's name is still loading, so the <h1> keeps its line box instead
@@ -359,15 +363,17 @@ export default function DashboardPage() {
   const normalPosts = posts.filter(p => !(isUrgent(p) && !p.seen));
 
   return (
-    <div>
+    /* `coach-dash` is a plain global marker so CoachTodo's own CSS module
+       can scope its dashboard look (CSS Modules hash every other name). */
+    <div className={`${eduStyles.page} ${styles.coachDash} coach-dash`}>
       {/* ── Hero ── */}
-      <PageHeader
-        size="hero"
+      <EduHeader
+        icon={<IconHub />}
+        tone="light"
+        chipInline
         eyebrow="Coach Dashboard"
         title="Assess, Train,"
-        titleAccent="Perform"
-        compact
-        actionsOnTitleLine
+        accent="Perform"
         actions={<MessagesLauncher />}
       />
 
@@ -378,31 +384,19 @@ export default function DashboardPage() {
         <div className={styles.statsGrid}>
           {/* Still shows the count, but it is also the way into the Client
               Directory — the full contact list for every athlete. */}
-          <Link href="/clients" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
-            <div className={styles.statValue}>{playersError ? '—' : players.length}</div>
-            <div className={styles.statLabel}>Athletes</div>
-          </Link>
+          <DashTile href="/clients" rgb="229,72,77" icon={<IconAthletes />} label="Athletes"
+            value={playersError ? '—' : players.length} />
           {/* Athlete Workouts — today's count, and the way into the full
               day view. A destination like Total Athletes rather than a
               modal: the coach works through the list, and the day is
               navigable once they are there. */}
-          <Link href="/workouts" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
-            <div className={styles.statValue}>
-              {workoutRows === null ? '—' : workoutRows.length}
-            </div>
-            <div className={styles.statLabel}>Attendance</div>
-          </Link>
+          <DashTile href="/workouts" rgb="61,139,253" icon={<IconAttendance />} label="Attendance"
+            value={workoutRows === null ? '—' : workoutRows.length} />
           {/* The last two cards are DESTINATIONS, not counts — same tile
               chrome so the row still reads as one strip, with a glyph
               standing in for the number. */}
-          <Link href="/videos/library" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
-            <div className={styles.statValue} aria-hidden="true">🎬</div>
-            <div className={styles.statLabel}>Videos</div>
-          </Link>
-          <Link href="/video-editor" className={styles.statCard} style={{ display: 'block', textDecoration: 'none' }}>
-            <div className={styles.statValue} aria-hidden="true">✂️</div>
-            <div className={styles.statLabel}>Video Editor</div>
-          </Link>
+          <DashTile href="/videos/library" rgb="232,175,52" icon={<IconVideos />} label="Videos" value="Library" word />
+          <DashTile href="/video-editor" rgb="139,124,255" icon={<IconEditor />} label="Video Editor" value="Studio" word />
         </div>
         {playersError && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>
@@ -513,6 +507,69 @@ export default function DashboardPage() {
         />
       )}
     </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   DASHBOARD TILES
+   Compact cousins of the Education hub tiles: charcoal surface, accent
+   icon chip + eyebrow + round arrow, big number (or a word for the two
+   destination tiles).
+   ══════════════════════════════════════════════ */
+function DashTile({ href, rgb, icon, label, value, word = false }: {
+  href: string; rgb: string; icon: React.ReactNode; label: string;
+  value: React.ReactNode; word?: boolean;
+}) {
+  return (
+    <Link href={href} className={styles.dashTile} style={{ '--tile-rgb': rgb } as React.CSSProperties}>
+      <span className={styles.dashTileRule} aria-hidden="true" />
+      <span className={styles.dashTileIcon} aria-hidden="true">{icon}</span>
+      <span className={styles.dashTileText}>
+        <span className={styles.dashTileLabel}>{label}</span>
+        <span className={`${styles.dashTileValue} ${word ? styles.dashTileWord : ''}`}>{value}</span>
+      </span>
+      <span className={styles.dashTileGo} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+      </span>
+    </Link>
+  );
+}
+
+const dashIconProps = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+function IconAthletes() {
+  return (
+    <svg {...dashIconProps}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 19.5c.6-3.3 3.1-5.2 6-5.2s5.4 1.9 6 5.2" />
+      <circle cx="17" cy="9" r="2.4" opacity=".7" />
+      <path d="M16.5 14.3c2.3.2 4 1.8 4.5 4.6" opacity=".7" />
+    </svg>
+  );
+}
+function IconAttendance() {
+  return (
+    <svg {...dashIconProps}>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+      <path d="M8.8 15l2.2 2.2 4.4-4.4" />
+    </svg>
+  );
+}
+function IconVideos() {
+  return (
+    <svg {...dashIconProps}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <path d="M10.2 9.6v4.8l4.2-2.4z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconEditor() {
+  return (
+    <svg {...dashIconProps}>
+      <circle cx="6.5" cy="7" r="2.8" />
+      <circle cx="6.5" cy="17" r="2.8" />
+      <path d="M8.8 8.6L20 18M8.8 15.4L20 6" />
+    </svg>
   );
 }
 

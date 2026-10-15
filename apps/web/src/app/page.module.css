@@ -1158,3 +1158,308 @@
 [data-theme="light"] .announceBubble .feedEmpty {
   background: #ffffff;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   COACH DASHBOARD — Education Hub theme
+   The wrapper also carries the Education module's `.page` class (canvas,
+   tokens, full-bleed) and the hero is the Education banner. Everything
+   here is scoped to `.coachDash` so the player dashboard and the bell's
+   Announcements tab (portalled to <body>) keep their own look.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Dark tokens for the charcoal Announcements bubble, so its insides read
+   light-on-dark in both themes. */
+.coachDash .announceBubble {
+  --bg: #0c0d0f;
+  --surface: #141518;
+  --surface2: #1b1c20;
+  --text: #f2f1ed;
+  --text-bright: #f2f1ed;
+  --text-soft: #b9b7b0;
+  --text-secondary: #b9b7b0;
+  --text-muted: #8d8b86;
+  --faint: #5c5b58;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.11);
+  --accent: #ecebe6;
+  --accent-light: #ecebe6;
+  --accent-dim: rgba(236, 235, 230, 0.1);
+  --on-accent: #0b0c0e;
+  color-scheme: dark;
+  color: var(--text);
+}
+
+/* ── Stat tiles ── */
+.dashTile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(236, 235, 230, 0.1) 0%, rgba(236, 235, 230, 0) 56%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
+    0 12px 28px rgba(0, 0, 0, calc(0.38 * var(--edu-shade, 1)));
+  color: #ffffff;
+  text-decoration: none;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s, border-color 0.28s;
+}
+.dashTile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 60%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 60%);
+  pointer-events: none;
+}
+.dashTile::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+.dashTile:hover {
+  transform: translateY(-3px);
+  border-color: rgba(236, 235, 230, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(236, 235, 230, 0.1),
+    0 20px 44px rgba(0, 0, 0, calc(0.5 * var(--edu-shade, 1)));
+}
+.dashTile:hover::after { left: 125%; }
+.dashTile:focus-visible { outline: 2px solid rgb(var(--tile-rgb)); outline-offset: 3px; }
+.dashTileRule {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  width: 40px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #ecebe6;
+  box-shadow: 0 0 14px rgba(236, 235, 230, 0.6);
+}
+.dashTileIcon {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--tile-rgb));
+  background: linear-gradient(180deg, rgba(var(--tile-rgb), 0.24), rgba(var(--tile-rgb), 0.08));
+  border: 1px solid rgba(var(--tile-rgb), 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(var(--tile-rgb), 0.22);
+}
+.dashTileIcon svg { width: 24px; height: 24px; }
+.dashTileText { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.dashTileLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgb(var(--tile-rgb));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dashTileValue {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.dashTileWord { font-size: 21px; letter-spacing: -0.01em; }
+.dashTileGo {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #0a0d13;
+  background: rgb(var(--tile-rgb));
+  box-shadow: 0 6px 18px rgba(var(--tile-rgb), 0.45);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.dashTileGo svg { width: 16px; height: 16px; }
+.dashTile:hover .dashTileGo { transform: translateX(3px); }
+@media (max-width: 1100px) {
+  .dashTileGo { display: none; }
+}
+@media (max-width: 640px) {
+  .dashTile { gap: 10px; padding: 12px; border-radius: 16px; }
+  .dashTileIcon { width: 38px; height: 38px; border-radius: 12px; }
+  .dashTileIcon svg { width: 20px; height: 20px; }
+  .dashTileLabel { font-size: 9.5px; letter-spacing: 0.14em; }
+  .dashTileValue { font-size: 24px; }
+  .dashTileWord { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashTile, .dashTile::after, .dashTileGo { transition: none; }
+  .dashTile:hover { transform: none; }
+}
+
+/* ── Announcements: a charcoal banner-style bubble ── */
+.coachDash.coachDash .announceBubble {
+  position: relative;
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 11px),
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
+    radial-gradient(50% 90% at 0% 100%, rgba(236, 235, 230, 0.035) 0%, rgba(236, 235, 230, 0) 70%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
+    0 18px 44px rgba(0, 0, 0, calc(0.4 * var(--edu-shade, 1)));
+}
+.coachDash .announceBubble::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 56px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #ecebe6;
+  box-shadow: 0 0 16px rgba(236, 235, 230, 0.6);
+  pointer-events: none;
+}
+.coachDash .announceBubble .feedTitle {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.coachDash.coachDash .announceBubble .postCard,
+.coachDash.coachDash .announceBubble .feedEmpty {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.coachDash.coachDash .announceBubble .postCard:hover { border-color: rgba(236, 235, 230, 0.26); }
+
+/* ── Create Post button: the banner's off-white action, round ── */
+.coachDash .fab {
+  background: linear-gradient(180deg, #f6f5f1, #dcdad3);
+  color: #0b0c0e;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 #ffffff, 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   COACH DASHBOARD — LIGHT THEME
+   Every bubble takes the banner's light treatment (EduHeader tone="light"):
+   a solid mid-grey with ink stripes / rule and dark type. Inner bubbles
+   (posts) are a lighter solid grey. Dark theme keeps the charcoal above.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Stat tiles ── */
+[data-theme="light"] .dashTile {
+  color: #111214;
+  border-color: rgba(0, 0, 0, 0.12);
+  background: linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 12px 28px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .dashTile::before {
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.025) 0 2px, transparent 2px 11px);
+}
+[data-theme="light"] .dashTile:hover {
+  border-color: rgba(0, 0, 0, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 18px 36px rgba(0, 0, 0, 0.18);
+}
+[data-theme="light"] .dashTileRule { background: #16171a; box-shadow: none; }
+[data-theme="light"] .dashTileValue { color: #111214; }
+/* Accents darkened (half black) so they hold up on the grey. */
+[data-theme="light"] .dashTileLabel { color: color-mix(in srgb, rgb(var(--tile-rgb)) 50%, #000); }
+[data-theme="light"] .dashTileIcon {
+  color: color-mix(in srgb, rgb(var(--tile-rgb)) 72%, #000);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  border-color: rgba(var(--tile-rgb), 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Announcements ── */
+[data-theme="light"] .coachDash.coachDash .announceBubble {
+  --bg: #f1f0ec;
+  --surface: #ffffff;
+  --text: #111214;
+  --text-bright: #111214;
+  --text-soft: #2e2f33;
+  --text-secondary: #2e2f33;
+  --text-muted: #34353a;
+  --faint: #45464b;
+  --border: rgba(0, 0, 0, 0.14);
+  --border-light: rgba(0, 0, 0, 0.18);
+  --accent: #16171a;
+  --accent-light: #16171a;
+  --accent-dim: rgba(22, 23, 26, 0.08);
+  --on-accent: #f6f5f1;
+  color-scheme: light;
+  color: var(--text);
+  border-color: rgba(0, 0, 0, 0.12);
+  background:
+    repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 11px),
+    linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 18px 44px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .coachDash .announceBubble::after { background: #16171a; box-shadow: none; }
+[data-theme="light"] .coachDash.coachDash .announceBubble .postCard,
+[data-theme="light"] .coachDash.coachDash .announceBubble .feedEmpty {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+[data-theme="light"] .coachDash.coachDash .announceBubble .postCard:hover { border-color: rgba(0, 0, 0, 0.26); }
+/* Urgent badge: dark gold so it reads on the light-grey post. */
+[data-theme="light"] .coachDash .announceBubble .postUrgentBadge {
+  color: #6b4d0c;
+  background: rgba(232, 175, 52, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(107, 77, 12, 0.3);
+}
+
+/* ── Dashboard canvas (light theme) ──
+   The wrapper carries the Education .page class, but the dashboard keeps
+   its own shade of the off-white canvas (Education went darker on its own).
+   Doubled class beats the Education module's [data-theme] .page rule. */
+[data-theme="light"] .coachDash.coachDash {
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(255, 255, 255, 0.28) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(22, 23, 26, 0.06) 0 1px, transparent 1px 4px, rgba(22, 23, 26, 0.06) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(255, 255, 255, 0.33), transparent 60%),
+    /* 20% darker than before (#bfbebb → #b8b7b3); now the same shade as Education. */
+    linear-gradient(180deg, #999896 0%, #93928f 420px);
+}

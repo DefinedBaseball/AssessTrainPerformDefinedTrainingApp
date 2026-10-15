@@ -47,9 +47,13 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, Video, Drill, MlbPlayer } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { VideoDrawingOverlay } from '@/components/VideoDrawingOverlay';
 import s from './page.module.css';
+/* Coach Dashboard theme: canvas, banner and bubble surfaces. */
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconEditor } from '../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
 
 /* ── Types ── */
@@ -454,25 +458,26 @@ export default function VideoEditorPage() {
   const recording = recState === 'recording';
 
   return (
-    <div>
-      <PageHeader
-        size="hero"
-        eyebrow="Coach Tools"
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconEditor />}
+        eyebrow="Studio"
         title="Video"
-        titleAccent="Editor"
+        accent="Editor"
         actions={
-          <Link href="/" style={{
-            padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-            textDecoration: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)',
+          <Link href="/" className={theme.field} style={{
+            padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none',
           }}>Dashboard</Link>
         }
       />
 
-      <div style={{ padding: '0 18px 28px' }}>
+      <div style={{ paddingBottom: 28 }}>
         {/* ── Top row: pool (1/3) + preview (2/3) ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: rem(12), alignItems: 'stretch' }}>
           {/* ── Uploaded pool ── */}
-          <section style={panel}>
+          <section className={theme.bubble} style={panel}>
             <div style={panelHead}>
               <span style={panelTitle}>Uploaded</span>
               <button type="button" onClick={() => setImportOpen(true)} className={s.primaryBtn}>+ Import</button>
@@ -485,7 +490,7 @@ export default function VideoEditorPage() {
                 </p>
               )}
               {pool.map(item => (
-                <div key={item.key} style={poolRow}>
+                <div key={item.key} className={theme.inner} style={poolRow}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.label}
@@ -507,7 +512,7 @@ export default function VideoEditorPage() {
           </section>
 
           {/* ── Preview ── */}
-          <section style={panel}>
+          <section className={theme.bubble} style={panel}>
             <div style={panelHead}>
               <span style={panelTitle}>Created Video Preview</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'DM Mono', monospace" }}>
@@ -617,7 +622,7 @@ export default function VideoEditorPage() {
                 {fmt(globalTime)} / {fmt(totalDuration)}
               </span>
 
-              <select value={rate} onChange={e => setRate(parseFloat(e.target.value))} className={s.selectBox} style={selectBox} title="Playback speed">
+              <select value={rate} onChange={e => setRate(parseFloat(e.target.value))} className={`${s.selectBox} ${theme.field}`} style={selectBox} title="Playback speed">
                 {RATES.map(r => <option key={r} value={r}>{r}x</option>)}
               </select>
             </div>
@@ -670,7 +675,7 @@ export default function VideoEditorPage() {
         </div>
 
         {/* ── Timeline ── */}
-        <section style={{ ...panel, marginTop: rem(12) }}>
+        <section className={theme.bubble} style={{ ...panel, marginTop: rem(12) }}>
           <div style={panelHead}>
             <span style={panelTitle}>Timeline</span>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -984,10 +989,9 @@ function SaveDialog({ players, target, setTarget, saving, blob, onDiscard, onSav
 }
 
 /* ── Inline style tokens ── */
+/* Layout only: the surface (background / border / radius) comes from the
+   dashboard theme's .bubble class, which an inline style would outrank. */
 const panel: React.CSSProperties = {
-  background: 'var(--bubble-chrome-bg, rgba(127,127,127,0.04))',
-  border: '1px solid var(--border)',
-  borderRadius: 12,
   padding: 12,
   display: 'flex',
   flexDirection: 'column',

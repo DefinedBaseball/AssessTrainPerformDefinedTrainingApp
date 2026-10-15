@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { EduClass, Drill, MlbPlayer, MlbVideo, EduDocument } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
-import aStyles from '@/components/assessment/assessment.module.css';
+import { EduHeader, IconFilm, IconBall, IconCap, IconBook, IconHub, IconLock } from './EduHeader';
 import styles from './page.module.css';
 import DrillVideoRecorder from './DrillVideoRecorder';
 import { InformationView } from './InformationView';
@@ -77,6 +76,15 @@ function videoCategoriesForPositions(positions?: string | null): string[] {
 }
 
 type Page = 'landing' | 'classes' | 'classDetail' | 'drills' | 'mlb' | 'player' | 'info';
+
+/* Each library carries its hub tile's accent ("r,g,b") on the same kinds
+   of spots as the tile: icon chips, eyebrows, play / go buttons. */
+const SECTION_RGB: Partial<Record<Page, string>> = {
+  mlb: '229,72,77', player: '229,72,77',
+  drills: '61,139,253',
+  classes: '232,175,52', classDetail: '232,175,52',
+  info: '139,124,255',
+};
 
 /* Classes + Information are members-only (coaches, and athletes with
    Membership on their profile); the API enforces it, this just shows it. */
@@ -184,7 +192,7 @@ export default function EducationPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} style={SECTION_RGB[page] ? { '--sec-rgb': SECTION_RGB[page] } as React.CSSProperties : undefined}>
       {/* Breadcrumb */}
       {page !== 'landing' && (
         <div className={styles.breadcrumb}>
@@ -307,10 +315,12 @@ function LandingView({ classCount, drillCount, playerCount, docCount, memberAcce
   const locked = memberAccess === false;
   return (
     <>
-      <PageHeader
+      <EduHeader
+        icon={<IconHub />}
         eyebrow="Player Development"
         title="Education"
-        titleAccent="Hub"
+        accent="Hub"
+        subtitle="Film, drills, curriculum and resources. Everything an athlete studies, in one place."
         readout={`${classCount + drillCount + playerCount + docCount} resources`}
       />
       {locked && lockedNotice && (
@@ -319,50 +329,80 @@ function LandingView({ classCount, drillCount, playerCount, docCount, memberAcce
         </div>
       )}
       <div className={styles.hubGrid}>
-        <div className={styles.hubCard} style={{ borderColor: 'rgba(221,105,116,.3)' }} onClick={() => goTo('mlb')}>
-          <div className={styles.hubIcon} style={{ background: 'var(--red-dim)' }}>🎬</div>
-          <div className={styles.hubCardTitle}>Major League Video</div>
-          <div className={styles.hubCardDesc}>MLB player video library organized by position. Filter by LHH / RHH / LHP / RHP for targeted study.</div>
-          <div className={styles.hubCardCount} style={{ color: 'var(--red)' }}>{playerCount} players <span className={styles.hubCardArrow}>→</span></div>
-        </div>
-        <div className={styles.hubCard} style={{ borderColor: 'rgba(32,128,141,.3)' }} onClick={() => goTo('drills')}>
-          <div className={styles.hubIcon} style={{ background: 'var(--accent-dim)' }}>⚾</div>
-          <div className={styles.hubCardTitle}>Drills</div>
-          <div className={styles.hubCardDesc}>Complete drill database organized by sport and category. The same drills used in training calendars.</div>
-          <div className={styles.hubCardCount} style={{ color: 'var(--accent-light)' }}>{drillCount} drills <span className={styles.hubCardArrow}>→</span></div>
-        </div>
-        <div
-          className={`${styles.hubCard} ${locked ? styles.hubCardLocked : ''}`}
-          style={{ borderColor: 'rgba(232,175,52,.3)' }}
-          onClick={() => goTo('classes')}
-          aria-disabled={locked || undefined}
-        >
-          <div className={styles.hubIcon} style={{ background: 'var(--gold-dim)' }}>{locked ? '🔒' : '🎓'}</div>
-          <div className={styles.hubCardTitle}>Classes</div>
-          <div className={styles.hubCardDesc}>Structured courses from Beginner to Expert across Hitting, Pitching, Defense, S&C, and Vision.</div>
-          {locked ? (
-            <div className={styles.hubCardCount}>🔒 Members only. Ask your coach about Membership.</div>
-          ) : (
-            <div className={styles.hubCardCount} style={{ color: 'var(--gold-readable)' }}>{classCount} classes <span className={styles.hubCardArrow}>→</span></div>
-          )}
-        </div>
-        <div
-          className={`${styles.hubCard} ${locked ? styles.hubCardLocked : ''}`}
-          style={{ borderColor: 'rgba(124,141,255,.3)' }}
-          onClick={() => goTo('info')}
-          aria-disabled={locked || undefined}
-        >
-          <div className={styles.hubIcon} style={{ background: 'rgba(124,141,255,.14)' }}>{locked ? '🔒' : '📚'}</div>
-          <div className={styles.hubCardTitle}>Information</div>
-          <div className={styles.hubCardDesc}>Recruiting guides, nutrition and strength programs, and other documents to read or download.</div>
-          {locked ? (
-            <div className={styles.hubCardCount}>🔒 Members only. Ask your coach about Membership.</div>
-          ) : (
-            <div className={styles.hubCardCount} style={{ color: '#8f9bff' }}>{docCount} document{docCount === 1 ? '' : 's'} <span className={styles.hubCardArrow}>→</span></div>
-          )}
-        </div>
+        <HubTile
+          index="01" eyebrow="Film Room" title="Major League Video" accent="229,72,77" icon={<IconFilm />}
+          desc="MLB player video library organized by position. Filter by LHH / RHH / LHP / RHP for targeted study."
+          count={playerCount} unit={playerCount === 1 ? 'player' : 'players'}
+          onOpen={() => goTo('mlb')}
+        />
+        <HubTile
+          index="02" eyebrow="Training" title="Drills" accent="61,139,253" icon={<IconBall />}
+          desc="Complete drill database organized by sport and category. The same drills used in training calendars."
+          count={drillCount} unit={drillCount === 1 ? 'drill' : 'drills'}
+          onOpen={() => goTo('drills')}
+        />
+        <HubTile
+          index="03" eyebrow="Curriculum" title="Classes" accent="232,175,52" icon={<IconCap />}
+          desc="Structured courses from Beginner to Expert across Hitting, Pitching, Defense, S&C, and Vision."
+          count={classCount} unit={classCount === 1 ? 'class' : 'classes'}
+          locked={locked}
+          onOpen={() => goTo('classes')}
+        />
+        <HubTile
+          index="04" eyebrow="Resource Library" title="Information" accent="139,124,255" icon={<IconBook />}
+          desc="Recruiting guides, nutrition and strength programs, and other documents to read or download."
+          count={docCount} unit={docCount === 1 ? 'document' : 'documents'}
+          locked={locked}
+          onOpen={() => goTo('info')}
+        />
       </div>
     </>
+  );
+}
+
+/* One Education Hub tile: deep navy panel lit by its section's accent,
+   a big faded watermark of its icon, numbered eyebrow, display title,
+   and a stat + go button footer. Locked (members-only) tiles still click
+   through -- goTo shows the members notice. */
+function HubTile({ index, eyebrow, title, desc, icon, accent, count, unit, locked = false, onOpen }: {
+  index: string; eyebrow: string; title: string; desc: string; icon: React.ReactNode;
+  /** "r,g,b" of the section's accent colour. */
+  accent: string; count: number; unit: string; locked?: boolean; onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles.tile} ${locked ? styles.tileLocked : ''}`}
+      style={{ '--tile-rgb': accent } as React.CSSProperties}
+      onClick={onOpen}
+      aria-disabled={locked || undefined}
+      aria-label={locked ? `${title}: members only` : `${title}: ${count} ${unit}`}
+    >
+      <span className={styles.tileRule} aria-hidden="true" />
+      <span className={styles.tileWatermark} aria-hidden="true">{icon}</span>
+      <span className={styles.tileHead}>
+        <span className={styles.tileIcon} aria-hidden="true">{locked ? <IconLock /> : icon}</span>
+        <span className={styles.tileIndex}>{index}</span>
+      </span>
+      <span className={styles.tileBody}>
+        <span className={styles.tileEyebrow}>{eyebrow}</span>
+        <span className={styles.tileTitle}>{title}</span>
+        <span className={styles.tileDesc}>{desc}</span>
+      </span>
+      <span className={styles.tileFoot}>
+        {locked ? (
+          <span className={styles.tileLockChip}><IconLock /> Members only</span>
+        ) : (
+          <span className={styles.tileStat}>
+            <span className={styles.tileStatNum}>{count}</span>
+            <span className={styles.tileStatLabel}>{unit}</span>
+          </span>
+        )}
+        <span className={styles.tileGo} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -370,7 +410,6 @@ function LandingView({ classCount, drillCount, playerCount, docCount, memberAcce
 
 function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, search, setSearch, isCoach, showModal, setShowModal, goToClass }: any) {
   const [editingClass, setEditingClass] = useState<EduClass | null>(null);
-  const sportObj = SPORTS.find(s => s.id === sport)!;
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return classes
@@ -394,28 +433,25 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
 
   return (
     <>
-      <PageHeader
-        eyebrow="Education Library"
+      <EduHeader
+        icon={<IconCap />}
+        eyebrow="03 · Curriculum"
         title="Classes"
-        titleAccent="Library"
+        accent="Library"
         subtitle="Structured courses organized by sport and skill level."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Class</button> : undefined}
       />
-      <div
-        className={aStyles.profilePanel}
-        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
-      >
-      <input className={styles.searchInput} placeholder="Search classes..." value={search} onChange={e => setSearch(e.target.value)} />
-      <div className={styles.sportTabs} style={{ marginTop: 16 }}>
+      <div className={styles.panel}>
+      <div className={styles.sportTabs}>
         {SPORTS.map(s => (
           <button key={s.id} className={`${styles.sportTab} ${sport === s.id ? styles.sportTabActive : ''}`}
-            style={sport === s.id ? { background: s.color } : {}}
             onClick={() => { setSport(s.id); setLevel('all'); }}>
             {s.label}
           </button>
         ))}
+        <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search classes..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
-      <div className={styles.filterRow}>
+      <div className={`${styles.filterRow} ${styles.filterBar}`}>
         <button className={`${styles.pill} ${level === 'all' ? styles.pillActive : ''}`} onClick={() => setLevel('all')}>All ({classes.filter((c: EduClass) => c.sport === sport).length})</button>
         {LEVELS.map(l => {
           const n = classes.filter((c: EduClass) => c.sport === sport && c.level === l.id).length;
@@ -431,7 +467,7 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
             const lv = LEVELS.find(l => l.id === c.level)!;
             return (
               <div key={c.id} className={styles.classCard} onClick={() => goToClass(c.id)} style={{ cursor: 'pointer' }}>
-                <div className={styles.classThumb} style={{ background: sportObj.color + '22' }}>{c.emoji}</div>
+                <div className={styles.classThumb}>{c.emoji}</div>
                 <div className={styles.classBody}>
                   <div className={styles.className}>{c.name}</div>
                   <div className={styles.classMeta}><span className={`${styles.levelBadge} ${lv.cls}`}>{lv.label}</span></div>
@@ -581,19 +617,18 @@ function EditClassModal({ cls, onClose, onSaved }: { cls: EduClass; onClose: () 
 function ClassDetailView({ cls }: { cls: EduClass }) {
   const sportObj = SPORTS.find(s => s.id === cls.sport);
   const lv = LEVELS.find(l => l.id === cls.level);
-  const sportColor = sportObj?.color || '#3B82D2';
 
   return (
     <div className={styles.classDetailPage}>
       {/* ── Header ── */}
       <div className={styles.classDetailHeader}>
-        <div className={styles.classDetailEmoji} style={{ background: sportColor + '18' }}>
+        <div className={styles.classDetailEmoji}>
           {cls.emoji}
         </div>
         <div className={styles.classDetailInfo}>
           <div className={styles.classDetailName}>{cls.name}</div>
           <div className={styles.classDetailTags}>
-            <span className={styles.classDetailSport} style={{ background: sportColor + '22', color: sportColor, borderColor: sportColor + '44' }}>
+            <span className={styles.classDetailSport}>
               {sportObj?.label}
             </span>
             {lv && <span className={`${styles.levelBadge} ${lv.cls}`}>{lv.label}</span>}
@@ -649,7 +684,6 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
   const [pendingUpload, setPendingUpload] = useState<{ drill: Drill; file: File } | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<{ id: string; msg: string } | null>(null);
-  const sportObj = SPORTS.find(s => s.id === sport)!;
   const cats = DRILL_CATS[sport] || [];
 
   const filtered = useMemo(() => {
@@ -696,22 +730,18 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
 
   return (
     <>
-      <PageHeader
-        eyebrow="Education Library"
+      <EduHeader
+        icon={<IconBall />}
+        eyebrow="02 · Training"
         title="Drill"
-        titleAccent="Library"
+        accent="Library"
         subtitle="All training drills organized by sport and category."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Drill</button> : undefined}
       />
-      <div
-        className={aStyles.profilePanel}
-        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
-      >
-      <input className={styles.searchInput} placeholder="Search drills..." value={search} onChange={e => setSearch(e.target.value)} />
-      <div className={styles.sportTabs} style={{ marginTop: 16 }}>
+      <div className={styles.panel}>
+      <div className={styles.sportTabs}>
         {SPORTS.map(s => (
           <button key={s.id} className={`${styles.sportTab} ${sport === s.id ? styles.sportTabActive : ''}`}
-            style={sport === s.id ? { background: s.color } : {}}
             /* Switching sport tabs snaps the category filter back to
                "Movement Prep" — the universal first category across
                every sport in `DRILL_CATS` — so the coach lands on a
@@ -721,6 +751,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
             {s.label}
           </button>
         ))}
+        <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search drills..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
       {/* Category filter strip — per-category pills first (Movement Prep
           leads the row since it's the default selection), with the
@@ -729,7 +760,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
           common drill-discovery flow (browse a single category)
           one click in front of the broader "show me everything"
           view. */}
-      <div className={styles.filterRow}>
+      <div className={`${styles.filterRow} ${styles.filterBar}`}>
         {cats.map((c: any) => {
           const n = drills.filter((d: Drill) => d.tab === sport && d.category === c.id).length;
           return <button key={c.id} className={`${styles.pill} ${cat === c.id ? styles.pillActive : ''}`} onClick={() => setCat(c.id)}>{c.label} ({n})</button>;
@@ -748,7 +779,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
             </div>
             {g.items.map((d: Drill) => (
               <div key={d.id} className={styles.drillCard} onClick={() => setViewingDrill(d)} style={{ cursor: 'pointer' }}>
-                <div className={styles.colorBar} style={{ background: sportObj.color }} />
+                <div className={styles.colorBar} />
                 <div className={styles.cardBody}>
                   <div className={styles.cardNameRow}>
                     <div className={styles.cardName}>{d.name}</div>
@@ -1221,18 +1252,15 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
 
   return (
     <>
-      <PageHeader
-        eyebrow="Education Library"
+      <EduHeader
+        icon={<IconFilm />}
+        eyebrow="01 · Film Room"
         title="Major League"
-        titleAccent="Video"
+        accent="Video"
         subtitle="MLB player video library organized by position."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Player</button> : undefined}
       />
-      <div
-        className={aStyles.profilePanel}
-        style={{ marginTop: 16, padding: 20, display: 'flex', flexDirection: 'column' }}
-      >
-      <input className={styles.searchInput} placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div className={styles.panel}>
       <div className={styles.mlbFilters}>
         <div className={styles.mlbFilterGroup}>
           <div className={styles.mlbFilterLabel}>Position</div>
@@ -1260,6 +1288,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
             ))}
           </div>
         </div>
+        <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
       {filtered.length === 0 ? (
         <div className={styles.empty}>No players found.</div>
@@ -1267,7 +1296,6 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
         <div className={styles.playerGrid}>
           {filtered.map((p: MlbPlayer) => {
             const mainPos = p.positions.split(',')[0];
-            const posColor = mainPos === 'Pitcher' ? 'var(--red)' : mainPos === 'Catcher' ? 'var(--gold)' : 'var(--accent)';
             /* No cover photo yet → fall back to the first playable video's
                first frame as the placeholder (the videos list is ordered
                newest-first, so this matches the first clip the user sees in
@@ -1289,7 +1317,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                      live on the detail page's avatar only. */
                   style={p.coverImageUrl
                     ? { backgroundImage: `url(${p.coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer' }
-                    : { background: `${posColor}15`, cursor: 'pointer' }}
+                    : { cursor: 'pointer' }}
                 >
                   {fallbackVideoUrl && (
                     <video
@@ -1300,7 +1328,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
                     />
                   )}
-                  <span className={styles.playerPosBadge} style={{ background: `${posColor}22`, color: posColor, border: `1px solid ${posColor}44` }}>{mainPos}</span>
+                  <span className={styles.playerPosBadge}>{mainPos}</span>
                 </div>
                 <div className={styles.playerInfo}>
                   <div className={styles.playerName}>{p.name}</div>
@@ -1312,8 +1340,8 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                     </div>
                   )}
                   <div className={styles.playerTags}>
-                    {p.bats && <span className={styles.playerTag} style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>{p.bats}</span>}
-                    {p.throws && <span className={styles.playerTag} style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>{p.throws}</span>}
+                    {p.bats && <span className={`${styles.playerTag} ${styles.tagStrong}`}>{p.bats}</span>}
+                    {p.throws && <span className={styles.playerTag}>{p.throws}</span>}
                   </div>
                   <div className={styles.videoCount}>{(p.videos || []).length} videos</div>
                 </div>
@@ -1632,16 +1660,17 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
           <div className={styles.playerDetailName}>{player.name}</div>
           <div className={styles.playerDetailMeta}>
             {player.positions.split(',').map((p: string) => (
-              <span key={p} className={styles.playerTag} style={{ borderColor: 'var(--accent)', color: 'var(--accent-light)' }}>{p}</span>
+              <span key={p} className={`${styles.playerTag} ${styles.tagStrong}`}>{p}</span>
             ))}
-            {player.bats && <span className={styles.playerTag} style={{ borderColor: 'var(--gold)', color: 'var(--gold)' }}>{player.bats}</span>}
-            {player.throws && <span className={styles.playerTag} style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>{player.throws}</span>}
+            {player.bats && <span className={`${styles.playerTag} ${styles.tagStrong}`}>{player.bats}</span>}
+            {player.throws && <span className={styles.playerTag}>{player.throws}</span>}
             {player.team && <span style={{ fontSize: rem(13), color: 'var(--text-muted)', marginLeft: 4 }}>{player.team}</span>}
           </div>
         </div>
         {isCoach && <button className={styles.addBtn} style={{ marginLeft: 'auto' }} onClick={() => setShowModal(true)}>+ Add Video</button>}
       </div>
 
+      <div className={styles.panel}>
       <div className={styles.filterRow}>
         {categories.map((c: string) => (
           <button key={c} className={`${styles.pill} ${filter === c ? styles.pillActive : ''}`} onClick={() => setFilter(c)}>{c === 'all' ? 'All' : c}</button>
@@ -1697,6 +1726,7 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
           ))}
         </div>
       )}
+      </div>{/* /panel */}
 
       {showModal && <VideoModal playerId={player.id} positions={player.positions} onClose={() => setShowModal(false)} onSaved={(vs: MlbVideo[]) => { setPlayer((prev: MlbPlayer) => ({ ...prev, videos: [...vs, ...(prev.videos || [])] })); setShowModal(false); }} />}
       {editingVideo && <EditVideoModal video={editingVideo} positions={player.positions} onClose={() => setEditingVideo(null)} onSaved={handleVideoUpdated} />}
