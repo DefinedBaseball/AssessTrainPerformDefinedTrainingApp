@@ -292,6 +292,44 @@ export function ReportSelector({
     // standalone "+ Add Report" button has been folded INTO this dropdown
     // as its first option.
     const canAdd = isCoach && !!onNewReport;
+    const addDropdown = open && canAdd && (
+      <div className={styles.reportSelectorDropdown}>
+        <button
+          type="button"
+          className={styles.reportSelectorNewRow}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNewReport!();
+            setOpen(false);
+          }}
+        >
+          <span className={styles.reportSelectorNewIcon}>+</span>
+          <span className={styles.reportSelectorNewText}>Report</span>
+        </button>
+      </div>
+    );
+    /* Compact callers (the report headers) get the same date-sized chip as
+       when reports exist, not the full bar -- an athlete with no reports
+       yet should look the same as one with them. */
+    if (compact) {
+      return (
+        <div className={`${styles.reportSelector} ${styles.reportSelectorCompact}`} ref={dropRef}>
+          <button
+            type="button"
+            className={`${styles.reportSelectorChip} ${open ? styles.reportSelectorChipOpen : ''}`}
+            onClick={canAdd ? () => setOpen(o => !o) : undefined}
+            disabled={!canAdd}
+            style={!canAdd ? { cursor: 'default' } : undefined}
+            title={canAdd ? 'Add a report' : 'No reports yet'}
+            aria-expanded={open}
+          >
+            <span className={styles.reportSelectorChipText}>{lockLabel ? (label || 'Reports') : 'No reports'}</span>
+            <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>▼</span>
+          </button>
+          {addDropdown}
+        </div>
+      );
+    }
     return (
       <div className={styles.reportSelector} ref={dropRef}>
         <button
@@ -313,22 +351,7 @@ export function ReportSelector({
             <span className={`${styles.reportSelectorArrow} ${open ? styles.reportSelectorArrowOpen : ''}`}>▼</span>
           </div>
         </button>
-        {open && canAdd && (
-          <div className={styles.reportSelectorDropdown}>
-            <button
-              type="button"
-              className={styles.reportSelectorNewRow}
-              onClick={(e) => {
-                e.stopPropagation();
-                onNewReport!();
-                setOpen(false);
-              }}
-            >
-              <span className={styles.reportSelectorNewIcon}>+</span>
-              <span className={styles.reportSelectorNewText}>Report</span>
-            </button>
-          </div>
-        )}
+        {addDropdown}
       </div>
     );
   }
