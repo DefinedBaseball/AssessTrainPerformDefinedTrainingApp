@@ -792,3 +792,19 @@
 [data-theme='light'] .textarea.textarea {
   background: var(--lt-row, #d3d4d4);
 }
+
+/* The bell / message icon buttons: always the solid plain colour. They used
+   to read the page's --card-elev, which varies (a see-through 7% white in
+   dark, so the banner's lines showed through; #eaeaea on unthemed pages). */
+.iconBtn.iconBtn {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+}
+.iconBtn.iconBtn:hover {
+  background: linear-gradient(180deg, #26272b 0%, #1e1f23 100%);
+}
+[data-theme='light'] .iconBtn.iconBtn {
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+}
+[data-theme='light'] .iconBtn.iconBtn:hover {
+  background: linear-gradient(180deg, #d3d4d4 0%, var(--lt-plain-solid, #c6c7c7) 100%);
+}
