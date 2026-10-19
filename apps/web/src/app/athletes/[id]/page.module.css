@@ -1494,7 +1494,7 @@
   --subtab-active-bg: linear-gradient(90deg, rgba(30, 31, 35, 0) 0%, #1e1f23 22%, #1e1f23 78%, rgba(30, 31, 35, 0) 100%);
 }
 [data-theme="light"] .pageRoot.pageRoot {
-  --subtab-active-bg: linear-gradient(90deg, rgba(198, 199, 199, 0) 0%, var(--lt-plain-solid, #c6c7c7) 22%, var(--lt-plain-solid, #c6c7c7) 78%, rgba(198, 199, 199, 0) 100%);
+  --subtab-active-bg: linear-gradient(90deg, rgba(207, 207, 207, 0) 0%, var(--lt-plain-solid, #c6c7c7) 22%, var(--lt-plain-solid, #c6c7c7) 78%, rgba(207, 207, 207, 0) 100%);
   /* Selected label: near-black ink. */
   --subtab-active-text: #0b0c0e;
 }
