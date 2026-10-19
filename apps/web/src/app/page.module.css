@@ -1522,18 +1522,17 @@
 
 /* ── Player app: Current Grades / Trends / Stats bar is the plain colour ──
    (2026-10-19) On the coach profile this bar is a lined outer bubble; on the
-   player dashboard it is plain -- the inner-bubble grey with no lines. The
-   selected tab would vanish into a plain bar in that same grey, so here it
-   takes the lighter list shade, still fading out at its sides. */
+   player dashboard it is plain -- the inner-bubble grey with no lines, and
+   the selected tab has no fill: only its underline marks it. */
 .playerDash.playerDash [class*="subTabBar"] {
-  --subtab-active-bg: linear-gradient(90deg, rgba(43, 44, 47, 0) 0%, #2b2c2f 22%, #2b2c2f 78%, rgba(43, 44, 47, 0) 100%);
+  --subtab-active-bg: transparent;
   background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 24px rgba(0, 0, 0, 0.32);
 }
 .playerDash.playerDash [class*="subTabBar"]::before { content: none; }
 [data-theme="light"] .playerDash.playerDash [class*="subTabBar"] {
-  --subtab-active-bg: linear-gradient(90deg, rgba(218, 218, 218, 0) 0%, var(--lt-row, #d3d4d4) 22%, var(--lt-row, #d3d4d4) 78%, rgba(218, 218, 218, 0) 100%);
+  --subtab-active-bg: transparent;
   background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border-color: rgba(0, 0, 0, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 20px rgba(0, 0, 0, 0.1);
