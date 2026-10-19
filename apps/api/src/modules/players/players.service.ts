@@ -205,14 +205,22 @@ export class PlayersService {
    * (and the Bunny files behind them), at-bats, schedules, check-ins, stats,
    * messages and notifications. Raw upload rows whose rows were all this
    * athlete's go too. Posts that merely tagged them keep the post.
+   *
+   * `requireRequest: false` is the admin's direct delete (Edit Profile /
+   * Athlete Hub): same clean-up, no prior request needed.
    */
-  async deleteAthleteAccount(playerId: string) {
+  async deleteAthleteAccount(playerId: string, opts: { requireRequest?: boolean } = {}) {
+    const requireRequest = opts.requireRequest ?? true;
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },
       include: { user: true, videos: { select: { originalUrl: true, hlsUrl: true } } },
     });
     if (!player) throw new NotFoundException('Player not found');
-    if (!player.user.deletionRequestedAt) {
+    /* Only ever an athlete's login -- never a coach's, whatever id is sent. */
+    if (player.user.role !== 'PLAYER') {
+      throw new BadRequestException('Only athlete accounts can be deleted here.');
+    }
+    if (requireRequest && !player.user.deletionRequestedAt) {
       throw new BadRequestException('This athlete hasn\u2019t asked for their account to be deleted.');
     }
     const userId = player.userId;
@@ -270,7 +278,7 @@ export class PlayersService {
     }
     void this.rebuildLeaderboards([player.gradYear]);
 
-    this.logger.log(`Athlete account deleted on request: ${player.firstName} ${player.lastName} (${player.user.email})`);
+    this.logger.log(`Athlete account deleted ${requireRequest ? 'on request' : 'by an admin'}: ${player.firstName} ${player.lastName} (${player.user.email})`);
     return { ok: true, deleted: `${player.firstName} ${player.lastName}`.trim() };
   }
 

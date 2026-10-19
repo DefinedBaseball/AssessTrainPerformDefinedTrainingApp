@@ -250,6 +250,12 @@ export async function deleteAthleteAccount(playerId: string) {
   return request<{ ok: boolean; deleted: string }>(`/players/${playerId}/account`, { method: 'DELETE' });
 }
 
+/** Admin: permanently delete any athlete account and its data (no request
+ *  needed) -- Edit Profile and the Athlete Hub list. */
+export async function deleteAthlete(playerId: string) {
+  return request<{ ok: boolean; deleted: string }>(`/players/${playerId}`, { method: 'DELETE' });
+}
+
 /** Admin: keep the account and clear an athlete's deletion request. */
 export async function dismissDeletionRequest(playerId: string) {
   return request<{ ok: boolean }>(`/players/${playerId}/deletion-request`, { method: 'DELETE' });

@@ -16,6 +16,7 @@ import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconAthletes } from '../education/EduHeader';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
+import { DeleteAthleteDialog } from '@/components/DeleteAthleteDialog';
 import { PendingInvites, useAthletePendingInvites } from '@/components/PendingInvites';
 
 const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
@@ -26,8 +27,10 @@ const TYPE_FILTER_KEY = 'athleteHub.typeFilter';
 
 export default function AthletesPage() {
   const router = useRouter();
-  const { user, isCoach, isViewer, isLoading } = useAuth();
+  const { user, isCoach, isViewer, isAdmin, isLoading } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
+  /* Admin-only permanent delete (trash button beside Lock). */
+  const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState('All');
   // Athlete Hub type dropdown — lazy-init from the persisted choice (validated
@@ -294,7 +297,7 @@ export default function AthletesPage() {
             <span className={styles.colPos}>Position</span>
             <span className={styles.colHt}>Height</span>
             <span className={styles.colWt}>Weight</span>
-            <span className={styles.colLock}>Lock</span>
+            <span className={styles.colLock}>{isAdmin ? 'Lock / Delete' : 'Lock'}</span>
           </div>
           {sorted.map(p => {
             // Age comes strictly from birthDate via the shared
@@ -347,6 +350,22 @@ export default function AthletesPage() {
                       )}
                     </button>
                   )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className={`${styles.lockBtn} ${styles.deleteBtn}`}
+                      onClick={() => setDeleteTarget(p)}
+                      title="Delete athlete permanently"
+                      aria-label={`Delete ${p.firstName} ${p.lastName}`}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
+                  )}
                 </span>
               </div>
             );
@@ -355,6 +374,17 @@ export default function AthletesPage() {
         </div>
       )}
 
+      {deleteTarget && (
+        <DeleteAthleteDialog
+          player={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={() => {
+            const gone = deleteTarget.id;
+            setPlayers(list => list.filter(x => x.id !== gone));
+            setDeleteTarget(null);
+          }}
+        />
+      )}
       {addOpen && <AddAthleteModal onClose={() => setAddOpen(false)} onSent={() => void pending.loadInvites()} />}
     </div>
   );

@@ -20,6 +20,7 @@ import { ResetPasswordButton } from '@/components/ResetPasswordButton';
 import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
+import { DeleteAthleteSection } from '@/components/DeleteAthleteDialog';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import styles from './page.module.css';
@@ -2559,7 +2560,7 @@ function CoachNotesSection({ value, onChange }: { value: string; onChange: (v: s
 export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly, inline = false }: ReportModalProps) {
   /* Picks which save path the Phone field uses — see the phone block in the
      SUMMARY submit below. */
-  const { isCoach: isCoachViewer } = useAuth();
+  const { isCoach: isCoachViewer, isAdmin } = useAuth();
   const isEdit = !!existingReport;
   const [reportType, setReportType] = useState(existingReport?.reportType || initialReportType || 'HITTING');
   const [csvFiles, setCsvFiles] = useState<Record<string, File[]>>({});
@@ -3810,6 +3811,15 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             </button>
             {success && <span className={rs.successMsg}>Saved successfully!</span>}
           </div>
+
+          {/* Admin-only permanent delete, at the very bottom of Edit Profile.
+              Afterwards the profile no longer exists, so go to the Hub. */}
+          {profileOnly && isAdmin && (
+            <DeleteAthleteSection
+              player={player}
+              onDeleted={() => { window.location.assign('/athletes'); }}
+            />
+          )}
         </form>
       </div>
     </div>

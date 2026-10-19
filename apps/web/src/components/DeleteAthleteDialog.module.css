@@ -1,0 +1,126 @@
+/* Delete-athlete confirmation: the app's plain bubble surface (charcoal in
+   dark / Mixed, the light plain grey in light) with a red destructive action. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.dialog {
+  width: min(460px, 100%);
+  padding: 22px;
+  border-radius: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.title {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-bright, var(--text));
+}
+.text {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, var(--text));
+}
+.label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 12px;
+  color: var(--text-secondary, var(--text));
+}
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: #2b2c2f;
+  color: var(--text);
+  font: inherit;
+  /* 12pt === 16px: keeps iOS from zooming into the field. */
+  font-size: 12pt;
+  outline: none;
+}
+.input:focus { border-color: rgba(255, 255, 255, 0.45); }
+.error {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #ef4444;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.cancelBtn,
+.deleteBtn {
+  padding: 9px 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cancelBtn {
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: var(--text);
+}
+.deleteBtn {
+  border: 1.5px solid #b91c1c;
+  background: #dc2626;
+  color: #fff;
+}
+.deleteBtn:hover:not(:disabled) { background: #b91c1c; }
+.cancelBtn:disabled,
+.deleteBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+[data-theme='light'] .dialog {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+[data-theme='light'] .input {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: var(--lt-row, #d3d4d4);
+}
+[data-theme='light'] .input:focus { border-color: rgba(0, 0, 0, 0.55); }
+[data-theme='light'] .cancelBtn { border-color: rgba(0, 0, 0, 0.3); }
+
+/* Edit Profile's bottom block. */
+.section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(229, 72, 77, 0.45);
+  background: rgba(229, 72, 77, 0.06);
+}
+.sectionText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sectionTitle { font-size: 14px; font-weight: 800; color: #e5484d; }
+.sectionHint { font-size: 12px; color: var(--text-secondary, var(--text)); }
+.sectionBtn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e5484d;
+  background: transparent;
+  color: #e5484d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sectionBtn:hover { background: #dc2626; border-color: #dc2626; color: #fff; }

@@ -483,3 +483,11 @@
   .rowTools .searchInput { flex: 1 1 auto; width: auto; min-width: 0; }
   .rowTools .typeFilter { width: 130px; }
 }
+
+/* Admin-only delete beside Lock: same square button, red on hover like Lock. */
+.colLock { gap: 6px; }
+.deleteBtn:hover:not(:disabled) {
+  color: #e5484d;
+  border-color: #e5484d;
+  background: rgba(229, 72, 77, 0.1);
+}

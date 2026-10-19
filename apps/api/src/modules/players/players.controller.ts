@@ -131,6 +131,16 @@ export class PlayersController {
     return this.playersService.deleteAthleteAccount(id);
   }
 
+  /* Admin deletes an athlete directly (Edit Profile / Athlete Hub) -- no
+     request from the athlete needed. Same permanent clean-up as above. */
+  @Delete(':id')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Permanently delete an athlete account and all of its data (admin)' })
+  deleteAthlete(@Param('id') id: string) {
+    return this.playersService.deleteAthleteAccount(id, { requireRequest: false });
+  }
+
   @Delete(':id/deletion-request')
   @Roles('COACH')
   @AdminOnly()
