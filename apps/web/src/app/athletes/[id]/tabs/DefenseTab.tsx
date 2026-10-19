@@ -230,13 +230,16 @@ function DefenseCoachGradesPanel({
     return (
       <div
         className={isOf ? undefined : aStyles.innerPanel}
+        /* Header card (profile theme): the Throwing Grades header is the bar,
+           the grades the lighter shade. --hc-* = this padding. */
+        data-head-card=""
         /* `alignSelf: stretch` makes the Coach Grades bubble fill the full
            grid-row height too — matching Defensive Skills — so it also
            extends down to the bottom of the Range bubble. The grade list
            inside grows + distributes to use the extra height. */
         style={isOf
-          ? { ...ofInnerBubbleStyle, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14 }
-          : { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14, background: 'var(--bubble-chrome-bg, var(--card-elev-bg))' }}
+          ? { ...ofInnerBubbleStyle, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14, ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }
+          : { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14, background: 'var(--bubble-chrome-bg, var(--card-elev-bg))', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}
       >
         {body}
       </div>
@@ -514,7 +517,10 @@ function ReceivingCoachGrades({
       position: 'relative',
       alignSelf: 'stretch',
       minHeight: '100%',
-    }}>
+      /* Header card (profile theme): --hc-* = this padding. */
+      ['--hc-pt' as string]: '14px',
+      ['--hc-px' as string]: '14px',
+    }} data-head-card="">
       {/* Section header — kept on its own row so the 6 chips below
           read as one Coach Grades grouping. */}
       <div style={{
@@ -625,7 +631,10 @@ function StrikeZoneHeatMap5x5({ zoneColors, borderZoneColors }: {
      stops mean the radialGradient renders FLAT, so the radial-highlight
      vignette that used to read as a "crazy gradient" on the chip
      surface is gone in both themes. */
-  const flatFill = isLight ? '#dee1e5' : 'rgba(10, 14, 20, 0.38)';
+  /* 2026-10-18: the plain colour of the redesigned profile (one step
+     darker than the lighter card it sits on) -- the old #dee1e5 slate read
+     as white on the new grey card. */
+  const flatFill = isLight ? '#c6c7c7' : '#1e1f23';
   const fillStop1 = flatFill;
   const fillStop2 = flatFill;
   const fillStop3 = flatFill;
@@ -1325,12 +1334,15 @@ function DefensiveSnapshot({
                Range bubble (the tallest of the three columns) — instead of
                stopping at the silhouette's natural height. The player stage
                below grows to fill the extra space. */
+            /* Header card (profile theme): --hc-* = this padding. */
+            data-head-card=""
             style={isOutfield
-              ? { ...ofInnerBubbleStyle, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 6, padding: 14 }
+              ? { ...ofInnerBubbleStyle, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 6, padding: 14, ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }
               : {
                   alignSelf: 'stretch',
                   display: 'flex', flexDirection: 'column', gap: 6, padding: 14,
                   background: 'var(--bubble-chrome-bg, var(--card-elev-bg))',
+                  ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px',
                 }}
           >
             <div style={{
@@ -1487,6 +1499,8 @@ function DefensiveSnapshot({
               {metricGroups.map((g) => (
                 <div
                   key={g.title}
+                  /* Header card (profile theme): --hc-* = this padding. */
+                  data-head-card=""
                   style={{
                     /* Arm Strength / Glove / Range cards now wear the Swing
                        bubble color (`--bubble-chrome-bg` — #eaeaea in light,
@@ -1498,6 +1512,8 @@ function DefensiveSnapshot({
                     border: '1px solid var(--border-light)',
                     borderRadius: 8,
                     padding: '12px 14px',
+                    ['--hc-pt' as string]: '12px',
+                    ['--hc-px' as string]: '14px',
                   }}
                 >
                   <div style={{
@@ -1580,10 +1596,14 @@ function DefensiveSnapshot({
 
 
 /* Reusable Snapshot bubble — wraps a 2-pane grid + underlying stats rows */
-function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, notes, headerRightSlot }: {
+function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, coachGrades, notes, headerRightSlot }: {
   title: string;
   subtitle?: string;
   leftPane: { title: string; hint: string; node: React.ReactNode };
+  /** Optional bubble of its own between the two panes (Catching: the
+   *  Coaches Grade card, between Receiving Heat Map and Throwing &
+   *  Blocking). When set the row is three columns. */
+  middle?: React.ReactNode;
   rightPane: { title: string; hint: string; node: React.ReactNode };
   /** Optional grades panel rendered between the two panes and the notes.
    *  Catching embeds its Throwing Grades here, mirroring Infield/Outfield. */
@@ -1621,7 +1641,14 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
             maxWidths to match at every viewport was unreliable
             because the heat map's effective width depends on the
             inner 2-col grid share. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(0, 1fr)', gap: 28, alignItems: 'stretch' }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: middle
+            ? 'minmax(220px, 1fr) minmax(160px, 0.7fr) minmax(0, 1fr)'
+            : 'minmax(280px, 1fr) minmax(0, 1fr)',
+          gap: middle ? 14 : 28,
+          alignItems: 'stretch',
+        }}>
           {/* Left pane (Receiving Heat Map) — now wears the Pitch Report
               graphite gradient (same `.hudPlotCanvas` background the
               Movement Plot uses) so the Catching Snapshot's two inner
@@ -1640,7 +1667,10 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
               AND the bottom of the Coaches Grade bubble sits 8px above
               the pane's bottom edge. */}
           <div
-            style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px' }}
+            /* Header card: the title row is the bar, the pane the lighter
+               shade (profile theme). --hc-* = this padding. */
+            data-head-card=""
+            style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}
           >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
@@ -1656,6 +1686,9 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
               {leftPane.node}
             </div>
           </div>
+          {/* Middle bubble (Catching: Coaches Grade) — its own card between
+              the two panes, stretched to the row height. */}
+          {middle}
           {/* Right pane (Throwing & Blocking field) — matches the left
               pane's tighter spacing exactly: `gap: 8` and `padding:
               '14px 14px 8px'` so the dividing line is equidistant from
@@ -1663,7 +1696,10 @@ function SnapshotBubble({ title, subtitle, leftPane, rightPane, coachGrades, not
               above the pane bottom — same compact rhythm as the
               Receiving Heat Map pane. */}
           <div
-            style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px' }}
+            /* Header card: the title row is the bar, the pane the lighter
+               shade (profile theme). --hc-* = this padding. */
+            data-head-card=""
+            style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}
           >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
@@ -2022,17 +2058,9 @@ export function CatchingSubTab({
               title: 'Receiving Heat Map',
               hint: 'Strike zone & borders',
               node: (
-                /* Two-column inner grid — strike-zone heat map on the
-                 * left, six-row Coach Grades panel on the right. minmax
-                 * lets the heat map shrink when the bubble narrows so
-                 * the grade rows always stay readable. */
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1.35fr) minmax(150px, 0.85fr)',
-                  gap: 14,
-                  alignItems: 'stretch',
-                  width: '100%',
-                }}>
+                /* The strike-zone heat map alone -- Coaches Grade is its own
+                   bubble now (the snapshot's middle column). */
+                <div style={{ width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <StrikeZoneHeatMap5x5
                       zoneColors={zoneColors as (0 | 1 | 2)[]}
@@ -2047,10 +2075,10 @@ export function CatchingSubTab({
                       }
                     />
                   </div>
-                  <ReceivingCoachGrades receiving={catchingAssessment.receiving} />
                 </div>
               ),
             }}
+            middle={<ReceivingCoachGrades receiving={catchingAssessment.receiving} />}
             rightPane={{
               title: 'Throwing & Blocking',
               hint: 'Home plate to second base',
@@ -2100,6 +2128,7 @@ export function CatchingSubTab({
                 {bundleVideos(attachedVideos).map((b) => {
                   return (
                     <VideoBundleCard
+                      themed
                       key={b.key}
                       videos={b.videos}
                       size="md"
@@ -2184,6 +2213,7 @@ export function CatchingSubTab({
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     return (
                       <VideoBundleCard
+                        themed
                         key={b.key}
                         videos={b.videos}
                         size="md"
@@ -2535,6 +2565,7 @@ export function InfieldSubTab({
                 {bundleVideos(attachedVideos).map((b) => {
                   return (
                     <VideoBundleCard
+                      themed
                       key={b.key}
                       videos={b.videos}
                       size="md"
@@ -2616,6 +2647,7 @@ export function InfieldSubTab({
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     return (
                       <VideoBundleCard
+                        themed
                         key={b.key}
                         videos={b.videos}
                         size="md"
@@ -2970,6 +3002,7 @@ export function OutfieldSubTab({
                 {bundleVideos(attachedVideos).map((b) => {
                   return (
                     <VideoBundleCard
+                      themed
                       key={b.key}
                       videos={b.videos}
                       size="md"
@@ -3051,6 +3084,7 @@ export function OutfieldSubTab({
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     return (
                       <VideoBundleCard
+                        themed
                         key={b.key}
                         videos={b.videos}
                         size="md"

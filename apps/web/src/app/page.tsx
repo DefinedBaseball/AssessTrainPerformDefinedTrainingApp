@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, PostItem } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { MessagesLauncher } from '@/components/MessagesLauncher';
 import { CoachTodo } from '@/components/CoachTodo';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -18,6 +17,7 @@ import {
   ATHLETES_TAG, isUrgent,
 } from '@/components/announcements/AnnouncementFeed';
 import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
+import profileStyles from './athletes/[id]/page.module.css';
 import { REPORT_TYPE_TO_TAB } from './athletes/[id]/helpers';
 import styles from './page.module.css';
 /* The coach dashboard wears the Education Hub theme: same canvas, tokens,
@@ -301,13 +301,18 @@ export default function DashboardPage() {
     const heroLast = summary.player?.lastName || fallbackName.split(/\s+/).slice(1).join(' ');
 
     return (
-      <div className={styles.playerDash}>
+      /* The athlete profile's dashboard theme (canvas, lined outer bubbles,
+         plain inner bubbles) via its .pageRoot, under the same banner as the
+         Coach Dashboard. The banner still docks onto Current Grades. */
+      <div className={`${styles.playerDash} ${profileStyles.pageRoot}`}>
         {/* ── Hero ── */}
-        <PageHeader
-          size="hero"
+        <EduHeader
+          tone="light"
+          chipInline
+          icon={<IconHub />}
           eyebrow="Player Dashboard"
           title={heroFirst}
-          titleAccent={heroLast}
+          accent={heroLast}
           actions={<MessagesLauncher />}
         />
 

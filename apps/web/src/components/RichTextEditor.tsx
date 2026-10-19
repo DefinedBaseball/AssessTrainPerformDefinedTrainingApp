@@ -44,10 +44,14 @@ export interface RichTextEditorProps {
   disabled?: boolean;
   /** Overrides for the editing surface (background, border, type size). */
   editorStyle?: CSSProperties;
+  /** Optional heading (e.g. "HITTING NOTES"). When set it sits on the left of
+   *  the toolbar row and the B / I / U / Size / mic buttons line up on the
+   *  right of the same row. */
+  label?: React.ReactNode;
 }
 
 export function RichTextEditor({
-  value, onChange, placeholder, minHeight = 100, className, disabled, editorStyle,
+  value, onChange, placeholder, minHeight = 100, className, disabled, editorStyle, label,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState({ bold: false, italic: false, underline: false });
@@ -113,7 +117,10 @@ export function RichTextEditor({
 
   return (
     <div className={className} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {label && disabled && <div>{label}</div>}
       {!disabled && (
+        <div style={label ? labelRowStyle : undefined}>
+        {label && <div style={{ minWidth: 0 }}>{label}</div>}
         <div style={toolbarRowStyle}>
           <ToolbarButton
             label="B"
@@ -143,6 +150,7 @@ export function RichTextEditor({
             buttonStyle={toolbarBtnStyle}
           />
           <DictationButton editorRef={editorRef} onInserted={handleInput} buttonStyle={toolbarBtnStyle} />
+        </div>
         </div>
       )}
 
@@ -229,6 +237,15 @@ function ToolbarButton({
 }
 
 /* ─── Shared styles ──────────────────────────────────────────────────── */
+/* Label left, toolbar right, one row (wraps on narrow columns). */
+const labelRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  flexWrap: 'wrap',
+};
+
 const toolbarRowStyle: CSSProperties = {
   display: 'flex',
   gap: 4,

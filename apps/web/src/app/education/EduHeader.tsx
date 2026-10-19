@@ -10,7 +10,7 @@
 import type React from 'react';
 import styles from './page.module.css';
 
-export function EduHeader({ eyebrow, title, accent, subtitle, readout, actions, icon, tone = 'dark', chipInline = false }: {
+export function EduHeader({ eyebrow, title, accent, subtitle, readout, readoutClassName, actions, icon, tone = 'dark', chipInline = false }: {
   eyebrow: string;
   title: string;
   /** Second word, set apart in an off-white-to-grey fade ("Library", "Hub"). */
@@ -18,6 +18,8 @@ export function EduHeader({ eyebrow, title, accent, subtitle, readout, actions, 
   subtitle?: string;
   /** Small mono stat on the right, e.g. "936 resources". */
   readout?: string;
+  /** Extra class for the readout pill (e.g. a page's firmer border). */
+  readoutClassName?: string;
   actions?: React.ReactNode;
   icon?: React.ReactNode;
   /** 'light' = the solid mid-grey banner with dark type (Coach Dashboard). */
@@ -49,7 +51,7 @@ export function EduHeader({ eyebrow, title, accent, subtitle, readout, actions, 
       </div>
       {(readout || actions) && (
         <div className={styles.heroSide}>
-          {readout && <span className={styles.heroReadout}>{readout}</span>}
+          {readout && <span className={`${styles.heroReadout} ${readoutClassName ?? ''}`}>{readout}</span>}
           {actions}
         </div>
       )}
@@ -158,6 +160,43 @@ export function IconLive() {
     <svg {...p}>
       <circle cx="12" cy="12" r="2.4" fill="currentColor" />
       <path d="M8 7.5a6.5 6.5 0 0 0 0 9M16 7.5a6.5 6.5 0 0 1 0 9M5.5 5a9.5 9.5 0 0 0 0 14M18.5 5a9.5 9.5 0 0 1 0 14" />
+    </svg>
+  );
+}
+export function IconPodium() {
+  return (
+    <svg {...p}>
+      <rect x="3" y="13" width="5.5" height="8" rx="1" />
+      <rect x="9.25" y="7" width="5.5" height="14" rx="1" />
+      <rect x="15.5" y="16" width="5.5" height="5" rx="1" />
+      <path d="M11 4.5h2" />
+    </svg>
+  );
+}
+export function IconClipboard() {
+  return (
+    <svg {...p}>
+      <rect x="5" y="4.5" width="14" height="17" rx="2.5" />
+      <path d="M9 4.5V3.6c0-.6.4-1.1 1-1.1h4c.6 0 1 .5 1 1.1v.9" />
+      <path d="M8.5 10h7M8.5 13.5h7M8.5 17h4.5" opacity=".7" />
+    </svg>
+  );
+}
+export function IconGear() {
+  return (
+    <svg {...p}>
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+export function IconChart() {
+  return (
+    <svg {...p}>
+      <path d="M3.5 20.5h17" />
+      <rect x="5" y="12" width="3.2" height="6.5" rx="1" />
+      <rect x="10.4" y="7.5" width="3.2" height="11" rx="1" />
+      <rect x="15.8" y="4" width="3.2" height="14.5" rx="1" />
     </svg>
   );
 }

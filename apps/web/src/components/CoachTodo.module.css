@@ -97,7 +97,7 @@
 }
 .columnHead { display: flex; flex-direction: column; gap: 1px; padding: 0 2px 2px; }
 .columnTitle {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -470,8 +470,8 @@
   padding: 22px;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Stripes moved to ::before (faded left to right, like the banner). */
   background:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 11px),
     radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.09) 0%, rgba(236, 235, 230, 0) 62%),
     radial-gradient(50% 90% at 0% 100%, rgba(236, 235, 230, 0.035) 0%, rgba(236, 235, 230, 0) 70%),
     linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
@@ -492,6 +492,28 @@
   box-shadow: 0 0 16px rgba(236, 235, 230, 0.6);
   pointer-events: none;
 }
+/* The diagonal lines, faded in from the left like the Coach Dashboard banner
+   (none at the left edge, full by the middle). A separate layer because a
+   mask can't fade one background layer. No z-index / isolation on the card
+   -- that once trapped the Add Task dialog -- so the content is lifted above
+   the stripe layer by making the card's sections position:relative instead;
+   the dialogs (.overlay, position:fixed) are left out. */
+:global(.coach-dash) .card.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  pointer-events: none;
+}
+:global([data-theme="light"] .coach-dash) .card.card::before {
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 11px);
+}
+:global(.coach-dash) .card.card > :not(.overlay) {
+  position: relative;
+}
 :global(.coach-dash) .card .title {
   font-family: var(--font-display);
   font-size: 22px;
@@ -500,7 +522,8 @@
 }
 :global(.coach-dash) .column.column {
   background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
-  border-color: rgba(255, 255, 255, 0.08);
+  /* Firm 1.5px outline, same as dashTheme .firm / the Video Library cards. */
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 :global(.coach-dash) .columnTitle { font-family: var(--font-mono); letter-spacing: 0.18em; }
@@ -539,9 +562,7 @@
   color-scheme: light;
   color: var(--text);
   border-color: rgba(0, 0, 0, 0.12);
-  background:
-    repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 11px),
-    linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  background: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 1px 2px rgba(0, 0, 0, 0.1),
@@ -550,7 +571,7 @@
 :global([data-theme="light"] .coach-dash) .card.card::after { background: #16171a; box-shadow: none; }
 :global([data-theme="light"] .coach-dash) .column.column {
   background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
-  border-color: rgba(0, 0, 0, 0.1);
+  border: 1.5px solid rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 :global([data-theme="light"] .coach-dash) .task.task { border-color: rgba(0, 0, 0, 0.14); }

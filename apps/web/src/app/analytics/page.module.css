@@ -956,3 +956,147 @@
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 8px 22px rgba(15, 20, 30, 0.08);
 }
+
+/* ══════════════════════════════════════════════
+   Coach Dashboard theme (2026-10-18) — same recipe as Settings.
+   Page = Education/Dashboard canvas + EduHeader. Tabs = chips in a lined
+   dashTheme .bubble. Tab content = one lined .bubble (.contentBubble)
+   holding plain cards (inner charcoal / grey, firm 1.5px border); nested
+   surfaces (chart previews, stat bubbles, saved items, pickers) and the
+   inputs / secondary buttons take the lighter list shade. Light + dark;
+   Mixed uses the dark set.
+   ══════════════════════════════════════════════ */
+.tabs.tabs {
+  border-bottom: none;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.tab.tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-muted, var(--muted));
+}
+.tab.tab:hover { color: var(--text); }
+.tab.tabActive,
+.contentBubble .subTab.subTabActive,
+.contentBubble .modeChip.modeChipActive {
+  background: #ecebe6;
+  color: #0b0c0e;
+}
+[data-theme="light"] .tab.tabActive,
+[data-theme="light"] .contentBubble .subTab.subTabActive,
+[data-theme="light"] .contentBubble .modeChip.modeChipActive {
+  background: #16171a;
+  color: #f6f5f1;
+}
+
+.contentBubble { padding: 20px; }
+@media (max-width: 768px) { .contentBubble { padding: 14px; } }
+[data-theme="light"] .contentBubble { --muted: #34353a; --faint: #45464b; }
+
+/* Running Average / Compare: chips, no tray. */
+.contentBubble .subTabs {
+  background: none;
+  border: none;
+  padding: 0;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.contentBubble .subTab {
+  border-radius: 999px;
+  padding: 7px 16px;
+}
+
+/* Plain cards on the inner surface, firm outline. */
+.contentBubble .card {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .contentBubble .card {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Nested surfaces + inputs: the lighter list shade with the firm edge. */
+.contentBubble .previewCard,
+.contentBubble .bubble,
+.contentBubble .configCard,
+.contentBubble .existingItem,
+.contentBubble .columnList,
+.contentBubble .subPanel,
+.contentBubble .savedItem,
+.contentBubble .metricPreviewBubble,
+.contentBubble .calendarWrap,
+.contentBubble .input,
+.contentBubble .select,
+.contentBubble .btnSecondary,
+.contentBubble .csvBtn,
+.contentBubble .datePopoverTrigger,
+.contentBubble .calendarNav,
+.contentBubble .subTab,
+.contentBubble .modeChip {
+  background: #2b2c2f;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  color: var(--text);
+}
+.contentBubble .existingItem:hover,
+.contentBubble .btnSecondary:hover,
+.contentBubble .csvBtn:hover:not(:disabled),
+.contentBubble .calendarNav:hover,
+.contentBubble .datePopoverTrigger:hover,
+.contentBubble .subTab:hover,
+.contentBubble .modeChip:hover { background: #323336; border-color: rgba(255, 255, 255, 0.4); }
+.contentBubble .input:focus,
+.contentBubble .select:focus,
+.contentBubble .datePopoverTrigger:focus { border-color: rgba(236, 235, 230, 0.55); }
+.contentBubble .existingItemActive { border-color: rgba(236, 235, 230, 0.6); }
+
+[data-theme="light"] .contentBubble .previewCard,
+[data-theme="light"] .contentBubble .bubble,
+[data-theme="light"] .contentBubble .configCard,
+[data-theme="light"] .contentBubble .existingItem,
+[data-theme="light"] .contentBubble .columnList,
+[data-theme="light"] .contentBubble .subPanel,
+[data-theme="light"] .contentBubble .savedItem,
+[data-theme="light"] .contentBubble .metricPreviewBubble,
+[data-theme="light"] .contentBubble .calendarWrap,
+[data-theme="light"] .contentBubble .input,
+[data-theme="light"] .contentBubble .select,
+[data-theme="light"] .contentBubble .btnSecondary,
+[data-theme="light"] .contentBubble .csvBtn,
+[data-theme="light"] .contentBubble .datePopoverTrigger,
+[data-theme="light"] .contentBubble .calendarNav,
+[data-theme="light"] .contentBubble .subTab,
+[data-theme="light"] .contentBubble .modeChip {
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #111214;
+}
+[data-theme="light"] .contentBubble .existingItem:hover,
+[data-theme="light"] .contentBubble .btnSecondary:hover,
+[data-theme="light"] .contentBubble .csvBtn:hover:not(:disabled),
+[data-theme="light"] .contentBubble .calendarNav:hover,
+[data-theme="light"] .contentBubble .datePopoverTrigger:hover,
+[data-theme="light"] .contentBubble .subTab:hover,
+[data-theme="light"] .contentBubble .modeChip:hover { background: #cdcece; border-color: rgba(0, 0, 0, 0.5); }
+[data-theme="light"] .contentBubble .input:focus,
+[data-theme="light"] .contentBubble .select:focus,
+[data-theme="light"] .contentBubble .datePopoverTrigger:focus { border-color: rgba(0, 0, 0, 0.55); }
+[data-theme="light"] .contentBubble .existingItemActive { border-color: rgba(0, 0, 0, 0.6); }
+[data-theme="light"] .contentBubble .input::placeholder { color: #4e4f54; }
+
+/* Light theme: accents tuned for charcoal, darkened for the grey. */
+[data-theme="light"] .contentBubble .btnDanger {
+  color: #a12a2a;
+  background: rgba(200, 40, 50, 0.1);
+  border-color: rgba(160, 30, 40, 0.45);
+}
+[data-theme="light"] .contentBubble .feedbackOk,
+[data-theme="light"] .contentBubble .pos { color: #1f7a3d; }
+[data-theme="light"] .contentBubble .feedbackErr,
+[data-theme="light"] .contentBubble .neg { color: #a12a2a; }

@@ -78,6 +78,7 @@ export function CoachReviewLibrary({
             }));
             return (
               <VideoBundleCard
+                themed
                 key={b.key}
                 videos={cardVideos}
                 size="md"

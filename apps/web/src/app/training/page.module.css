@@ -2199,27 +2199,28 @@
    solid white in light theme (lighter charcoal in dark theme), standing
    out from the column's list grey. */
 .multiTriggerCompact {
-  background: #2a2c31;
+  background: #2b2c2f;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 [data-theme="light"] .multiTriggerCompact {
-  background: #ffffff;
+  background: #d3d4d4; /* Athlete Hub list row shade */
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   color: #111214;
 }
 .dayColSectionList .dayColCardItem {
-  background: #2a2c31;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #2b2c2f;
+  /* Same firmer outline as the Video Library cards (dashTheme .innerStrong). */
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 6px;
   padding: 5px 6px;
 }
-.dayColSectionList .dayColCardItem:hover { background: #33353b; }
+.dayColSectionList .dayColCardItem:hover { background: #323336; border-color: rgba(255, 255, 255, 0.4); }
 [data-theme="light"] .dayColSectionList .dayColCardItem {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.1);
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
-[data-theme="light"] .dayColSectionList .dayColCardItem:hover { background: #f3f2ee; }
+[data-theme="light"] .dayColSectionList .dayColCardItem:hover { background: #cdcece; border-color: rgba(0, 0, 0, 0.5); }
 
 /* Day column colours: the sport colour as-is in dark theme, a darker
    version of the same colour in light theme so the header, chips and
@@ -2235,3 +2236,72 @@
    the column's colour (one colour per column, not a shade per section). */
 .dayCol .dayColFieldLabel,
 .dayCol .multiTriggerCompact .multiPlaceholder { color: var(--tab-ink); font-weight: 700; }
+
+/* ── Month view, light theme: Athlete Hub list colours ──
+   Weekday header row = the list's header strip; current-month days = the
+   athlete rows (#d3d4d4); spillover days take the plain list grey so they
+   still recede; today keeps its blue tint + ring on the row shade. */
+[data-theme="light"] .monthGrid .dayHeader {
+  background: #c7c8c8;
+  color: #34353a;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .monthGrid .dayCell {
+  background: #d3d4d4;
+  border-right-color: rgba(0, 0, 0, 0.09);
+  border-bottom-color: rgba(0, 0, 0, 0.09);
+}
+[data-theme="light"] .monthGrid .dayCell:hover { background: #cdcece; }
+[data-theme="light"] .monthGrid .dayCellOther { background: #c6c7c7; }
+[data-theme="light"] .monthGrid .dayCellOther:hover { background: #c0c1c1; }
+[data-theme="light"] .monthGrid .dayCellToday {
+  background: linear-gradient(180deg, rgba(61, 139, 253, 0.10) 0%, rgba(61, 139, 253, 0.03) 100%), #d3d4d4;
+}
+
+/* ── Week view, light theme: same Athlete Hub list colours as Month ──
+   Day-name/number header = the list header strip; each day's column = the
+   athlete-row shade; today keeps a blue tint on that shade. */
+[data-theme="light"] .weekListGrid .weekListHeader {
+  background: #c7c8c8;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .weekListGrid .weekListDayName { color: #34353a; }
+[data-theme="light"] .weekListGrid .weekListCol {
+  background: #d3d4d4;
+  border-right-color: rgba(0, 0, 0, 0.09);
+}
+[data-theme="light"] .weekListGrid .weekListCol:hover { background: #cdcece; }
+[data-theme="light"] .weekListGrid .weekListColToday {
+  background: linear-gradient(180deg, rgba(61, 139, 253, 0.10) 0%, rgba(61, 139, 253, 0.03) 100%), #d3d4d4;
+}
+
+/* ── Day view, light theme: Athlete Hub list colours ──
+   Each column's title area (sport name + Template / +Temp / Copy) = the
+   list header grey; everything under the sport-coloured divider = the
+   athlete-row shade. The focused one-sport view keeps its tinted header and
+   takes the row shade below it. */
+[data-theme="light"] .dayGrid .dayColHeader { background: #c7c8c8; }
+[data-theme="light"] .dayGrid .dayColHeader:hover { background: #c1c2c2; }
+[data-theme="light"] .dayGrid .dayCol { background: #d3d4d4; border-right-color: rgba(0, 0, 0, 0.09); }
+[data-theme="light"] .dayFocus .dayFocusBody { background: #d3d4d4; }
+
+/* ── Dark theme (and Mixed): the light theme's lighter-shade areas take the
+   Athlete Hub's dark row shade. Month: current-month days (today keeps its
+   blue tint), spillover days the plain list charcoal. Week: each day's
+   column. Day: everything under the sport divider + the focused view body.
+   Light-theme rules carry [data-theme] so they still win in light. ── */
+.monthGrid .dayCell { background: #2b2c2f; }
+.monthGrid .dayCell:hover { background: #323336; }
+.monthGrid .dayCellOther { background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%); opacity: 0.85; }
+.monthGrid .dayCellOther:hover { background: linear-gradient(180deg, #232428 0%, #1c1d20 100%); }
+.monthGrid .dayCellToday {
+  background: linear-gradient(180deg, rgba(126, 182, 255, 0.12) 0%, rgba(126, 182, 255, 0.04) 100%), #2b2c2f;
+}
+.weekListGrid .weekListCol { background: #2b2c2f; }
+.weekListGrid .weekListCol:hover { background: #323336; }
+.weekListGrid .weekListColToday {
+  background: linear-gradient(180deg, rgba(126, 182, 255, 0.12) 0%, rgba(126, 182, 255, 0.04) 100%), #2b2c2f;
+}
+.dayGrid .dayCol { background: #2b2c2f; }
+.dayGrid .dayColHeader { background: linear-gradient(180deg, #1e1f23 0%, #1b1c20 100%); }
+.dayFocus .dayFocusBody { background: #2b2c2f; }

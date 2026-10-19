@@ -901,7 +901,7 @@ function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
         letterSpacing: '-0.025em', textTransform: 'uppercase',
         color: 'var(--text-bright)', lineHeight: 1.05,
         marginBottom: 8,
-      }}>
+      }} data-card-title="">
         Release Metrics
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -958,7 +958,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
         letterSpacing: '-0.025em', textTransform: 'uppercase',
         color: 'var(--text-bright)', lineHeight: 1.05,
         marginBottom: 8,
-      }}>
+      }} data-card-title="">
         Pitch Metrics
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -1275,11 +1275,17 @@ export function PitchingTab({
   const notesBubble = (
     <>
           {/* ── Coaching notes — beneath Movement + Location plots ── */}
+          {/* Notes card like Hitting Notes / Coach Notes: the title + Save
+              button form the cross bar (the header row is this card's first
+              child), the text box is attached beneath. --hc-* = padding. */}
           <div
+            data-head-card=""
             style={{
               ...pitchReportBubbleStyle,
               margin: '10px 0 0', padding: '12px 14px',
-              display: 'flex', flexDirection: 'column', gap: 8,
+              display: 'flex', flexDirection: 'column', gap: 0,
+              ['--hc-pt' as string]: '12px',
+              ['--hc-px' as string]: '14px',
             }}
           >
             <div style={{
@@ -1292,7 +1298,8 @@ export function PitchingTab({
                    leading blue dot is preserved so the eyebrow still
                    reads as a sub-section bullet, just with the unified
                    grey-bubble title typography. */
-                fontFamily: 'inherit', fontSize: '0.85rem',
+                /* 1rem: the same label size as Hitting Notes / Coach Notes. */
+                fontFamily: 'inherit', fontSize: '1rem',
                 fontStyle: 'normal', fontWeight: 600,
                 letterSpacing: '-0.025em', textTransform: 'uppercase',
                 color: 'var(--text-bright)', lineHeight: 1.05,
@@ -1341,16 +1348,20 @@ export function PitchingTab({
                      near-white (--bubble-chrome-bg) in light — matches the
                      Hitting / Player Summary notes bubbles. */
                   background: 'var(--notes-bg)',
-                  border: '1px solid var(--border)',
+                  /* Attached under the card's cross bar: no frame of its own,
+                     bleeding to the card edges like the rich notes cards. */
+                  border: 'none',
+                  outline: 'none',
                   color: 'var(--text)',
                   padding: '10px 12px',
-                  borderRadius: 7,
+                  margin: '0 -14px -12px',
+                  borderRadius: 0,
                   fontSize: rem(10.2),
                   lineHeight: 1.55,
                   resize: 'vertical',
                   fontFamily: 'inherit',
                   minHeight: 70,
-                  width: '100%',
+                  width: 'calc(100% + 28px)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -1363,8 +1374,9 @@ export function PitchingTab({
                 /* Notes-bubble surface token — white in light theme,
                    dark navy in dark (matches the textarea + other tabs). */
                 background: 'var(--notes-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 7,
+                border: 'none',
+                borderRadius: 0,
+                margin: '0 -14px -12px',
                 minHeight: 50,
               }}>
                 {pitchingNotes || 'No notes yet.'}
@@ -1373,7 +1385,9 @@ export function PitchingTab({
           </div>
 
       {isCoach && activePitchingReport && (
-        <div style={{ ...pitchReportBubbleStyle, margin: '10px 0 0', padding: '12px 14px' }}>
+        /* No wrapper bubble: CoachNotesInline renders its own notes card,
+           the same as on the Hitting tab. */
+        <div style={{ margin: '10px 0 0' }}>
           <CoachNotesInline report={activePitchingReport} onSaved={onRefresh} style={{ marginTop: 0 }} />
         </div>
       )}
@@ -1671,10 +1685,12 @@ export function PitchingTab({
           marginBottom: 20,
           display: 'flex', flexDirection: 'column', gap: 14,
         }}>
-          <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
+          {/* Header cards: the table title is the bar (data-card-title), the
+              table sits on the lighter shade. --hc-* = this padding. */}
+          <div data-head-card="" data-titled="" style={{ ...pitchReportBubbleStyle, padding: 14, ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}>
             <BreakTable rows={arsenal} />
           </div>
-          <div style={{ ...pitchReportBubbleStyle, padding: 14 }}>
+          <div data-head-card="" data-titled="" style={{ ...pitchReportBubbleStyle, padding: 14, ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}>
             <ReleaseTable rows={arsenal} />
           </div>
         </div>
@@ -1854,6 +1870,7 @@ export function PitchingTab({
                 }}>
                   {bundleVideos(attachedVideos).map((b) => (
                     <VideoBundleCard
+                      themed
                       key={b.key}
                       videos={b.videos}
                       size="md"
@@ -1937,6 +1954,7 @@ export function PitchingTab({
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     return (
                       <VideoBundleCard
+                        themed
                         key={b.key}
                         videos={b.videos}
                         size="md"

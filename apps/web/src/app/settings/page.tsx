@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { ClubTeam, College, ClubTeamInput, CollegeInput } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
 import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
@@ -14,6 +13,10 @@ import { PendingInvites, type PendingInviteRow } from '@/components/PendingInvit
 import { AcademyTab } from './AcademyTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconGear } from '../education/EduHeader';
 
 /* The athlete's My Profile tab IS the profile's Edit Profile window (same
    form, every field), loaded only when an athlete opens the tab. */
@@ -63,19 +66,24 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className={styles.page}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconGear />}
         eyebrow="Preferences"
         title="Settings"
-        titleAccent="Hub"
+        accent="Hub"
         subtitle="Manage your account and preferences"
       />
 
-      <div className={styles.tabs}>
+      {/* Tab chips in a lined bubble (like the Athlete Hub's positions):
+          solid .field chips, the active one solid off-white / ink. */}
+      <div className={`${styles.tabs} ${theme.bubble} ${theme.pad}`}>
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={`${styles.tab} ${tab === t.key ? styles.tabActive : ''}`}
+            className={`${styles.tab} ${tab === t.key ? styles.tabActive : theme.field} ${theme.firm}`}
             onClick={() => setTab(t.key)}
           >
             {t.label}
@@ -83,6 +91,9 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      {/* The active tab's cards sit inside one lined bubble (Video Library
+          layering): plain cards, lighter inputs. */}
+      <div className={`${theme.bubble} ${styles.contentBubble}`}>
       {tab === 'account' && <AccountTab user={user} onLogout={logout} isCoach={isCoach} />}
       {tab === 'myProfile' && !isCoach && playerId && <MyProfileTab playerId={playerId} />}
       {tab === 'notifications' && isCoach && <NotificationsTab isCoach={isCoach} />}
@@ -91,6 +102,7 @@ export default function SettingsPage() {
       {tab === 'staff' && isAdmin && <StaffTab />}
       {tab === 'academy' && isAdmin && <AcademyTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}
+      </div>
     </div>
   );
 }
@@ -354,12 +366,12 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
           <h3 className={styles.cardTitle} style={{ margin: 0 }}>Account Information</h3>
           {/* Coaches sign themselves out everywhere here; athletes have it
               in its own card further down, above Delete account. */}
-          {isCoach && <span style={{ marginLeft: 'auto' }}><SignOutEverywhereButton /></span>}
+          {isCoach && <span className={styles.signOutWrap} style={{ marginLeft: 'auto' }}><SignOutEverywhereButton /></span>}
           {isPrimaryAdmin && (
             <span
               style={{
                 fontSize: rem(10), fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                color: '#3d8bfd', border: '1px solid rgba(61,139,253,0.4)', borderRadius: 999,
+                color: 'var(--admin-tag, #3d8bfd)', border: '1px solid var(--admin-tag-border, rgba(61,139,253,0.4))', borderRadius: 999,
                 padding: '3px 9px',
               }}
             >
@@ -995,7 +1007,7 @@ function StaffTab() {
                         <span style={{
                           marginLeft: 8, fontSize: rem(9), fontWeight: 700,
                           letterSpacing: '0.08em', textTransform: 'uppercase',
-                          color: '#3d8bfd', border: '1px solid rgba(61,139,253,0.4)',
+                          color: 'var(--admin-tag, #3d8bfd)', border: '1px solid var(--admin-tag-border, rgba(61,139,253,0.4))',
                           borderRadius: 999, padding: '2px 8px', verticalAlign: 'middle',
                         }}>
                           Primary Admin

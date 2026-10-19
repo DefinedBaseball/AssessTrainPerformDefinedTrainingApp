@@ -13,6 +13,7 @@ import * as api from '@/lib/api';
 import type { EduDocument, EduDocCategory } from '@/lib/api';
 import { EduHeader, IconBook } from './EduHeader';
 import styles from './page.module.css';
+import theme from '../dashTheme.module.css';
 import { tzOpt } from '@/lib/academy';
 
 export const DOC_CATEGORIES: { id: EduDocCategory; label: string }[] = [
@@ -107,6 +108,7 @@ export function InformationView({
   return (
     <>
       <EduHeader
+        tone="light"
         icon={<IconBook />}
         eyebrow="04 · Resource Library"
         title="Information"
@@ -114,23 +116,24 @@ export function InformationView({
         subtitle="Recruiting guides, training programs and other documents for members."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowUpload(true)}>+ Add Document</button> : undefined}
       />
-      <div className={styles.panel}>
-        <div className={`${styles.filterRow} ${styles.filterBar}`}>
-          <button className={`${styles.pill} ${category === 'ALL' ? styles.pillActive : ''}`} onClick={() => setCategory('ALL')}>
+      {/* Video Library layering: lined bubble > plain toolbar > plain rows. */}
+      <div className={`${styles.panel} ${styles.mlbLayer} ${theme.bubble}`}>
+        <div className={`${styles.filterRow} ${styles.filterBar} ${theme.inner} ${theme.firm}`}>
+          <button className={`${styles.pill} ${category === 'ALL' ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setCategory('ALL')}>
             All ({documents.length})
           </button>
           {DOC_CATEGORIES.map((c) => (
-            <button key={c.id} className={`${styles.pill} ${category === c.id ? styles.pillActive : ''}`} onClick={() => setCategory(c.id)}>
+            <button key={c.id} className={`${styles.pill} ${category === c.id ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setCategory(c.id)}>
               {c.label} ({documents.filter((d) => d.category === c.id).length})
             </button>
           ))}
-          <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search documents..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className={`${styles.searchInput} ${styles.searchInline} ${theme.firm}`} placeholder="Search documents..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
         {error && <div role="alert" className={styles.docError}>{error}</div>}
 
         {filtered.length === 0 ? (
-          <div className={styles.empty}>
+          <div className={`${styles.empty} ${theme.inner}`}>
             {documents.length === 0
               ? (isCoach ? 'No documents yet. Use + Add Document to share the first one.' : 'No documents have been shared yet.')
               : 'No documents match.'}
@@ -140,7 +143,7 @@ export function InformationView({
             {filtered.map((d) => {
               const k = kindOf(d.fileName);
               return (
-                <div key={d.id} className={styles.docRow}>
+                <div key={d.id} className={`${styles.docRow} ${theme.inner} ${theme.innerStrong} ${theme.rowShade}`}>
                   <div className={styles.docIcon} aria-hidden="true">{k.icon}</div>
                   <div className={styles.docBody}>
                     <div className={styles.docTitle}>{d.title}</div>

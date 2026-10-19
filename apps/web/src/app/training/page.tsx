@@ -1147,6 +1147,7 @@ export default function TrainingPage() {
           ? undefined
           : 'Your weekly drill schedule and training history.'}
         readout={todayDateStr}
+        readoutClassName={theme.firm}
       />
 
       {/* ── Calendar shell — lighter `profilePanel` outer bubble holds
@@ -1163,7 +1164,7 @@ export default function TrainingPage() {
         <div className={styles.athleteBar}>
           <span className={styles.athleteLabel}>Athlete</span>
           <select
-            className={`${styles.athleteSelect} ${theme.field}`}
+            className={`${styles.athleteSelect} ${theme.field} ${theme.firm}`}
             value={selectedPlayerId}
             onChange={e => setSelectedPlayerId(e.target.value)}
           >
@@ -1182,7 +1183,7 @@ export default function TrainingPage() {
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
-                className={`${styles.applyTrigger} ${theme.field}`}
+                className={`${styles.applyTrigger} ${theme.field} ${theme.firm}`}
                 onClick={() => setShowApply(o => !o)}
                 title="Copy this athlete's schedule to other athletes or a program"
               >
@@ -1210,7 +1211,7 @@ export default function TrainingPage() {
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
-                className={`${styles.clearTrigger} ${theme.field}`}
+                className={`${styles.clearTrigger} ${theme.field} ${theme.firm}`}
                 onClick={() => setShowClear(o => !o)}
                 title="Clear this athlete's schedule"
               >
@@ -1257,10 +1258,10 @@ export default function TrainingPage() {
       {/* ── Calendar Controls ── */}
       <div className={styles.calControls}>
         <div className={styles.calNav}>
-          <button className={`${styles.navBtn} ${theme.field}`} onClick={() => navigate(-1)}>‹</button>
+          <button className={`${styles.navBtn} ${theme.field} ${theme.firm}`} onClick={() => navigate(-1)}>‹</button>
           <span className={styles.calTitle}>{calTitle}</span>
-          <button className={`${styles.navBtn} ${theme.field}`} onClick={() => navigate(1)}>›</button>
-          <button className={`${styles.todayBtn} ${theme.field}`} onClick={goToday}>Today</button>
+          <button className={`${styles.navBtn} ${theme.field} ${theme.firm}`} onClick={() => navigate(1)}>›</button>
+          <button className={`${styles.todayBtn} ${theme.field} ${theme.firm}`} onClick={goToday}>Today</button>
           {/* Day/week actions live here next to Today. Edit/Copy/Paste act on
               the selected day (Day view); Copy Week / Paste Week act on the
               whole week and are available in Day + Week view. */}
@@ -1273,7 +1274,7 @@ export default function TrainingPage() {
                       inline in the columns below, and nothing reaches the
                       athlete until this is pressed. */}
                   <button
-                    className={dayDirty ? styles.dayActionBtnAccent : `${styles.dayActionBtn} ${theme.field}`}
+                    className={dayDirty ? styles.dayActionBtnAccent : `${styles.dayActionBtn} ${theme.field} ${theme.firm}`}
                     onClick={handleSaveDay}
                     disabled={savingDay || !dayDirty}
                     title={dayDirty
@@ -1282,13 +1283,13 @@ export default function TrainingPage() {
                   >
                     {savingDay ? 'Saving…' : dayDirty ? 'Save' : 'Saved'}
                   </button>
-                  <button className={`${styles.dayActionBtn} ${theme.field}`} onClick={() => handleCopyDay(todayDateStr)} title="Copy this day's drills">Copy</button>
+                  <button className={`${styles.dayActionBtn} ${theme.field} ${theme.firm}`} onClick={() => handleCopyDay(todayDateStr)} title="Copy this day's drills">Copy</button>
                   {copiedDrills.length > 0 && (
                     <button className={styles.dayActionBtnAccent} onClick={() => handlePasteDay(todayDateStr)} title={copiedDate ? `Paste day from ${copiedDate}` : 'Paste copied day'}>Paste</button>
                   )}
                 </>
               )}
-              <button className={`${styles.dayActionBtn} ${theme.field}`} onClick={handleCopyWeek} title="Copy this whole week's drills">Copy Week</button>
+              <button className={`${styles.dayActionBtn} ${theme.field} ${theme.firm}`} onClick={handleCopyWeek} title="Copy this whole week's drills">Copy Week</button>
               {copiedWeek.length > 0 && (
                 <button className={styles.dayActionBtnAccent} onClick={handlePasteWeek} title={copiedWeekStart ? `Paste week from ${copiedWeekStart}` : 'Paste copied week'}>Paste Week</button>
               )}

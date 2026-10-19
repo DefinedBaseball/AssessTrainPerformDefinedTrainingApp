@@ -3,6 +3,7 @@
 import { rem } from '@/lib/rem';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { TextSizeMenu, DictationButton } from '@/components/NoteEditorTools';
+import dashTheme from '@/app/dashTheme.module.css';
 
 const NOTE_SIZES = [
   { value: '2', label: 'Small' },
@@ -1683,17 +1684,7 @@ export function NoteBlock({
    *  Notes label in the Pitching tab. */
   largeLabel?: boolean;
 }) {
-  return (
-    <div
-      /* An empty note is left out of the Player Summary PDF. */
-      data-pdf-empty={isBlankNoteValue(value) ? '' : undefined}
-      style={{
-      display: 'flex', flexDirection: 'column', gap: 6,
-      paddingBottom: fill ? 0 : 12,
-      borderBottom: fill ? 'none' : '1px solid var(--border)',
-      flex: fill ? '1 1 auto' : '0 0 auto',
-      minHeight: 0,
-    }}>
+  const labelEl = (
       <span style={largeLabel
         ? {
             /* Font B — matches the "Pitching Notes" eyebrow in
@@ -1710,13 +1701,31 @@ export function NoteBlock({
       }>
         {label}
       </span>
+  );
+  return (
+    <div
+      /* An empty note is left out of the Player Summary PDF. */
+      data-pdf-empty={isBlankNoteValue(value) ? '' : undefined}
+      style={{
+      display: 'flex', flexDirection: 'column', gap: 6,
+      paddingBottom: fill ? 0 : 12,
+      /* The editable note is its own bordered card now, so it drops the
+         hairline under the block; the read-only view keeps it. */
+      borderBottom: fill || editable ? 'none' : '1px solid var(--border)',
+      flex: fill ? '1 1 auto' : '0 0 auto',
+      minHeight: 0,
+    }}>
+      {!editable && labelEl}
       {editable ? (
+        /* Card like the Player Summary notes: label + controls in a cross
+           bar on top, the typing area attached beneath. */
         <RichEditableNote
           value={value}
           onChange={onChange}
           placeholder={placeholder}
           minHeight={(rows ?? 2) * 22 + 24}
           fill={fill}
+          headerLabel={labelEl}
         />
       ) : (
         <div
@@ -1753,13 +1762,17 @@ export function NoteBlock({
    identically. Heights aren't clipped — the surface auto-grows with
    content. */
 function RichEditableNote({
-  value, onChange, placeholder, minHeight, fill,
+  value, onChange, placeholder, minHeight, fill, headerLabel,
 }: {
   value: string;
   onChange: (html: string) => void;
   placeholder: string;
   minHeight: number;
   fill: boolean;
+  /** When set the note renders as a card (dashTheme .notesCard): this label
+   *  on the left of the toolbar row, the controls on the right, the typing
+   *  area attached beneath. */
+  headerLabel?: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
@@ -1813,11 +1826,17 @@ function RichEditableNote({
   const isEmpty = !value || value === '<br>' || value.replace(/<[^>]+>/g, '').trim() === '';
 
   return (
-    <div style={{
+    <div
+      className={headerLabel ? dashTheme.notesCard : undefined}
+      style={{
       display: 'flex', flexDirection: 'column', gap: 6,
       flex: fill ? '1 1 auto' : '0 0 auto',
       minHeight: 0,
     }}>
+      <div style={headerLabel
+        ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', minWidth: 0 }
+        : { display: 'flex', minWidth: 0 }}>
+      {headerLabel}
       <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
         <ToolbarBtn cmd="bold"      label="B" style={{ fontWeight: 800 }} />
         <ToolbarBtn cmd="italic"    label="I" style={{ fontStyle: 'italic' }} />
@@ -1826,6 +1845,7 @@ function RichEditableNote({
             for what is typed next. Then the mic: speak instead of type. */}
         <TextSizeMenu editorRef={ref} options={NOTE_SIZES} onApplied={syncFromSurface} buttonStyle={toolStyle} />
         <DictationButton editorRef={ref} onInserted={syncFromSurface} buttonStyle={toolStyle} />
+      </div>
       </div>
       <div style={{ position: 'relative', flex: fill ? '1 1 auto' : '0 0 auto' }}>
         <div
@@ -1842,8 +1862,9 @@ function RichEditableNote({
                editor matches Swing / Spray Chart / Metric Readout
                in the Hitting Snapshot when the coach is typing. */
             background: 'var(--notes-bg)',
-            border: `1px solid ${focused ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: 7,
+            /* In card mode the card's own border frames it. */
+            border: headerLabel ? 'none' : `1px solid ${focused ? 'var(--accent)' : 'var(--border)'}`,
+            borderRadius: headerLabel ? 0 : 7,
             padding: '10px 12px',
             color: 'var(--text)',
             fontSize: rem(14), lineHeight: 1.55,

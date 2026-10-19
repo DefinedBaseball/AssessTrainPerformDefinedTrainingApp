@@ -1039,3 +1039,593 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   COACH DASHBOARD THEME — athlete profile (stage 1, 2026-10-16)
+   Same language as the redesigned pages:
+     • canvas  = the Education/Dashboard pinstriped canvas (light, dark,
+                 and Mixed's light canvas under dark bubbles);
+     • banner  = Player Name deck + docked tab bar wear the banner
+                 surface (charcoal / light grey, faint stripes);
+     • outer   = every .profilePanel / Summary .panel becomes the lined
+                 dashTheme bubble;
+     • inner   = every sub-bubble (--bubble-chrome-bg, --card-elev,
+                 .innerPanel) is the plain inner surface, no stripes.
+   Classes from other CSS modules (assessment, PlayerSummaryTab) are
+   reached with [class*=] since their names are hashed elsewhere.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Canvas + shared bubble tokens (dark / Mixed) ── */
+.pageRoot {
+  --bubble-chrome-bg: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  --card-elev: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  --card-elev-hover: linear-gradient(180deg, #232428 0%, #1b1c1f 100%);
+  --card-elev-bg: #1a1b1f;
+  /* Notes boxes: the lighter list shade (2026-10-18). */
+  --notes-bg: #2b2c2f;
+  margin: -24px;
+  padding: 24px;
+  min-height: 100vh;
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(236, 235, 230, 0.025) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(236, 235, 230, 0.03) 0 1px, transparent 1px 4px, rgba(236, 235, 230, 0.03) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(236, 235, 230, 0.05), transparent 60%),
+    linear-gradient(180deg, #101114 0%, #0b0c0e 420px);
+}
+@media (max-width: 768px) { .pageRoot { margin: -16px -12px; padding: 16px 12px; } }
+@media (max-width: 480px) { .pageRoot { margin: -12px -8px; padding: 12px 8px; } }
+
+/* Light: grey canvas + the dashboard's light bubble greys. */
+[data-theme="light"] .pageRoot.pageRoot {
+  --panel-bg-light: #b4b4b5;
+  --bubble-chrome-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --card-elev: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --card-elev-hover: linear-gradient(180deg, #cbcccc 0%, #c6c7c7 100%);
+  --card-elev-bg: #c5c5c5;
+  --notes-bg: #d3d4d4;
+  --text-muted: #34353a;
+  --text-secondary: #2e2f33;
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(255, 255, 255, 0.28) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(22, 23, 26, 0.06) 0 1px, transparent 1px 4px, rgba(22, 23, 26, 0.06) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(255, 255, 255, 0.33), transparent 60%),
+    linear-gradient(180deg, #999896 0%, #93928f 420px);
+}
+/* Mixed: the light canvas under the dark bubbles. */
+[data-canvas="light"] .pageRoot {
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(255, 255, 255, 0.28) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(22, 23, 26, 0.06) 0 1px, transparent 1px 4px, rgba(22, 23, 26, 0.06) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(255, 255, 255, 0.33), transparent 60%),
+    linear-gradient(180deg, #999896 0%, #93928f 420px);
+}
+[data-canvas="light"] .pageRoot .backLink { color: #34353a; }
+
+/* ── Banner: Player Name deck + docked tab bar ── */
+.pageRoot .commandDeck,
+.pageRoot [class*="tabBarOuter"] {
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.08) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.pageRoot .commandDeck {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 -2px 14px rgba(0, 0, 0, 0.25);
+}
+.pageRoot [class*="tabBarOuter"] {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+}
+[data-theme="light"] .pageRoot .commandDeck,
+[data-theme="light"] .pageRoot [class*="tabBarOuter"] {
+  background:
+    linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .pageRoot .commandDeck {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 -2px 12px rgba(0, 0, 0, 0.1);
+}
+[data-theme="light"] .pageRoot [class*="tabBarOuter"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Outer panels: the lined dashTheme bubble ── */
+.pageRoot [class*="profilePanel"],
+.pageRoot [class*="PlayerSummaryTab_panel__"],
+.pageRoot [class*="hudConsole"] {
+  background:
+    radial-gradient(60% 140% at 100% 0%, rgba(236, 235, 230, 0.08) 0%, rgba(236, 235, 230, 0) 62%),
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 14px 34px rgba(0, 0, 0, 0.38);
+}
+[data-theme="light"] .pageRoot [class*="profilePanel"],
+[data-theme="light"] .pageRoot [class*="PlayerSummaryTab_panel__"],
+[data-theme="light"] .pageRoot [class*="hudConsole"] {
+  background:
+    linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* Sub-tab bars (Current Grades / Trends / Stats, S&C) are outer bubbles too. */
+.pageRoot {
+  --subtab-bar-bg: linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  /* Defense snapshots (inline styles read these): lined outer, plain inner. */
+  --defense-outer-bg: linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  --defense-inner-bg: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  --defense-poptime-bg: rgba(23, 24, 27, 0.92);
+  --defense-inner-overlay-bg: rgba(23, 24, 27, 0.5);
+  --defense-silhouette-bg: rgba(23, 24, 27, 0.92);
+  --defense-chip-bg: rgba(14, 15, 17, 0.95);
+  --defense-metric-card-bg: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+}
+.pageRoot [class*="subTabBar"] {
+  background:
+    linear-gradient(160deg, #1d1e22 0%, #131417 55%, #0c0d0f 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 24px rgba(0, 0, 0, 0.32);
+}
+[data-theme="light"] .pageRoot.pageRoot {
+  --subtab-bar-bg: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
+  --defense-outer-bg: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
+  --defense-inner-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  /* These are var()s of --panel-bg-light / --bubble-chrome-bg at :root, which
+     resolve there (old slate), so they are restated here. */
+  --defense-poptime-bg: #c6c7c7;
+  --defense-inner-overlay-bg: #c6c7c7;
+  --defense-chip-bg: #c6c7c7;
+  --defense-metric-card-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+}
+[data-theme="light"] .pageRoot [class*="subTabBar"] {
+  background:
+    linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Inner bubbles (.innerPanel): plain inner surface ── */
+.pageRoot [class*="innerPanel"] {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .pageRoot [class*="innerPanel"] {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Last name: the banner accent of the redesigned pages (off-white → grey
+   in dark, ink → slate in light) instead of the old blue gradient. */
+.pageRoot .megaName .lastName {
+  background: linear-gradient(180deg, #ecebe6 0%, #8d8b86 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="light"] .pageRoot .megaName .lastName {
+  background: linear-gradient(180deg, #2a2b2f 0%, #4f5055 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* ── Vendor bubbles + plots: the plain inner colour (stage 2) ──
+   Full Swing / Blast Motion / HitTrax / Coach Grades and the Spray Chart
+   read --bubble-chrome-bg, which the Hitting panels re-declare to #eaeaea
+   in light theme (assessment.module.css) -- restated here. The Trackman
+   plot canvases + readout bar get the plain surface directly, and the
+   Spray Chart's blue beacon backdrop is switched off. */
+.pageRoot { --spray-glow: linear-gradient(transparent, transparent); }
+[data-theme="light"] .pageRoot [class*="profilePanel"][data-pdf-section] {
+  --bubble-chrome-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+}
+.pageRoot [class*="hudPlotCanvas"],
+.pageRoot [class*="hudReadoutBar"] {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .pageRoot [class*="hudPlotCanvas"],
+[data-theme="light"] .pageRoot [class*="hudReadoutBar"] {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ── Trends: each metric chart a plain card on the lighter list shade
+   (no stripes showing through), firm 1.5px edge. Read by TrendMetricCard
+   in PlayerSummaryTab (inline styles with these as overridable values). ── */
+.pageRoot {
+  --trend-card-bg: #2b2c2f;
+  --trend-card-border: 1.5px solid rgba(255, 255, 255, 0.22);
+  --trend-empty-bg: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  /* Title row = full-width bar in the Athletes-list header colour (the list
+     charcoal with the header strip's faint lift). */
+  --trend-head-margin: -10px -12px 0;
+  --trend-head-padding: 7px 12px 6px;
+  --trend-head-radius: 8.5px 8.5px 0 0;
+  --trend-head-bg: #232427;
+  --trend-head-border: 1px solid rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .pageRoot.pageRoot {
+  --trend-card-bg: #d3d4d4;
+  --trend-card-border: 1.5px solid rgba(0, 0, 0, 0.3);
+  --trend-empty-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --trend-head-bg: #c7c8c8;
+  --trend-head-border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* ── Season Stats: each section a Trends-style card ──
+   Card = the lighter list shade, firm edge; the section label becomes a
+   full-width title bar in the Athletes-list header colour (the hairline
+   goes); the table sits flush inside, header row + pinned Season column
+   matched to the bar / card. Classes live in SeasonStatsSection.module.css. */
+.pageRoot [class*="SeasonStatsSection_gridBlock"] {
+  gap: 0;
+  background: #2b2c2f;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pageRoot [class*="SeasonStatsSection_gridLabel"] {
+  padding: 8px 12px 7px;
+  background: #232427;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pageRoot [class*="SeasonStatsSection_hairline"] { display: none; }
+.pageRoot [class*="SeasonStatsSection_scroller"] { border: none; border-radius: 0; }
+.pageRoot [class*="SeasonStatsSection_empty"] { border: none; border-radius: 0; }
+.pageRoot [class*="SeasonStatsSection_table"] thead th { background: #232427; }
+.pageRoot [class*="SeasonStatsSection_seasonCol"] { background: #2b2c2f !important; }
+.pageRoot [class*="SeasonStatsSection_table"] thead [class*="SeasonStatsSection_seasonCol"] { background: #232427 !important; }
+
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_gridBlock"] {
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
+}
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_gridLabel"] {
+  background: #c7c8c8;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_table"] thead th { background: #c7c8c8; }
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_seasonCol"] { background: #d3d4d4 !important; }
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_table"] thead [class*="SeasonStatsSection_seasonCol"] { background: #c7c8c8 !important; }
+
+/* ── Tool Grades: each section card like Trends / Stats ──
+   Card = the lighter list shade, firm edge; the section label (HITTING,
+   PITCHING, CATCHING…) becomes a full-width title bar in the Athletes-list
+   header colour; the accent hairline under it goes. Classes live in
+   PlayerSummaryTab.module.css (light rules there are data-section-scoped,
+   hence the doubled .pageRoot). */
+.pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"],
+.pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"]:hover {
+  padding-top: 0;
+  background: #2b2c2f;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  overflow: hidden;
+}
+.pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"]:hover { border-color: rgba(255, 255, 255, 0.4); }
+.pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphLabel"] {
+  align-self: stretch;
+  justify-content: center;
+  max-width: none;
+  margin: 0 -10px;
+  padding: 9px 10px 8px;
+  background: #232427;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphRule"] { display: none; }
+
+[data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"],
+[data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"]:hover {
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
+}
+[data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"]:hover { border-color: rgba(0, 0, 0, 0.5); }
+[data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphLabel"] {
+  background: #c7c8c8;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+  color: #111214;
+}
+
+/* ── Plain-colour buttons (Player Summary + header) ──
+   Videos / Edit / Download (assessment downloadPdfBtn), Reset + Save
+   Notes, and the Upcoming Drills day strip take the plain inner colour;
+   the selected day is the lighter shade with the firm edge so it still
+   stands out. */
+.pageRoot {
+  --day-chip-bg: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  --day-chip-active-bg: #2b2c2f;
+  --day-chip-active-border: 1.5px solid rgba(255, 255, 255, 0.4);
+}
+[data-theme="light"] .pageRoot.pageRoot {
+  --day-chip-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --day-chip-active-bg: #d3d4d4;
+  --day-chip-active-border: 1.5px solid rgba(0, 0, 0, 0.45);
+}
+.pageRoot [class*="downloadPdfBtn"],
+.pageRoot [class*="PlayerSummaryTab_devResetBtn"],
+.pageRoot [class*="PlayerSummaryTab_devSaveBtn"] {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+.pageRoot [class*="downloadPdfBtn"]:hover:not(:disabled),
+.pageRoot [class*="PlayerSummaryTab_devResetBtn"]:hover:not(:disabled),
+.pageRoot [class*="PlayerSummaryTab_devSaveBtn"]:hover:not(:disabled) {
+  background: linear-gradient(180deg, #25262a 0%, #1d1e21 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+[data-theme="light"] .pageRoot [class*="downloadPdfBtn"],
+[data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devResetBtn"],
+[data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devSaveBtn"] {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: #111214;
+}
+[data-theme="light"] .pageRoot [class*="downloadPdfBtn"]:hover:not(:disabled),
+[data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devResetBtn"]:hover:not(:disabled),
+[data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devSaveBtn"]:hover:not(:disabled) {
+  background: linear-gradient(180deg, #cbcccc 0%, #c6c7c7 100%);
+  border-color: rgba(0, 0, 0, 0.35);
+}
+/* Doubled .pageRoot: the module's own .devSaveBtn:disabled fill ties otherwise. */
+.pageRoot.pageRoot [class*="PlayerSummaryTab_devSaveBtn"]:disabled {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  opacity: 0.5;
+}
+[data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_devSaveBtn"]:disabled {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+}
+
+/* ── Hitting vendor bubbles (Full Swing / Blast Motion / HitTrax) ──
+   Like the Tool Grades cards: the logo + title row becomes a full-width
+   bar in the list-header colour (its hairline goes), the metrics sit on
+   the lighter list shade, firm 1.5px edge. The bubble's surface is an
+   inline style (hittingVendorBubbleStyle), hence !important. */
+.pageRoot [class*="vendorMetricBubble"] {
+  background: #2b2c2f !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+.pageRoot [class*="vendorMetricBubble"] > [class*="sectionHeader"]:first-child {
+  /* Px (capital) so postcss-pxtorem leaves it alone: it must cancel the
+     bubble's inline 9px 16px padding exactly. */
+  margin: -9Px -16Px 6px;
+  padding: 7px 16Px;
+  background: #232427;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pageRoot [class*="vendorMetricBubble"] > [class*="sectionHeader"]:first-child > div[style*="height: 1px"] {
+  display: none;
+}
+[data-theme="light"] .pageRoot [class*="vendorMetricBubble"] {
+  background: #d3d4d4 !important;
+  border-color: rgba(0, 0, 0, 0.3) !important;
+}
+[data-theme="light"] .pageRoot [class*="vendorMetricBubble"] > [class*="sectionHeader"]:first-child {
+  background: #c7c8c8;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Header cards (Spray Chart, Strike Zone) ──
+   Same as the vendor bubbles: the SectionHeader row becomes a full-width
+   bar in the list-header colour, the body the lighter list shade, firm
+   edge. --hc-pt / --hc-px (inline on each bubble) are its own padding, so
+   the bar's negative margin cancels it exactly. Surface is inline, hence
+   !important. */
+.pageRoot [data-head-card] {
+  background: #2b2c2f !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+.pageRoot [data-head-card]:not([data-titled]) > :first-child,
+.pageRoot [data-head-card] [data-card-title] {
+  margin: calc(var(--hc-pt) * -1) calc(var(--hc-px) * -1) 0;
+  padding: 7px var(--hc-px);
+  background: #232427;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pageRoot [data-head-card] > :first-child > div[style*="height: 1px"] { display: none; }
+[data-theme="light"] .pageRoot [data-head-card] {
+  background: #d3d4d4 !important;
+  border-color: rgba(0, 0, 0, 0.3) !important;
+}
+[data-theme="light"] .pageRoot [data-head-card]:not([data-titled]) > :first-child,
+[data-theme="light"] .pageRoot [data-head-card] [data-card-title] {
+  background: #c7c8c8;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Pitching plots (Movement / Location / Release Point) ──
+   The in-canvas title row becomes the bar, the plot area the lighter list
+   shade, firm edge (overrides the plain-canvas rule above). The canvas
+   padding (8px 10px 10px) is CSS here too, so the bar's negative margin
+   scales with it. */
+.pageRoot.pageRoot [class*="hudPlotCanvas"] {
+  background: #2b2c2f;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  box-shadow: none;
+}
+.pageRoot.pageRoot [class*="hudPlotCanvas"] > [class*="hudPlotPaneHead"] {
+  margin: -8px -10px 0;
+  padding: 7px 10px;
+  background: #232427;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .pageRoot.pageRoot [class*="hudPlotCanvas"] {
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
+}
+[data-theme="light"] .pageRoot.pageRoot [class*="hudPlotCanvas"] > [class*="hudPlotPaneHead"] {
+  background: #c7c8c8;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Tab bar under the name banner: the plain colour (no stripes) ──
+   Overrides the banner surface it shared with the Player Name deck. */
+.pageRoot.pageRoot [class*="tabBarOuter"] {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .pageRoot.pageRoot [class*="tabBarOuter"] {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Current Grades / Trends / Stats: the selected tab is the plain colour,
+   solid through the middle and fading at its sides into the lined bar;
+   unselected tabs stay clear (the bar's lines). Read by the sub-tab buttons
+   in PlayerSummaryTab. ── */
+.pageRoot {
+  --subtab-active-bg: linear-gradient(90deg, rgba(30, 31, 35, 0) 0%, #1e1f23 22%, #1e1f23 78%, rgba(30, 31, 35, 0) 100%);
+}
+[data-theme="light"] .pageRoot.pageRoot {
+  --subtab-active-bg: linear-gradient(90deg, rgba(198, 199, 199, 0) 0%, #c6c7c7 22%, #c6c7c7 78%, rgba(198, 199, 199, 0) 100%);
+  /* Selected label: near-black ink. */
+  --subtab-active-text: #0b0c0e;
+}
+
+/* ── Full width, like the rest of the app ──
+   The banner, tab bar and content were capped at 1200px and centred, which
+   left a wide gutter between the sidebar and the profile on big screens.
+   Every other page runs edge to edge inside .app-main's 24px gutter. */
+.pageRoot .heroOuter,
+.pageRoot .contentWrap,
+.pageRoot [class*="tabBarOuter"] {
+  max-width: none;
+}
+
+/* ── TEST (2026-10-18): text on the lined bubbles gets a backing ──
+   A patch of the bubble's own base colour behind the title -- solid behind
+   the letters, fading out at both ends -- so the diagonal lines stop around
+   the word instead of running through it. Trial on the Tool Grades title;
+   goes app-wide if approved. */
+.pageRoot [class*="PlayerSummaryTab_toolBubbleHead"] h2 {
+  /* The original block's size (padding) stays; the backing is an oval
+     2.7 times that size in both directions, solid behind the letters and
+     fading out to the lines. isolation keeps the backing (z-index -1)
+     inside the title. */
+  position: relative;
+  isolation: isolate;
+  padding: 3px 22px;
+  margin-left: -22px;
+}
+.pageRoot [class*="PlayerSummaryTab_toolBubbleHead"] h2::before {
+  content: '';
+  position: absolute;
+  inset: -85%; /* 2.7x the title block (4x, shrunk 25%, then 10%) */
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(closest-side, #1a1b1f 55%, rgba(26, 27, 31, 0) 100%);
+}
+[data-theme="light"] .pageRoot [class*="PlayerSummaryTab_toolBubbleHead"] h2::before {
+  background: radial-gradient(closest-side, #c0c0c0 55%, rgba(192, 192, 192, 0) 100%);
+}
+/* Both Tool Grades accent lines stay fully visible over the oval: the
+   underline (the head's bottom border) is redrawn as a layer above it, and
+   the in-line rule beside the title is lifted above it too. */
+.pageRoot [class*="PlayerSummaryTab_toolBubbleHead"] {
+  position: relative;
+  border-bottom-color: transparent;
+}
+.pageRoot [class*="PlayerSummaryTab_toolBubbleHead"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--tool-grades-line);
+  z-index: 1;
+  pointer-events: none;
+}
+.pageRoot [class*="PlayerSummaryTab_toolBubbleHead"] div[style*="height: 1px"] {
+  position: relative;
+  z-index: 1;
+}
+
+/* Same oval backing (2.7x the text block, solid core fading to the lines)
+   behind the Player Name banner's two lines of text: the name (on its
+   wrapper -- the h1 itself is measured by the name auto-fit, which an
+   overflowing ::before would shrink) and the
+   POS / HT / WT / B/T / AGE / GRAD row. */
+/* No isolation on the text: the ovals (z-index -1) fall into the banner's
+   own stacking context (.commandDeck is position:relative + z-index:1), so
+   they paint above its striped background but beneath EVERY line of text --
+   the row's oval can no longer cover the name above it. */
+.pageRoot .commandDeck .nameWithPhoto,
+.pageRoot .commandDeck .telemetryStrip {
+  position: relative;
+}
+.pageRoot .commandDeck .nameWithPhoto::before,
+.pageRoot .commandDeck .telemetryStrip::before {
+  content: '';
+  position: absolute;
+  inset: -36%; /* ~1.73x the text block: 2.7x, shrunk 20%, then 20% again */
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(closest-side, #1a1b1f 55%, rgba(26, 27, 31, 0) 100%);
+}
+[data-theme="light"] .pageRoot .commandDeck .nameWithPhoto::before,
+[data-theme="light"] .pageRoot .commandDeck .telemetryStrip::before {
+  background: radial-gradient(closest-side, #c0c0c0 55%, rgba(192, 192, 192, 0) 100%);
+}
+/* The POS / HT / WT row is a full-width flex strip, so its oval spanned the
+   whole banner. Shrink-wrap the row to its text so the oval hugs it. */
+.pageRoot .commandDeck .telemetryStrip {
+  width: fit-content;
+  max-width: 100%;
+}
+/* A long one-line row: a width-proportional oval would still be ~2x the
+   row (most of the banner), so this one reaches a fixed 80px past each end
+   of the text and keeps the proportional height. */
+.pageRoot .commandDeck .telemetryStrip::before {
+  inset: -36% -64px;
+}
+
+/* ── Diagonal lines faded in from the left (2026-10-18) ──
+   Every lined surface on the profile draws its stripes on ::before, masked
+   from nothing at the left edge to full by the middle, like the page
+   banners. (A mask can't fade one background layer, so the stripes left the
+   backgrounds above.) Content stays above the stripe layer: .profilePanel
+   already lifts its children; the others get position:relative on their
+   children in a cascade layer, so any unlayered positioning still wins. The
+   name banner is its own stacking context (z-index:1), so its stripes take
+   z-index -1 -- beneath the name ovals, which come later at the same level. */
+.pageRoot :is(.commandDeck, [class*="profilePanel"], [class*="PlayerSummaryTab_panel__"],
+  [class*="hudConsole"], [class*="subTabBar"], [style*="--defense-outer-bg"])::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0 2px, transparent 2px 11px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  pointer-events: none;
+}
+[data-theme="light"] .pageRoot :is(.commandDeck, [class*="profilePanel"], [class*="PlayerSummaryTab_panel__"],
+  [class*="hudConsole"], [class*="subTabBar"], [style*="--defense-outer-bg"])::before {
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0 2px, transparent 2px 11px);
+}
+.pageRoot .commandDeck::before { z-index: -1; }
+.pageRoot [style*="--defense-outer-bg"] { position: relative; }
+@layer stripeFade {
+  .pageRoot :is([class*="PlayerSummaryTab_panel__"], [class*="hudConsole"], [class*="subTabBar"],
+    [style*="--defense-outer-bg"]) > * {
+    position: relative;
+  }
+}

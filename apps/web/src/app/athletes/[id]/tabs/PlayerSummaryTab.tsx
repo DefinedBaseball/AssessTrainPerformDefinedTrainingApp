@@ -30,6 +30,7 @@ import {
    identical grouping behavior across the app. */
 import { bundleVideos } from '@/lib/video-titles';
 import styles from './PlayerSummaryTab.module.css';
+import dashTheme from '@/app/dashTheme.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
 import { SeasonStatsSection } from '../components/SeasonStatsSection';
@@ -431,13 +432,16 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                    and the light-mode off-white #f3f3f3 → #e5e5e5
                    gradient in lockstep with every other movement-
                    plot / pitch-report bubble across the app. */
+                /* --day-chip-* let a themed page restyle the strip (the
+                   profile: every day the plain colour, the selected day the
+                   lighter shade + firm edge); fallbacks = original look. */
                 background: isSelected
-                  ? 'var(--bubble-chrome-bg)'
+                  ? 'var(--day-chip-active-bg, var(--bubble-chrome-bg))'
                   : hasDrills
-                    ? 'rgba(255,255,255,0.035)'
-                    : 'transparent',
+                    ? 'var(--day-chip-bg, rgba(255,255,255,0.035))'
+                    : 'var(--day-chip-bg, transparent)',
                 border: isSelected
-                  ? '1px solid var(--border-light)'
+                  ? 'var(--day-chip-active-border, 1px solid var(--border-light))'
                   : '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '8px 4px 6px',
@@ -1012,6 +1016,8 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
                       return (
                         <VideoBundleCard
                           key={b.key}
+                          /* Same card as the Video Library (video on top, info below). */
+                          themed
                           videos={cardVideos}
                           size="md"
                           playerId={playerId}
@@ -1230,7 +1236,7 @@ function TrendsSection({
       <div style={{
         padding: '32px 24px',
         background:
-          'radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%), rgba(10, 14, 20, 0.38)',
+          'var(--trend-empty-bg, radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.04) 0%, transparent 60%), rgba(10, 14, 20, 0.38))',
         border: '1px solid var(--border-light)',
         borderRadius: 14,
         textAlign: 'center',
@@ -1362,6 +1368,16 @@ function TrendsSection({
 /** A single dark-grey metric card with its label, latest reading, and
  *  a mini TrendChart. Extracted so both the flat-grid and
  *  subgroup-row layouts can reuse the same card chrome. */
+/* Notes column heading ("HITTING NOTES") — shared by the coach editor's
+   toolbar row and the athlete's read-only view. */
+const notesLabelStyle: React.CSSProperties = {
+  fontSize: rem(11),
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--text-muted)',
+};
+
 function TrendMetricCard({
   spec,
   points,
@@ -1374,8 +1390,10 @@ function TrendMetricCard({
   return (
     <div
       style={{
-        background: 'rgba(255, 255, 255, 0.04)',
-        border: '1px solid var(--border)',
+        /* Overridable so a themed page can make each chart a plain solid
+           card (the profile sets the lighter list shade + firm border). */
+        background: 'var(--trend-card-bg, rgba(255, 255, 255, 0.04))',
+        border: 'var(--trend-card-border, 1px solid var(--border))',
         borderRadius: 10,
         padding: '10px 12px',
         display: 'flex',
@@ -1389,8 +1407,14 @@ function TrendMetricCard({
         justifyContent: 'space-between',
         alignItems: 'baseline',
         gap: 8,
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        paddingBottom: 5,
+        /* Title row. A themed page can turn it into a full-width bar across
+           the card top (the profile uses the Athletes-list header colour);
+           the fallbacks keep the original hairline row. */
+        margin: 'var(--trend-head-margin, 0)',
+        padding: 'var(--trend-head-padding, 0 0 5px)',
+        background: 'var(--trend-head-bg, transparent)',
+        borderRadius: 'var(--trend-head-radius, 0)',
+        borderBottom: 'var(--trend-head-border, 1px solid rgba(255,255,255,0.05))',
       }}>
         <span style={{
           fontSize: rem(11), fontWeight: 700,
@@ -1748,10 +1772,16 @@ export function PlayerSummaryTab({
                 flex: 1,
                 position: 'relative',
                 padding: '10px 16px',
-                background: 'transparent',
+                /* Selected tab: a solid fill that fades out at its sides into
+                   the bar's lined surface (a themed page sets
+                   --subtab-active-bg); unselected tabs stay clear so the
+                   bar's lines show through. Fallback = the original. */
+                background: active ? 'var(--subtab-active-bg, transparent)' : 'transparent',
                 border: 'none',
                 borderRadius: 10,
-                color: active ? 'var(--text)' : 'var(--text-muted)',
+                /* --subtab-active-text lets a themed page darken the selected
+                   label (the profile does in light theme). */
+                color: active ? 'var(--subtab-active-text, var(--text))' : 'var(--text-muted)',
                 fontFamily: 'var(--font-display)',
                 /* Trimmed 23 → 13.8 (a 40% reduction) so the
                    sub-tab labels sit as understated nav elements
@@ -2059,21 +2089,13 @@ export function PlayerSummaryTab({
                       data-pdf-empty={isBlankNoteHtml(value) ? '' : undefined}
                       style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
                     >
-                      <div
-                        style={{
-                          fontSize: rem(11),
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: 'var(--text-muted)',
-                        }}
-                      >
-                        {/* Append " Notes" so each column reads as its
-                            own scoped label (e.g. "HITTING NOTES",
-                            "PITCHING NOTES") now that the global
-                            "Notes" h2 above the grid was retired. */}
-                        {s.label} Notes
-                      </div>
+                      {/* Append " Notes" so each column reads as its own
+                          scoped label (e.g. "HITTING NOTES"). Coaches get it
+                          inside the editor's toolbar row (buttons on the
+                          right); athletes see it on its own above the text. */}
+                      {!isCoach && (
+                        <div style={notesLabelStyle}>{s.label} Notes</div>
+                      )}
                       {isCoach ? (
                         /* Same toolbar as the report notes: B / I / U,
                            Size and the dictation mic. The surface keeps
@@ -2088,11 +2110,16 @@ export function PlayerSummaryTab({
                             setDevNotes((m) => ({ ...m, [s.key]: isBlankNoteHtml(html) ? '' : html }))
                           }
                           placeholder={`What we're working on for ${s.label}…`}
+                          label={<div style={notesLabelStyle}>{s.label} Notes</div>}
+                          /* Card like the Tool Grades section cards: the label +
+                             controls form a cross bar on top, the typing area is
+                             attached beneath it, one border around both. */
+                          className={dashTheme.notesCard}
                           minHeight={96}
                           editorStyle={{
                             background: 'var(--notes-bg)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 8,
+                            border: 'none',
+                            borderRadius: 0,
                             padding: '10px 12px',
                             fontSize: rem(13.5),
                             wordBreak: 'break-word',

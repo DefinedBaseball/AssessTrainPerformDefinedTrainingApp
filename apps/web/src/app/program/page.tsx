@@ -17,9 +17,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, ScheduledDrill } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
 import styles from './page.module.css';
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconClipboard } from '../education/EduHeader';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
 import { TemplatePicker } from '@/components/TemplatePicker';
 import {
@@ -305,7 +308,7 @@ function AthletePicker({
     <div className={styles.pickerRoot} ref={ref}>
       <button
         type="button"
-        className={`${styles.pickerBtn} ${open ? styles.pickerBtnOpen : ''}`}
+        className={`${styles.pickerBtn} ${theme.field} ${open ? styles.pickerBtnOpen : ''}`}
         onClick={() => { setOpen(o => !o); setSearch(''); }}
       >
         <span className={styles.pickerIcon} aria-hidden>👥</span>
@@ -557,7 +560,7 @@ function AthleteColumn({
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
 
   return (
-    <div className={styles.athleteCard}>
+    <div className={`${styles.athleteCard} ${theme.inner}`}>
       <div className={styles.athleteCardHead} style={{ borderTopColor: scheduleColor, position: 'relative' }}>
         <div className={styles.athleteName}>
           {player.firstName} <span className={styles.athleteLast}>{player.lastName}</span>
@@ -617,7 +620,7 @@ function AthleteColumn({
                flips to the SAME TAB_LABEL_ANCHOR[schedule] shade; the card
                background still graduates per-category via catStyle.bgStyle. */
             const labelAnchor = TAB_LABEL_ANCHOR[schedule];
-            const headStyle = labelAnchor ? { color: labelAnchor } : catStyle.textStyle;
+            const headStyle = { color: 'var(--tab-ink)', '--tab-c': labelAnchor ?? catStyle.textStyle.color } as React.CSSProperties;
             return (
               <SortableSection
                 key={category}
@@ -1385,19 +1388,22 @@ export default function ProgramPage() {
   const canFullscreen = selectedPlayers.length >= 1;
 
   return (
-    <div className={styles.pageWrap}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconClipboard />}
         eyebrow="Daily Display"
         title="Program"
-        titleAccent="Schedule"
+        accent="Schedule"
       />
 
       {/* ── Filter row: schedule type + athlete picker + session date ── */}
-      <div className={styles.filterBar}>
+      <div className={`${styles.filterBar} ${theme.bubble}`}>
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Schedule</label>
           <select
-            className={styles.scheduleSelect}
+            className={`${styles.scheduleSelect} ${theme.field}`}
             value={schedule}
             onChange={e => setSchedule(e.target.value as ScheduleKey)}
             style={{ borderColor: scheduleColor, color: scheduleColor }}
@@ -1429,13 +1435,13 @@ export default function ProgramPage() {
           <div className={styles.dateRow}>
             <input
               type="date"
-              className={styles.dateInput}
+              className={`${styles.dateInput} ${theme.field}`}
               value={sessionDate}
               onChange={e => setSessionDate(e.target.value)}
             />
             <button
               type="button"
-              className={styles.jumpBtn}
+              className={`${styles.jumpBtn} ${theme.field}`}
               onClick={jumpToNextSession}
               disabled={selectedIds.length === 0 || jumping}
               title="Snap to the soonest date any selected athlete has drills"
@@ -1448,7 +1454,7 @@ export default function ProgramPage() {
 
       {/* ── Display board ── */}
       {selectedIds.length === 0 ? (
-        <div className={styles.boardEmpty}>
+        <div className={`${styles.boardEmpty} ${theme.bubble}`}>
           <span className={styles.boardEmptyIcon}>📋</span>
           <p className={styles.boardEmptyTitle}>Pick athletes to start the board</p>
           <p className={styles.boardEmptyHint}>
@@ -1467,7 +1473,7 @@ export default function ProgramPage() {
         >
         <div
           ref={boardRef}
-          className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : ''} ${selectedPlayers.length === 1 && !isFullscreen ? styles.boardSingle : ''}`}
+          className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : theme.bubble} ${selectedPlayers.length === 1 && !isFullscreen ? styles.boardSingle : ''}`}
           style={{ '--board-cols': selectedPlayers.length } as React.CSSProperties}
         >
           {/* Exit-fullscreen X — only visible while in native fullscreen */}
@@ -1511,7 +1517,7 @@ export default function ProgramPage() {
       {canFullscreen && !isFullscreen && (
         <button
           type="button"
-          className={styles.fullscreenBtn}
+          className={`${styles.fullscreenBtn} ${theme.field}`}
           onClick={enterFullscreen}
           title="Display only the schedule board in full screen"
         >

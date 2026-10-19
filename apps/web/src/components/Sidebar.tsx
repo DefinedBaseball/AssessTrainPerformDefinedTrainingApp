@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useAcademy } from '@/lib/academy';
-import { useTheme } from '@/lib/theme-context';
+import { useTheme, NEXT_THEME, THEME_LABEL } from '@/lib/theme-context';
 import styles from './Sidebar.module.css';
 
 interface NavItem {
@@ -181,6 +181,10 @@ export function Sidebar() {
   const { user, isCoach, logout } = useAuth();
   const { academy, appLogoUrl } = useAcademy();
   const { theme, toggle: toggleTheme } = useTheme();
+  /* The toggle cycles Light → Dark → Mixed; its icon + label preview the
+     mode you'd switch TO. */
+  const nextTheme = NEXT_THEME[theme];
+  const nextThemeLabel = `Switch to ${THEME_LABEL[nextTheme].toLowerCase()} mode`;
   /* "More" sheet (phone bottom-bar only) — see the data-nav note below. */
   const [moreOpen, setMoreOpen] = React.useState(false);
 
@@ -336,7 +340,7 @@ export function Sidebar() {
                     className={styles.moreRow}
                     onClick={() => { toggleTheme(); setMoreOpen(false); }}
                   >
-                    {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                    {THEME_LABEL[nextTheme]} mode
                   </button>
                   <Link
                     href="/settings"
@@ -390,16 +394,23 @@ export function Sidebar() {
       {/* ── Bottom stack: theme toggle / settings / sign-out ── */}
       {user && (
         <div className={styles.account}>
-          {/* Theme toggle — sun in dark mode, moon in light mode (the
-              icon previews what you'd switch TO). */}
+          {/* Theme toggle — cycles Light → Dark → Mixed. The icon previews
+              what you'd switch TO: moon = Dark, half-disc = Mixed (dark
+              bubbles on the light background), sun = Light. */}
           <button
             type="button"
             className={styles.themeBtn}
             onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={nextThemeLabel}
+            title={nextThemeLabel}
           >
-            {theme === 'dark' ? (
+            {nextTheme === 'mixed' ? (
+              // Half-filled disc — dark bubbles on a light background
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" />
+              </svg>
+            ) : nextTheme === 'light' ? (
               // Sun
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="4" />

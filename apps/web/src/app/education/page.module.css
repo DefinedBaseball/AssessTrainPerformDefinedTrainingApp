@@ -316,8 +316,9 @@
   inset: 0;
   z-index: -1;
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 11px);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
-  mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+  /* Faded in from the left like the banners (was top-down). */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
   pointer-events: none;
 }
 /* Light sweep across on hover. */
@@ -1204,8 +1205,8 @@
   z-index: -1;
   border-radius: inherit;
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 2px, transparent 2px 11px);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 420px);
-  mask-image: linear-gradient(180deg, #000 0%, transparent 420px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
   pointer-events: none;
 }
 .classDetailBody::after {
@@ -1297,8 +1298,8 @@
   z-index: -1;
   border-radius: inherit;
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.026) 0 2px, transparent 2px 11px);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
-  mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
   pointer-events: none;
 }
 .classCard:hover,
@@ -1356,7 +1357,7 @@
   --border: rgba(0, 0, 0, 0.18);
   --border-light: rgba(0, 0, 0, 0.22);
   border-color: rgba(0, 0, 0, 0.12);
-  background: linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  background: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 1px 2px rgba(0, 0, 0, calc(0.3 * var(--edu-shade, 1))),
@@ -1437,3 +1438,203 @@
 /* Icon chip beside the eyebrow (EduHeader chipInline: Dashboard, Videos). */
 .heroEyebrowRow { display: flex; align-items: center; gap: 12px; }
 .heroEyebrowRow .heroChip { margin-bottom: 0; }
+
+/* ══════════════════════════════════════════════
+   LIGHT THEME — Education matches the Coach Dashboard's light theme
+   (2026-10-16). Banners use EduHeader tone="light"; hub tiles, detail
+   heads, filter bars, cards and the empty state become the dashboard's
+   solid mid-grey bubble (ink stripes / rule, dark type); search boxes are
+   .field-style solid grey. Section accents stay on the small pieces,
+   darkened so they read on the grey. Dark theme is untouched.
+   ══════════════════════════════════════════════ */
+
+/* Dark-type tokens for every bubble that re-declared the charcoal set. */
+[data-theme="light"] .page :is(.hero, .playerDetailHead, .classDetailHeader, .classDetailBody,
+  .classDetailEmpty, .classCard, .drillCard, .playerCard, .videoCard, .docRow, .empty,
+  .searchInput, .mlbFilters, .sportTabs, .filterBar, .tile) {
+  --edu-hi: #16171a;
+  --edu-hi-rgb: 22, 23, 26;
+  --edu-on-hi: #f6f5f1;
+  --edu-hi-grad: linear-gradient(180deg, #2c2e33, #121316);
+  --edu-hi-inset: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --edu-line-rgb: 0, 0, 0;
+  --edu-thumb: linear-gradient(160deg, #b4b5b5, #a5a6a6);
+  --edu-thumb-fade: rgba(11, 12, 14, 0.28);
+  --bg: #c6c7c7;
+  --surface: #d3d4d4;
+  --surface2: #cdcece;
+  --text: #111214;
+  --text-bright: #111214;
+  --text-soft: #2e2f33;
+  --text-secondary: #2e2f33;
+  --text-muted: #34353a;
+  --faint: #45464b;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-light: rgba(0, 0, 0, 0.14);
+  --accent: #16171a;
+  --accent-light: #16171a;
+  --accent-dim: rgba(22, 23, 26, 0.08);
+  --on-accent: #f6f5f1;
+  --red: #b33a3a;
+  --red-dim: rgba(179, 58, 58, 0.12);
+  --card-elev: linear-gradient(180deg, #c6c7c7, #c4c4c4);
+  --card-elev-bg: #c5c5c5;
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-card-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.08), 0 14px 30px rgba(0, 0, 0, 0.16);
+  color-scheme: light;
+}
+
+/* The dashboard's light bubble surface. */
+[data-theme="light"] .page :is(.tile, .playerDetailHead, .classDetailHeader, .classDetailBody,
+  .classDetailEmpty, .classCard, .drillCard, .playerCard, .videoCard, .docRow, .empty,
+  .mlbFilters, .sportTabs, .filterBar) {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 12px 28px rgba(0, 0, 0, 0.12);
+}
+/* Their stripe layers (::before, faded in from the left) switch to ink. */
+[data-theme="light"] .page :is(.tile, .classDetailBody, .classDetailEmpty, .classCard, .drillCard,
+  .playerCard, .videoCard, .docRow, .empty, .mlbFilters)::before {
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.018) 0 2px, transparent 2px 11px);
+}
+[data-theme="light"] .page :is(.classCard, .drillCard, .playerCard, .videoCard, .docRow):hover,
+[data-theme="light"] .page .tile:hover {
+  border-color: rgba(0, 0, 0, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 18px 36px rgba(0, 0, 0, 0.18);
+}
+/* Top signature rules: ink, no glow. */
+[data-theme="light"] .page :is(.classDetailBody, .classDetailHeader)::after,
+[data-theme="light"] .page .tileRule { background: #16171a; box-shadow: none; }
+
+/* ── Hub tiles ── */
+[data-theme="light"] .page .tile { color: #111214; }
+[data-theme="light"] .page .tile::after { background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent); }
+[data-theme="light"] .page .tileTitle,
+[data-theme="light"] .page .tileStatNum { color: #111214; }
+[data-theme="light"] .page .tileDesc { color: rgba(17, 18, 20, 0.72); }
+[data-theme="light"] .page .tileIndex { color: rgba(17, 18, 20, 0.5); }
+[data-theme="light"] .page .tileStatLabel { color: rgba(17, 18, 20, 0.62); }
+[data-theme="light"] .page .tileFoot { border-top-color: rgba(0, 0, 0, 0.1); }
+[data-theme="light"] .page .tileWatermark { color: #16171a; opacity: 0.08; }
+[data-theme="light"] .page .tile:hover .tileWatermark { opacity: 0.12; }
+[data-theme="light"] .page .tileEyebrow { color: color-mix(in srgb, rgb(var(--tile-rgb)) 50%, #000); }
+[data-theme="light"] .page .tileIcon {
+  color: color-mix(in srgb, rgb(var(--tile-rgb)) 72%, #000);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  border-color: rgba(var(--tile-rgb), 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .page .tileLockChip {
+  color: rgba(17, 18, 20, 0.78);
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+[data-theme="light"] .page .tileLocked:hover {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.1), 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Library screens: section accents darkened for the grey ── */
+[data-theme="light"] .page :is(.classThumb, .docIcon, .classDetailEmoji) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  border-color: rgba(var(--sec-rgb, 22, 23, 26), 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .page .classDetailSport {
+  color: color-mix(in srgb, rgb(var(--sec-rgb, 22, 23, 26)) 55%, #000);
+  border-color: rgba(var(--sec-rgb, 22, 23, 26), 0.6);
+  background: rgba(255, 255, 255, 0.25);
+}
+[data-theme="light"] .page .colorBar { box-shadow: none; }
+
+/* Search boxes: the dashboard theme's solid .field grey, ink icon. */
+[data-theme="light"] .page .searchInput.searchInput,
+[data-theme="light"] .page .searchInput.searchInput.searchInline {
+  color: #111214;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334353a' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 0.9333rem center / 1rem 1rem,
+    linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+[data-theme="light"] .page .searchInput.searchInput.searchInline {
+  background-position: 0.8rem center, 0 0;
+  background-size: 0.95rem 0.95rem, auto;
+}
+[data-theme="light"] .page .searchInput.searchInput::placeholder { color: #4e4f54; }
+[data-theme="light"] .page .searchInput.searchInput:focus,
+[data-theme="light"] .page .searchInput.searchInput.searchInline:focus {
+  border-color: rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+/* Unselected pills sit on the grey as solid .field chips. */
+[data-theme="light"] .page .pill:not(.pillActive) {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+/* ── Mixed theme (dark bubbles, light page background) ──
+   The light theme's pinstriped grey canvas under the dark-theme bubbles.
+   Covers Education and every Dashboard-family page (they all wrap in .page). */
+[data-canvas="light"] .page {
+  background:
+    linear-gradient(115deg, transparent 25%, rgba(255, 255, 255, 0.28) 42%, transparent 58%),
+    repeating-linear-gradient(45deg, rgba(22, 23, 26, 0.06) 0 1px, transparent 1px 4px, rgba(22, 23, 26, 0.06) 4px 5px, transparent 5px 30px),
+    radial-gradient(1200px 520px at 85% -10%, rgba(255, 255, 255, 0.33), transparent 60%),
+    linear-gradient(180deg, #999896 0%, #93928f 420px);
+}
+/* Text that sits straight on the canvas (breadcrumb, drill category
+   headings) switches to dark ink so it reads on the light background. */
+[data-canvas="light"] .page .bcLink { color: #34353a; }
+[data-canvas="light"] .page .bcLink:hover,
+[data-canvas="light"] .page .bcCurrent { color: #111214; }
+[data-canvas="light"] .page .bcSep { color: #45464b; }
+[data-canvas="light"] .page .catLabel { color: #111214; }
+[data-canvas="light"] .page .catCount { color: #34353a; }
+[data-canvas="light"] .page .catLine { background: linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0)); }
+/* Filter pills are see-through in dark theme; on the light canvas they
+   become solid chips (selected = solid off-white, like the Athlete Hub). */
+[data-canvas="light"] .page .pill {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-canvas="light"] .page .pillActive,
+[data-canvas="light"] .page .pillActive:hover {
+  background: #ecebe6;
+  border-color: #ecebe6;
+  color: #0b0c0e;
+}
+
+/* ── Major League Video: Video Library layering ──
+   .mlbLayer = the panel as a lined dashTheme .bubble (20px inside); the
+   filter bubble and the player cards are plain (dashTheme .inner / the
+   .rowShade list shade), so their own stripe layers are switched off. */
+.panel.mlbLayer { padding: 20px; }
+.mlbLayer .mlbFilters::before,
+.mlbLayer .playerCard::before,
+.mlbLayer .classCard::before,
+.mlbLayer .drillCard::before,
+.mlbLayer .docRow::before,
+.mlbLayer .empty::before { background: none; }
+/* Drill category headings now sit inside the lined bubble, so in Mixed they
+   go back to the bubble's light text (the canvas-ink rule is for text that
+   sits straight on the light background). */
+[data-canvas="light"] .page .mlbLayer .catLabel { color: var(--text); }
+[data-canvas="light"] .page .mlbLayer .catCount { color: var(--faint); }
+[data-canvas="light"] .page .mlbLayer .catLine { background: linear-gradient(90deg, rgba(var(--edu-line-rgb), 0.14), rgba(var(--edu-line-rgb), 0)); }
+.mlbLayer .playerGrid { margin-top: 0; }
+@media (max-width: 768px) {
+  .panel.mlbLayer { padding: 14px; }
+}
+
+/* The plain inner cards inside the lined library panels stay plain in light
+   theme too (the light stripe rule above is more specific than .mlbLayer's). */
+[data-theme="light"] .page .mlbLayer :is(.mlbFilters, .playerCard, .classCard, .drillCard, .docRow, .empty)::before {
+  background: none;
+}

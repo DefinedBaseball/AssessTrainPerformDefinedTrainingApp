@@ -30,6 +30,7 @@ import { uploadVideoFile } from '@/lib/api';
 import { AnnouncementFeed, EditPostModal } from '@/components/announcements/AnnouncementFeed';
 import { CheckInHistory } from '@/components/CheckInHistory';
 import styles from './MessagesLauncher.module.css';
+import dashTheme from '@/app/dashTheme.module.css';
 import { tzOpt, tzDayKey } from '@/lib/academy';
 
 type Panel = null | 'messages' | 'notifications';
@@ -341,7 +342,7 @@ export function MessagesLauncher() {
     <div className={styles.launcher}>
       <button
         type="button"
-        className={styles.iconBtn}
+        className={`${styles.iconBtn} ${dashTheme.firm}`}
         aria-label="Notifications"
         title="Notifications"
         onClick={() => (panel === 'notifications' ? closePanel() : openNotifications())}
@@ -357,7 +358,7 @@ export function MessagesLauncher() {
 
       <button
         type="button"
-        className={styles.iconBtn}
+        className={`${styles.iconBtn} ${dashTheme.firm}`}
         aria-label="Messages"
         title="Messages"
         onClick={openMessages}

@@ -158,81 +158,18 @@ export default function AthletesPage() {
         eyebrow="Roster"
         title="Athlete"
         accent="Hub"
-        actions={
+        actions={isCoach ? (
           <div className={styles.hubActions}>
-            <input
-              type="text"
-              placeholder="Search athletes..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className={`${styles.searchInput} ${theme.field}`}
-            />
-            {/* Athlete-type filter — All / Program / Lesson / Membership /
-                Remote. Membership athletes also surface under Program (the
-                implication lives in lib/athlete-types). */}
-            <select
-              value={typeFilter}
-              onChange={e => {
-                setTypeFilter(e.target.value);
-                try { localStorage.setItem(TYPE_FILTER_KEY, e.target.value); } catch { /* storage unavailable */ }
-              }}
-              className={`${styles.typeFilter} ${theme.field}`}
+            <button
+              type="button"
+              className={`btn btn-primary ${theme.firm}`}
               style={{ whiteSpace: 'nowrap' }}
-              title="Filter by athlete type"
-              aria-label="Filter by athlete type"
+              onClick={() => setAddOpen(true)}
             >
-              {ATHLETE_TYPE_FILTERS.map(f => (
-                <option key={f.key} value={f.key}>{f.label}</option>
-              ))}
-            </select>
-            {isCoach && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                style={{ whiteSpace: 'nowrap' }}
-                onClick={() => setAddOpen(true)}
-              >
-                + Add Athlete
-              </button>
-            )}
-            {/* Locked athletes live on their own page — same table as this
-                one, with Unlock in place of Lock. Sits left of the inquiry
-                form. */}
-            {isCoach && (
-              <Link
-                href="/athletes/locked"
-                className={`btn btn-outline ${styles.iconBtn} ${theme.field}`}
-                title={`Locked athletes (${lockedPlayers.length})`}
-                aria-label={`Locked athletes (${lockedPlayers.length})`}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="4" y="10.5" width="16" height="10" rx="2" />
-                  <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
-                </svg>
-                {lockedPlayers.length > 0 && (
-                  <span className={styles.lockBadge}>{lockedPlayers.length}</span>
-                )}
-              </Link>
-            )}
-            {/* Form icon → the inquiry roster (prospective athletes who
-                submitted the public inquiry form). Coach-only. */}
-            {isCoach && (
-              <Link
-                href="/inquiries"
-                className={`btn btn-outline ${styles.iconBtn} ${theme.field}`}
-                title="Athlete inquiries"
-                aria-label="Athlete inquiries"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
-                  <path d="M14 3v4h4" />
-                  <line x1="9" y1="12.5" x2="15" y2="12.5" />
-                  <line x1="9" y1="16.5" x2="13" y2="16.5" />
-                </svg>
-              </Link>
-            )}
+              + Add Athlete
+            </button>
           </div>
-        }
+        ) : undefined}
       />
 
       {lockError && (
@@ -247,12 +184,77 @@ export default function AthletesPage() {
         {POSITIONS.map(pos => (
           <button
             key={pos}
-            className={`${styles.filterChip} ${posFilter === pos ? styles.filterChipActive : theme.field}`}
+            className={`${styles.filterChip} ${posFilter === pos ? styles.filterChipActive : theme.field} ${theme.firm}`}
             onClick={() => setPosFilter(pos)}
           >
             {pos}
           </button>
         ))}
+        {/* Search, athlete-type filter, Locked + Inquiries — far right of
+            the positions bubble. */}
+        <div className={styles.rowTools}>
+          <input
+            type="text"
+            placeholder="Search athletes..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className={`${styles.searchInput} ${theme.field} ${theme.firm}`}
+          />
+          {/* Athlete-type filter — All / Program / Lesson / Membership /
+              Remote. Membership athletes also surface under Program (the
+              implication lives in lib/athlete-types). */}
+          <select
+            value={typeFilter}
+            onChange={e => {
+              setTypeFilter(e.target.value);
+              try { localStorage.setItem(TYPE_FILTER_KEY, e.target.value); } catch { /* storage unavailable */ }
+            }}
+            className={`${styles.typeFilter} ${theme.field} ${theme.firm}`}
+            style={{ whiteSpace: 'nowrap' }}
+            title="Filter by athlete type"
+            aria-label="Filter by athlete type"
+          >
+            {ATHLETE_TYPE_FILTERS.map(f => (
+              <option key={f.key} value={f.key}>{f.label}</option>
+            ))}
+          </select>
+          {/* Locked athletes live on their own page — same table as this
+              one, with Unlock in place of Lock. Sits left of the inquiry
+              form. */}
+          {isCoach && (
+            <Link
+              href="/athletes/locked"
+              className={`btn btn-outline ${styles.iconBtn} ${theme.field} ${theme.firm}`}
+              title={`Locked athletes (${lockedPlayers.length})`}
+              aria-label={`Locked athletes (${lockedPlayers.length})`}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="4" y="10.5" width="16" height="10" rx="2" />
+                <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+              </svg>
+              {lockedPlayers.length > 0 && (
+                <span className={styles.lockBadge}>{lockedPlayers.length}</span>
+              )}
+            </Link>
+          )}
+          {/* Form icon → the inquiry roster (prospective athletes who
+              submitted the public inquiry form). Coach-only. */}
+          {isCoach && (
+            <Link
+              href="/inquiries"
+              className={`btn btn-outline ${styles.iconBtn} ${theme.field} ${theme.firm}`}
+              title="Athlete inquiries"
+              aria-label="Athlete inquiries"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+                <path d="M14 3v4h4" />
+                <line x1="9" y1="12.5" x2="15" y2="12.5" />
+                <line x1="9" y1="16.5" x2="13" y2="16.5" />
+              </svg>
+            </Link>
+          )}
+        </div>
       </div>
 
       {loading ? (

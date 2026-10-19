@@ -155,3 +155,13 @@
 .nameLink:hover {
   color: var(--accent, #3d8bfd);
 }
+
+/* Dark theme (and Mixed): rows on the Athlete Hub's dark row shade (the list
+   charcoal 7% lighter). The light-theme rows below still win in light. */
+.row { background: #2b2c2f; border-bottom-color: rgba(255, 255, 255, 0.08); }
+.row:hover { background: #323336; }
+
+/* Light theme: the rows sit a step lighter than the list grey (header strip
+   unchanged), matching the Athlete Hub list. Not white. */
+[data-theme="light"] .row { background: #d3d4d4; border-bottom-color: rgba(0, 0, 0, 0.09); }
+[data-theme="light"] .row:hover { background: #cdcece; }

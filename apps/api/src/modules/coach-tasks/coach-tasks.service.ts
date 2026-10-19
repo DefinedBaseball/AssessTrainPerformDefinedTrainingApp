@@ -25,6 +25,15 @@ const MAX_TITLE = 200;
    listing them, so a newly added coach gets a column by default. */
 const SETTINGS_KEY = 'coachTaskBoard';
 export const DEFAULT_TASK_COLORS: Record<TaskColumn, string> = {
+  URGENT: '#a00d25',
+  PRIORITY: '#ba5a0c',
+  GENERAL: '#116631',
+  REMINDER: '#1e4fbc',
+};
+/* The first defaults, before they were darkened 20% for white-text contrast
+   (2026-10-16). A board saved with these is still on the defaults, so it
+   reads as the new ones; any other saved colour is kept. */
+const PREVIOUS_DEFAULT_COLORS: Record<string, string> = {
   URGENT: '#c8102e',
   PRIORITY: '#e8700f',
   GENERAL: '#15803d',
@@ -79,7 +88,9 @@ export class CoachTasksService implements OnModuleInit {
     const colors: Record<string, string> = { ...DEFAULT_TASK_COLORS };
     for (const key of [...TASK_COLUMNS, ...customTypes.map((t) => t.key)]) {
       const c = saved?.colors?.[key];
-      if (typeof c === 'string' && HEX_COLOR.test(c)) colors[key] = c.toLowerCase();
+      if (typeof c === 'string' && HEX_COLOR.test(c)) {
+        colors[key] = c.toLowerCase() === PREVIOUS_DEFAULT_COLORS[key] ? DEFAULT_TASK_COLORS[key as TaskColumn] : c.toLowerCase();
+      }
       else if (!colors[key]) colors[key] = '#6b7280';
     }
     return { hiddenCoachIds: hidden, colors, customTypes };

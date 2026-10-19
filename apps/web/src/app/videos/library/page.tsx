@@ -169,7 +169,7 @@ function AthleteDropdown({
     <div className={styles.athleteDropdown} ref={dropRef}>
       <button
         type="button"
-        className={`${styles.athleteDropdownBtn} ${theme.field} ${open ? styles.athleteDropdownBtnOpen : ''}`}
+        className={`${styles.athleteDropdownBtn} ${theme.field} ${theme.firm} ${open ? styles.athleteDropdownBtnOpen : ''}`}
         onClick={() => { setOpen(o => !o); setSearch(''); }}
       >
         <span className={styles.athleteDropdownIcon}>👤</span>
@@ -255,7 +255,7 @@ function DateRangeFilter({
       <div className={styles.dateInputs}>
         <input
           type="date"
-          className={`${styles.dateInput} ${theme.field}`}
+          className={`${styles.dateInput} ${theme.field} ${theme.firm}`}
           value={from}
           onChange={e => onChange(e.target.value, to)}
           placeholder="From"
@@ -263,7 +263,7 @@ function DateRangeFilter({
         <span className={styles.dateSep}>—</span>
         <input
           type="date"
-          className={`${styles.dateInput} ${theme.field}`}
+          className={`${styles.dateInput} ${theme.field} ${theme.firm}`}
           value={to}
           onChange={e => onChange(from, e.target.value)}
           placeholder="To"
@@ -317,7 +317,7 @@ function GradYearFilter({
       <label className={styles.filterLabel}>Grad Year</label>
       <button
         type="button"
-        className={`${styles.gradYearBtn} ${theme.field}`}
+        className={`${styles.gradYearBtn} ${theme.field} ${theme.firm}`}
         onClick={() => setOpen(o => !o)}
       >
         <span className={styles.gradYearBtnText}>{label}</span>
@@ -512,6 +512,7 @@ export default function VideosPage() {
         readout={videos.length > 0
           ? `${videos.length} video${videos.length !== 1 ? 's' : ''}`
           : undefined}
+        readoutClassName={theme.firm}
       />
 
       {/* Coaching Studio retired — its tab + the standalone authoring
@@ -538,7 +539,7 @@ export default function VideosPage() {
         {/* ── Library content ── */}
         <>
       {/* ── Filters Row ── */}
-      <div className={`${styles.filtersRow} ${theme.inner}`}>
+      <div className={`${styles.filtersRow} ${theme.inner} ${theme.firm}`}>
         {/* Category chips */}
         <div className={styles.filterGroup}>
           <label className={styles.filterLabel}>Position / Category</label>
@@ -546,7 +547,7 @@ export default function VideosPage() {
             {CATEGORIES.map(c => (
               <button
                 key={c.key}
-                className={`${styles.catChip} ${category === c.key ? styles.catChipActive : ''}`}
+                className={`${styles.catChip} ${category === c.key ? styles.catChipActive : ''} ${theme.firm}`}
                 onClick={() => setCategory(c.key)}
               >
                 {c.label}

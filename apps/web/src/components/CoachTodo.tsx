@@ -28,10 +28,10 @@ export const TASK_TYPES: Array<{ key: string; label: string }> = [
 ];
 /* Fallbacks only -- the board settings from the server are the source. */
 export const DEFAULT_TASK_COLORS: Record<api.CoachTaskType, string> = {
-  URGENT: '#c8102e',
-  PRIORITY: '#e8700f',
-  GENERAL: '#15803d',
-  REMINDER: '#2563eb',
+  URGENT: '#a00d25',
+  PRIORITY: '#ba5a0c',
+  GENERAL: '#116631',
+  REMINDER: '#1e4fbc',
 };
 /** Built-ins then the admin's custom types, in board order. */
 function allTypesOf(board: api.CoachTaskBoard | null): Array<{ key: string; label: string }> {

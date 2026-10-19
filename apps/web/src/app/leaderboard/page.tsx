@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { LeaderboardEntry } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
-import aStyles from '@/components/assessment/assessment.module.css';
 import styles from './page.module.css';
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconPodium } from '../education/EduHeader';
 
 /* ── Metric definitions ── */
 
@@ -100,16 +102,20 @@ export default function LeaderboardPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className={styles.pageWrap}>
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
       {/* ── Header ── */}
-      <PageHeader
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconPodium />}
         eyebrow="Rankings"
         title="Leader"
-        titleAccent="Boards"
+        accent="Boards"
         readout="Live"
+        readoutClassName={theme.firm}
         actions={isCoach ? (
           <button
-            className={styles.recomputeBtn}
+            className={`${styles.recomputeBtn} ${theme.field} ${theme.firm}`}
             onClick={handleRecompute}
             disabled={recomputing}
           >
@@ -122,10 +128,10 @@ export default function LeaderboardPage() {
         ) : undefined}
       />
 
-      {/* ── Outer lighter panel wrapping all controls + table ── */}
+      {/* ── Outer bubble wrapping all controls + table ── */}
       <div
-        className={aStyles.profilePanel}
-        style={{ marginTop: 0, padding: 20, display: 'flex', flexDirection: 'column' }}
+        className={theme.bubble}
+        style={{ padding: 20, display: 'flex', flexDirection: 'column' }}
       >
       {/* ── Filter Selects (Grad Year + Metric) ── */}
       <div className={styles.filterGrid}>
@@ -133,7 +139,7 @@ export default function LeaderboardPage() {
           <label className={styles.filterLabel}>Graduation Year</label>
           {availableGradYears.length > 0 ? (
             <select
-              className={styles.filterSelect}
+              className={`${styles.filterSelect} ${theme.field} ${theme.firm}`}
               value={gradYear ?? ''}
               onChange={e => setGradYear(parseInt(e.target.value))}
             >
@@ -158,7 +164,7 @@ export default function LeaderboardPage() {
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Metric</label>
           <select
-            className={styles.filterSelect}
+            className={`${styles.filterSelect} ${theme.field} ${theme.firm}`}
             value={metricType}
             onChange={e => setMetricType(e.target.value)}
           >
@@ -170,7 +176,7 @@ export default function LeaderboardPage() {
       </div>
 
       {/* ── Leaderboard table ── */}
-      <div className={styles.tableWrap}>
+      <div className={`${styles.tableWrap} ${theme.inner} ${theme.firm}`}>
         {loading ? (
           <div className={styles.loadingWrap}>
             <div className={styles.spinner} />
@@ -245,7 +251,7 @@ export default function LeaderboardPage() {
           </table>
         )}
       </div>
-      </div>{/* /profilePanel */}
+      </div>{/* /bubble */}
     </div>
   );
 }

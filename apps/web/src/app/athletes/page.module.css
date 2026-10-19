@@ -442,3 +442,44 @@
   line-height: 1;
   cursor: pointer;
 }
+
+/* Dark theme (and Mixed): the rows sit 7% lighter than the list's charcoal
+   (#1b1c1f mixed 7% toward white; 20% and 10% read too light). The light-theme rule below wins in light. */
+.listRow { background: #2b2c2f; border-bottom-color: rgba(255, 255, 255, 0.08); }
+.listRow:hover { background: #323336; }
+
+/* Light theme: the athlete rows sit a step lighter than the list grey (header
+   strip unchanged) for a bit more contrast. Not white. */
+[data-theme="light"] .listRow { background: #d3d4d4; border-bottom-color: rgba(0, 0, 0, 0.09); }
+[data-theme="light"] .listRow:hover { background: #cdcece; }
+
+/* Search, type filter, Locked + Inquiries share the positions bubble,
+   pushed to its far right and sized down to the chip row's height. */
+.filterRow { align-items: center; }
+.rowTools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.rowTools .searchInput,
+.rowTools .typeFilter {
+  height: 34px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 13px;
+}
+.rowTools .searchInput { width: 240px; }
+.rowTools .typeFilter { width: 160px; }
+.rowTools .iconBtn {
+  height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+}
+@media (max-width: 768px) {
+  .rowTools { flex: 1 1 100%; margin-left: 0; }
+  .rowTools .searchInput { flex: 1 1 auto; width: auto; min-width: 0; }
+  .rowTools .typeFilter { width: 130px; }
+}

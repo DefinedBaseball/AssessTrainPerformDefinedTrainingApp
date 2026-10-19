@@ -1098,13 +1098,18 @@ export function HittingTab(props: TabProps) {
             flexDirection: 'column',
             gap: 14,
           }}>
-            <div style={{
+            <div
+              /* Header card (see SprayChartView): title bar + padding vars. */
+              data-head-card=""
+              style={{
               minWidth: 0,
               ...movementPlotBubbleStyle,
               display: 'flex',
               flexDirection: 'column',
               gap: 10,
               padding: 11,
+              ['--hc-pt' as string]: '11px',
+              ['--hc-px' as string]: '11px',
               /* Fill the column so the map's bubble bottom lands level with
                  the spray chart's, the way Coach Reviews used to. */
               flex: 1,
@@ -1243,6 +1248,7 @@ export function HittingTab(props: TabProps) {
                 }}>
                   {bundleVideos(attachedVideos).map((b) => (
                     <VideoBundleCard
+                      themed
                       key={b.key}
                       videos={b.videos}
                       size="sm"
@@ -1396,6 +1402,7 @@ export function HittingTab(props: TabProps) {
                   {bundleVideos(reportVideos).slice(0, 10).map((b) => {
                     return (
                       <VideoBundleCard
+                        themed
                         key={b.key}
                         videos={b.videos}
                         size="md"

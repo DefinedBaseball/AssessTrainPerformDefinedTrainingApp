@@ -238,6 +238,7 @@ export function AllVideosLibrary({
             }));
             return (
               <VideoBundleCard
+                themed
                 key={b.key}
                 videos={cardVideos}
                 size="md"

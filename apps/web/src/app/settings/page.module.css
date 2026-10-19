@@ -711,3 +711,106 @@
   box-shadow: 0 16px 40px rgba(15, 20, 30, 0.16);
 }
 [data-theme="light"] .emailItemActive { background: rgba(0, 0, 0, 0.05); }
+
+/* ══════════════════════════════════════════════
+   Coach Dashboard theme (2026-10-16)
+   Page = Education/Dashboard canvas + EduHeader. Tabs = chips in a lined
+   dashTheme .bubble. Tab content = one lined .bubble (.contentBubble)
+   holding plain cards (the inner charcoal / grey, firm 1.5px border);
+   inputs, selects and secondary buttons take the lighter list shade so
+   they stand out on the cards. Light + dark; Mixed uses the dark set.
+   ══════════════════════════════════════════════ */
+.tabs.tabs {
+  border-bottom: none;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.tab.tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-muted, var(--muted));
+}
+.tab.tab:hover { color: var(--text); }
+.tab.tabActive {
+  background: #ecebe6;
+  color: #0b0c0e;
+}
+[data-theme="light"] .tab.tabActive {
+  background: #16171a;
+  color: #f6f5f1;
+}
+
+.contentBubble { padding: 20px; }
+@media (max-width: 768px) { .contentBubble { padding: 14px; } }
+[data-theme="light"] .contentBubble { --muted: #34353a; }
+
+/* Plain cards (no stripes) on the inner surface, firm outline. */
+.contentBubble .card {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .contentBubble .card {
+  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  border-color: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+/* Cards inside cards (Data tab's saved configs) take the lighter shade. */
+.contentBubble .configCard {
+  background: #2b2c2f;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+}
+[data-theme="light"] .contentBubble .configCard {
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
+}
+.contentBubble .row { border-bottom-color: rgba(255, 255, 255, 0.08); }
+[data-theme="light"] .contentBubble .row { border-bottom-color: rgba(0, 0, 0, 0.1); }
+
+/* Inputs, selects and secondary buttons: the lighter list shade + firm edge. */
+.contentBubble .input,
+.contentBubble .select,
+.contentBubble .btnSecondary,
+.contentBubble .iconBtn {
+  background: #2b2c2f;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  color: var(--text);
+}
+.contentBubble .btnSecondary:hover,
+.contentBubble .iconBtn:hover { background: #323336; border-color: rgba(255, 255, 255, 0.4); }
+.contentBubble .input:focus,
+.contentBubble .select:focus { border-color: rgba(236, 235, 230, 0.55); }
+[data-theme="light"] .contentBubble .input,
+[data-theme="light"] .contentBubble .select,
+[data-theme="light"] .contentBubble .btnSecondary,
+[data-theme="light"] .contentBubble .iconBtn {
+  background: #d3d4d4;
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #111214;
+}
+[data-theme="light"] .contentBubble .btnSecondary:hover,
+[data-theme="light"] .contentBubble .iconBtn:hover { background: #cdcece; border-color: rgba(0, 0, 0, 0.5); }
+[data-theme="light"] .contentBubble .input:focus,
+[data-theme="light"] .contentBubble .select:focus { border-color: rgba(0, 0, 0, 0.55); }
+[data-theme="light"] .contentBubble .input::placeholder { color: #4e4f54; }
+
+/* Light theme: accents that were tuned for charcoal, darkened for the grey. */
+[data-theme="light"] .contentBubble {
+  --admin-tag: #1f56b0;
+  --admin-tag-border: rgba(31, 86, 176, 0.5);
+}
+[data-theme="light"] .contentBubble .btnDanger {
+  color: #a12a2a;
+  background: rgba(200, 40, 50, 0.1);
+  border-color: rgba(160, 30, 40, 0.45);
+}
+[data-theme="light"] .contentBubble .btnDanger:hover { background: rgba(200, 40, 50, 0.18); }
+[data-theme="light"] .contentBubble .staffAvatar { color: #1f4f9a; background: rgba(61, 139, 253, 0.22); }
+/* SignOutEverywhereButton colours are inline, hence !important. */
+[data-theme="light"] .contentBubble .signOutWrap button {
+  color: #a12a2a !important;
+  border-color: rgba(160, 30, 40, 0.5) !important;
+}

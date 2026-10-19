@@ -8,6 +8,7 @@ import * as api from '@/lib/api';
 import type { EduClass, Drill, MlbPlayer, MlbVideo, EduDocument } from '@/lib/api';
 import { EduHeader, IconFilm, IconBall, IconCap, IconBook, IconHub, IconLock } from './EduHeader';
 import styles from './page.module.css';
+import theme from '../dashTheme.module.css';
 import DrillVideoRecorder from './DrillVideoRecorder';
 import { InformationView } from './InformationView';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
@@ -316,6 +317,7 @@ function LandingView({ classCount, drillCount, playerCount, docCount, memberAcce
   return (
     <>
       <EduHeader
+        tone="light"
         icon={<IconHub />}
         eyebrow="Player Development"
         title="Education"
@@ -434,6 +436,7 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
   return (
     <>
       <EduHeader
+        tone="light"
         icon={<IconCap />}
         eyebrow="03 · Curriculum"
         title="Classes"
@@ -441,32 +444,33 @@ function ClassesView({ classes, setClasses, sport, setSport, level, setLevel, se
         subtitle="Structured courses organized by sport and skill level."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Class</button> : undefined}
       />
-      <div className={styles.panel}>
-      <div className={styles.sportTabs}>
+      {/* Video Library layering: lined bubble > plain toolbars > plain cards. */}
+      <div className={`${styles.panel} ${styles.mlbLayer} ${theme.bubble}`}>
+      <div className={`${styles.sportTabs} ${theme.inner} ${theme.firm}`}>
         {SPORTS.map(s => (
           <button key={s.id} className={`${styles.sportTab} ${sport === s.id ? styles.sportTabActive : ''}`}
             onClick={() => { setSport(s.id); setLevel('all'); }}>
             {s.label}
           </button>
         ))}
-        <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search classes..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className={`${styles.searchInput} ${styles.searchInline} ${theme.firm}`} placeholder="Search classes..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
-      <div className={`${styles.filterRow} ${styles.filterBar}`}>
-        <button className={`${styles.pill} ${level === 'all' ? styles.pillActive : ''}`} onClick={() => setLevel('all')}>All ({classes.filter((c: EduClass) => c.sport === sport).length})</button>
+      <div className={`${styles.filterRow} ${styles.filterBar} ${theme.inner} ${theme.firm}`}>
+        <button className={`${styles.pill} ${level === 'all' ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setLevel('all')}>All ({classes.filter((c: EduClass) => c.sport === sport).length})</button>
         {LEVELS.map(l => {
           const n = classes.filter((c: EduClass) => c.sport === sport && c.level === l.id).length;
-          return <button key={l.id} className={`${styles.pill} ${level === l.id ? styles.pillActive : ''}`} onClick={() => setLevel(l.id)}>{l.label} ({n})</button>;
+          return <button key={l.id} className={`${styles.pill} ${level === l.id ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setLevel(l.id)}>{l.label} ({n})</button>;
         })}
       </div>
       <div style={{ marginTop: 4 }}>
       {filtered.length === 0 ? (
-        <div className={styles.empty}>No classes found.</div>
+        <div className={`${styles.empty} ${theme.inner}`}>No classes found.</div>
       ) : (
         <div className={styles.classGrid}>
           {filtered.map((c: EduClass) => {
             const lv = LEVELS.find(l => l.id === c.level)!;
             return (
-              <div key={c.id} className={styles.classCard} onClick={() => goToClass(c.id)} style={{ cursor: 'pointer' }}>
+              <div key={c.id} className={`${styles.classCard} ${theme.inner} ${theme.innerStrong} ${theme.rowShade}`} onClick={() => goToClass(c.id)} style={{ cursor: 'pointer' }}>
                 <div className={styles.classThumb}>{c.emoji}</div>
                 <div className={styles.classBody}>
                   <div className={styles.className}>{c.name}</div>
@@ -731,6 +735,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
   return (
     <>
       <EduHeader
+        tone="light"
         icon={<IconBall />}
         eyebrow="02 · Training"
         title="Drill"
@@ -738,8 +743,9 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
         subtitle="All training drills organized by sport and category."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Drill</button> : undefined}
       />
-      <div className={styles.panel}>
-      <div className={styles.sportTabs}>
+      {/* Video Library layering: lined bubble > plain toolbars > plain cards. */}
+      <div className={`${styles.panel} ${styles.mlbLayer} ${theme.bubble}`}>
+      <div className={`${styles.sportTabs} ${theme.inner} ${theme.firm}`}>
         {SPORTS.map(s => (
           <button key={s.id} className={`${styles.sportTab} ${sport === s.id ? styles.sportTabActive : ''}`}
             /* Switching sport tabs snaps the category filter back to
@@ -751,7 +757,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
             {s.label}
           </button>
         ))}
-        <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search drills..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className={`${styles.searchInput} ${styles.searchInline} ${theme.firm}`} placeholder="Search drills..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
       {/* Category filter strip — per-category pills first (Movement Prep
           leads the row since it's the default selection), with the
@@ -760,15 +766,15 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
           common drill-discovery flow (browse a single category)
           one click in front of the broader "show me everything"
           view. */}
-      <div className={`${styles.filterRow} ${styles.filterBar}`}>
+      <div className={`${styles.filterRow} ${styles.filterBar} ${theme.inner} ${theme.firm}`}>
         {cats.map((c: any) => {
           const n = drills.filter((d: Drill) => d.tab === sport && d.category === c.id).length;
-          return <button key={c.id} className={`${styles.pill} ${cat === c.id ? styles.pillActive : ''}`} onClick={() => setCat(c.id)}>{c.label} ({n})</button>;
+          return <button key={c.id} className={`${styles.pill} ${cat === c.id ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setCat(c.id)}>{c.label} ({n})</button>;
         })}
-        <button className={`${styles.pill} ${cat === 'all' ? styles.pillActive : ''}`} onClick={() => setCat('all')}>All ({drills.filter((d: Drill) => d.tab === sport).length})</button>
+        <button className={`${styles.pill} ${cat === 'all' ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setCat('all')}>All ({drills.filter((d: Drill) => d.tab === sport).length})</button>
       </div>
       {groups.length === 0 ? (
-        <div className={styles.empty}>No drills found.</div>
+        <div className={`${styles.empty} ${theme.inner}`}>No drills found.</div>
       ) : (
         groups.map((g: any) => (
           <div key={g.id} className={styles.catGroup}>
@@ -778,7 +784,7 @@ function DrillsView({ drills, setDrills, sport, setSport, cat, setCat, search, s
               <span className={styles.catCount}>{g.items.length} drill{g.items.length !== 1 ? 's' : ''}</span>
             </div>
             {g.items.map((d: Drill) => (
-              <div key={d.id} className={styles.drillCard} onClick={() => setViewingDrill(d)} style={{ cursor: 'pointer' }}>
+              <div key={d.id} className={`${styles.drillCard} ${theme.inner} ${theme.innerStrong} ${theme.rowShade}`} onClick={() => setViewingDrill(d)} style={{ cursor: 'pointer' }}>
                 <div className={styles.colorBar} />
                 <div className={styles.cardBody}>
                   <div className={styles.cardNameRow}>
@@ -1253,6 +1259,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
   return (
     <>
       <EduHeader
+        tone="light"
         icon={<IconFilm />}
         eyebrow="01 · Film Room"
         title="Major League"
@@ -1260,13 +1267,15 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
         subtitle="MLB player video library organized by position."
         actions={isCoach ? <button className={styles.addBtn} onClick={() => setShowModal(true)}>+ Add Player</button> : undefined}
       />
-      <div className={styles.panel}>
-      <div className={styles.mlbFilters}>
+      {/* Same layers as the Video Library: one lined bubble holding a plain
+          filter bubble and plain player cards on the lighter list shade. */}
+      <div className={`${styles.panel} ${styles.mlbLayer} ${theme.bubble}`}>
+      <div className={`${styles.mlbFilters} ${theme.inner} ${theme.firm}`}>
         <div className={styles.mlbFilterGroup}>
           <div className={styles.mlbFilterLabel}>Position</div>
           <div className={styles.mlbFilterPills}>
             {['all', ...POSITIONS].map(p => (
-              <button key={p} className={`${styles.pill} ${pos === p ? styles.pillActive : ''}`} onClick={() => setPos(p)}>{p === 'all' ? 'All' : p}</button>
+              <button key={p} className={`${styles.pill} ${pos === p ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setPos(p)}>{p === 'all' ? 'All' : p}</button>
             ))}
           </div>
         </div>
@@ -1275,7 +1284,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
           <div className={styles.mlbFilterLabel}>Batter Hand</div>
           <div className={styles.mlbFilterPills}>
             {['all', 'R', 'L', 'S'].map(b => (
-              <button key={b} className={`${styles.pill} ${bats === b ? styles.pillActive : ''}`} onClick={() => setBats(b)}>{b === 'all' ? 'All' : b}</button>
+              <button key={b} className={`${styles.pill} ${bats === b ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setBats(b)}>{b === 'all' ? 'All' : b}</button>
             ))}
           </div>
         </div>
@@ -1284,14 +1293,14 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
           <div className={styles.mlbFilterLabel}>Pitcher Hand</div>
           <div className={styles.mlbFilterPills}>
             {['all', 'RHP', 'LHP'].map(t => (
-              <button key={t} className={`${styles.pill} ${throws_ === t ? styles.pillActive : ''}`} onClick={() => setThrows(t)}>{t === 'all' ? 'All' : t}</button>
+              <button key={t} className={`${styles.pill} ${throws_ === t ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setThrows(t)}>{t === 'all' ? 'All' : t}</button>
             ))}
           </div>
         </div>
-        <input className={`${styles.searchInput} ${styles.searchInline}`} placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className={`${styles.searchInput} ${styles.searchInline} ${theme.firm}`} placeholder="Search players..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
       {filtered.length === 0 ? (
-        <div className={styles.empty}>No players found.</div>
+        <div className={`${styles.empty} ${theme.inner}`}>No players found.</div>
       ) : (
         <div className={styles.playerGrid}>
           {filtered.map((p: MlbPlayer) => {
@@ -1304,7 +1313,7 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
               ? (p.videos || []).find((v: MlbVideo) => v.url)?.url
               : undefined;
             return (
-              <div key={p.id} className={styles.playerCard} onClick={() => goToPlayer(p.id)} style={{ cursor: 'pointer', position: 'relative' }}>
+              <div key={p.id} className={`${styles.playerCard} ${theme.inner} ${theme.innerStrong} ${theme.rowShade}`} onClick={() => goToPlayer(p.id)} style={{ cursor: 'pointer', position: 'relative' }}>
                 <div
                   className={styles.playerThumb}
                   /* Cover photo (when set) fills the thumb area as a
@@ -1430,7 +1439,7 @@ function PlayerModal({ onClose, onSaved }: { onClose: () => void; onSaved: (p: M
             <label className={styles.fieldLabel}>Positions</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {POSITIONS.map(p => (
-                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''}`} onClick={() => togglePos(p)} style={{ fontSize: rem(12) }}>{p}</button>
+                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''} ${theme.firm}`} onClick={() => togglePos(p)} style={{ fontSize: rem(12) }}>{p}</button>
               ))}
             </div>
           </div>
@@ -1521,7 +1530,7 @@ function EditPlayerModal({ player, onClose, onSaved }: { player: MlbPlayer; onCl
             <label className={styles.fieldLabel}>Positions</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {POSITIONS.map(p => (
-                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''}`} onClick={() => togglePos(p)} style={{ fontSize: rem(12) }}>{p}</button>
+                <button key={p} className={`${styles.pill} ${positions.includes(p) ? styles.pillActive : ''} ${theme.firm}`} onClick={() => togglePos(p)} style={{ fontSize: rem(12) }}>{p}</button>
               ))}
             </div>
           </div>
@@ -1673,7 +1682,7 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
       <div className={styles.panel}>
       <div className={styles.filterRow}>
         {categories.map((c: string) => (
-          <button key={c} className={`${styles.pill} ${filter === c ? styles.pillActive : ''}`} onClick={() => setFilter(c)}>{c === 'all' ? 'All' : c}</button>
+          <button key={c} className={`${styles.pill} ${filter === c ? styles.pillActive : ''} ${theme.firm}`} onClick={() => setFilter(c)}>{c === 'all' ? 'All' : c}</button>
         ))}
       </div>
 

@@ -591,3 +591,67 @@
     font-size: 10px;
   }
 }
+
+/* ═══ Coach Dashboard theme ═══
+   The page wraps in the Education/Dashboard canvas; the controls + table sit
+   in a dashTheme .bubble, the selects / Recompute use .field and the table
+   uses the plain .inner surface (no stripes), like the Athletes list. */
+
+/* .field replaces background-image, so put the chevron back (4x class beats
+   the tripled .field). */
+.filterSelect.filterSelect.filterSelect.filterSelect {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23A0A6AE' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>"),
+    linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 12px center, 0 0;
+}
+.filterSelect option { background: #1a1b1f; }
+[data-theme="light"] .filterSelect.filterSelect.filterSelect.filterSelect {
+  color-scheme: light;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23111214' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>"),
+    linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+}
+[data-theme="light"] .filterSelect option { background: #fff; color: #111214; }
+
+[data-theme="light"] .filterLabel { color: #34353a; }
+
+/* Recompute — solid like the other banner buttons. */
+.recomputeBtn.recomputeBtn.recomputeBtn.recomputeBtn:hover:not(:disabled) {
+  border-color: rgba(236, 235, 230, 0.45);
+  color: var(--text);
+}
+[data-theme="light"] .recomputeBtn.recomputeBtn.recomputeBtn.recomputeBtn:hover:not(:disabled) {
+  border-color: rgba(0, 0, 0, 0.4);
+  color: #111214;
+}
+
+/* Table header strip + row dividers, matching the Athletes list. */
+.table thead { background: rgba(255, 255, 255, 0.025); }
+[data-theme="light"] .table thead { background: rgba(0, 0, 0, 0.03); border-bottom-color: rgba(0, 0, 0, 0.1); }
+[data-theme="light"] .row { border-bottom-color: rgba(0, 0, 0, 0.08); }
+.row:hover { background: rgba(255, 255, 255, 0.03); }
+[data-theme="light"] .row:hover { background: rgba(0, 0, 0, 0.035); }
+
+/* Unranked badge + avatar: solid discs (the transparent ones vanished). */
+.rank:not(.rank1):not(.rank2):not(.rank3) {
+  background: #2a2c31;
+  color: #ecebe6;
+}
+[data-theme="light"] .rank:not(.rank1):not(.rank2):not(.rank3) {
+  background: #ecebe6;
+  color: #111214;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.playerAvatar {
+  background: #0b0c0e;
+  color: #ecebe6;
+}
+.playerLink:hover { color: var(--text); }
+.playerLink:hover .playerName { text-decoration: underline; text-underline-offset: 3px; }
+.playerLink:hover .playerAvatar { border-color: rgba(236, 235, 230, 0.5); }
+[data-theme="light"] .playerLink:hover .playerAvatar { border-color: rgba(0, 0, 0, 0.45); }
+
+.value { color: var(--text); }
+[data-theme="light"] .commit { color: #1f7a3d; }

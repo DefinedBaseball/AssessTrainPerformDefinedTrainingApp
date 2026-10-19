@@ -128,7 +128,7 @@ export default function ClientsPage() {
         title="Client"
         accent="Contacts"
         actions={
-          <Link href="/athletes" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
+          <Link href="/athletes" className={`btn btn-outline ${theme.field} ${theme.firm}`} style={{ whiteSpace: 'nowrap' }}>
             ← Athlete Hub
           </Link>
         }
@@ -136,7 +136,7 @@ export default function ClientsPage() {
 
       <div className={`${styles.toolbar} ${theme.bubble} ${theme.pad}`}>
         <input
-          className={`${styles.search} ${theme.field}`}
+          className={`${styles.search} ${theme.field} ${theme.firm}`}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

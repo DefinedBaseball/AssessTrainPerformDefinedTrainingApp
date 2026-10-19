@@ -1047,6 +1047,10 @@ export function SprayChartView({
     >
 
     <div
+      /* Header card: the profile theme turns the "Spray Chart" header into a
+         full-width title bar; --hc-* tell it this bubble's padding so the
+         bar can cancel it exactly. */
+      data-head-card={noOuterChrome || hideColorBar ? undefined : ''}
       // Outer spray-chart bubble — now wears the Pitching Movement
       // Plot chrome (triple-gradient surface + white-rim border +
       // soft outer shadow). The scan-line texture from before still
@@ -1058,6 +1062,8 @@ export function SprayChartView({
       // the outer bubble surface in that mode.
       style={{
         padding: noOuterChrome ? 0 : (compact ? '10px 12px 12px' : '14px 14px 16px'),
+        ['--hc-pt' as string]: compact ? '10px' : '14px',
+        ['--hc-px' as string]: compact ? '12px' : '14px',
         /* Tightened gap so the Spray Chart label → Exit Velo bar →
            chart → Filter stack packs close together; the chart's
            CENTER label below home plate now sits just below the "95"
@@ -1109,7 +1115,9 @@ export function SprayChartView({
                plot / pitch-report style bubble in the app (Swing,
                Quality of Contact, Coach Diagnosis, Coach Grades,
                Blast Motion, etc.). */
-            'radial-gradient(circle at 50% 70%, rgba(126,182,255,0.45) 0%, rgba(61,139,253,0.20) 13.2%, rgba(61,139,253,0) 36%),' +
+            /* --spray-glow lets a page swap the beacon out (the profile's plain
+               chart surface sets it to a transparent layer). */
+            'var(--spray-glow, radial-gradient(circle at 50% 70%, rgba(126,182,255,0.45) 0%, rgba(61,139,253,0.20) 13.2%, rgba(61,139,253,0) 36%)),' +
             ' var(--bubble-chrome-bg)',
         border: noOuterChrome ? 'none' : '1px solid rgba(255, 255, 255, 0.14)',
         borderRadius: noOuterChrome ? 0 : 12,

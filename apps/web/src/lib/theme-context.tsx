@@ -3,8 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 /**
- * Theme provider — toggles between the existing dark palette and the
- * light palette defined under `[data-theme="light"]` in globals.css.
+ * Theme provider — cycles Light → Dark → Mixed. Light is the palette
+ * under `[data-theme="light"]` in globals.css; Dark is the default palette.
+ * Mixed = the dark palette (dark bubbles) on the light theme's page
+ * background: no data-theme, plus `data-canvas="light"` on <html>, which
+ * only the page-canvas rules read.
  *
  * Persistence: localStorage key `pdapp_theme` so the choice survives
  * across reloads (and across tabs, via the `storage` event).
@@ -13,7 +16,11 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
  * `<ThemeBootstrapScript />`) sets `data-theme` on the <html> element
  * BEFORE React hydrates, so the page never flashes the wrong palette.
  */
-export type Theme = 'dark' | 'light';
+export type Theme = 'dark' | 'light' | 'mixed';
+
+/** Toggle order: Light → Dark → Mixed → Light. */
+export const NEXT_THEME: Record<Theme, Theme> = { light: 'dark', dark: 'mixed', mixed: 'light' };
+export const THEME_LABEL: Record<Theme, string> = { light: 'Light', dark: 'Dark', mixed: 'Mixed' };
 
 interface ThemeContextValue {
   theme: Theme;
@@ -30,17 +37,17 @@ function readStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'light';
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
-    return v === 'dark' ? 'dark' : 'light';
+    return v === 'dark' || v === 'mixed' ? v : 'light';
   } catch { return 'light'; }
 }
 
 function applyToDocument(theme: Theme) {
   if (typeof document === 'undefined') return;
-  if (theme === 'light') {
-    document.documentElement.setAttribute('data-theme', 'light');
-  } else {
-    document.documentElement.removeAttribute('data-theme');
-  }
+  const el = document.documentElement;
+  if (theme === 'light') el.setAttribute('data-theme', 'light');
+  else el.removeAttribute('data-theme');
+  if (theme === 'mixed') el.setAttribute('data-canvas', 'light');
+  else el.removeAttribute('data-canvas');
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -56,7 +63,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Cross-tab sync — pick up changes made in another window.
     const onStorage = (e: StorageEvent) => {
       if (e.key !== STORAGE_KEY) return;
-      const next: Theme = e.newValue === 'light' ? 'light' : 'dark';
+      const next: Theme = e.newValue === 'dark' || e.newValue === 'mixed' ? e.newValue : 'light';
       setThemeState(next);
       applyToDocument(next);
     };
@@ -71,7 +78,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggle = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
+    setTheme(NEXT_THEME[theme]);
   }, [theme, setTheme]);
 
   return (
@@ -100,8 +107,10 @@ export const themeBootstrapScript = `
 (function () {
   try {
     var t = window.localStorage.getItem('${STORAGE_KEY}');
-    // Light is the default — apply it unless the user explicitly saved 'dark'.
-    if (t !== 'dark') document.documentElement.setAttribute('data-theme', 'light');
+    // Light is the default — apply it unless the user saved 'dark' or
+    // 'mixed' (dark bubbles on the light page background).
+    if (t === 'mixed') document.documentElement.setAttribute('data-canvas', 'light');
+    else if (t !== 'dark') document.documentElement.setAttribute('data-theme', 'light');
   } catch (e) {
     document.documentElement.setAttribute('data-theme', 'light');
   }

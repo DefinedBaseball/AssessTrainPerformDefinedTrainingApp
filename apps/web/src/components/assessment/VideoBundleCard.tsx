@@ -280,16 +280,18 @@ export function VideoBundleCard({
     };
     return (
       <>
+        {/* Same layout as the Education MLB video cards: the video fills the
+            top of the bubble edge to edge, the information sits below it. */}
         <div
-          className={`${dashTheme.inner} ${dashTheme.innerStrong}`}
+          className={`${dashTheme.inner} ${dashTheme.innerStrong} ${dashTheme.rowShade}`}
           style={{
             position: 'relative',
             width: '100%',
             maxWidth,
-            padding: 8,
+            padding: 0,
+            borderRadius: 16,
             display: 'flex',
             flexDirection: 'column',
-            gap: 8,
             overflow: 'hidden',
             cursor: 'pointer',
           }}
@@ -301,42 +303,11 @@ export function VideoBundleCard({
           }}
           title={displayLabel}
         >
-          {/* Header — category dot + label, then download / delete. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, padding: '2px 2px 0' }}>
-            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: colors.border, flexShrink: 0, boxShadow: `0 0 8px ${colors.border}` }} />
-            {!hideLabel && (
-              <span style={{
-                flex: 1, minWidth: 0, fontFamily: 'var(--font-mono)', fontSize: rem(10), fontWeight: 600,
-                letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text)',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {displayLabel}
-              </span>
-            )}
-            {hideLabel && <span style={{ flex: 1 }} />}
-            {first.originalUrl && !isMobile && (
-              <button type="button" onClick={handleDownload} onKeyDown={(e) => e.stopPropagation()}
-                title="Download video" aria-label="Download video" style={iconBtn}>
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M8 2.5v7" />
-                  <path d="M4.5 6.5 8 10l3.5-3.5" />
-                  <path d="M3 13.5h10" />
-                </svg>
-              </button>
-            )}
-            {isCoach && (
-              <button type="button" onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-                onKeyDown={(e) => e.stopPropagation()} title="Delete video" aria-label="Delete video"
-                style={{ ...iconBtn, fontSize: rem(12), lineHeight: 1 }}>
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Preview — framed in the category colour. */}
+          {/* Top half — the video, full bleed, with the round play button. A
+              thin rule in the category colour marks the type. */}
           <div style={{
-            position: 'relative', aspectRatio: '4 / 3', borderRadius: 10, overflow: 'hidden', background: '#000',
-            border: `1.5px solid ${colors.border}`,
+            position: 'relative', height: 130, background: '#000', flexShrink: 0,
+            borderBottom: `2px solid ${colors.border}`,
           }}>
             {first.originalUrl ? (
               <video
@@ -349,25 +320,55 @@ export function VideoBundleCard({
             ) : null}
             <div aria-hidden="true" style={{
               position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-              width: 38, height: 38, borderRadius: '50%', background: 'rgba(236,235,230,0.92)', color: '#0b0c0e',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: rem(14),
-              boxShadow: '0 6px 18px rgba(0,0,0,0.45)', pointerEvents: 'none',
+              width: 46, height: 46, borderRadius: '50%',
+              background: 'var(--accent, #ecebe6)', color: 'var(--on-accent, #0b0c0e)', opacity: 0.92,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: rem(16),
+              boxShadow: '0 8px 22px rgba(0,0,0,0.45)', pointerEvents: 'none',
             }}>
               ▶
             </div>
           </div>
 
-          {/* Footer — player · date, clip count. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 2px 2px', minWidth: 0 }}>
-            <span style={{ fontSize: rem(11.5), fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {subtitle ? `${subtitle} · ` : ''}<span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{dateStr}</span>
-            </span>
-            <span style={{
-              flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: rem(9.5), letterSpacing: '0.1em', textTransform: 'uppercase',
-              padding: '2px 7px', borderRadius: 999, border: '1px solid var(--border-light)', color: 'var(--text-muted)',
-            }}>
-              {count} {count === 1 ? 'clip' : 'clips'}
-            </span>
+          {/* Bottom half — title, player · date, then actions + clip count. */}
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: colors.border, flexShrink: 0 }} />
+              <span style={{
+                flex: 1, minWidth: 0, fontSize: rem(13.5), fontWeight: 700, color: 'var(--text)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {hideLabel ? (subtitle || dateStr) : displayLabel}
+              </span>
+            </div>
+            <div style={{ fontSize: rem(11), color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {subtitle && !hideLabel ? `${subtitle} · ` : ''}{dateStr}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              {first.originalUrl && !isMobile && (
+                <button type="button" onClick={handleDownload} onKeyDown={(e) => e.stopPropagation()}
+                  title="Download video" aria-label="Download video" style={iconBtn}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 2.5v7" />
+                    <path d="M4.5 6.5 8 10l3.5-3.5" />
+                    <path d="M3 13.5h10" />
+                  </svg>
+                </button>
+              )}
+              {isCoach && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+                  onKeyDown={(e) => e.stopPropagation()} title="Delete video" aria-label="Delete video"
+                  style={{ ...iconBtn, fontSize: rem(12), lineHeight: 1 }}>
+                  ✕
+                </button>
+              )}
+              <span style={{
+                marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: rem(9.5), letterSpacing: '0.1em',
+                textTransform: 'uppercase', padding: '2px 7px', borderRadius: 999,
+                border: '1px solid var(--border-light)', color: 'var(--text-muted)',
+              }}>
+                {count} {count === 1 ? 'clip' : 'clips'}
+              </span>
+            </div>
           </div>
 
           {confirmOverlay}

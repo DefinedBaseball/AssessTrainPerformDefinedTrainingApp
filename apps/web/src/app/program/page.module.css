@@ -796,3 +796,54 @@
     0 1px 2px rgba(0, 0, 0, 0.06),
     0 8px 22px rgba(15, 20, 30, 0.08);
 }
+
+/* ═══ Coach Dashboard theme ═══
+   Canvas + EduHeader from the dashboard family; the filter bar and the
+   board are dashTheme .bubble panels, each athlete column a plain .inner
+   card (no stripes), inputs/buttons .field. The fullscreen TV board keeps
+   its own black canvas (the board only takes .bubble off-fullscreen). */
+.board:not(.boardFullscreen) {
+  margin-top: 12px;
+  padding: 14px;
+}
+.boardEmpty { border-style: solid; }
+
+/* Column header sits flat on the card -- just the sport-coloured top rule. */
+.athleteCardHead,
+[data-theme="light"] .athleteCardHead {
+  background: transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .athleteCardHead { border-bottom-color: rgba(0, 0, 0, 0.1); }
+.athleteName { color: var(--text); }
+.athleteLast {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--text-muted);
+}
+[data-theme="light"] .athleteNotes { border-top-color: rgba(0, 0, 0, 0.1); }
+
+/* Section labels: one darker shade of the sport colour in light theme,
+   matching the Training calendar (--tab-c set inline per section). */
+.athleteBubbleHead { --tab-ink: var(--tab-c); }
+[data-theme="light"] .athleteBubbleHead { --tab-ink: color-mix(in srgb, var(--tab-c) 60%, #000); }
+
+/* Jump / Full Screen: solid .field surface, text in the normal ink. */
+.jumpBtn.jumpBtn.jumpBtn.jumpBtn { color: var(--text-muted); }
+.jumpBtn.jumpBtn.jumpBtn.jumpBtn:hover:not(:disabled) { color: var(--text); border-color: rgba(236, 235, 230, 0.45); }
+[data-theme="light"] .jumpBtn.jumpBtn.jumpBtn.jumpBtn { color: #2e2f33; }
+[data-theme="light"] .jumpBtn.jumpBtn.jumpBtn.jumpBtn:hover:not(:disabled) { color: #111214; border-color: rgba(0, 0, 0, 0.4); }
+.fullscreenBtn.fullscreenBtn.fullscreenBtn.fullscreenBtn {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 22px rgba(0, 0, 0, 0.32);
+}
+.fullscreenBtn.fullscreenBtn.fullscreenBtn.fullscreenBtn:hover { border-color: rgba(236, 235, 230, 0.45); }
+[data-theme="light"] .fullscreenBtn.fullscreenBtn.fullscreenBtn.fullscreenBtn {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+[data-theme="light"] .fullscreenBtn.fullscreenBtn.fullscreenBtn.fullscreenBtn:hover { border-color: rgba(0, 0, 0, 0.4); }
+.pickerBtn.pickerBtn.pickerBtn.pickerBtn:hover,
+.pickerBtnOpen.pickerBtnOpen.pickerBtnOpen.pickerBtnOpen { border-color: rgba(236, 235, 230, 0.45); }
+[data-theme="light"] .pickerBtn.pickerBtn.pickerBtn.pickerBtn:hover,
+[data-theme="light"] .pickerBtnOpen.pickerBtnOpen.pickerBtnOpen.pickerBtnOpen { border-color: rgba(0, 0, 0, 0.4); }
+[data-theme="light"] .filterLabel,
+[data-theme="light"] .eligibleCount { color: #34353a; }

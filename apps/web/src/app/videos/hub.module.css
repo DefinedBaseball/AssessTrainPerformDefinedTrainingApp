@@ -40,8 +40,9 @@
   inset: 0;
   z-index: -1;
   background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 11px);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
-  mask-image: linear-gradient(180deg, #000 0%, transparent 70%);
+  /* Faded in from the left like the banners (was top-down). */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%);
   pointer-events: none;
 }
 /* Light sweep across on hover. */
@@ -179,7 +180,7 @@
 [data-theme="light"] .tile {
   color: #111214;
   border-color: rgba(0, 0, 0, 0.12);
-  background: linear-gradient(160deg, #c1c1c1 0%, #bdbdbe 55%, #b9baba 100%);
+  background: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     0 1px 2px rgba(0, 0, 0, 0.1),

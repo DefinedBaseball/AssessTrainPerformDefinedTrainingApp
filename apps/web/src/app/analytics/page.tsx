@@ -9,8 +9,11 @@ import type {
   AnalyticsColumn, ChartConfig, ChartConfigInput,
   ChartDataSource, ChartEvaluation, Player,
 } from '@/lib/api';
-import { PageHeader } from '@/components/PageHeader';
 import styles from './page.module.css';
+import eduStyles from '../education/page.module.css';
+import dashStyles from '../page.module.css';
+import theme from '../dashTheme.module.css';
+import { EduHeader, IconChart } from '../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
 
 const SECTIONS = [
@@ -64,41 +67,48 @@ export default function AnalyticsPage() {
   if (isLoading || !user || !isCoach) return null;
 
   return (
-    <div className={styles.page}>
-      <PageHeader
+    <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
+      <EduHeader
+        tone="light"
+        chipInline
+        icon={<IconChart />}
         eyebrow="Coach Workbench"
         title="Data"
-        titleAccent="Analytics"
+        accent="Analytics"
         readout="Chart Builder"
+        readoutClassName={theme.firm}
       />
 
-      <div className={styles.tabs}>
+      {/* Tab chips in a lined bubble (like Settings / the Athlete Hub). */}
+      <div className={`${styles.tabs} ${theme.bubble} ${theme.pad}`}>
         <button
-          className={`${styles.tab} ${tab === 'analytics' ? styles.tabActive : ''}`}
+          className={`${styles.tab} ${tab === 'analytics' ? styles.tabActive : theme.field} ${theme.firm}`}
           onClick={() => setTab('analytics')}
         >
           Analytics
         </button>
         <button
-          className={`${styles.tab} ${tab === 'builder' ? styles.tabActive : ''}`}
+          className={`${styles.tab} ${tab === 'builder' ? styles.tabActive : theme.field} ${theme.firm}`}
           onClick={() => setTab('builder')}
         >
           Chart Builder
         </button>
         <button
-          className={`${styles.tab} ${tab === 'metrics' ? styles.tabActive : ''}`}
+          className={`${styles.tab} ${tab === 'metrics' ? styles.tabActive : theme.field} ${theme.firm}`}
           onClick={() => setTab('metrics')}
         >
           Metric Builder
         </button>
         <button
-          className={`${styles.tab} ${tab === 'saved' ? styles.tabActive : ''}`}
+          className={`${styles.tab} ${tab === 'saved' ? styles.tabActive : theme.field} ${theme.firm}`}
           onClick={() => setTab('saved')}
         >
           Saved Charts
         </button>
       </div>
 
+      {/* The active tab's cards sit inside one lined bubble. */}
+      <div className={`${theme.bubble} ${styles.contentBubble}`}>
       {tab === 'analytics' && (
         <div>
           <div className={styles.subTabs}>
@@ -122,6 +132,7 @@ export default function AnalyticsPage() {
       {tab === 'builder' && <BuilderPane userId={user.id} />}
       {tab === 'metrics' && <MetricBuilderPane />}
       {tab === 'saved' && <SavedPane />}
+      </div>
     </div>
   );
 }
