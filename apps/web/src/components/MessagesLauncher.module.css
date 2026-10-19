@@ -757,3 +757,38 @@
   overflow-y: auto;
   padding: 4px 10px 10px;
 }
+
+/* ── Theme: the Notifications popover and Messages drawer are the plain
+   inner-bubble grey (2026-10-19), like the app's other plain surfaces. The
+   items inside them (notification icons, avatars, received messages, the
+   attach button, the typing box) take the lighter list shade so they still
+   read against it. Dark / Mixed use the charcoal pair, light the --lt-*
+   tokens. ── */
+.notifCard.notifCard,
+.panel.panel,
+.composer.composer {
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.notifGlyph.notifGlyph,
+.avatar.avatar,
+.msgTheirs .bubble.bubble,
+.attachChip.attachChip,
+.attachBtn.attachBtn,
+.textarea.textarea {
+  background: #2b2c2f;
+}
+[data-theme='light'] .notifCard.notifCard,
+[data-theme='light'] .panel.panel,
+[data-theme='light'] .composer.composer {
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+  border-color: rgba(0, 0, 0, 0.3);
+}
+[data-theme='light'] .notifGlyph.notifGlyph,
+[data-theme='light'] .avatar.avatar,
+[data-theme='light'] .msgTheirs .bubble.bubble,
+[data-theme='light'] .attachChip.attachChip,
+[data-theme='light'] .attachBtn.attachBtn,
+[data-theme='light'] .textarea.textarea {
+  background: var(--lt-row, #d3d4d4);
+}
