@@ -570,7 +570,7 @@
 }
 :global([data-theme="light"] .coach-dash) .card.card::after { background: #16171a; box-shadow: none; }
 :global([data-theme="light"] .coach-dash) .column.column {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border: 1.5px solid rgba(0, 0, 0, 0.3);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }

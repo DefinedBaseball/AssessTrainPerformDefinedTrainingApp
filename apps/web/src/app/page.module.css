@@ -1457,7 +1457,7 @@
 [data-theme="light"] .coachDash .announceBubble::after { background: #16171a; box-shadow: none; }
 [data-theme="light"] .coachDash.coachDash .announceBubble .postCard,
 [data-theme="light"] .coachDash.coachDash .announceBubble .feedEmpty {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border-color: rgba(0, 0, 0, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
@@ -1491,7 +1491,7 @@
    isolation is safe here. */
 [data-theme="light"] .coachDash.coachDash .announceBubble .postCard {
   isolation: isolate;
-  background: #d3d4d4;
+  background: var(--lt-row, #d3d4d4);
 }
 [data-theme="light"] .coachDash .announceBubble .postTop { position: relative; }
 [data-theme="light"] .coachDash .announceBubble .postTop::before {
@@ -1499,7 +1499,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(180deg, #c6c7c7 0%, #c5c5c5 100%);
+  background: linear-gradient(180deg, var(--lt-plain-solid, #c6c7c7) 0%, #cecece 100%);
   pointer-events: none;
 }
 

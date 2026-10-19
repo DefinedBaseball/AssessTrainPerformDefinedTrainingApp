@@ -450,7 +450,7 @@
 
 /* Light theme: the athlete rows sit a step lighter than the list grey (header
    strip unchanged) for a bit more contrast. Not white. */
-[data-theme="light"] .listRow { background: #d3d4d4; border-bottom-color: rgba(0, 0, 0, 0.09); }
+[data-theme="light"] .listRow { background: var(--lt-row, #d3d4d4); border-bottom-color: rgba(0, 0, 0, 0.09); }
 [data-theme="light"] .listRow:hover { background: #cdcece; }
 
 /* Search, type filter, Locked + Inquiries share the positions bubble,

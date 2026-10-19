@@ -305,6 +305,15 @@
    per-component tweaks if they look off in light mode.
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
+  /* ── Plain list colours (2026-10-19: 15% lighter) ──
+     Every plain light surface reads these (each use falls back to the old
+     value): the plain grey of inner bubbles / inputs / buttons, its solid
+     form, the title-bar / list-header bar, and the list-row shade. */
+  --lt-plain: linear-gradient(180deg, #cfcfcf 0%, #cdcdcd 100%);
+  --lt-plain-solid: #cfcfcf;
+  --lt-bar: #cfd0d0;
+  --lt-row: #dadada;
+
   /* ── Backgrounds (three-tier palette) ──
      Per coach-spec the entire light-theme app follows the
      same layered palette the player profile uses:

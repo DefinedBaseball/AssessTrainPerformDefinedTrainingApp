@@ -72,7 +72,7 @@
   --text-secondary: #2e2f33;
   --faint: #45464b;
   border-color: rgba(0, 0, 0, 0.1);
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
@@ -102,8 +102,8 @@
 [data-theme="light"] .field.field.field {
   color: #111214;
   border-color: rgba(0, 0, 0, 0.14);
-  background-color: #c5c6c6;
-  background-image: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background-color: #cecfcf;
+  background-image: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 [data-theme="light"] .field.field.field::placeholder { color: #4e4f54; }
@@ -147,7 +147,7 @@
    lighter -- #2b2c2f in dark / Mixed, #d3d4d4 in light. 4x class beats the
    tripled .inner background. Used by the Video Library cards. */
 .rowShade.rowShade.rowShade.rowShade { background: #2b2c2f; }
-[data-theme="light"] .rowShade.rowShade.rowShade.rowShade { background: #d3d4d4; }
+[data-theme="light"] .rowShade.rowShade.rowShade.rowShade { background: var(--lt-row, #d3d4d4); }
 
 /* Notes card (Player Summary notes + every report NoteBlock): the label and
    the B / I / U / Size / mic controls form a full-width cross bar in the
@@ -167,6 +167,6 @@
 }
 [data-theme="light"] .notesCard { border-color: rgba(0, 0, 0, 0.3); }
 [data-theme="light"] .notesCard > :first-child {
-  background: #c7c8c8;
+  background: var(--lt-bar, #c7c8c8);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }

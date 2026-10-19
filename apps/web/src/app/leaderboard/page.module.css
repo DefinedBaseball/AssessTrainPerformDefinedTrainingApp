@@ -611,7 +611,7 @@
   color-scheme: light;
   background-image:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23111214' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>"),
-    linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+    var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
 }
 [data-theme="light"] .filterSelect option { background: #fff; color: #111214; }
 

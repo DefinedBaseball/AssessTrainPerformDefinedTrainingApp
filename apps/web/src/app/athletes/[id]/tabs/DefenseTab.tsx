@@ -634,7 +634,7 @@ function StrikeZoneHeatMap5x5({ zoneColors, borderZoneColors }: {
   /* 2026-10-18: the plain colour of the redesigned profile (one step
      darker than the lighter card it sits on) -- the old #dee1e5 slate read
      as white on the new grey card. */
-  const flatFill = isLight ? '#c6c7c7' : '#1e1f23';
+  const flatFill = isLight ? '#cfcfcf' : '#1e1f23';
   const fillStop1 = flatFill;
   const fillStop2 = flatFill;
   const fillStop3 = flatFill;

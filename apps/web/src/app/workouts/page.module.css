@@ -312,5 +312,5 @@
 
 /* Light theme: the rows sit a step lighter than the list grey (header strip
    unchanged), matching the Athlete Hub list. Not white. */
-[data-theme="light"] .row { background: #d3d4d4; border-bottom-color: rgba(0, 0, 0, 0.09); }
+[data-theme="light"] .row { background: var(--lt-row, #d3d4d4); border-bottom-color: rgba(0, 0, 0, 0.09); }
 [data-theme="light"] .row:hover { background: #cdcece; }

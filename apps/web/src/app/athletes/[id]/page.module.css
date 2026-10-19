@@ -1078,11 +1078,11 @@
 /* Light: grey canvas + the dashboard's light bubble greys. */
 [data-theme="light"] .pageRoot.pageRoot {
   --panel-bg-light: #b4b4b5;
-  --bubble-chrome-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
-  --card-elev: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
-  --card-elev-hover: linear-gradient(180deg, #cbcccc 0%, #c6c7c7 100%);
-  --card-elev-bg: #c5c5c5;
-  --notes-bg: #d3d4d4;
+  --bubble-chrome-bg: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+  --card-elev: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+  --card-elev-hover: linear-gradient(180deg, #d3d4d4 0%, var(--lt-plain-solid, #c6c7c7) 100%);
+  --card-elev-bg: #cecece;
+  --notes-bg: var(--lt-row, #d3d4d4);
   --text-muted: #34353a;
   --text-secondary: #2e2f33;
   background:
@@ -1174,13 +1174,13 @@
 [data-theme="light"] .pageRoot.pageRoot {
   --subtab-bar-bg: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
   --defense-outer-bg: linear-gradient(160deg, #b7b7b7 0%, #b4b4b5 55%, #b0b0b1 100%);
-  --defense-inner-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --defense-inner-bg: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   /* These are var()s of --panel-bg-light / --bubble-chrome-bg at :root, which
      resolve there (old slate), so they are restated here. */
-  --defense-poptime-bg: #c6c7c7;
-  --defense-inner-overlay-bg: #c6c7c7;
-  --defense-chip-bg: #c6c7c7;
-  --defense-metric-card-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --defense-poptime-bg: var(--lt-plain-solid, #c6c7c7);
+  --defense-inner-overlay-bg: var(--lt-plain-solid, #c6c7c7);
+  --defense-chip-bg: var(--lt-plain-solid, #c6c7c7);
+  --defense-metric-card-bg: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
 }
 [data-theme="light"] .pageRoot [class*="subTabBar"] {
   background:
@@ -1196,7 +1196,7 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 [data-theme="light"] .pageRoot [class*="innerPanel"] {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border-color: rgba(0, 0, 0, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
@@ -1223,7 +1223,7 @@
    Spray Chart's blue beacon backdrop is switched off. */
 .pageRoot { --spray-glow: linear-gradient(transparent, transparent); }
 [data-theme="light"] .pageRoot [class*="profilePanel"][data-pdf-section] {
-  --bubble-chrome-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  --bubble-chrome-bg: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
 }
 .pageRoot [class*="hudPlotCanvas"],
 .pageRoot [class*="hudReadoutBar"] {
@@ -1233,7 +1233,7 @@
 }
 [data-theme="light"] .pageRoot [class*="hudPlotCanvas"],
 [data-theme="light"] .pageRoot [class*="hudReadoutBar"] {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border-color: rgba(0, 0, 0, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
@@ -1254,10 +1254,10 @@
   --trend-head-border: 1px solid rgba(255, 255, 255, 0.08);
 }
 [data-theme="light"] .pageRoot.pageRoot {
-  --trend-card-bg: #d3d4d4;
+  --trend-card-bg: var(--lt-row, #d3d4d4);
   --trend-card-border: 1.5px solid rgba(0, 0, 0, 0.3);
-  --trend-empty-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
-  --trend-head-bg: #c7c8c8;
+  --trend-empty-bg: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+  --trend-head-bg: var(--lt-bar, #c7c8c8);
   --trend-head-border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -1286,16 +1286,16 @@
 .pageRoot [class*="SeasonStatsSection_table"] thead [class*="SeasonStatsSection_seasonCol"] { background: #232427 !important; }
 
 [data-theme="light"] .pageRoot [class*="SeasonStatsSection_gridBlock"] {
-  background: #d3d4d4;
+  background: var(--lt-row, #d3d4d4);
   border-color: rgba(0, 0, 0, 0.3);
 }
 [data-theme="light"] .pageRoot [class*="SeasonStatsSection_gridLabel"] {
-  background: #c7c8c8;
+  background: var(--lt-bar, #c7c8c8);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
-[data-theme="light"] .pageRoot [class*="SeasonStatsSection_table"] thead th { background: #c7c8c8; }
-[data-theme="light"] .pageRoot [class*="SeasonStatsSection_seasonCol"] { background: #d3d4d4 !important; }
-[data-theme="light"] .pageRoot [class*="SeasonStatsSection_table"] thead [class*="SeasonStatsSection_seasonCol"] { background: #c7c8c8 !important; }
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_table"] thead th { background: var(--lt-bar, #c7c8c8); }
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_seasonCol"] { background: var(--lt-row, #d3d4d4) !important; }
+[data-theme="light"] .pageRoot [class*="SeasonStatsSection_table"] thead [class*="SeasonStatsSection_seasonCol"] { background: var(--lt-bar, #c7c8c8) !important; }
 
 /* ── Tool Grades: each section card like Trends / Stats ──
    Card = the lighter list shade, firm edge; the section label (HITTING,
@@ -1326,12 +1326,12 @@
 
 [data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"],
 [data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"]:hover {
-  background: #d3d4d4;
+  background: var(--lt-row, #d3d4d4);
   border-color: rgba(0, 0, 0, 0.3);
 }
 [data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphCard"]:hover { border-color: rgba(0, 0, 0, 0.5); }
 [data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_toolGraphLabel"] {
-  background: #c7c8c8;
+  background: var(--lt-bar, #c7c8c8);
   border-bottom-color: rgba(0, 0, 0, 0.08);
   color: #111214;
 }
@@ -1347,8 +1347,8 @@
   --day-chip-active-border: 1.5px solid rgba(255, 255, 255, 0.4);
 }
 [data-theme="light"] .pageRoot.pageRoot {
-  --day-chip-bg: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
-  --day-chip-active-bg: #d3d4d4;
+  --day-chip-bg: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+  --day-chip-active-bg: var(--lt-row, #d3d4d4);
   --day-chip-active-border: 1.5px solid rgba(0, 0, 0, 0.45);
 }
 .pageRoot [class*="downloadPdfBtn"],
@@ -1367,14 +1367,14 @@
 [data-theme="light"] .pageRoot [class*="downloadPdfBtn"],
 [data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devResetBtn"],
 [data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devSaveBtn"] {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border-color: rgba(0, 0, 0, 0.16);
   color: #111214;
 }
 [data-theme="light"] .pageRoot [class*="downloadPdfBtn"]:hover:not(:disabled),
 [data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devResetBtn"]:hover:not(:disabled),
 [data-theme="light"] .pageRoot [class*="PlayerSummaryTab_devSaveBtn"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #cbcccc 0%, #c6c7c7 100%);
+  background: linear-gradient(180deg, #d3d4d4 0%, var(--lt-plain-solid, #c6c7c7) 100%);
   border-color: rgba(0, 0, 0, 0.35);
 }
 /* Doubled .pageRoot: the module's own .devSaveBtn:disabled fill ties otherwise. */
@@ -1383,7 +1383,7 @@
   opacity: 0.5;
 }
 [data-theme="light"] .pageRoot.pageRoot [class*="PlayerSummaryTab_devSaveBtn"]:disabled {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
 }
 
 /* ── Hitting vendor bubbles (Full Swing / Blast Motion / HitTrax) ──
@@ -1410,11 +1410,11 @@
   display: none;
 }
 [data-theme="light"] .pageRoot [class*="vendorMetricBubble"] {
-  background: #d3d4d4 !important;
+  background: var(--lt-row, #d3d4d4) !important;
   border-color: rgba(0, 0, 0, 0.3) !important;
 }
 [data-theme="light"] .pageRoot [class*="vendorMetricBubble"] > [class*="sectionHeader"]:first-child {
-  background: #c7c8c8;
+  background: var(--lt-bar, #c7c8c8);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -1440,12 +1440,12 @@
 }
 .pageRoot [data-head-card] > :first-child > div[style*="height: 1px"] { display: none; }
 [data-theme="light"] .pageRoot [data-head-card] {
-  background: #d3d4d4 !important;
+  background: var(--lt-row, #d3d4d4) !important;
   border-color: rgba(0, 0, 0, 0.3) !important;
 }
 [data-theme="light"] .pageRoot [data-head-card]:not([data-titled]) > :first-child,
 [data-theme="light"] .pageRoot [data-head-card] [data-card-title] {
-  background: #c7c8c8;
+  background: var(--lt-bar, #c7c8c8);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -1467,11 +1467,11 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 [data-theme="light"] .pageRoot.pageRoot [class*="hudPlotCanvas"] {
-  background: #d3d4d4;
+  background: var(--lt-row, #d3d4d4);
   border-color: rgba(0, 0, 0, 0.3);
 }
 [data-theme="light"] .pageRoot.pageRoot [class*="hudPlotCanvas"] > [class*="hudPlotPaneHead"] {
-  background: #c7c8c8;
+  background: var(--lt-bar, #c7c8c8);
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
@@ -1482,7 +1482,7 @@
   border-color: rgba(255, 255, 255, 0.08);
 }
 [data-theme="light"] .pageRoot.pageRoot [class*="tabBarOuter"] {
-  background: linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
   border-color: rgba(0, 0, 0, 0.12);
 }
 
@@ -1494,7 +1494,7 @@
   --subtab-active-bg: linear-gradient(90deg, rgba(30, 31, 35, 0) 0%, #1e1f23 22%, #1e1f23 78%, rgba(30, 31, 35, 0) 100%);
 }
 [data-theme="light"] .pageRoot.pageRoot {
-  --subtab-active-bg: linear-gradient(90deg, rgba(198, 199, 199, 0) 0%, #c6c7c7 22%, #c6c7c7 78%, rgba(198, 199, 199, 0) 100%);
+  --subtab-active-bg: linear-gradient(90deg, rgba(198, 199, 199, 0) 0%, var(--lt-plain-solid, #c6c7c7) 22%, var(--lt-plain-solid, #c6c7c7) 78%, rgba(198, 199, 199, 0) 100%);
   /* Selected label: near-black ink. */
   --subtab-active-text: #0b0c0e;
 }

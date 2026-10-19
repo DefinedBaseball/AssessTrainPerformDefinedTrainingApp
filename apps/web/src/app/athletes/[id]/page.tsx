@@ -937,7 +937,7 @@ export default function PlayerProfilePage() {
       />
 
       {/* ── Content ── */}
-      <div className={styles.contentWrap}>
+      <div className={styles.contentWrap} data-tab={activeTab}>
         <TabPanel active={activeTab === 'summary'}>
           <PlayerSummaryTab
             {...tabProps}
