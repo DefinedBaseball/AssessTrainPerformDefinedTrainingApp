@@ -33,8 +33,11 @@ export class AuthController {
   @Post('register')
   /* Signed-in COACH creates a new account. Creating a PLAYER (Add New Athlete)
    * is open to any non-viewer coach; creating a COACH requires ADMIN level —
-   * that check lives in authService.register. No longer public. Throttled. */
-  @Throttle({ short: { limit: 5, ttl: 600_000 } })
+   * that check lives in authService.register. No longer public. Throttled:
+   * 50 / 10 min per visitor -- room for a roster-entry session (5 was the
+   * old public-signup cap and blocked the 6th athlete), still a ceiling on
+   * scripted account creation from a stolen coach login. */
+  @Throttle({ short: { limit: 50, ttl: 600_000 } })
   @ApiOperation({ summary: 'Create a coach (admin only) or player account' })
   register(@Req() req: AuthenticatedRequest, @Body() dto: RegisterDto) {
     return this.authService.register(req.user!, dto.email, dto.password, dto.role, dto.coachLevel, dto.name);

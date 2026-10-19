@@ -66,6 +66,12 @@ async function toError(res: Response): Promise<Error> {
     const parsed = JSON.parse(body);
     if (parsed.message) msg = parsed.message;
   } catch { /* use raw body */ }
+  /* The rate limiter's stock 429 reads "ThrottlerException: Too Many
+     Requests"; say what it means instead. 429s that carry their own message
+     (the login lockout) keep it. */
+  if (res.status === 429 && /ThrottlerException|Too Many Requests/i.test(String(msg))) {
+    msg = "You're doing that too quickly. Please wait a few minutes and try again.";
+  }
   /* Carry the HTTP status so callers can tell "not signed in" (401) from a
      server that is down or restarting. */
   const err = new Error(msg) as Error & { status?: number };
