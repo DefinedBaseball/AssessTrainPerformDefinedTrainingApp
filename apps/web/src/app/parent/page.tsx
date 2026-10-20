@@ -101,11 +101,12 @@ export default function ParentProfilePage() {
     setDraft(d => (d ? { ...d, [k]: e.target.value } : d));
 
   const rows: { label: string; value: string; key?: keyof Draft; type?: string; hint?: string }[] = profile ? [
+    /* Three per row: names + birthday, then the contact details. */
     { label: 'First Name', value: profile.firstName, key: 'firstName' },
     { label: 'Last Name', value: profile.lastName, key: 'lastName' },
-    { label: 'Email', value: profile.email, hint: 'Your login — ask your coach to change it.' },
-    { label: 'Phone', value: profile.phone ?? '', key: 'phone', type: 'tel' },
     { label: 'Birthday', value: formatBirthday(profile.birthDate), key: 'birthDate', type: 'date' },
+    { label: 'Email', value: profile.email, hint: 'Your login — ask your coach to change it.' },
+    { label: 'Phone Number', value: profile.phone ?? '', key: 'phone', type: 'tel' },
     { label: 'Hometown', value: profile.hometown ?? '', key: 'hometown' },
   ] : [];
 
@@ -134,7 +135,7 @@ export default function ParentProfilePage() {
           {/* ── Details ── */}
           <section className={`${theme.bubble} ${styles.card}`}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>My Details</h2>
+              <h2 className={styles.cardTitle}>Personal Details</h2>
               {!editing ? (
                 <button type="button" className={`btn btn-outline ${theme.field} ${theme.firm}`} onClick={startEdit}>
                   Edit
