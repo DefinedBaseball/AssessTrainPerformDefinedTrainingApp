@@ -21,6 +21,7 @@ import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
 import { DeleteAthleteSection } from '@/components/DeleteAthleteDialog';
+import { ParentLoginSection } from '@/components/ParentLoginSection';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
 import styles from './page.module.css';
@@ -2560,7 +2561,7 @@ function CoachNotesSection({ value, onChange }: { value: string; onChange: (v: s
 export function ReportModal({ player, userId, onClose, onSaved, existingReport, initialReportType, profileOnly, inline = false }: ReportModalProps) {
   /* Picks which save path the Phone field uses — see the phone block in the
      SUMMARY submit below. */
-  const { isCoach: isCoachViewer, isAdmin } = useAuth();
+  const { isCoach: isCoachViewer, isAdmin, isViewer } = useAuth();
   const isEdit = !!existingReport;
   const [reportType, setReportType] = useState(existingReport?.reportType || initialReportType || 'HITTING');
   const [csvFiles, setCsvFiles] = useState<Record<string, File[]>>({});
@@ -3811,6 +3812,17 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
             </button>
             {success && <span className={rs.successMsg}>Saved successfully!</span>}
           </div>
+
+          {/* Coaches: the parent logins for this athlete (viewers see the
+              list only). Pre-filled from the Parent Email field above. */}
+          {profileOnly && isCoachViewer && (
+            <ParentLoginSection
+              playerId={player.id}
+              defaultEmail={summaryData.parentEmail}
+              defaultLastName={player.lastName}
+              canEdit={!isViewer}
+            />
+          )}
 
           {/* Admin-only permanent delete, at the very bottom of Edit Profile.
               Afterwards the profile no longer exists, so go to the Hub. */}

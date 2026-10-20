@@ -256,6 +256,67 @@ export async function deleteAthlete(playerId: string) {
   return request<{ ok: boolean; deleted: string }>(`/players/${playerId}`, { method: 'DELETE' });
 }
 
+/* ── Parent logins ── */
+
+export interface ParentAthlete {
+  id: string;
+  firstName: string;
+  lastName: string;
+  gradYear: number | null;
+  positions: string;
+  profilePhoto: string | null;
+}
+export interface ParentProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  birthDate: string | null;
+  hometown: string | null;
+  athletes: ParentAthlete[];
+}
+export interface LinkedParent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  hasSignedIn: boolean;
+}
+
+/** Parent: own profile + linked athletes. */
+export async function getMyParentProfile() {
+  return request<ParentProfile>('/parents/me');
+}
+
+/** Parent: update own details (never email, never athlete data). */
+export async function updateMyParentProfile(data: {
+  firstName?: string; lastName?: string; phone?: string; birthDate?: string; hometown?: string;
+}) {
+  return request<ParentProfile>('/parents/me', { method: 'PUT', body: JSON.stringify(data) });
+}
+
+/** Coach: parent logins linked to an athlete. */
+export async function getParentsForPlayer(playerId: string) {
+  return request<LinkedParent[]>(`/parents/for-player/${playerId}`);
+}
+
+/** Coach: create a parent login (or link an existing parent login with that
+ *  email -- its password is left alone). */
+export async function createParentLogin(data: {
+  playerId: string; email: string; password?: string; firstName?: string; lastName?: string;
+}) {
+  return request<{ linked: boolean; created: boolean; parents: LinkedParent[] }>('/parents', {
+    method: 'POST', body: JSON.stringify(data),
+  });
+}
+
+/** Coach: remove an athlete from a parent login (the login stays). */
+export async function unlinkParent(parentId: string, playerId: string) {
+  return request<{ ok: boolean; parents: LinkedParent[] }>(`/parents/${parentId}/links/${playerId}`, { method: 'DELETE' });
+}
+
 /** Admin: keep the account and clear an athlete's deletion request. */
 export async function dismissDeletionRequest(playerId: string) {
   return request<{ ok: boolean }>(`/players/${playerId}/deletion-request`, { method: 'DELETE' });

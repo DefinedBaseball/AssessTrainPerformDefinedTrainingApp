@@ -6,6 +6,7 @@ import { ClientIpThrottlerGuard } from './common/client-ip-throttler.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PlayersModule } from './modules/players/players.module';
+import { ParentsModule } from './modules/parents/parents.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { VideosModule } from './modules/videos/videos.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -58,6 +59,7 @@ import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
     HealthModule,
     AuthModule,
     PlayersModule,
+    ParentsModule,
     MetricsModule,
     VideosModule,
     ReportsModule,

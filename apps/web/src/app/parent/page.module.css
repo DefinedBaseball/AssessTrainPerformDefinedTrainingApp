@@ -1,0 +1,125 @@
+/* Parent profile. Surfaces come from dashTheme (lined .bubble outers, plain
+   .inner/.rowShade rows, .field/.firm controls); this file is layout and
+   type only. 12px between bubbles, like every other page. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  margin-top: 12px;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.headActions { display: flex; gap: 8px; }
+.count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.error {
+  font-size: 13px;
+  color: #ef4444;
+}
+
+/* Details: two columns on wide screens, one on phones. */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .fieldGrid { grid-template-columns: minmax(0, 1fr); }
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  min-width: 0;
+}
+.fieldLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.fieldValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.fieldEmpty {
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+.fieldHint { font-size: 11px; color: var(--text-muted); }
+.input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  /* 12pt === 16px: keeps iOS from zooming into the field. */
+  font-size: 12pt;
+}
+
+/* Passes placeholder. */
+.passes {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.passCount {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+.passText { font-size: 13px; color: var(--text-secondary, var(--text)); }
+
+/* Linked athletes. */
+.athleteList { display: flex; flex-direction: column; gap: 8px; }
+.athleteRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.athleteName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.athleteMeta { font-size: 13px; color: var(--text-muted); }
+.positions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 480px) {
+  .athleteRow { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .positions { grid-column: 2 / -1; justify-content: flex-start; }
+}
+.empty {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--text-secondary, var(--text));
+}

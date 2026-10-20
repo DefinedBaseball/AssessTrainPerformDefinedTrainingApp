@@ -13,7 +13,7 @@ model User {
   id                String   @id @default(uuid())
   email             String   @unique
   password          String // hashed — will swap to Cognito in production
-  role              String   @default("PLAYER") // "COACH" | "PLAYER"
+  role              String   @default("PLAYER") // "COACH" | "PLAYER" | "PARENT"
   // Account lifecycle. Existing rows backfill to ACTIVE via the default, so
   // no current user is gated. Self-registered players land as PENDING until a
   // coach accepts them; a declined request deletes the row entirely.
@@ -57,6 +57,8 @@ model User {
   updatedAt         DateTime @updatedAt
 
   player              Player?
+  // Parent logins (role "PARENT"): their own profile + linked athletes.
+  parent              Parent?
   createdReports      Report[]             @relation("ReportCreatedBy")
   posts               Post[]               @relation("PostAuthor")
   postsSeen           PostSeen[]           @relation("PostSeenUser")
@@ -225,6 +227,40 @@ model Player {
   atBatsAsHitter  AtBat[]        @relation("AtBatHitter")
   atBatsAsPitcher AtBat[]        @relation("AtBatPitcher")
   trainingClips   TrainingClip[] @relation("TrainingClipPlayer")
+
+  // Parent logins linked to this athlete (see Parent / ParentLink).
+  parentLinks     ParentLink[]
+}
+
+/// A parent's own profile. The login itself is a User with role "PARENT"
+/// (email + password + phone live there). Parents see their linked athletes
+/// but can never change athlete data; passes will hang off this record once
+/// scheduling is designed.
+model Parent {
+  id        String       @id @default(uuid())
+  userId    String       @unique
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  birthDate String? // ISO date string (calendar field), like Player.birthDate
+  hometown  String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  links     ParentLink[]
+}
+
+/// Parent <-> athlete. Many-to-many: one parent can have several athletes
+/// (siblings), and an athlete can have more than one parent.
+model ParentLink {
+  id        String   @id @default(uuid())
+  parentId  String
+  parent    Parent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, playerId])
+  @@index([playerId])
 }
 
 // ─── Club Teams & Colleges (coach-curated lists) ─────────────────

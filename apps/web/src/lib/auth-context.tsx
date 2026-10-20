@@ -9,7 +9,7 @@ export type CoachLevel = 'ADMIN' | 'COACH' | 'VIEWER';
 interface AuthUser {
   id: string;
   email: string;
-  role: 'COACH' | 'PLAYER';
+  role: 'COACH' | 'PLAYER' | 'PARENT';
   /** Coach access level (null for players, and for legacy coaches → treated
    *  as ADMIN below). */
   coachLevel: CoachLevel | null;
@@ -31,6 +31,8 @@ interface AuthContextType {
   isViewer: boolean;
   /** True while a self-registered player awaits coach approval. */
   isPending: boolean;
+  /** Parent login -- its app is just the parent profile (/parent). */
+  isParent: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -44,6 +46,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isViewer: false,
   isPending: false,
+  isParent: false,
   isLoading: true,
   login: async () => {},
   logout: () => {},
@@ -136,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: isCoach && (lvl === 'ADMIN' || lvl == null),
         isViewer: isCoach && lvl === 'VIEWER',
         isPending: user?.status === 'PENDING',
+        isParent: user?.role === 'PARENT',
         isLoading,
         login,
         logout,

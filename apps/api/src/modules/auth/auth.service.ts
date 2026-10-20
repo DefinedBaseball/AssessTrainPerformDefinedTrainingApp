@@ -403,6 +403,13 @@ export class AuthService {
    *  real password: the starter admin password and the local demo one. */
   private static readonly PUBLIC_PASSWORDS = new Set(['PasswordCoach', 'player123']);
 
+  /** Validate (same rules as every other new password) and hash a password
+   *  for a login created outside register() -- coach-created parent logins. */
+  async hashNewPassword(pw: string): Promise<string> {
+    AuthService.assertNewPassword(pw);
+    return this.hashPassword(pw);
+  }
+
   /** Reject a NEW password that's too short or publicly known. */
   private static assertNewPassword(pw: string | undefined | null, label = 'Password') {
     if (!pw || pw.length < AuthService.MIN_PASSWORD)

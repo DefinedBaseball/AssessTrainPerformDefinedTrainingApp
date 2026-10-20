@@ -15,7 +15,7 @@ export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 export const ROLES_KEY = 'roles';
-export const Roles = (...roles: ('COACH' | 'PLAYER')[]) => SetMetadata(ROLES_KEY, roles);
+export const Roles = (...roles: ('COACH' | 'PLAYER' | 'PARENT')[]) => SetMetadata(ROLES_KEY, roles);
 
 /** Marks an endpoint as requiring an ADMIN-level coach (e.g. coach-account
  *  management, account approvals). */
@@ -27,6 +27,13 @@ export const AdminOnly = () => SetMetadata(ADMIN_ONLY_KEY, true);
  *  state). Without this, the guard blocks all non-GET requests for viewers. */
 export const VIEWER_ALLOWED_KEY = 'viewerAllowed';
 export const ViewerAllowed = () => SetMetadata(VIEWER_ALLOWED_KEY, true);
+
+/** Marks an endpoint a PARENT login may call. Parents are DEFAULT-DENY: every
+ *  route without this is refused for them, so no existing coach/athlete route
+ *  can ever treat a parent as either. (403, not 401 -- a 401 makes the web app
+ *  sign the parent out.) */
+export const PARENT_ALLOWED_KEY = 'parentAllowed';
+export const ParentAllowed = () => SetMetadata(PARENT_ALLOWED_KEY, true);
 
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
@@ -130,8 +137,19 @@ export class JwtAuthGuard implements CanActivate {
     payload.role = dbUser.role as JwtPayload['role'];
     payload.coachLevel = dbUser.coachLevel as CoachLevel | null;
 
+    // Parent logins only reach routes explicitly opened to them -- checked
+    // BEFORE the role gate so a parent is refused with 403, never the 401
+    // a role mismatch gives (which would sign them out of the web app).
+    if (payload.role === 'PARENT') {
+      const parentAllowed = this.reflector.getAllAndOverride<boolean>(PARENT_ALLOWED_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!parentAllowed) throw new ForbiddenException('Parent accounts can’t use this.');
+    }
+
     // Role check
-    const requiredRoles = this.reflector.getAllAndOverride<('COACH' | 'PLAYER')[]>(ROLES_KEY, [
+    const requiredRoles = this.reflector.getAllAndOverride<('COACH' | 'PLAYER' | 'PARENT')[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);

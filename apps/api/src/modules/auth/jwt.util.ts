@@ -35,7 +35,7 @@ export type CoachLevel = 'ADMIN' | 'COACH' | 'VIEWER';
 export interface JwtPayload {
   sub: string; // user id
   email: string;
-  role: 'COACH' | 'PLAYER';
+  role: 'COACH' | 'PLAYER' | 'PARENT';
   // Coach access level (omitted/undefined for players, and for legacy coach
   // tokens minted before RBAC — the guard defaults those to ADMIN).
   coachLevel?: CoachLevel | null;

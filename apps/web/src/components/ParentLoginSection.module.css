@@ -1,0 +1,65 @@
+/* Edit Profile → Parent Login. Field chrome comes from report-form.module.css
+   (rs.*) so it matches the rest of Edit Profile. */
+.wrap { margin-top: 18px; }
+.list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: #2b2c2f;
+}
+[data-theme='light'] .row {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: var(--lt-row, #d3d4d4);
+}
+.rowText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rowName { font-size: 14px; font-weight: 700; color: var(--text); }
+.rowMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.removeBtn {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  color: #e5484d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.removeBtn:hover { background: rgba(229, 72, 77, 0.1); }
+.hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary, var(--text));
+}
+.error { margin-top: 8px; font-size: 12px; color: #ef4444; }
+.notice { margin-top: 8px; font-size: 12px; color: #22c55e; }
+.createBtn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.createBtn:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.4); }
+.createBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+[data-theme='light'] .createBtn {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
+}
+[data-theme='light'] .createBtn:hover:not(:disabled) { border-color: rgba(0, 0, 0, 0.5); }

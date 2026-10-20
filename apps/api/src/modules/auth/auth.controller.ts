@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import type { SignupPlayerPayload } from './auth.service';
-import { JwtAuthGuard, Roles, Public, AdminOnly, ViewerAllowed, AuthenticatedRequest } from './jwt.guard';
+import { JwtAuthGuard, Roles, Public, AdminOnly, ViewerAllowed, ParentAllowed, AuthenticatedRequest } from './jwt.guard';
 import type { CoachLevel } from './jwt.util';
 
 class RegisterDto {
@@ -230,6 +230,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @ParentAllowed() // parent logins need it to load their app
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the current authenticated user from token' })

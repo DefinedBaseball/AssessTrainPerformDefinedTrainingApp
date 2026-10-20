@@ -10,13 +10,26 @@
    the root layout so the gate covers the whole app.
    ───────────────────────────────────────────────────────────────────── */
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Sidebar } from './Sidebar';
 import { PendingApproval } from './PendingApproval';
 
+/* A parent login's whole app is its profile page. Every other route --
+   coach or athlete -- redirects there before it renders, so no athlete
+   page ever loads for a parent (the API refuses them too). */
+const PARENT_HOME = '/parent';
+
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, isPending } = useAuth();
+  const { user, isPending, isParent } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const parentAway = isParent && pathname !== PARENT_HOME;
+
+  useEffect(() => {
+    if (parentAway) router.replace(PARENT_HOME);
+  }, [parentAway, router]);
 
   if (user && isPending) return <PendingApproval />;
 
@@ -34,7 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className={`app-main${bottomNav ? ' app-main-bottom-nav' : ''}`}
         style={{ flex: 1, overflowY: 'auto' }}
       >
-        {children}
+        {parentAway ? null : children}
       </main>
     </div>
   );

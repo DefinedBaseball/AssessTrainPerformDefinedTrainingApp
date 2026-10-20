@@ -168,6 +168,20 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+/* A parent login's whole nav: their own profile page. */
+const PARENT_NAV: NavItem[] = [
+  {
+    href: '/parent',
+    label: 'Profile',
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M8.5 8.5a3.5 3.5 0 1 1 7 0v1a3.5 3.5 0 1 1-7 0z" />
+        <path d="M4 20.5v-1a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v1" />
+      </svg>
+    ),
+  },
+];
+
 /* Routes that RELOCATE into the "More" sheet on phones (coaches only).
    A coach's nav runs 7 top-level entries + Program; moving Data + Program
    into the sheet keeps the bottom bar down to 6 cells + More. These items
@@ -178,7 +192,7 @@ const MOVES_TO_MORE = new Set(['/analytics', '/program']);
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, isCoach, logout } = useAuth();
+  const { user, isCoach, isParent, logout } = useAuth();
   const { academy, appLogoUrl } = useAcademy();
   const { theme, toggle: toggleTheme } = useTheme();
   /* The toggle cycles Light → Dark → Mixed; its icon + label preview the
@@ -199,15 +213,17 @@ export function Sidebar() {
     if (item.playerOnly && isCoach) return false;
     return true;
   }
-  const visibleItems = NAV_ITEMS.filter(isVisible);
+  const visibleItems = isParent ? PARENT_NAV : NAV_ITEMS.filter(isVisible);
 
   /** Render a single nav row (top-level or child). When the item has
    *  children, render the row followed by each visible child rendered
    *  with `isChild=true` so it picks up the indented sub-item style. */
   function renderNavItem(item: NavItem, isChild: boolean): React.ReactNode {
-    const label = isCoach
-      ? (item.coachLabel || item.label)
-      : (item.playerLabel || item.label);
+    const label = isParent
+      ? item.label
+      : isCoach
+        ? (item.coachLabel || item.label)
+        : (item.playerLabel || item.label);
     const isActive = pathname === item.href
       || (item.href !== '/' && pathname.startsWith(item.href));
     const visibleChildren = (item.children || []).filter(isVisible);
@@ -342,13 +358,17 @@ export function Sidebar() {
                   >
                     {THEME_LABEL[nextTheme]} mode
                   </button>
-                  <Link
-                    href="/settings"
-                    className={styles.moreRow}
-                    onClick={() => setMoreOpen(false)}
-                  >
-                    Settings
-                  </Link>
+                  {/* Parents have no Settings page (their details live on
+                      their profile). */}
+                  {!isParent && (
+                    <Link
+                      href="/settings"
+                      className={styles.moreRow}
+                      onClick={() => setMoreOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                  )}
                   <button
                     type="button"
                     className={styles.moreRow}
@@ -385,7 +405,7 @@ export function Sidebar() {
               {user.name || user.email.split('@')[0]}
             </strong>
             <span className={styles.userChipRole}>
-              {isCoach ? 'Coach' : 'Player'}
+              {isCoach ? 'Coach' : isParent ? 'Parent' : 'Player'}
             </span>
           </span>
         </div>
@@ -425,7 +445,9 @@ export function Sidebar() {
           </button>
           {/* No Edit Profile button here: athletes edit their profile in
               Settings → My Profile. */}
-          <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
+          {!isParent && (
+            <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
+          )}
           <button
             className={styles.logoutBtn}
             onClick={logout}
