@@ -20,13 +20,16 @@ import { PendingApproval } from './PendingApproval';
    (read-only). Every other route redirects to /parent before it renders;
    the API refuses anything else too, and checks each athlete is linked. */
 const PARENT_HOME = '/parent';
+/* Schedule (their athletes' training calendar) and Education. */
+const PARENT_PAGES = new Set(['/training', '/education']);
 const ATHLETE_PROFILE = /^\/athletes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, isPending, isParent } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const parentAway = isParent && pathname !== PARENT_HOME && !ATHLETE_PROFILE.test(pathname || '');
+  const parentAway = isParent && pathname !== PARENT_HOME
+    && !PARENT_PAGES.has(pathname || '') && !ATHLETE_PROFILE.test(pathname || '');
 
   useEffect(() => {
     if (parentAway) router.replace(PARENT_HOME);

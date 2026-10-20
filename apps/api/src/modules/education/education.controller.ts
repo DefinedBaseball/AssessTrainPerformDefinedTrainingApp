@@ -7,7 +7,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { EducationService, DOC_MAX_BYTES, docTypeFor } from './education.service';
-import { Roles, Public, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, Public, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 @ApiTags('education')
 @ApiBearerAuth()
@@ -22,12 +22,14 @@ export class EducationController {
      to every account. */
 
   @Get('access')
+  @ParentAllowed() // parents read Education
   @ApiOperation({ summary: 'Whether the caller can open the members-only sections' })
   async getAccess(@Request() req: AuthenticatedRequest) {
     return { members: await this.svc.hasMemberAccess(req.user) };
   }
 
   @Get('classes')
+  @ParentAllowed() // parents read Education
   @ApiOperation({ summary: 'Get all classes, filter by sport/level (members only)' })
   async getClasses(@Request() req: AuthenticatedRequest, @Query('sport') sport?: string, @Query('level') level?: string) {
     await this.svc.assertMemberAccess(req.user);
@@ -35,6 +37,7 @@ export class EducationController {
   }
 
   @Get('classes/:id')
+  @ParentAllowed() // parents read Education
   @ApiOperation({ summary: 'Get a single class by ID (members only)' })
   async getClass(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     await this.svc.assertMemberAccess(req.user);
@@ -62,6 +65,7 @@ export class EducationController {
   // ─── Information documents (members only) ─────────────────────
 
   @Get('documents')
+  @ParentAllowed() // parents read Education
   @ApiOperation({ summary: 'List Information documents (members only)' })
   async listDocuments(@Request() req: AuthenticatedRequest) {
     await this.svc.assertMemberAccess(req.user);
@@ -71,6 +75,7 @@ export class EducationController {
   /* The file itself. PDFs and images are served for viewing in the
      browser; every other type is sent as a download. */
   @Get('documents/:id/file')
+  @ParentAllowed() // parents read Education
   @ApiOperation({ summary: 'Download an Information document (members only)' })
   async getDocumentFile(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Res() res: Response) {
     await this.svc.assertMemberAccess(req.user);
@@ -124,6 +129,7 @@ export class EducationController {
   // ─── MLB Players ───────────────────────────────────────────────
 
   @Get('mlb/players')
+  @ParentAllowed() // parents read Education
   @ApiOperation({ summary: 'Get MLB players, filter by position/bats/throws' })
   getMlbPlayers(
     @Query('position') position?: string,
@@ -134,6 +140,7 @@ export class EducationController {
   }
 
   @Get('mlb/players/:id')
+  @ParentAllowed() // parents read Education
   getMlbPlayer(@Param('id') id: string) {
     return this.svc.getMlbPlayer(id);
   }

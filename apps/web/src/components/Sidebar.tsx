@@ -168,7 +168,9 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-/* A parent login's whole nav: their own profile page. */
+/* A parent login's nav: their profile, their athletes' training calendar
+   (read-only) and Education. Schedule / Education reuse the main icons. */
+const iconFor = (href: string) => NAV_ITEMS.find((i) => i.href === href)?.icon;
 const PARENT_NAV: NavItem[] = [
   {
     href: '/parent',
@@ -180,6 +182,8 @@ const PARENT_NAV: NavItem[] = [
       </svg>
     ),
   },
+  { href: '/training', label: 'Schedule', icon: iconFor('/training') },
+  { href: '/education', label: 'Education', icon: iconFor('/education') },
 ];
 
 /* Routes that RELOCATE into the "More" sheet on phones (coaches only).

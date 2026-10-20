@@ -49,6 +49,14 @@ export class EducationService {
   async hasMemberAccess(user: JwtPayload | undefined): Promise<boolean> {
     if (!user) return false;
     if (user.role === 'COACH') return true;
+    // Parents: a member when any athlete linked to them is (the guard loaded
+    // parentPlayerIds for this request).
+    if (user.role === 'PARENT') {
+      const ids = user.parentPlayerIds ?? [];
+      if (ids.length === 0) return false;
+      const kids = await this.prisma.player.findMany({ where: { id: { in: ids } }, select: { athleteTypes: true } });
+      return kids.some((k) => (k.athleteTypes || '').split(',').map((s) => s.trim()).includes('MEMBERSHIP'));
+    }
     if (user.role !== 'PLAYER' || !user.playerId) return false;
     const p = await this.prisma.player.findUnique({
       where: { id: user.playerId },

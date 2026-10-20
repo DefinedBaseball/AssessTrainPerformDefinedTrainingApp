@@ -485,7 +485,7 @@ function getLegendCategories(tab: string): string[] {
 
 export default function TrainingPage() {
   const router = useRouter();
-  const { user, isCoach, isLoading: authLoading } = useAuth();
+  const { user, isCoach, isParent, isLoading: authLoading } = useAuth();
 
   // State
   const [players, setPlayers] = useState<Player[]>([]);
@@ -518,8 +518,9 @@ export default function TrainingPage() {
   useEffect(() => {
     if (authLoading || !user || initialViewSetRef.current) return;
     initialViewSetRef.current = true;
-    if (!isCoach) setView('day');
-  }, [authLoading, user, isCoach]);
+    // Parents browse like a coach (Week first); athletes open on today.
+    if (!isCoach && !isParent) setView('day');
+  }, [authLoading, user, isCoach, isParent]);
   const [events, setEvents] = useState<ScheduledDrill[]>([]);
   const [, setLoadingEvents] = useState(false);
 
@@ -571,11 +572,19 @@ export default function TrainingPage() {
           setSelectedPlayerId(athletes[0].id);
         }
       }).catch(() => {});
+    } else if (isParent) {
+      /* Parents: only the athletes linked to them (the API refuses any
+         other athlete's schedule anyway). */
+      api.getMyParentProfile().then(prof => {
+        const linked = prof.athletes.map(a => ({ ...a, positions: a.positions || '' })) as unknown as Player[];
+        setPlayers(linked);
+        if (linked.length > 0 && !selectedPlayerId) setSelectedPlayerId(linked[0].id);
+      }).catch(() => {});
     } else {
       const authUser = user as any;
       if (authUser.playerId) setSelectedPlayerId(authUser.playerId);
     }
-  }, [user, isCoach]);
+  }, [user, isCoach, isParent]);
 
   // Compute date range for data fetch
   const dateRange = useMemo(() => {
@@ -1134,16 +1143,16 @@ export default function TrainingPage() {
         icon={<IconAttendance />}
         eyebrow="Training Calendar"
         title={
-          isCoach
+          isCoach || isParent
             ? (selectedPlayer ? selectedPlayer.firstName : 'Select')
             : 'My'
         }
         accent={
-          isCoach
+          isCoach || isParent
             ? (selectedPlayer ? selectedPlayer.lastName : 'Athlete')
             : 'Training'
         }
-        subtitle={isCoach
+        subtitle={isCoach || isParent
           ? undefined
           : 'Your weekly drill schedule and training history.'}
         readout={todayDateStr}
@@ -1159,8 +1168,9 @@ export default function TrainingPage() {
         style={{ padding: 18, display: 'flex', flexDirection: 'column' }}
       >
 
-      {/* ── Athlete Selector (Coach Only) ── */}
-      {isCoach && (
+      {/* ── Athlete Selector (coaches: everyone; parents: their linked
+          athletes -- the tools beside it stay coach-only) ── */}
+      {(isCoach || isParent) && (
         <div className={styles.athleteBar}>
           <span className={styles.athleteLabel}>Athlete</span>
           <select
@@ -1179,7 +1189,7 @@ export default function TrainingPage() {
           {/* Push this athlete's schedule onto a program or a hand-picked
               set. Needs a selected athlete — there is no calendar to copy
               otherwise. */}
-          {selectedPlayerId && (
+          {isCoach && selectedPlayerId && (
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
@@ -1207,7 +1217,7 @@ export default function TrainingPage() {
           )}
 
           {/* Clear this athlete's schedule — day, week, or everything. */}
-          {selectedPlayerId && (
+          {isCoach && selectedPlayerId && (
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
@@ -1467,7 +1477,7 @@ export default function TrainingPage() {
           players — a coach viewing this calendar isn't the one training —
           and the component itself renders nothing unless the athlete has
           drills scheduled today. */}
-      {!isCoach && selectedPlayerId && (
+      {!isCoach && !isParent && selectedPlayerId && (
         <CheckInFlow
           playerId={selectedPlayerId}
           viewDate={toDateStr(currentDate)}

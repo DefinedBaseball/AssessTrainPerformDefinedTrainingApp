@@ -100,7 +100,8 @@ export class TrainingController {
   // ─── Drill Library ─────────────────────────────────────────────
 
   @Get('drills')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // parents read the drill library
   @ApiOperation({ summary: 'Get all drills, optionally filtered by tab' })
   getDrills(@Query('tab') tab?: string) {
     return this.trainingService.getAllDrills(tab);
