@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Request, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService, redactForPlayer } from './reports.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 class CreateReportDto {
   playerId!: string;
@@ -33,7 +33,8 @@ export class ReportsController {
   }
 
   @Get('player/:playerId')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get all reports for a player' })
   async findByPlayer(
     @Request() req: AuthenticatedRequest,
@@ -48,7 +49,8 @@ export class ReportsController {
   }
 
   @Get(':id')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get a single report (ownership-checked)' })
   async findOne(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     const report = await this.reportsService.findOne(id);

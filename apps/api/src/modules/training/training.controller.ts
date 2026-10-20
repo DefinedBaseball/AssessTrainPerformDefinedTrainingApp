@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrainingService } from './training.service';
 import { S3Service } from '../videos/s3.service';
 import { BunnyService } from '../videos/bunny.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -264,7 +264,8 @@ export class TrainingController {
   // ─── Scheduled Drills (Calendar) ───────────────────────────────
 
   @Get('schedule/:playerId')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get scheduled drills for a player (ownership-checked)' })
   getScheduledDrills(
     @Request() req: AuthenticatedRequest,

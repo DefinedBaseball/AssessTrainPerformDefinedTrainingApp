@@ -63,6 +63,10 @@ export function assertPlayerOwnership(
   if (!user) throw new UnauthorizedException();
   if (user.role === 'COACH') return;
   if (user.role === 'PLAYER' && user.playerId && user.playerId === requestedPlayerId) return;
+  // A parent reads the athletes linked to them (the guard loaded the list;
+  // only routes marked @ParentAllowed -- all reads -- ever get this far).
+  if (user.role === 'PARENT' && user.parentPlayerIds?.includes(requestedPlayerId)) return;
+  if (user.role === 'PARENT') throw new ForbiddenException('You can only see athletes linked to your account.');
   throw new ForbiddenException('You can only access your own data.');
 }
 
@@ -146,6 +150,13 @@ export class JwtAuthGuard implements CanActivate {
         context.getClass(),
       ]);
       if (!parentAllowed) throw new ForbiddenException('Parent accounts can’t use this.');
+      // Which athletes this parent may read -- live, so an unlink applies on
+      // the very next request.
+      const parent = await this.prisma.parent.findUnique({
+        where: { userId: payload.sub },
+        select: { links: { select: { playerId: true } } },
+      });
+      payload.parentPlayerIds = (parent?.links ?? []).map((l) => l.playerId);
     }
 
     // Role check

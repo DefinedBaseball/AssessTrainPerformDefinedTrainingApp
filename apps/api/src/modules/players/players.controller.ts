@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlayersService } from './players.service';
-import { Roles, Public, AdminOnly, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, Public, AdminOnly, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 class CreatePlayerDto {
   userId!: string;
@@ -103,7 +103,8 @@ export class PlayersController {
   }
 
   @Get(':id')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get a player profile (ownership-checked)' })
   findOne(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     assertPlayerOwnership(req, id);
@@ -229,7 +230,8 @@ export class PlayersController {
   }
 
   @Get(':id/top-metrics')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get latest value for each metric type (ownership-checked)' })
   getTopMetrics(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     assertPlayerOwnership(req, id);

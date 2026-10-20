@@ -40,6 +40,9 @@ export interface JwtPayload {
   // tokens minted before RBAC — the guard defaults those to ADMIN).
   coachLevel?: CoachLevel | null;
   playerId: string | null;
+  /** PARENT logins only: the athletes linked to them. Never in the token --
+   *  the guard loads it fresh on every request, so an unlink applies at once. */
+  parentPlayerIds?: string[];
   iat: number;
   exp: number;
 }

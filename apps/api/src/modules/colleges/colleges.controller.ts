@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CollegesService } from './colleges.service';
-import { Roles } from '../auth/jwt.guard';
+import { Roles, ParentAllowed } from '../auth/jwt.guard';
 
 class CollegeUpsertDto {
   name!: string;
@@ -24,6 +24,7 @@ export class CollegesController {
   constructor(private svc: CollegesService) {}
 
   @Get()
+  @ParentAllowed() // the profile shows the commitment logo
   @ApiOperation({ summary: 'List all colleges' })
   findAll() {
     return this.svc.findAll();

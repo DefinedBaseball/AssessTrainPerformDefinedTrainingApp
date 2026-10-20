@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { ParentProfile } from '@/lib/api';
@@ -229,7 +230,7 @@ export default function ParentProfilePage() {
           {/* ── Linked athletes (view only) + Link Athlete ── */}
           <section className={`${theme.bubble} ${styles.card}`}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Athletes <span className={styles.count}>{profile.athletes.length}</span></h2>
+              <h2 className={styles.cardTitle}>My Athletes <span className={styles.count}>{profile.athletes.length}</span></h2>
               {!linkOpen && (
                 <button type="button" className={`btn btn-outline ${theme.field} ${theme.firm}`} onClick={() => void openLink()}>
                   Link Athlete
@@ -309,7 +310,10 @@ export default function ParentProfilePage() {
                 {profile.athletes.map(a => (
                   <div key={a.id} className={`${theme.inner} ${theme.rowShade} ${styles.athleteRow}`}>
                     <AthleteAvatar photo={a.profilePhoto} firstName={a.firstName} lastName={a.lastName} className={hubStyles.avatar} />
-                    <span className={styles.athleteName}>{a.firstName} {a.lastName}</span>
+                    {/* Opens the athlete's profile, read-only. */}
+                    <Link href={`/athletes/${a.id}`} className={`${styles.athleteName} ${styles.athleteLink}`}>
+                      {a.firstName} {a.lastName}
+                    </Link>
                     <span className={styles.athleteMeta}>{api.formatGradYear(a.gradYear)}</span>
                     <span className={styles.positions}>
                       {a.positions.split(',').filter(Boolean).map(pos => (

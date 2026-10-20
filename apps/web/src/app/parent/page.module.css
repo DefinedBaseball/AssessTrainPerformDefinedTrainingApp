@@ -168,3 +168,7 @@
   .pendingRow { grid-template-columns: minmax(0, 1fr) auto; }
   .pendingTag { grid-column: 1 / -1; }
 }
+
+/* Athlete names open their (read-only) profile. */
+.athleteLink { text-decoration: none; }
+.athleteLink:hover { text-decoration: underline; text-underline-offset: 3px; }

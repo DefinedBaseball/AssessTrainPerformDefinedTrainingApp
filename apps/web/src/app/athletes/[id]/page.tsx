@@ -168,7 +168,7 @@ async function flattenHeavySvgs(root: HTMLElement): Promise<() => void> {
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user, isCoach, isViewer, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, isCoach, isViewer, isAdmin, isParent, isLoading: authLoading } = useAuth();
 
   // When rendered inline (e.g., player dashboard), use playerId from auth
   const id = params?.id || (user as any)?.playerId || '';
@@ -176,7 +176,9 @@ export default function PlayerProfilePage() {
   /* Players no longer have a Summary tab (its content moved to their
      Dashboard), so they land on the first tab their positions surface.
      Coaches still open on Summary. */
-  const [activeTab, setActiveTab] = useState(isCoach ? 'summary' : 'hitting');
+  /* Parents get the coach LAYOUT (Player Summary first) but stay read-only:
+     isCoach is false for them, so no edit control ever renders. */
+  const [activeTab, setActiveTab] = useState(isCoach || isParent ? 'summary' : 'hitting');
   /* Set while the Summary PDF capture flow is running — pauses the
      active-tab auto-correction below so we can programmatically swap
      to Hitting / Catching / Infield / Outfield / Pitching tabs and
@@ -359,7 +361,7 @@ export default function PlayerProfilePage() {
          Grades, Upcoming Drills, Videos) moved to the player Dashboard,
          so showing the tab too would duplicate it. `capturingPdf` keeps
          it available to the capture walk regardless of role. */
-      if (t.key === 'summary') return isCoach || capturingPdf;
+      if (t.key === 'summary') return isCoach || isParent || capturingPdf;
       // Per-player Eye-toggle override — short-circuit before the
       // position checks so a hidden tab disappears even when the player
       // carries a matching position. Summary is exempt above so coaches
@@ -377,7 +379,7 @@ export default function PlayerProfilePage() {
       if (t.key === 'videos')   return false;
       return true; // strength
     });
-  }, [player, reports, hiddenTabs, capturingPdf, isCoach]);
+  }, [player, reports, hiddenTabs, capturingPdf, isCoach, isParent]);
 
   /* ?tab=<key> (set by the athlete switcher) opens that tab once this
      athlete's tabs are known, if they have it; otherwise the athlete
@@ -667,6 +669,14 @@ export default function PlayerProfilePage() {
           below) so the player's identity card sits at the very top of
           the profile and the tab nav lives directly underneath as
           the entry point into each report. */}
+
+      {/* Parents: back to their profile (no roster switcher -- they only
+          ever see their own athletes). */}
+      {isParent && (
+        <div>
+          <Link href="/parent" className={styles.backLink}>← My Athletes</Link>
+        </div>
+      )}
 
       {isCoach && player.user?.deletionRequestedAt && (
         <DeletionRequestBanner

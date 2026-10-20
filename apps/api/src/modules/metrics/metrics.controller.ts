@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Param, Body, Query, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MetricsService } from './metrics.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 class CreateMetricDto {
   playerId!: string;
@@ -31,7 +31,8 @@ export class MetricsController {
   }
 
   @Get()
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get metrics with date filtering (ownership-checked)' })
   findByPlayer(
     @Request() req: AuthenticatedRequest,
@@ -57,7 +58,8 @@ export class MetricsController {
   }
 
   @Get('progress-batch')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Progress series for several metrics in one request (ownership-checked)' })
   getProgressBatch(
     @Request() req: AuthenticatedRequest,
@@ -74,7 +76,8 @@ export class MetricsController {
   }
 
   @Get('progress/:metricType')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get progress data for a specific metric over time (ownership-checked)' })
   getProgress(
     @Request() req: AuthenticatedRequest,
@@ -87,7 +90,8 @@ export class MetricsController {
   }
 
   @Get('dates/:source')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get available report dates for a data source (ownership-checked)' })
   getDates(
     @Request() req: AuthenticatedRequest,
@@ -99,7 +103,8 @@ export class MetricsController {
   }
 
   @Get('session-data/:source')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get raw session data points for spray charts (ownership-checked)' })
   getSessionData(
     @Request() req: AuthenticatedRequest,
@@ -120,7 +125,8 @@ export class MetricsController {
   }
 
   @Get('trackman-pitches')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get all Trackman pitch-level data for visualizations (ownership-checked)' })
   getTrackmanPitches(
     @Request() req: AuthenticatedRequest,
@@ -137,7 +143,8 @@ export class MetricsController {
   }
 
   @Get('batted-ball-summary')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get aggregated batted ball stats (ownership-checked)' })
   getBattedBallSummary(
     @Request() req: AuthenticatedRequest,

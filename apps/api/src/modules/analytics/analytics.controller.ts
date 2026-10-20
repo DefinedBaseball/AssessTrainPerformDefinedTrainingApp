@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request } from '@nestjs/common';
 import { AnalyticsService, ChartConfigDto } from './analytics.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 @Controller('analytics')
 export class AnalyticsController {
@@ -13,7 +13,8 @@ export class AnalyticsController {
   }
 
   @Get('configs')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   listConfigs(@Request() req: any, @Query('section') section?: string) {
     return this.analytics.listConfigs(req.user.sub, section);
   }
@@ -37,7 +38,8 @@ export class AnalyticsController {
   }
 
   @Get('configs/:id/evaluate/:playerId')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   evaluate(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Param('playerId') playerId: string) {
     // A player may only evaluate a config against their OWN data; coaches any.
     assertPlayerOwnership(req, playerId);

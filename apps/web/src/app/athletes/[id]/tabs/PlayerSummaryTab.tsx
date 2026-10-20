@@ -2,6 +2,7 @@
 
 import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1477,6 +1478,8 @@ export function PlayerSummaryTab({
    *  any caller that hasn't been updated). */
   visibleTabKeys?: readonly string[];
 }) {
+  /* Parents view this tab read-only (no Edit Profile). */
+  const { isParent: isParentViewer } = useAuth();
   const [selectedReport, setSelectedReport] = useState<import('../helpers').ReportSummary | null>(null);
   /* Summary-page sub-tab: "Current Grades" (the existing dashboard
      content) or "Trends" (a position-aware grid of growth-trend
@@ -1690,7 +1693,8 @@ export function PlayerSummaryTab({
             row inside the ReportSelector dropdown below. */}
         {/* Edit Profile is available to coaches AND players (was non-coach
             only) so coaches can edit player info from the reports tab. */}
-        <EditProfileButton onClick={onEditProfile} show={!hideHeaderActions} />
+        {/* Not for parents: they can't change anything on the profile. */}
+        <EditProfileButton onClick={onEditProfile} show={!hideHeaderActions && !isParentViewer} />
         {/* Top-level Download PDF — the Player Summary PDF: the cover,
             then the Hitting, Pitching, Catching, Infield and Outfield
             pages from the athlete's most recent report of each kind

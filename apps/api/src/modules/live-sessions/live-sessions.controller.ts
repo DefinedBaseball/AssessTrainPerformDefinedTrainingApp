@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { LiveSessionsService } from './live-sessions.service';
-import { Roles, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 /* ─────────────────────────────────────────────────────────────────────
    LiveSessionsController — REST surface for /api/live-sessions and
@@ -119,7 +119,8 @@ export class LiveSessionsController {
    *  one-segment `:id` matcher and stay in their natural grouped
    *  positions below. */
   @Get('at-bats')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'List at-bats by hitter/pitcher (ownership-checked)' })
   listAtBats(
     @Request() req: AuthenticatedRequest,
@@ -138,6 +139,14 @@ export class LiveSessionsController {
       if (hitterId  && hitterId  !== myPlayerId) return [];
       if (pitcherId && pitcherId !== myPlayerId) return [];
       if (!hitterId && !pitcherId) hitterId = myPlayerId;
+    }
+    // Parents: only at-bats of an athlete linked to them, and they must name
+    // one (no roster-wide query).
+    if (req.user?.role === 'PARENT') {
+      const mine = req.user.parentPlayerIds ?? [];
+      if (!hitterId && !pitcherId) return [];
+      if (hitterId  && !mine.includes(hitterId))  return [];
+      if (pitcherId && !mine.includes(pitcherId)) return [];
     }
     const lim = limit ? Math.min(Math.max(parseInt(limit, 10) || 50, 1), 1000) : 50;
     const sinceDate = since ? new Date(since) : undefined;

@@ -7,7 +7,7 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagg
 import { VideosService } from './videos.service';
 import { S3Service } from './s3.service';
 import { BunnyService } from './bunny.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuid } from 'uuid';
@@ -440,7 +440,8 @@ export class VideosController {
   }
 
   @Get('player/:playerId')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get all videos for a player (auth required)' })
   findByPlayer(
     @Request() req: AuthenticatedRequest,
@@ -452,7 +453,8 @@ export class VideosController {
   }
 
   @Get(':id')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: 'Get a video with annotations and voice-overs (own video for players)' })
   async findOne(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
     const video = await this.videosService.findOne(id);
