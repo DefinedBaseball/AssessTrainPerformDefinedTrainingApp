@@ -60,10 +60,47 @@ export function ParentLoginSection({ playerId, defaultEmail, defaultLastName, ca
       setNotice(res.created
         ? 'Parent login created. They can sign in with this email and password.'
         : 'Linked to the parent login that already uses this email (its password is unchanged).');
+      /* Siblings: other athletes listing the same Parent Email. Nothing is
+         pre-ticked -- the coach picks which to link. */
+      const linkedEmail = email.trim();
+      try {
+        const others = await api.getMatchingAthletes(linkedEmail, playerId);
+        setSuggestions(others.length ? { email: linkedEmail, athletes: others } : null);
+        setSuggestPicked(new Set());
+      } catch { setSuggestions(null); }
     } catch (e: any) {
       setError(e?.message || 'Could not create the parent login.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /* "Also link?" -- other athletes with the same Parent Email. */
+  const [suggestions, setSuggestions] = useState<{
+    email: string;
+    athletes: { id: string; firstName: string; lastName: string; gradYear: number | null }[];
+  } | null>(null);
+  const [suggestPicked, setSuggestPicked] = useState<Set<string>>(new Set());
+  const [suggestBusy, setSuggestBusy] = useState(false);
+
+  const linkSuggested = async () => {
+    if (!suggestions || suggestPicked.size === 0) return;
+    setSuggestBusy(true);
+    setError('');
+    const done: string[] = [];
+    try {
+      for (const a of suggestions.athletes) {
+        if (!suggestPicked.has(a.id)) continue;
+        await api.createParentLogin({ playerId: a.id, email: suggestions.email });
+        done.push(`${a.firstName} ${a.lastName}`);
+      }
+      setNotice(`Also linked: ${done.join(', ')}.`);
+      setSuggestions(null);
+    } catch (e: any) {
+      setError(e?.message || 'Could not link those athletes.');
+      if (done.length) setNotice(`Also linked: ${done.join(', ')}.`);
+    } finally {
+      setSuggestBusy(false);
     }
   };
 
@@ -136,6 +173,35 @@ export function ParentLoginSection({ playerId, defaultEmail, defaultLastName, ca
           </div>
           {error && <div className={styles.error}>{error}</div>}
           {notice && <div className={styles.notice}>{notice}</div>}
+          {suggestions && (
+            <div className={styles.suggest}>
+              <span className={styles.suggestTitle}>
+                These athletes also list {suggestions.email} as Parent Email. Link them too?
+              </span>
+              {suggestions.athletes.map(a => (
+                <label key={a.id} className={styles.suggestRow}>
+                  <input
+                    type="checkbox"
+                    checked={suggestPicked.has(a.id)}
+                    onChange={() => setSuggestPicked(prev => {
+                      const next = new Set(prev);
+                      if (next.has(a.id)) next.delete(a.id); else next.add(a.id);
+                      return next;
+                    })}
+                  />
+                  <span>{a.firstName} {a.lastName}{a.gradYear ? ` · ${api.formatGradYear(a.gradYear)}` : ''}</span>
+                </label>
+              ))}
+              <div className={styles.suggestActions}>
+                <button type="button" className={styles.createBtn} onClick={() => void linkSuggested()} disabled={suggestBusy || suggestPicked.size === 0}>
+                  {suggestBusy ? 'Linking…' : 'Link Selected'}
+                </button>
+                <button type="button" className={styles.removeBtn} style={{ color: 'var(--text-muted)' }} onClick={() => setSuggestions(null)} disabled={suggestBusy}>
+                  Not now
+                </button>
+              </div>
+            </div>
+          )}
           <div>
             <button type="button" className={styles.createBtn} onClick={() => void create()} disabled={busy}>
               {busy ? 'Saving…' : 'Create Parent Login'}

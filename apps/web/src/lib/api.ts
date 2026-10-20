@@ -275,6 +275,8 @@ export interface ParentProfile {
   birthDate: string | null;
   hometown: string | null;
   athletes: ParentAthlete[];
+  /** Link Athlete requests waiting on an admin ("John S."). */
+  pendingRequests: { id: string; name: string; gradYear: number | null }[];
 }
 export interface LinkedParent {
   id: string;
@@ -295,6 +297,38 @@ export async function updateMyParentProfile(data: {
   firstName?: string; lastName?: string; phone?: string; birthDate?: string; hometown?: string;
 }) {
   return request<ParentProfile>('/parents/me', { method: 'PUT', body: JSON.stringify(data) });
+}
+
+/** Public: a parent creates their own account (then signs in). */
+export async function signupParent(data: {
+  firstName: string; lastName: string; email: string; phone?: string; password: string;
+}) {
+  return request<{ ok: boolean }>('/parents/signup', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Parent: athletes whose Parent Email matches their login ("John S."). */
+export async function getParentLinkCandidates() {
+  return request<{ id: string; name: string; gradYear: number | null }[]>('/parents/me/link-candidates');
+}
+
+/** Parent: ask an admin to link these athletes. */
+export async function requestParentLinks(playerIds: string[]) {
+  return request<ParentProfile>('/parents/me/link-requests', { method: 'POST', body: JSON.stringify({ playerIds }) });
+}
+
+/** Admin (bell): allow / deny a parent link request. */
+export async function approveParentLink(requestId: string) {
+  return request<{ ok: boolean }>(`/parents/link-requests/${requestId}/approve`, { method: 'POST' });
+}
+export async function denyParentLink(requestId: string) {
+  return request<{ ok: boolean }>(`/parents/link-requests/${requestId}/deny`, { method: 'POST' });
+}
+
+/** Coach: other athletes whose Parent Email matches (the "also link?" list). */
+export async function getMatchingAthletes(email: string, excludePlayerId?: string) {
+  const q = new URLSearchParams({ email });
+  if (excludePlayerId) q.set('exclude', excludePlayerId);
+  return request<{ id: string; firstName: string; lastName: string; gradYear: number | null }[]>(`/parents/matching-athletes?${q}`);
 }
 
 /** Coach: parent logins linked to an athlete. */
@@ -624,7 +658,8 @@ export type NotificationType =
   | 'INQUIRY'
   | 'MESSAGE'
   | 'PROFILE_UPDATE'
-  | 'ACCOUNT_DELETION';
+  | 'ACCOUNT_DELETION'
+  | 'PARENT_LINK_REQUEST';
 
 export interface AppNotification {
   id: string;

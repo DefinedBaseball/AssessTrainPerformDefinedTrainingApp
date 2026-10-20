@@ -70,6 +70,44 @@ export default function ParentProfilePage() {
     if (!isLoading && isParent) void load();
   }, [isLoading, isParent, load]);
 
+  /* ── Link Athlete: find profiles whose Parent Email is this login,
+     request the ones that are theirs, an admin allows/denies. ── */
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [candidates, setCandidates] = useState<{ id: string; name: string; gradYear: number | null }[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  const [linkNotice, setLinkNotice] = useState('');
+
+  const openLink = async () => {
+    setLinkOpen(true);
+    setCandidates(null);
+    setPicked(new Set());
+    setLinkError('');
+    setLinkNotice('');
+    try {
+      setCandidates(await api.getParentLinkCandidates());
+    } catch (e: any) {
+      setCandidates([]);
+      setLinkError(e?.message || 'Could not look up athletes.');
+    }
+  };
+
+  const sendLinkRequest = async () => {
+    if (picked.size === 0) return;
+    setLinkBusy(true);
+    setLinkError('');
+    try {
+      setProfile(await api.requestParentLinks([...picked]));
+      setLinkOpen(false);
+      setLinkNotice('Request sent. A coach will approve the link.');
+    } catch (e: any) {
+      setLinkError(e?.message || 'Could not send the request.');
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
   const startEdit = () => {
     if (!profile) return;
     setDraft(toDraft(profile));
@@ -188,16 +226,84 @@ export default function ParentProfilePage() {
             </div>
           </section>
 
-          {/* ── Linked athletes (view only) ── */}
+          {/* ── Linked athletes (view only) + Link Athlete ── */}
           <section className={`${theme.bubble} ${styles.card}`}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Athletes</h2>
-              <span className={styles.count}>{profile.athletes.length}</span>
+              <h2 className={styles.cardTitle}>Athletes <span className={styles.count}>{profile.athletes.length}</span></h2>
+              {!linkOpen && (
+                <button type="button" className={`btn btn-outline ${theme.field} ${theme.firm}`} onClick={() => void openLink()}>
+                  Link Athlete
+                </button>
+              )}
             </div>
-            {profile.athletes.length === 0 ? (
-              <div className={`${theme.inner} ${theme.rowShade} ${styles.empty}`}>
-                No athletes are linked to your account yet. Your coach links them.
+
+            {linkNotice && <div className={styles.notice}>{linkNotice}</div>}
+
+            {linkOpen && (
+              <div className={`${theme.inner} ${theme.rowShade} ${styles.linkPanel}`}>
+                {candidates === null ? (
+                  <span className={styles.linkHint}>Looking for athletes…</span>
+                ) : candidates.length === 0 ? (
+                  <span className={styles.linkHint}>
+                    No new athletes found. Athletes are found by the Parent Email on their profile ({profile.email}) —
+                    ask your athlete or your coach to add it, then try again.
+                  </span>
+                ) : (
+                  <>
+                    <span className={styles.linkHint}>
+                      These athletes list <strong>{profile.email}</strong> as their Parent Email. Pick yours, and a coach will approve the link.
+                    </span>
+                    <div className={styles.pickList}>
+                      {candidates.map(c => (
+                        <label key={c.id} className={`${theme.field} ${theme.firm} ${styles.pickRow}`}>
+                          <input
+                            type="checkbox"
+                            checked={picked.has(c.id)}
+                            onChange={() => setPicked(prev => {
+                              const next = new Set(prev);
+                              if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
+                              return next;
+                            })}
+                          />
+                          <span className={styles.pickName}>{c.name}</span>
+                          <span className={styles.athleteMeta}>{api.formatGradYear(c.gradYear)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {linkError && <div className={styles.error}>{linkError}</div>}
+                <div className={styles.headActions}>
+                  <button type="button" className={`btn btn-outline ${theme.field} ${theme.firm}`} onClick={() => setLinkOpen(false)} disabled={linkBusy}>
+                    Cancel
+                  </button>
+                  {candidates && candidates.length > 0 && (
+                    <button type="button" className={`btn btn-primary ${theme.firm}`} onClick={() => void sendLinkRequest()} disabled={linkBusy || picked.size === 0}>
+                      {linkBusy ? 'Sending…' : 'Request Link'}
+                    </button>
+                  )}
+                </div>
               </div>
+            )}
+
+            {profile.pendingRequests.length > 0 && (
+              <div className={styles.athleteList}>
+                {profile.pendingRequests.map(r => (
+                  <div key={r.id} className={`${theme.inner} ${theme.rowShade} ${styles.pendingRow}`}>
+                    <span className={styles.athleteName}>{r.name}</span>
+                    <span className={styles.athleteMeta}>{api.formatGradYear(r.gradYear)}</span>
+                    <span className={styles.pendingTag}>Waiting for coach approval</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {profile.athletes.length === 0 ? (
+              profile.pendingRequests.length === 0 && !linkOpen && (
+                <div className={`${theme.inner} ${theme.rowShade} ${styles.empty}`}>
+                  No athletes are linked to your account yet. Use Link Athlete to find yours.
+                </div>
+              )
             ) : (
               <div className={styles.athleteList}>
                 {profile.athletes.map(a => (

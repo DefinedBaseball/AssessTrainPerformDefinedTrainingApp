@@ -232,3 +232,40 @@
     padding: 24px 18px;
   }
 }
+
+/* Athlete / Parent switch at the top of "Create an account". */
+.typeToggle {
+  display: flex;
+  gap: 6px;
+  max-width: 360px;
+  margin: 0 auto 18px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  background: var(--surface);
+}
+.typeOption {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 9px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.typeOption:hover { color: var(--text); }
+.typeOptionActive {
+  background: var(--text);
+  color: var(--surface-solid);
+}
+.typeOptionActive:hover { color: var(--surface-solid); }
+
+/* Small note under a field row (parent sign-up email tip). */
+.fieldHint {
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}

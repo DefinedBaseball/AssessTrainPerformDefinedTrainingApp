@@ -229,7 +229,8 @@ model Player {
   trainingClips   TrainingClip[] @relation("TrainingClipPlayer")
 
   // Parent logins linked to this athlete (see Parent / ParentLink).
-  parentLinks     ParentLink[]
+  parentLinks        ParentLink[]
+  parentLinkRequests ParentLinkRequest[]
 }
 
 /// A parent's own profile. The login itself is a User with role "PARENT"
@@ -247,6 +248,7 @@ model Parent {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   links     ParentLink[]
+  linkRequests ParentLinkRequest[]
 }
 
 /// Parent <-> athlete. Many-to-many: one parent can have several athletes
@@ -258,6 +260,24 @@ model ParentLink {
   playerId  String
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@unique([parentId, playerId])
+  @@index([playerId])
+}
+
+/// A parent asking to be linked to an athlete whose Parent Email matches
+/// their login email (Link Athlete on the parent profile). An admin allows
+/// (-> ParentLink) or denies it from the notification bell. One row per
+/// parent + athlete; a denied request is kept so it isn't re-offered.
+model ParentLinkRequest {
+  id        String    @id @default(uuid())
+  parentId  String
+  parent    Parent    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  status    String    @default("PENDING") // "PENDING" | "APPROVED" | "DENIED"
+  createdAt DateTime  @default(now())
+  decidedAt DateTime?
 
   @@unique([parentId, playerId])
   @@index([playerId])

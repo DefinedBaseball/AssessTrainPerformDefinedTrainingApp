@@ -72,7 +72,12 @@ const NOTIF_GLYPH: Record<api.NotificationType, string> = {
   MESSAGE: '💬',
   PROFILE_UPDATE: '✏️',
   ACCOUNT_DELETION: '🗑️',
+  PARENT_LINK_REQUEST: '👪',
 };
+
+/* Requests that sit in the bell until an admin decides (Accept / Decline,
+   Allow / Deny) -- never marked read in bulk. */
+const STICKY_REQUESTS: ReadonlySet<string> = new Set(['ACCOUNT_REQUEST', 'PARENT_LINK_REQUEST']);
 
 function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: number }) {
   return contact.photo ? (
@@ -264,25 +269,31 @@ export function MessagesLauncher() {
     // Account requests stay unread until accepted/declined — leave them be.
     setNotifList((list) =>
       list.map((x) =>
-        x.type === 'ACCOUNT_REQUEST' ? x : { ...x, readAt: x.readAt ?? new Date().toISOString() },
+        STICKY_REQUESTS.has(x.type) ? x : { ...x, readAt: x.readAt ?? new Date().toISOString() },
       ),
     );
     refreshNotifUnread();
   }, [refreshNotifUnread]);
 
-  /* Coach Accept/Decline on an ACCOUNT_REQUEST notification. */
+  /* Admin Accept/Decline on an ACCOUNT_REQUEST notification, Allow/Deny on a
+     PARENT_LINK_REQUEST (entityId = the pending user / the link request). */
   const respondToRequest = useCallback(
     async (n: api.AppNotification, accept: boolean) => {
       if (!n.entityId) return;
       setNotifBusy(n.id);
       try {
-        if (accept) await api.approvePlayer(n.entityId);
+        if (n.type === 'PARENT_LINK_REQUEST') {
+          if (accept) await api.approveParentLink(n.entityId);
+          else await api.denyParentLink(n.entityId);
+        } else if (accept) await api.approvePlayer(n.entityId);
         else await api.declinePlayer(n.entityId);
         // Backend clears the request for every coach; just drop it locally.
         setNotifList((list) => list.filter((x) => x.id !== n.id));
         refreshNotifUnread();
       } catch {
-        window.alert(accept ? 'Could not approve this account.' : 'Could not decline this account.');
+        window.alert(n.type === 'PARENT_LINK_REQUEST'
+          ? (accept ? 'Could not allow this link.' : 'Could not deny this link.')
+          : (accept ? 'Could not approve this account.' : 'Could not decline this account.'));
       } finally {
         setNotifBusy(null);
       }
@@ -429,7 +440,7 @@ export function MessagesLauncher() {
               </div>
               <div className={styles.notifHeadActions}>
                 {notifTab === 'notifications'
-                  && notifList.some((n) => !n.readAt && n.type !== 'ACCOUNT_REQUEST') && (
+                  && notifList.some((n) => !n.readAt && !STICKY_REQUESTS.has(n.type)) && (
                   <button
                     type="button"
                     className={styles.markAllBtn}
@@ -486,7 +497,8 @@ export function MessagesLauncher() {
               <div className={styles.notifList}>
                 {notifList.map((n) => {
                   // Only admins act on account requests (the API enforces it too).
-                  const isRequest = n.type === 'ACCOUNT_REQUEST' && isAdmin;
+                  const isRequest = STICKY_REQUESTS.has(n.type) && isAdmin;
+                  const isLink = n.type === 'PARENT_LINK_REQUEST';
                   /* Message alerts open the conversation instead of a page. */
                   const clickable = !isRequest && (!!n.linkUrl || (n.type === 'MESSAGE' && !!n.entityId));
                   return (
@@ -516,7 +528,7 @@ export function MessagesLauncher() {
                                 void respondToRequest(n, true);
                               }}
                             >
-                              {notifBusy === n.id ? '…' : 'Accept'}
+                              {notifBusy === n.id ? '…' : isLink ? 'Allow' : 'Accept'}
                             </button>
                             <button
                               type="button"
@@ -527,7 +539,7 @@ export function MessagesLauncher() {
                                 void respondToRequest(n, false);
                               }}
                             >
-                              Decline
+                              {isLink ? 'Deny' : 'Decline'}
                             </button>
                           </div>
                         )}

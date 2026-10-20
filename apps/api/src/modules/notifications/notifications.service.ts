@@ -27,7 +27,8 @@ export type NotificationType =
   | 'INQUIRY'
   | 'MESSAGE'
   | 'PROFILE_UPDATE'
-  | 'ACCOUNT_DELETION';
+  | 'ACCOUNT_DELETION'
+  | 'PARENT_LINK_REQUEST';
 
 export interface NotificationPayload {
   type: NotificationType;
@@ -57,7 +58,7 @@ export class NotificationsService {
     // Account requests are MANDATORY in-app — a coach can't mute them, so a
     // pending player is never silently stuck waiting for approval. The
     // Settings matrix shows this channel as a locked, always-on toggle.
-    if (subject === 'ACCOUNT_REQUEST') return true;
+    if (subject === 'ACCOUNT_REQUEST' || subject === 'PARENT_LINK_REQUEST') return true;
     if (!prefsJson) return true;
     try {
       const prefs = JSON.parse(prefsJson);
@@ -322,7 +323,7 @@ export class NotificationsService {
    *  exempt — they stay unread until the player is accepted/declined. */
   async markRead(meId: string, id: string) {
     await this.prisma.notification.updateMany({
-      where: { id, recipientId: meId, readAt: null, NOT: { type: 'ACCOUNT_REQUEST' } },
+      where: { id, recipientId: meId, readAt: null, NOT: { type: { in: ['ACCOUNT_REQUEST', 'PARENT_LINK_REQUEST'] } } },
       data: { readAt: new Date() },
     });
     return { ok: true };
@@ -330,10 +331,22 @@ export class NotificationsService {
 
   async markAllRead(meId: string) {
     await this.prisma.notification.updateMany({
-      where: { recipientId: meId, readAt: null, NOT: { type: 'ACCOUNT_REQUEST' } },
+      where: { recipientId: meId, readAt: null, NOT: { type: { in: ['ACCOUNT_REQUEST', 'PARENT_LINK_REQUEST'] } } },
       data: { readAt: new Date() },
     });
     return { ok: true };
+  }
+
+  /** Remove a parent-link request from EVERY admin's bell once it has been
+   *  allowed or denied (it stays there until then, like account requests). */
+  async clearParentLinkRequest(requestId: string) {
+    try {
+      await this.prisma.notification.deleteMany({
+        where: { type: 'PARENT_LINK_REQUEST', entityId: requestId },
+      });
+    } catch (err) {
+      this.logger.error('Failed to clear parent-link-request notifications', err as Error);
+    }
   }
 
   /** Remove the account-request notification from EVERY coach's bell once the

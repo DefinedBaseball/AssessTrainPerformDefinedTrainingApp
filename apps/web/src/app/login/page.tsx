@@ -10,7 +10,7 @@ import styles from './page.module.css';
 export default function LoginPage() {
   const router = useRouter();
   const { login, user, isLoading } = useAuth();
-  const { academy, appLogoUrl } = useAcademy();
+  const { appLogoUrl } = useAcademy();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -121,12 +121,12 @@ export default function LoginPage() {
           </>
         )}
 
-        {/* Hidden while new athletes are switched off (Settings → Academy). */}
-        {academy.acceptingAthletes && (
-          <p className={styles.signupPrompt}>
-            New athlete? <Link href="/register">Create an account</Link>
-          </p>
-        )}
+        {/* Always shown: /register asks Athlete or Parent. Parents can sign up
+            any time; the athlete form shows the closed message while new
+            athletes are switched off (Settings → Academy). */}
+        <p className={styles.signupPrompt}>
+          New here? <Link href="/register">Create an account</Link>
+        </p>
       </div>
     </div>
   );

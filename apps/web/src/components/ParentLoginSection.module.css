@@ -63,3 +63,27 @@
   background: var(--lt-plain, linear-gradient(180deg, #c6c7c7 0%, #c4c4c4 100%));
 }
 [data-theme='light'] .createBtn:hover:not(:disabled) { border-color: rgba(0, 0, 0, 0.5); }
+
+/* "Also link?" -- siblings listing the same Parent Email. */
+.suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.28);
+}
+[data-theme='light'] .suggest { border-color: rgba(0, 0, 0, 0.3); }
+.suggestTitle { font-size: 12.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.suggestRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.suggestRow input { width: 16px; height: 16px; flex: none; }
+.suggestActions { display: flex; align-items: center; gap: 10px; }
+.suggestActions .createBtn { margin-top: 0; }

@@ -37,6 +37,7 @@ import * as api from '@/lib/api';
 import { DobPicker } from '@/components/DobPicker';
 import { normalizePositionsForSave } from '../athletes/[id]/helpers';
 import styles from './page.module.css';
+import { AccountTypeToggle } from './AccountTypeToggle';
 
 /* Errors that are about the password, shown under the Password field too.
    Exact strings from the submit handler (and the API, which uses the same
@@ -191,6 +192,8 @@ export default function RegisterPage() {
           <div className={styles.brandRow}>
             <img src={appLogoUrl} alt="" width={34} height={34} />
           </div>
+          {/* Parents can still sign up while athlete sign-up is closed. */}
+          <AccountTypeToggle active="athlete" />
           <h1 className={styles.title}>{academy.name}</h1>
           <p className={styles.subtitle} style={{ whiteSpace: 'pre-line' }}>{academy.closedMessage}</p>
           <AcademyContactLine style={{ marginTop: 12 }} />
@@ -208,6 +211,7 @@ export default function RegisterPage() {
         <div className={styles.brandRow}>
           <img src={appLogoUrl} alt="" width={34} height={34} />
         </div>
+        <AccountTypeToggle active="athlete" />
         <h1 className={styles.title}>Create your athlete account</h1>
         <p className={styles.subtitle}>
           Fill out your player profile below. A coach will review and approve your access.

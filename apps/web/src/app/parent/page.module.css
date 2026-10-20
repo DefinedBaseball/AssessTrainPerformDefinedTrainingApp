@@ -124,3 +124,47 @@
   font-size: 13px;
   color: var(--text-secondary, var(--text));
 }
+
+/* Link Athlete panel + pending requests. */
+.notice { font-size: 13px; color: #22c55e; }
+.linkPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.linkHint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary, var(--text));
+  overflow-wrap: anywhere;
+}
+.pickList { display: flex; flex-direction: column; gap: 8px; }
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pickRow input { width: 18px; height: 18px; flex: none; }
+.pickName { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: var(--text); }
+.pendingRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.pendingTag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #d97706;
+}
+@media (max-width: 480px) {
+  .pendingRow { grid-template-columns: minmax(0, 1fr) auto; }
+  .pendingTag { grid-column: 1 / -1; }
+}

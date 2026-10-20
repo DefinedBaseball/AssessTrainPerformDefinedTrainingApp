@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthenticatedRequest, ParentAllowed, Roles } from '../auth/jwt.guard';
+import { AdminOnly, AuthenticatedRequest, ParentAllowed, Public, Roles } from '../auth/jwt.guard';
 import { ParentsService } from './parents.service';
 
 @ApiTags('parents')
@@ -34,7 +34,67 @@ export class ParentsController {
     });
   }
 
+  /* ── Public: a parent creates their own account ── */
+
+  @Public()
+  @Post('signup')
+  @Throttle({ short: { limit: 5, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Public: create a parent account (name, email, phone, password)' })
+  signup(@Body() dto: Record<string, unknown>) {
+    return this.parents.signup({
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email,
+      phone: dto.phone,
+      password: dto.password,
+    });
+  }
+
+  /* ── Parent: Link Athlete ── */
+
+  @Get('me/link-candidates')
+  @Roles('PARENT')
+  @ParentAllowed()
+  @ApiOperation({ summary: 'Parent: athletes whose Parent Email matches this login' })
+  linkCandidates(@Req() req: AuthenticatedRequest) {
+    return this.parents.linkCandidates(req.user!.sub);
+  }
+
+  @Post('me/link-requests')
+  @Roles('PARENT')
+  @ParentAllowed()
+  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Parent: ask an admin to link some of those athletes' })
+  requestLinks(@Req() req: AuthenticatedRequest, @Body() dto: { playerIds?: unknown }) {
+    return this.parents.requestLinks(req.user!.sub, dto?.playerIds);
+  }
+
+  /* ── Admins: allow / deny a link request (notification bell) ── */
+
+  @Post('link-requests/:id/approve')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Admin: allow a parent link request' })
+  approve(@Param('id') id: string) {
+    return this.parents.decideLinkRequest(id, true);
+  }
+
+  @Post('link-requests/:id/deny')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Admin: deny a parent link request' })
+  deny(@Param('id') id: string) {
+    return this.parents.decideLinkRequest(id, false);
+  }
+
   /* ── Coaches: parent logins on an athlete (viewers read-only) ── */
+
+  @Get('matching-athletes')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Coach: other athletes whose Parent Email matches an email' })
+  matchingAthletes(@Query('email') email: string, @Query('exclude') exclude?: string) {
+    return this.parents.matchingAthletes(email, exclude);
+  }
 
   @Get('for-player/:playerId')
   @Roles('COACH')
