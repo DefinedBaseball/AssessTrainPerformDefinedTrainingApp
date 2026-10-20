@@ -34,6 +34,15 @@ export class ParentsController {
     });
   }
 
+  @Post('me/delete')
+  @Roles('PARENT')
+  @ParentAllowed()
+  @Throttle({ short: { limit: 5, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Parent: permanently delete own parent login (password required)' })
+  deleteMine(@Req() req: AuthenticatedRequest, @Body() dto: { password?: unknown }) {
+    return this.parents.deleteMine(req.user!.sub, dto?.password);
+  }
+
   /* ── Public: a parent creates their own account ── */
 
   @Public()

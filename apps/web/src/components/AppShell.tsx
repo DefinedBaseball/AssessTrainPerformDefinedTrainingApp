@@ -20,8 +20,8 @@ import { PendingApproval } from './PendingApproval';
    (read-only). Every other route redirects to /parent before it renders;
    the API refuses anything else too, and checks each athlete is linked. */
 const PARENT_HOME = '/parent';
-/* Schedule (their athletes' training calendar) and Education. */
-const PARENT_PAGES = new Set(['/training', '/education']);
+/* Schedule (their athletes' training calendar), Education and Settings. */
+const PARENT_PAGES = new Set(['/training', '/education', '/settings']);
 const ATHLETE_PROFILE = /^\/athletes\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function AppShell({ children }: { children: ReactNode }) {

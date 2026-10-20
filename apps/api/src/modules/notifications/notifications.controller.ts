@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Post, Query, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
-import { AuthenticatedRequest, ViewerAllowed } from '../auth/jwt.guard';
+import { AuthenticatedRequest, ViewerAllowed, ParentAllowed } from '../auth/jwt.guard';
 
 /**
  * In-app notifications for the current user. Protected by the global
@@ -15,18 +15,21 @@ export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
 
   @Get()
+  @ParentAllowed()
   @ApiOperation({ summary: 'List the current user’s notifications (newest first)' })
   list(@Request() req: AuthenticatedRequest, @Query('limit') limit?: string) {
     return this.notificationsService.list(req.user!.sub, limit ? parseInt(limit, 10) : 50);
   }
 
   @Get('unread-count')
+  @ParentAllowed()
   @ApiOperation({ summary: 'Number of unread notifications for the current user' })
   unreadCount(@Request() req: AuthenticatedRequest) {
     return this.notificationsService.unreadCount(req.user!.sub);
   }
 
   @Post(':id/read')
+  @ParentAllowed()
   @ViewerAllowed()
   @ApiOperation({ summary: 'Mark a notification as read' })
   markRead(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -34,6 +37,7 @@ export class NotificationsController {
   }
 
   @Post('read-all')
+  @ParentAllowed()
   @ViewerAllowed()
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllRead(@Request() req: AuthenticatedRequest) {

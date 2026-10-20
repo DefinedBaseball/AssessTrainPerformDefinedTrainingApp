@@ -6,7 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 export interface MessageContact {
   id: string;
   name: string;
-  role: 'COACH' | 'PLAYER';
+  role: 'COACH' | 'PLAYER' | 'PARENT';
   photo: string | null;
 }
 
@@ -34,7 +34,7 @@ export class MessagesService {
     return {
       id: u.id,
       name,
-      role: (u.role === 'COACH' ? 'COACH' : 'PLAYER'),
+      role: (u.role === 'COACH' ? 'COACH' : u.role === 'PARENT' ? 'PARENT' : 'PLAYER'),
       photo: u.player?.profilePhoto ?? u.photo ?? null,
     };
   }
@@ -48,17 +48,38 @@ export class MessagesService {
     player: { select: { firstName: true, lastName: true, profilePhoto: true } },
   } as const;
 
+  /** User ids a non-coach may message besides coaches: an athlete's linked
+   *  parents, or a parent's linked athletes. */
+  private async familyUserIds(meId: string, meRole: string): Promise<string[]> {
+    if (meRole === 'PLAYER') {
+      const links = await this.prisma.parentLink.findMany({
+        where: { player: { userId: meId } },
+        select: { parent: { select: { userId: true } } },
+      });
+      return links.map((l) => l.parent.userId);
+    }
+    if (meRole === 'PARENT') {
+      const links = await this.prisma.parentLink.findMany({
+        where: { parent: { userId: meId } },
+        select: { player: { select: { userId: true } } },
+      });
+      return links.map((l) => l.player.userId);
+    }
+    return [];
+  }
+
   /**
    * The directory of users `me` is allowed to start a conversation with.
-   *  - Coaches can message anyone (other coaches + all players).
-   *  - Players can message coaches only (keeps player↔player DMs out of v1;
-   *    revisit if athletes should be able to message each other).
+   *  - Coaches can message anyone (coaches, athletes, parents).
+   *  - Athletes: coaches + their linked parents (no athlete↔athlete DMs).
+   *  - Parents: coaches + their linked athletes. No one else.
    */
   async getContacts(meId: string, meRole: string): Promise<MessageContact[]> {
+    const family = meRole === 'COACH' ? [] : await this.familyUserIds(meId, meRole);
     const where =
       meRole === 'COACH'
         ? { id: { not: meId } }
-        : { id: { not: meId }, role: 'COACH' };
+        : { id: { not: meId }, OR: [{ role: 'COACH' }, { id: { in: family } }] };
 
     const users = (await this.prisma.user.findMany({
       where,
@@ -168,10 +189,15 @@ export class MessagesService {
 
     // Enforce the same who-can-message-whom policy as getContacts, server-side:
     // the contact picker only HIDES disallowed users, so a crafted request could
-    // otherwise bypass it. Players may message coaches only; coaches may message
-    // anyone (player or coach).
-    if (meRole === 'PLAYER' && recipient.role !== 'COACH') {
-      throw new ForbiddenException('Players can only message coaches.');
+    // otherwise bypass it. Coaches may message anyone; athletes and parents
+    // only coaches and their own linked family.
+    if (meRole !== 'COACH' && recipient.role !== 'COACH') {
+      const family = await this.familyUserIds(meId, meRole);
+      if (!family.includes(recipientId)) {
+        throw new ForbiddenException(meRole === 'PARENT'
+          ? 'Parents can only message coaches and their own athletes.'
+          : 'Athletes can only message coaches and their parents.');
+      }
     }
 
     const message = await this.prisma.message.create({

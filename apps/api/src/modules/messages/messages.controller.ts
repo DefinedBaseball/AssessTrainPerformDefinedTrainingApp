@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
-import { AuthenticatedRequest } from '../auth/jwt.guard';
+import { AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 /**
  * Direct messaging between users. Every route is protected by the global
@@ -16,30 +16,35 @@ export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 
   @Get('contacts')
+  @ParentAllowed()
   @ApiOperation({ summary: 'List users the current user can start a conversation with' })
   getContacts(@Request() req: AuthenticatedRequest) {
     return this.messagesService.getContacts(req.user!.sub, req.user!.role);
   }
 
   @Get('conversations')
+  @ParentAllowed()
   @ApiOperation({ summary: 'List the current user’s conversations (latest message + unread count)' })
   getConversations(@Request() req: AuthenticatedRequest) {
     return this.messagesService.getConversations(req.user!.sub);
   }
 
   @Get('unread-count')
+  @ParentAllowed()
   @ApiOperation({ summary: 'Total unread messages for the current user' })
   unreadCount(@Request() req: AuthenticatedRequest) {
     return this.messagesService.unreadCount(req.user!.sub);
   }
 
   @Get('thread/:userId')
+  @ParentAllowed()
   @ApiOperation({ summary: 'Full message history with another user (marks inbound as read)' })
   getThread(@Request() req: AuthenticatedRequest, @Param('userId') userId: string) {
     return this.messagesService.getThread(req.user!.sub, userId);
   }
 
   @Post()
+  @ParentAllowed() // the service enforces who parents may message
   @ApiOperation({ summary: 'Send a message (text and/or video) to another user' })
   send(
     @Request() req: AuthenticatedRequest,

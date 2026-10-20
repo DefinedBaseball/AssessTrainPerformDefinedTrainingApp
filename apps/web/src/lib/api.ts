@@ -299,6 +299,11 @@ export async function updateMyParentProfile(data: {
   return request<ParentProfile>('/parents/me', { method: 'PUT', body: JSON.stringify(data) });
 }
 
+/** Parent (Settings): permanently delete their own parent login. */
+export async function deleteMyParentAccount(password: string) {
+  return request<{ ok: boolean }>('/parents/me/delete', { method: 'POST', body: JSON.stringify({ password }) });
+}
+
 /** Public: a parent creates their own account (then signs in). */
 export async function signupParent(data: {
   firstName: string; lastName: string; email: string; phone?: string; password: string;
@@ -2677,7 +2682,7 @@ export async function deletePitch(pitchId: string): Promise<void> {
 export interface MessageContact {
   id: string;
   name: string;
-  role: 'COACH' | 'PLAYER';
+  role: 'COACH' | 'PLAYER' | 'PARENT';
   photo: string | null;
 }
 

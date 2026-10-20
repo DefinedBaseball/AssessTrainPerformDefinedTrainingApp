@@ -128,7 +128,7 @@ export class NotificationsService {
       if (found) this.maybeEmail(found, payload);
 
       if (!this.appEnabled(u?.notificationPrefs, payload.type)) return null;
-      return await this.prisma.notification.create({
+      const created = await this.prisma.notification.create({
         data: {
           recipientId,
           type: payload.type,
@@ -139,6 +139,8 @@ export class NotificationsService {
           entityId: payload.entityId ?? null,
         },
       });
+      if (found?.role === 'PLAYER') await this.mirrorToParents([recipientId], payload);
+      return created;
     } catch (err) {
       this.logger.error(`Failed to create notification for ${recipientId}`, err as Error);
       return null;
@@ -197,8 +199,61 @@ export class NotificationsService {
           entityId: payload.entityId ?? null,
         })),
       });
+      const athleteIds = users.filter((u) => u.role === 'PLAYER').map((u) => u.id);
+      if (athleteIds.length) await this.mirrorToParents(athleteIds, payload);
     } catch (err) {
       this.logger.error('Failed to fan out notifications', err as Error);
+    }
+  }
+
+  /**
+   * Parents get a copy of every notification their linked athletes get
+   * (in-app only -- parents have no email subjects). One copy per parent per
+   * batch: with one athlete involved it's prefixed with their first name and
+   * opens that athlete's profile (schedule items open Schedule); a broadcast
+   * that reaches several of a parent's athletes arrives once, unprefixed.
+   * Never throws.
+   */
+  private async mirrorToParents(athleteUserIds: string[], payload: NotificationPayload) {
+    try {
+      const kids = await this.prisma.player.findMany({
+        where: { userId: { in: athleteUserIds } },
+        select: {
+          id: true,
+          firstName: true,
+          parentLinks: { select: { parent: { select: { userId: true, user: { select: { status: true } } } } } },
+        },
+      });
+      const byParent = new Map<string, { id: string; firstName: string }[]>();
+      for (const k of kids) {
+        for (const l of k.parentLinks) {
+          if (l.parent.user.status !== 'ACTIVE') continue;
+          const list = byParent.get(l.parent.userId) ?? [];
+          list.push({ id: k.id, firstName: k.firstName });
+          byParent.set(l.parent.userId, list);
+        }
+      }
+      if (byParent.size === 0) return;
+      const isSchedule = payload.type === 'SCHEDULE' || (payload.linkUrl || '').startsWith('/training');
+      await this.prisma.notification.createMany({
+        data: [...byParent.entries()].map(([recipientId, list]) => {
+          const one = list.length === 1 ? list[0] : null;
+          const linkUrl = payload.type === 'ANNOUNCEMENT'
+            ? null
+            : isSchedule ? '/training' : one ? `/athletes/${one.id}` : '/parent';
+          return {
+            recipientId,
+            type: payload.type,
+            title: one ? `${one.firstName}: ${payload.title}` : payload.title,
+            body: payload.body ?? null,
+            linkUrl,
+            actorId: payload.actorId ?? null,
+            entityId: payload.entityId ?? null,
+          };
+        }),
+      });
+    } catch (err) {
+      this.logger.error('Failed to copy notifications to parents', err as Error);
     }
   }
 

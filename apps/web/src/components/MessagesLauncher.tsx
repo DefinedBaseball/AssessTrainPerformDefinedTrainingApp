@@ -100,7 +100,7 @@ function Avatar({ contact, size = 38 }: { contact: api.MessageContact; size?: nu
 }
 
 export function MessagesLauncher() {
-  const { user, isCoach, isAdmin } = useAuth();
+  const { user, isCoach, isAdmin, isParent } = useAuth();
   /* Athletes carry their Player id on the auth user; coaches don't. */
   const playerId: string | null = (user as any)?.playerId || null;
   const router = useRouter();
@@ -660,7 +660,7 @@ export function MessagesLauncher() {
                       <span className={styles.convMid}>
                         <span className={styles.convName}>{c.name}</span>
                         <span className={styles.roleChip} data-role={c.role}>
-                          {c.role === 'COACH' ? 'Coach' : 'Player'}
+                          {c.role === 'COACH' ? 'Coach' : c.role === 'PARENT' ? 'Parent' : 'Player'}
                         </span>
                       </span>
                     </button>
@@ -711,16 +711,19 @@ export function MessagesLauncher() {
                       hidden
                       onChange={onPickVideo}
                     />
-                    <button
-                      type="button"
-                      className={styles.attachBtn}
-                      aria-label="Attach video"
-                      title="Attach video"
-                      disabled={attaching}
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      {attaching ? <span className={styles.spinnerSm} /> : <ClipIcon />}
-                    </button>
+                    {/* Parents send text (video uploads aren't open to them). */}
+                    {!isParent && (
+                      <button
+                        type="button"
+                        className={styles.attachBtn}
+                        aria-label="Attach video"
+                        title="Attach video"
+                        disabled={attaching}
+                        onClick={() => fileRef.current?.click()}
+                      >
+                        {attaching ? <span className={styles.spinnerSm} /> : <ClipIcon />}
+                      </button>
+                    )}
                     <textarea
                       className={styles.textarea}
                       placeholder="Write a message…"

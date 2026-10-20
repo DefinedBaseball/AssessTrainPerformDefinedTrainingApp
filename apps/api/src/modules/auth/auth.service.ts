@@ -403,6 +403,16 @@ export class AuthService {
    *  real password: the starter admin password and the local demo one. */
   private static readonly PUBLIC_PASSWORDS = new Set(['PasswordCoach', 'player123']);
 
+  /** Throws unless `password` is this user's current password (re-confirming
+   *  a destructive self-service action, e.g. a parent deleting their login). */
+  async assertOwnPassword(userId: string, password: unknown): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+    if (!user || typeof password !== 'string' || !password || !(await this.verifyPassword(password, user.password))) {
+      // 400, not 401: a 401 makes the web app sign the user out.
+      throw new BadRequestException('That password is not correct.');
+    }
+  }
+
   /** Validate (same rules as every other new password) and hash a password
    *  for a login created outside register() -- coach-created parent logins. */
   async hashNewPassword(pw: string): Promise<string> {

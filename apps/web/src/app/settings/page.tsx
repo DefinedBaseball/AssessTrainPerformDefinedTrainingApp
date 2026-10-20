@@ -276,10 +276,10 @@ function CamerasTab() {
 /* ─── Account ──────────────────────────────────────────────── */
 
 function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => void; isCoach: boolean }) {
-  const { refresh, isAdmin, isViewer } = useAuth();
-  /* Three account types. Viewer-level coaches are Coaches with view-only
-     access, noted underneath. */
-  const accountType = !isCoach ? 'Athlete' : isAdmin ? 'Coach Admin' : 'Coach';
+  const { refresh, isAdmin, isViewer, isParent } = useAuth();
+  /* Account types. Viewer-level coaches are Coaches with view-only access,
+     noted underneath. */
+  const accountType = isParent ? 'Parent' : !isCoach ? 'Athlete' : isAdmin ? 'Coach Admin' : 'Coach';
   const [profile, setProfile] = useState<api.AccountProfile | null>(null);
   const [email, setEmail] = useState(user.email || '');
   const [firstName, setFirstName] = useState('');
@@ -502,7 +502,58 @@ function AccountTab({ user, onLogout, isCoach }: { user: any; onLogout: () => vo
         </div>
       )}
 
-      {!isCoach && <DeleteAccountCard profile={profile} onChange={setProfile} />}
+      {!isCoach && !isParent && <DeleteAccountCard profile={profile} onChange={setProfile} />}
+      {isParent && <ParentDeleteCard onDeleted={onLogout} />}
+    </div>
+  );
+}
+
+/* Parents delete their own login here (password to confirm). It removes
+   only the parent account, its athlete links, messages and notifications --
+   never any athlete data -- so it needs no admin step. */
+function ParentDeleteCard({ onDeleted }: { onDeleted: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const confirmDelete = async () => {
+    setErr('');
+    if (!pw) { setErr('Enter your password to confirm.'); return; }
+    setBusy(true);
+    try {
+      await api.deleteMyParentAccount(pw);
+      onDeleted();
+    } catch (e: any) {
+      setErr(e?.message || 'Could not delete your account.');
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={styles.card}>
+      <h3 className={styles.cardTitle}>Delete account</h3>
+      <p className={styles.cardDesc}>
+        Permanently deletes your parent account, your messages and your links to your athletes.
+        Your athletes&rsquo; profiles and data are not affected. This can&rsquo;t be undone.
+      </p>
+      {!open ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className={styles.btnDanger} onClick={() => setOpen(true)}>Delete my account</button>
+        </div>
+      ) : (
+        <>
+          <div className={styles.row}>
+            <div className={styles.rowLabel}><span className={styles.rowTitle}>Password</span><span className={styles.rowSub}>Enter it to confirm</span></div>
+            <input className={styles.input} type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
+          </div>
+          {err && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{err}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+            <button className={styles.btn} onClick={() => { setOpen(false); setPw(''); setErr(''); }} disabled={busy}>Cancel</button>
+            <button className={styles.btnDanger} onClick={() => void confirmDelete()} disabled={busy}>
+              {busy ? 'Deleting…' : 'Permanently delete'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

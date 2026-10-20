@@ -1,12 +1,13 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request } from '@nestjs/common';
 import { PostsService } from './posts.service';
-import { Roles } from '../auth/jwt.guard';
+import { Roles, ParentAllowed } from '../auth/jwt.guard';
 
 @Controller('posts')
 export class PostsController {
   constructor(private postsService: PostsService) {}
 
   @Get()
+  @ParentAllowed() // parents: announcements addressed to their athletes
   async findAll(
     @Request() req: any,
     @Query('limit') limit?: string,
@@ -15,7 +16,7 @@ export class PostsController {
     /* The viewer comes from the token, never the query string — the service
        uses it to decide which posts this caller is allowed to see at all. */
     return this.postsService.findAll(
-      { id: req.user.sub, role: req.user.role, playerId: req.user.playerId },
+      { id: req.user.sub, role: req.user.role, playerId: req.user.playerId, parentPlayerIds: req.user.parentPlayerIds },
       limit ? parseInt(limit, 10) : 50,
       offset ? parseInt(offset, 10) : 0,
     );

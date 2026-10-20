@@ -20,7 +20,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 /** The one tag that can reach players. */
 const ATHLETES_TAG = 'ATHLETES_ANNOUNCEMENT';
 
-type Viewer = { id: string; role: string; playerId?: string | null };
+type Viewer = { id: string; role: string; playerId?: string | null; parentPlayerIds?: string[] };
 
 @Injectable()
 export class PostsService {
@@ -44,6 +44,23 @@ export class PostsService {
       author: { select: { id: true, email: true, role: true } },
       taggedPlayer: { select: { id: true, firstName: true, lastName: true, positions: true, profilePhoto: true } },
     };
+
+    if (viewer.role === 'PARENT') {
+      const ids = viewer.parentPlayerIds ?? [];
+      if (ids.length === 0) return [];
+      const kids = await this.prisma.player.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, athleteTypes: true },
+      });
+      const candidates = await this.prisma.post.findMany({
+        where: { type: ATHLETES_TAG },
+        orderBy: { createdAt: 'desc' },
+        include,
+      });
+      return candidates
+        .filter((p) => kids.some((k) => this.postTargetsPlayer(p, k)))
+        .slice(offset, offset + limit);
+    }
 
     if (viewer.role !== 'COACH') {
       /* Audience matching can't be expressed as a single SQL predicate (the

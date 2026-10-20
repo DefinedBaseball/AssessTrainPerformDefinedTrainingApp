@@ -122,6 +122,20 @@ export class ParentsService {
     return this.getMine(userId);
   }
 
+  /** Settings -> Delete my account: removes the parent's login and links
+   *  (never any athlete data). Their messages and notifications go too. */
+  async deleteMine(userId: string, password: unknown) {
+    await this.auth.assertOwnPassword(userId, password);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.message.deleteMany({ where: { OR: [{ senderId: userId }, { recipientId: userId }] } });
+      await tx.notification.deleteMany({ where: { recipientId: userId } });
+      await tx.postSeen.deleteMany({ where: { userId } });
+      // Parent, its links and link requests cascade from the user.
+      await tx.user.delete({ where: { id: userId } });
+    });
+    return { ok: true };
+  }
+
   /* ── Public: a parent creates their own account ─────────────────── */
 
   /** Self sign-up from the login page ("Create an account" -> Parent). The

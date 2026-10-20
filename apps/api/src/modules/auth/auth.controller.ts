@@ -241,18 +241,22 @@ export class AuthController {
   @Patch('account')
   @UseGuards(JwtAuthGuard)
   @ViewerAllowed()
+  @ParentAllowed() // Settings -> Account (email + phone only for parents)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update editable account fields (name, phone, position; email for players)' })
   updateAccount(
     @Req() req: AuthenticatedRequest,
     @Body() dto: { name?: string | null; phone?: string | null; position?: string | null; email?: string | null },
   ) {
-    return this.authService.updateAccount(req.user!.sub, dto);
+    /* A parent's name lives on their parent profile, not the account. */
+    const fields = req.user!.role === 'PARENT' ? { email: dto?.email, phone: dto?.phone } : dto;
+    return this.authService.updateAccount(req.user!.sub, fields);
   }
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   @ViewerAllowed()
+  @ParentAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change the current user’s password' })
   changePassword(
@@ -291,6 +295,7 @@ export class AuthController {
   @Post('logout-all')
   @UseGuards(JwtAuthGuard)
   @ViewerAllowed()
+  @ParentAllowed()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Sign the caller out on every device (this one included)' })
   logoutAll(@Req() req: AuthenticatedRequest) {

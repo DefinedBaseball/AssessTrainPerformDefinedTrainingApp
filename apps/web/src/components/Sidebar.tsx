@@ -362,17 +362,13 @@ export function Sidebar() {
                   >
                     {THEME_LABEL[nextTheme]} mode
                   </button>
-                  {/* Parents have no Settings page (their details live on
-                      their profile). */}
-                  {!isParent && (
-                    <Link
-                      href="/settings"
-                      className={styles.moreRow}
-                      onClick={() => setMoreOpen(false)}
-                    >
-                      Settings
-                    </Link>
-                  )}
+                  <Link
+                    href="/settings"
+                    className={styles.moreRow}
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    Settings
+                  </Link>
                   <button
                     type="button"
                     className={styles.moreRow}
@@ -449,9 +445,7 @@ export function Sidebar() {
           </button>
           {/* No Edit Profile button here: athletes edit their profile in
               Settings → My Profile. */}
-          {!isParent && (
-            <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
-          )}
+          <Link href="/settings" className={styles.settingsBtn} aria-label="Settings" title="Settings" />
           <button
             className={styles.logoutBtn}
             onClick={logout}

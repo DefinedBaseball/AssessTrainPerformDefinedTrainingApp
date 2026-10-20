@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { ParentProfile } from '@/lib/api';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
+import { MessagesLauncher } from '@/components/MessagesLauncher';
 import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
@@ -144,7 +145,7 @@ export default function ParentProfilePage() {
     { label: 'First Name', value: profile.firstName, key: 'firstName' },
     { label: 'Last Name', value: profile.lastName, key: 'lastName' },
     { label: 'Birthday', value: formatBirthday(profile.birthDate), key: 'birthDate', type: 'date' },
-    { label: 'Email', value: profile.email, hint: 'Your login — ask your coach to change it.' },
+    { label: 'Email', value: profile.email, hint: 'Your login — change it in Settings.' },
     { label: 'Phone Number', value: profile.phone ?? '', key: 'phone', type: 'tel' },
     { label: 'Hometown', value: profile.hometown ?? '', key: 'hometown' },
   ] : [];
@@ -158,6 +159,7 @@ export default function ParentProfilePage() {
         eyebrow="Parent Profile"
         title={profile?.firstName || 'My'}
         accent={profile?.lastName || 'Profile'}
+        actions={<MessagesLauncher />}
       />
 
       {loadError && (
