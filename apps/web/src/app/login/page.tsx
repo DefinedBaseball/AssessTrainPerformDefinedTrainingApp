@@ -46,12 +46,15 @@ export default function LoginPage() {
     process.env.NODE_ENV !== 'production' ||
     process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === 'true';
 
-  const handleQuickLogin = async (role: 'COACH' | 'PLAYER') => {
+  const handleQuickLogin = async (role: 'COACH' | 'PLAYER' | 'PARENT') => {
     setLoading(true);
     try {
       // Dev-only convenience (tree-shaken out of production builds). Coach
-      // points at the primary admin so the quick-login matches the real roster.
-      const quickEmail = role === 'COACH' ? 'connor@definedbaseball.com' : 'john@playerdev.com';
+      // points at the primary admin so the quick-login matches the real roster;
+      // Parent is the seeded demo parent (Sarah Smith), linked to John Smith.
+      const quickEmail = role === 'COACH'
+        ? 'connor@definedbaseball.com'
+        : role === 'PARENT' ? 'parent@playerdev.com' : 'john@playerdev.com';
       const quickPassword = role === 'COACH' ? 'PasswordCoach' : 'player123';
       await login(quickEmail, quickPassword);
       router.push('/');
@@ -110,6 +113,9 @@ export default function LoginPage() {
               </button>
               <button className="btn btn-outline" onClick={() => handleQuickLogin('PLAYER')} disabled={loading}>
                 Player Demo
+              </button>
+              <button className="btn btn-outline" onClick={() => handleQuickLogin('PARENT')} disabled={loading}>
+                Parent Demo
               </button>
             </div>
           </>

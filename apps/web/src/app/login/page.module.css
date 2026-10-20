@@ -74,13 +74,20 @@
   background: var(--border);
 }
 
+/* Three demo buttons (Coach / Player / Parent): share the row, and wrap
+   onto a second line on very narrow phones instead of overflowing. */
 .quickRow {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .quickRow button {
-  flex: 1;
+  flex: 1 1 100px;
+  min-width: 0;
+  padding-left: 10px;
+  padding-right: 10px;
+  white-space: nowrap;
 }
 
 .signupPrompt {

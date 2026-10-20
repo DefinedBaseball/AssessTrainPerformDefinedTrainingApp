@@ -109,6 +109,26 @@ async function main() {
 
   console.log(`Created ${players.length} players`);
 
+  // ── Demo parent (the login page's "Parent Demo" button, local only) ──
+  // A PARENT login linked to John Smith -- the "Player Demo" athlete.
+  // Upsert so a re-run never duplicates it.
+  const demoParentUser = await prisma.user.upsert({
+    where: { email: 'parent@playerdev.com' },
+    update: {},
+    create: { email: 'parent@playerdev.com', password: hashPassword('player123'), role: 'PARENT', name: 'Sarah Smith' },
+  });
+  const demoParent = await prisma.parent.upsert({
+    where: { userId: demoParentUser.id },
+    update: {},
+    create: { userId: demoParentUser.id, firstName: 'Sarah', lastName: 'Smith', hometown: 'Orlando, FL' },
+  });
+  await prisma.parentLink.upsert({
+    where: { parentId_playerId: { parentId: demoParent.id, playerId: players[0].id } },
+    update: {},
+    create: { parentId: demoParent.id, playerId: players[0].id },
+  });
+  console.log('Demo parent Sarah Smith linked to John Smith');
+
   // ── Jack Setterland (sandbox / permanent player) ──
   // Created once via upsert so re-running this seed keeps his record
   // (and every metric, report, video uploaded to him) intact. The
