@@ -241,7 +241,8 @@ export class TrainingController {
   }
 
   @Get('check-ins/player/:playerId')
-  @Roles('COACH', 'PLAYER')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
   @ApiOperation({ summary: "An athlete's check-in history (ownership-checked)" })
   listPlayerCheckIns(@Request() req: AuthenticatedRequest, @Param('playerId') playerId: string) {
     assertPlayerOwnership(req, playerId);

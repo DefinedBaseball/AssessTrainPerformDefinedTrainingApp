@@ -120,6 +120,20 @@ export function MessagesLauncher() {
      tab pays nothing. `players` is only needed to populate the edit
      modal's tagged-player dropdown, so it's coach-only and lazy too. */
   const [notifTab, setNotifTab] = useState<NotifTab>('notifications');
+  /* Parents: Check-Ins shows a linked athlete's history (picker when they
+     have several). Loaded the first time the tab opens. */
+  const [parentKids, setParentKids] = useState<{ id: string; name: string }[] | null>(null);
+  const [checkInKidId, setCheckInKidId] = useState('');
+  useEffect(() => {
+    if (!isParent || notifTab !== 'checkins' || parentKids !== null) return;
+    api.getMyParentProfile()
+      .then((p) => {
+        const kids = p.athletes.map((a) => ({ id: a.id, name: `${a.firstName} ${a.lastName}`.trim() }));
+        setParentKids(kids);
+        if (kids[0]) setCheckInKidId(kids[0].id);
+      })
+      .catch(() => setParentKids([]));
+  }, [isParent, notifTab, parentKids]);
   const [posts, setPosts] = useState<api.PostItem[]>([]);
   const [postsLoaded, setPostsLoaded] = useState(false);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -422,11 +436,11 @@ export function MessagesLauncher() {
                     Announcements
                   </button>
                 )}
-                {/* Check-Ins — the athlete's own training log. Players only:
-                    a coach reads check-ins through the dashboard's Athlete
-                    Workouts list, which is a roster view rather than a
-                    personal history. */}
-                {!isCoach && playerId && (
+                {/* Check-Ins — the athlete's own training log (parents: their
+                    linked athletes'). Not for coaches: they read check-ins
+                    through the dashboard's Athlete Workouts list, a roster
+                    view rather than a personal history. */}
+                {!isCoach && (playerId || isParent) && (
                   <button
                     type="button"
                     role="tab"
@@ -458,7 +472,32 @@ export function MessagesLauncher() {
             {/* ── Announcements tab ── the feed that used to live on the
                 Dashboard. Coaches get inline edit / delete here; creation
                 still happens from the Dashboard's "+" button. ── */}
-            {notifTab === 'checkins' && playerId ? (
+            {notifTab === 'checkins' && isParent ? (
+              <div className={styles.announceScroll}>
+                {parentKids === null ? (
+                  <div className={styles.notifLoadingState}><span className={styles.spinner} /></div>
+                ) : parentKids.length === 0 ? (
+                  <div className={styles.notifEmpty}>
+                    <p className={styles.notifEmptyTitle}>No athletes linked yet</p>
+                    <p className={styles.notifEmptyHint}>Link an athlete from your profile to see their check-ins.</p>
+                  </div>
+                ) : (
+                  <>
+                    {parentKids.length > 1 && (
+                      <select
+                        className={styles.checkInPicker}
+                        value={checkInKidId}
+                        onChange={(e) => setCheckInKidId(e.target.value)}
+                        aria-label="Athlete"
+                      >
+                        {parentKids.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+                      </select>
+                    )}
+                    {checkInKidId && <CheckInHistory key={checkInKidId} playerId={checkInKidId} />}
+                  </>
+                )}
+              </div>
+            ) : notifTab === 'checkins' && playerId ? (
               <div className={styles.announceScroll}>
                 <CheckInHistory playerId={playerId} />
               </div>

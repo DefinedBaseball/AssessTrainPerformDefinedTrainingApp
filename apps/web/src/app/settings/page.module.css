@@ -814,3 +814,22 @@
   color: #a12a2a !important;
   border-color: rgba(160, 30, 40, 0.5) !important;
 }
+
+/* Phones: a row holding a text field / dropdown stacks the label above it
+   and lets the field fill the width -- the 220px minimum otherwise squeezes
+   the label into a one-word-per-line column. Rows with a plain value or a
+   switch keep their side-by-side layout. */
+@media (max-width: 640px) {
+  .row:has(> .input),
+  .row:has(> .select) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .row > .input,
+  .row > .select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
