@@ -56,6 +56,36 @@ export class ParentsController {
       email: dto.email,
       phone: dto.phone,
       password: dto.password,
+      inviteCode: dto.inviteCode,
+    });
+  }
+
+  @Public()
+  @Get('invite/:code')
+  @Throttle({ short: { limit: 30, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Public: the email + name an invite link pre-fills' })
+  inviteInfo(@Param('code') code: string) {
+    return this.parents.inviteInfo(code);
+  }
+
+  /* ── Coaches: Athlete Hub -> Add Parent ── */
+
+  @Post('invite')
+  @Roles('COACH')
+  @Throttle({ short: { limit: 50, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Coach: email a parent a sign-up link that links the chosen athletes' })
+  invite(@Req() req: AuthenticatedRequest, @Body() dto: Record<string, unknown>) {
+    return this.parents.invite({ email: dto.email, name: dto.name, playerIds: dto.playerIds }, req.user!.sub);
+  }
+
+  @Post('manual')
+  @Roles('COACH')
+  @Throttle({ short: { limit: 50, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Coach: create a parent login by hand and link athletes' })
+  createManual(@Body() dto: Record<string, unknown>) {
+    return this.parents.createManual({
+      firstName: dto.firstName, lastName: dto.lastName, email: dto.email, phone: dto.phone,
+      birthDate: dto.birthDate, hometown: dto.hometown, password: dto.password, playerIds: dto.playerIds,
     });
   }
 

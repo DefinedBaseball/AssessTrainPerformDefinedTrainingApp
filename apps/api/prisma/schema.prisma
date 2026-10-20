@@ -265,6 +265,22 @@ model ParentLink {
   @@index([playerId])
 }
 
+/// A coach's emailed invite to a parent (Athlete Hub -> Add Parent -> Email).
+/// The id is the link's invite code. Signing up through it with the invited
+/// email links the chosen athletes straight away (the coach vouched for them).
+/// Expires after 7 days; a newer invite to the same email replaces it.
+model ParentInvite {
+  id          String    @id
+  email       String
+  name        String?
+  playerIds   String    @default("") // comma-separated athlete ids to link
+  invitedById String?
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  @@index([email])
+}
+
 /// A parent asking to be linked to an athlete whose Parent Email matches
 /// their login email (Link Athlete on the parent profile). An admin allows
 /// (-> ParentLink) or denies it from the notification bell. One row per

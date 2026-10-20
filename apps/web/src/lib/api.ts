@@ -304,11 +304,33 @@ export async function deleteMyParentAccount(password: string) {
   return request<{ ok: boolean }>('/parents/me/delete', { method: 'POST', body: JSON.stringify({ password }) });
 }
 
-/** Public: a parent creates their own account (then signs in). */
+/** Public: a parent creates their own account (then signs in). With a
+ *  coach's invite code, the invited athletes are linked straight away. */
 export async function signupParent(data: {
-  firstName: string; lastName: string; email: string; phone?: string; password: string;
+  firstName: string; lastName: string; email: string; phone?: string; password: string; inviteCode?: string;
 }) {
-  return request<{ ok: boolean }>('/parents/signup', { method: 'POST', body: JSON.stringify(data) });
+  return request<{ ok: boolean; linked?: number }>('/parents/signup', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Public: the email + name a parent invite link pre-fills. */
+export async function getParentInvite(code: string) {
+  return request<{ email: string; name: string | null }>(`/parents/invite/${encodeURIComponent(code)}`);
+}
+
+/** Coach (Athlete Hub -> Add Parent -> Email): send a sign-up link that links
+ *  the chosen athletes. An existing parent login is just linked instead. */
+export async function inviteParent(data: { email: string; name?: string; playerIds: string[] }) {
+  return request<{ emailed: boolean; alreadyParent: boolean; linked: number; to: string }>('/parents/invite', {
+    method: 'POST', body: JSON.stringify(data),
+  });
+}
+
+/** Coach (Athlete Hub -> Add Parent -> Manual): create a parent login. */
+export async function createParentManual(data: {
+  firstName: string; lastName: string; email: string; phone?: string; birthDate?: string;
+  hometown?: string; password: string; playerIds: string[];
+}) {
+  return request<{ ok: boolean; linked: number }>('/parents/manual', { method: 'POST', body: JSON.stringify(data) });
 }
 
 /** Parent: athletes whose Parent Email matches their login ("John S."). */

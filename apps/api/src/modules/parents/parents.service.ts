@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { AuthService } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -40,7 +42,131 @@ export class ParentsService {
     private prisma: PrismaService,
     private auth: AuthService,
     private notifications: NotificationsService,
+    private mail: MailService,
   ) {}
+
+  /** Parent invite links work for 7 days. */
+  static readonly INVITE_TTL_DAYS = 7;
+
+  /** Athlete ids from a request: strings, de-duplicated, capped, and only
+   *  ones that still exist. */
+  private async validPlayerIds(v: unknown): Promise<string[]> {
+    const ids = Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string'))].slice(0, 20) : [];
+    if (ids.length === 0) return [];
+    const found = await this.prisma.player.findMany({ where: { id: { in: ids } }, select: { id: true } });
+    return found.map((p) => p.id);
+  }
+
+  /** Link athletes to a parent, settling any pending Link Athlete request
+   *  for the same pair (a coach linking IS the approval). */
+  private async linkAthletes(parentId: string, playerIds: string[]) {
+    for (const playerId of playerIds) {
+      await this.prisma.parentLink.upsert({
+        where: { parentId_playerId: { parentId, playerId } },
+        create: { parentId, playerId },
+        update: {},
+      });
+      const pending = await this.prisma.parentLinkRequest.findUnique({ where: { parentId_playerId: { parentId, playerId } } });
+      if (pending?.status === 'PENDING') {
+        await this.prisma.parentLinkRequest.update({ where: { id: pending.id }, data: { status: 'APPROVED', decidedAt: new Date() } });
+        await this.notifications.clearParentLinkRequest(pending.id);
+      }
+    }
+  }
+
+  private inviteExpired(createdAt: Date) {
+    return Date.now() - createdAt.getTime() > ParentsService.INVITE_TTL_DAYS * 24 * 60 * 60 * 1000;
+  }
+
+  /* ── Coach (Athlete Hub -> Add Parent) ───────────────────────────── */
+
+  /**
+   * Email: send a sign-up link. Signing up through it with this email links
+   * the chosen athletes straight away. If a parent login with this email
+   * already exists, the athletes are just linked to it (nothing is sent).
+   */
+  async invite(dto: { email?: unknown; name?: unknown; playerIds?: unknown }, invitedById: string) {
+    const email = norm(typeof dto.email === 'string' ? dto.email : '');
+    if (!email || !EMAIL_RE.test(email)) throw new BadRequestException('Enter a valid email address');
+    const name = (typeof dto.name === 'string' ? dto.name.trim() : '').slice(0, 120) || null;
+    const playerIds = await this.validPlayerIds(dto.playerIds);
+
+    const existing = await this.prisma.user.findUnique({ where: { email }, include: { parent: true } });
+    if (existing) {
+      if (existing.role !== 'PARENT' || !existing.parent) {
+        throw new ConflictException('That email already belongs to a coach or athlete login.');
+      }
+      await this.linkAthletes(existing.parent.id, playerIds);
+      return { emailed: false, alreadyParent: true, linked: playerIds.length, to: email };
+    }
+
+    await this.prisma.parentInvite.deleteMany({ where: { email, acceptedAt: null } });
+    const invite = await this.prisma.parentInvite.create({
+      data: { id: randomBytes(16).toString('hex'), email, name, playerIds: playerIds.join(','), invitedById },
+    });
+    const url = `${this.mail.webAppUrl}/register/parent?invite=${invite.id}`;
+    let emailed = false;
+    try {
+      emailed = await this.mail.sendTemplate('PARENT_INVITE', email, { name, url, expiryDays: ParentsService.INVITE_TTL_DAYS });
+    } catch {
+      emailed = false;
+    }
+    return { emailed, alreadyParent: false, linked: 0, to: email };
+  }
+
+  /** Public: what an invite link pre-fills on the sign-up form. */
+  async inviteInfo(code: string) {
+    const invite = await this.prisma.parentInvite.findUnique({ where: { id: code } });
+    if (!invite || invite.acceptedAt || this.inviteExpired(invite.createdAt)) {
+      throw new NotFoundException('This invite link has expired. Ask your coach to send a new one.');
+    }
+    return { email: invite.email, name: invite.name };
+  }
+
+  /** Manual: the coach types the parent's details and sets a password. */
+  async createManual(dto: {
+    firstName?: unknown; lastName?: unknown; email?: unknown; phone?: unknown;
+    birthDate?: unknown; hometown?: unknown; password?: unknown; playerIds?: unknown;
+  }) {
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const firstName = str(dto.firstName, 80);
+    const lastName = str(dto.lastName, 80);
+    const email = norm(str(dto.email, 200));
+    if (!firstName || !lastName) throw new BadRequestException('First and last name are required');
+    if (!email || !EMAIL_RE.test(email)) throw new BadRequestException('Enter a valid email address');
+    const birthDate = str(dto.birthDate, 10) || null;
+    if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) throw new BadRequestException('Birthday must be a date');
+    const password = typeof dto.password === 'string' ? dto.password : '';
+    if (!password.trim()) throw new BadRequestException('Create a password for the parent');
+    const hashed = await this.auth.hashNewPassword(password);
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException(existing.role === 'PARENT'
+        ? 'That parent already has a login. Use Email to link more athletes to it.'
+        : 'That email already belongs to a coach or athlete login.');
+    }
+    const playerIds = await this.validPlayerIds(dto.playerIds);
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: hashed,
+        role: 'PARENT',
+        name: `${firstName} ${lastName}`,
+        phone: str(dto.phone, 40) || null,
+        parent: {
+          create: {
+            firstName,
+            lastName,
+            birthDate,
+            hometown: str(dto.hometown, 120) || null,
+            links: { create: playerIds.map((playerId) => ({ playerId })) },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    return { ok: true, userId: user.id, linked: playerIds.length };
+  }
 
   private shape(parent: {
     id: string; firstName: string; lastName: string; birthDate: string | null; hometown: string | null;
@@ -141,7 +267,7 @@ export class ParentsService {
   /** Self sign-up from the login page ("Create an account" -> Parent). The
    *  account is ACTIVE straight away: on its own it sees only its own
    *  profile. Athletes are added later through Link Athlete + admin OK. */
-  async signup(dto: { firstName?: unknown; lastName?: unknown; email?: unknown; phone?: unknown; password?: unknown }) {
+  async signup(dto: { firstName?: unknown; lastName?: unknown; email?: unknown; phone?: unknown; password?: unknown; inviteCode?: unknown }) {
     const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
     const firstName = str(dto.firstName, 80);
     const lastName = str(dto.lastName, 80);
@@ -154,7 +280,7 @@ export class ParentsService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('An account with this email already exists. Sign in instead.');
 
-    await this.prisma.user.create({
+    const created = await this.prisma.user.create({
       data: {
         email,
         password: hashed,
@@ -163,8 +289,23 @@ export class ParentsService {
         phone: str(dto.phone, 40) || null,
         parent: { create: { firstName, lastName } },
       },
+      select: { parent: { select: { id: true } } },
     });
-    return { ok: true };
+
+    /* A coach's invite link: linked straight away, but only when they
+       signed up with the email it was sent to. */
+    let linked = 0;
+    const code = typeof dto.inviteCode === 'string' ? dto.inviteCode : '';
+    if (code && created.parent) {
+      const invite = await this.prisma.parentInvite.findUnique({ where: { id: code } });
+      if (invite && !invite.acceptedAt && !this.inviteExpired(invite.createdAt) && norm(invite.email) === email) {
+        const ids = await this.validPlayerIds(invite.playerIds.split(',').filter(Boolean));
+        await this.linkAthletes(created.parent.id, ids);
+        linked = ids.length;
+        await this.prisma.parentInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+      }
+    }
+    return { ok: true, linked };
   }
 
   /* ── Parent: Link Athlete ────────────────────────────────────────── */

@@ -21,6 +21,7 @@ export type EmailKey =
   | 'ATHLETE_INVITE'
   | 'COACH_INVITE'
   | 'REGISTRATION_INVITE'
+  | 'PARENT_INVITE'
   | 'PASSWORD_RESET'
   | 'COACH_REVIEW'
   | 'PROFILE_REMINDER'
@@ -145,6 +146,20 @@ export const EMAIL_DEFS: EmailDef[] = [
       heading: 'Please complete your player profile',
       body:
         'Your coach at {academy} has asked you to set up your player profile. It takes a couple of minutes, and it is what your reports, video and training plan get built on.',
+    },
+    note: (v) => `This link is active for ${v.expiryDays ?? 7} days. If it expires, ask your coach to send a new one.`,
+  },
+  {
+    key: 'PARENT_INVITE',
+    label: 'Parent invite',
+    when: 'A coach invites a parent from the Athlete Hub (Add Parent → Email)',
+    button: 'Create Your Parent Account',
+    placeholders: ['name', 'academy'],
+    defaults: {
+      subject: 'You have been invited to {academy}',
+      heading: 'Hi {name}',
+      body:
+        "Your athlete's coach at {academy} has invited you to create a parent account. You'll be able to follow your athlete's reports, videos and training schedule, and message their coaches.",
     },
     note: (v) => `This link is active for ${v.expiryDays ?? 7} days. If it expires, ask your coach to send a new one.`,
   },
