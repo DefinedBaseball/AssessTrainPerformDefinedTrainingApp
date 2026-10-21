@@ -29,6 +29,25 @@ export default function ParentRegisterPage() {
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  /* ?invite= from a coach's Add Parent email: pre-fills the email + name,
+     and signing up with that email links the athletes the coach picked. */
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteError, setInviteError] = useState('');
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('invite') || '';
+    if (!code) return;
+    setInviteCode(code);
+    api.getParentInvite(code)
+      .then((inv) => {
+        setInviteEmail(inv.email);
+        setEmail(inv.email);
+        const [first, ...rest] = (inv.name || '').trim().split(/\s+/);
+        if (first) setFirstName(first);
+        if (rest.length) setLastName(rest.join(' '));
+      })
+      .catch((e: any) => setInviteError(e?.message || 'This invite link has expired.'));
+  }, []);
 
   // Already signed in -> nothing to create.
   useEffect(() => {
@@ -52,6 +71,7 @@ export default function ParentRegisterPage() {
         email: email.trim(),
         phone: phone.trim() || undefined,
         password,
+        inviteCode: inviteCode || undefined,
       });
       await login(email.trim(), password);
       router.push('/parent');
@@ -73,8 +93,11 @@ export default function ParentRegisterPage() {
         <AccountTypeToggle active="parent" />
         <h1 className={styles.title}>Create your parent account</h1>
         <p className={styles.subtitle}>
-          After you sign in, use Link Athlete to find your athlete. A coach approves each link.
+          {inviteEmail
+            ? 'Your coach invited you. Sign up with this email and your athlete is linked to your account straight away.'
+            : 'After you sign in, use Link Athlete to find your athlete. A coach approves each link.'}
         </p>
+        {inviteError && <div className={styles.error} style={{ marginBottom: 14 }}>{inviteError} You can still create an account below.</div>}
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.sectionLabel}>Parent Information</div>

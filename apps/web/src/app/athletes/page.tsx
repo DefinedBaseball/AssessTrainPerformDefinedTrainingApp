@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { AddAthleteModal } from '@/components/AddAthleteModal';
+import { AddParentModal } from '@/components/AddParentModal';
 import { getAgeFromBirthDate } from './[id]/helpers';
 import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
 import styles from './page.module.css';
@@ -29,6 +30,8 @@ export default function AthletesPage() {
   const router = useRouter();
   const { user, isCoach, isViewer, isAdmin, isLoading } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
+  /* "+ Add Parent" (Email / Manual), beside "+ Add Athlete". */
+  const [addParentOpen, setAddParentOpen] = useState(false);
   /* Admin-only permanent delete (trash button beside Lock). */
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [search, setSearch] = useState('');
@@ -171,6 +174,17 @@ export default function AthletesPage() {
             >
               + Add Athlete
             </button>
+            {/* Viewers can't add anyone (the API refuses them too). */}
+            {!isViewer && (
+              <button
+                type="button"
+                className={`btn btn-outline ${theme.field} ${theme.firm}`}
+                style={{ whiteSpace: 'nowrap' }}
+                onClick={() => setAddParentOpen(true)}
+              >
+                + Add Parent
+              </button>
+            )}
           </div>
         ) : undefined}
       />
@@ -383,6 +397,12 @@ export default function AthletesPage() {
             setPlayers(list => list.filter(x => x.id !== gone));
             setDeleteTarget(null);
           }}
+        />
+      )}
+      {addParentOpen && (
+        <AddParentModal
+          athletes={players.filter(p => !api.isPlayerLocked(p))}
+          onClose={() => setAddParentOpen(false)}
         />
       )}
       {addOpen && <AddAthleteModal onClose={() => setAddOpen(false)} onSent={() => void pending.loadInvites()} />}
