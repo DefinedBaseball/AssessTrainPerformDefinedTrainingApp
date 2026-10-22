@@ -1,0 +1,141 @@
+/* Weight history dropdown (portaled to <body>, pinned beside its trigger).
+   Solid plain-bubble surface in both themes so it reads over anything. */
+.panel {
+  position: fixed;
+  /* Above modal windows (Edit Profile is a 1000-layer overlay). */
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #1e1f23 0%, #17181b 100%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  font-family: var(--font-body, inherit);
+  text-align: left;
+}
+:global([data-theme="light"]) .panel {
+  border-color: rgba(0, 0, 0, 0.14);
+  background: var(--lt-plain, linear-gradient(180deg, #cfcfcf 0%, #cdcdcd 100%));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+  color: #111214;
+}
+
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sub { font-size: 11px; color: var(--text-muted); }
+:global([data-theme="light"]) .sub { color: #45464b; }
+
+.newEntry,
+.save,
+.cancel {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.newEntry {
+  align-self: stretch;
+  border: 1px dashed currentColor;
+  background: transparent;
+  color: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.newEntry:hover { background: rgba(127, 127, 127, 0.14); }
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(127, 127, 127, 0.12);
+}
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+:global([data-theme="light"]) .field span { color: #45464b; }
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  background: rgba(0, 0, 0, 0.18);
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  color-scheme: dark;
+}
+:global([data-theme="light"]) .field input { background: rgba(255, 255, 255, 0.6); color-scheme: light; }
+/* iOS zooms into inputs under 16px; 12pt === 16px and isn't rem-scaled. */
+@media (pointer: coarse) { .field input { font-size: 12pt; } }
+.formBtns { grid-column: 1 / -1; display: flex; gap: 8px; }
+.save { border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); }
+:global([data-theme="light"]) .save { border-color: #16171a; background: #16171a; color: #f6f5f1; }
+.save:disabled { opacity: 0.6; cursor: default; }
+.cancel { border: 1px solid rgba(127, 127, 127, 0.45); background: transparent; color: inherit; }
+
+.error { font-size: 12px; color: var(--red, #dd6974); }
+
+.list { display: flex; flex-direction: column; }
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 3.4em 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.22);
+  font-size: 13px;
+}
+.row:last-child { border-bottom: none; }
+.rowLatest .lbs { font-weight: 800; }
+.date { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:global([data-theme="light"]) .date { color: #34353a; }
+.lbs { font-weight: 600; white-space: nowrap; }
+.diff { font-size: 11px; color: var(--text-muted); text-align: right; white-space: nowrap; }
+:global([data-theme="light"]) .diff { color: #45464b; }
+.remove {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.remove:hover { opacity: 1; background: rgba(127, 127, 127, 0.18); }
+.rowConfirm { grid-template-columns: minmax(0, 1fr) auto; font-size: 12px; }
+.confirmBtns { display: inline-flex; gap: 6px; }
+.confirmBtns button {
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(127, 127, 127, 0.45);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.confirmBtns button:first-child { border-color: var(--red, #dd6974); color: var(--red, #dd6974); }
+.empty { padding: 10px 4px; font-size: 12px; color: var(--text-muted); }

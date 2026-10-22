@@ -1638,3 +1638,31 @@
 [data-theme="light"] .page .mlbLayer :is(.mlbFilters, .playerCard, .classCard, .drillCard, .docRow, .empty)::before {
   background: none;
 }
+
+/* ── Compact banner (player app) ──
+   One thin line: the icon chip with the title beside it, no eyebrow or
+   subtitle; the readout / actions stay on the right. Kept as a row on
+   phones too (the full banner stacks there). */
+/* Player title bar height -- shared with the athlete's own profile name
+   bubble (athletes/[id] .commandDeckSelf), so the two must change together.
+   15% taller than the first version of this bar: height is not rem-scaled
+   by the build, so it mixes rem (tracks the fluid type) with px (the fixed
+   44px icon chip) to land at +15% across desktop widths; phones below. */
+.hero.heroCompact {
+  box-sizing: border-box;
+  height: calc(2.25rem + 51.4px);
+  align-items: center;
+  padding: 0 24px;
+}
+.heroCompactRow { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.heroCompact .heroChip { margin-bottom: 0; }
+.heroCompact .heroTitle { margin: 0; font-size: 34px; line-height: 1.05; }
+.heroCompact .heroWatermark { width: 140px; height: 140px; }
+@media (max-width: 768px) {
+  .hero.heroCompact { flex-direction: row; align-items: center; gap: 12px; height: calc(2.25rem + 41.5px); padding: 0 16px; border-radius: 16px; }
+  .heroCompact .heroChip { width: 38px; height: 38px; border-radius: 11px; }
+  .heroCompact .heroChip svg { width: 20px; height: 20px; }
+  .heroCompact .heroTitle { font-size: 20px; }
+  .heroCompact .heroWatermark { width: 100px; height: 100px; right: 2%; }
+  .heroCompact .heroSide { flex-shrink: 1; }
+}

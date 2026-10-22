@@ -35,6 +35,7 @@ import dashTheme from '@/app/dashTheme.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
 import { SeasonStatsSection } from '../components/SeasonStatsSection';
+import { WEIGHT_CHANGED_EVENT, type WeightChangedDetail } from '@/components/WeightTracker';
 
 /* ═══════════════════════════════════════════
    SCALE HELPERS (20 → 80 scouting)
@@ -133,11 +134,23 @@ interface TrendPoint { label: string; value: number }
 /** Bin a metric's raw progress points into one daily average so the line
  *  reads as historical session averages rather than every individual rep.
  *  Falls back to the most-recent N points so the X-axis stays scannable. */
+/** progressData / topMetrics key the weigh-ins are merged under. */
+const WEIGHT_TREND_KEY = 'body_weight_lbs';
+
 function buildTrendPoints(raw: { value: number; recordedAt: string }[] | undefined, max = 12): TrendPoint[] {
   if (!raw || raw.length === 0) return [];
+  /* Points group by the viewer's LOCAL day. A plain "YYYY-MM-DD" (weigh-ins)
+     is already a local day; a timestamp (report metrics) uses its local
+     date. Labels parse the day as local too -- new Date("YYYY-MM-DD") is
+     UTC midnight, which shows the day before anywhere west of UTC. */
+  const localDay = (at: string) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(at)) return at;
+    const t = new Date(at);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  };
   const byDay: Record<string, { sum: number; count: number }> = {};
   for (const d of raw) {
-    const day = d.recordedAt.slice(0, 10);
+    const day = localDay(d.recordedAt);
     const cur = byDay[day] ?? { sum: 0, count: 0 };
     cur.sum += d.value;
     cur.count += 1;
@@ -146,10 +159,13 @@ function buildTrendPoints(raw: { value: number; recordedAt: string }[] | undefin
   return Object.entries(byDay)
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-max)
-    .map(([day, agg]) => ({
-      label: new Date(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: Math.round((agg.sum / agg.count) * 100) / 100,
-    }));
+    .map(([day, agg]) => {
+      const [y, m, dd] = day.split('-').map(Number);
+      return {
+        label: new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: Math.round((agg.sum / agg.count) * 100) / 100,
+      };
+    });
 }
 
 
@@ -1127,6 +1143,16 @@ function getTrendCategoriesForPlayer(
 
   const categories: TrendCategory[] = [];
 
+  /* ── Weight (always, every athlete) ── one point per weigh-in day,
+     fed from the weight history (not report metrics). */
+  categories.push({
+    label: 'Weight',
+    accent: '#94A3B8',
+    cards: [
+      { key: WEIGHT_TREND_KEY, label: 'Body Weight', unit: 'lb', accent: '#94A3B8' },
+    ],
+  });
+
   /* ── Hitting (always, every athlete) ──
      Barrel % and Time to Contact retired from this list per the
      latest spec; Squared Up % remains as the new addition. */
@@ -1597,10 +1623,34 @@ export function PlayerSummaryTab({
 
   /* Merge backend-served progress data with the synthetic per-pitch-type
      rollups so Metric Trend's `populated` filter sees both sources. */
+  /* Weigh-ins for the Weight trend (newest 50), refreshed when a weigh-in
+     is added or removed anywhere on the page. */
+  const [weighIns, setWeighIns] = useState<api.WeightEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      api.getWeightEntries(player.id, 50)
+        .then((list) => { if (!cancelled) setWeighIns(list); })
+        .catch(() => { /* trend just stays empty */ });
+    };
+    load();
+    const onChange = (e: Event) => {
+      if ((e as CustomEvent<WeightChangedDetail>).detail?.playerId === player.id) load();
+    };
+    window.addEventListener(WEIGHT_CHANGED_EVENT, onChange);
+    return () => { cancelled = true; window.removeEventListener(WEIGHT_CHANGED_EVENT, onChange); };
+  }, [player.id]);
+
   const mergedProgressData = useMemo(() => ({
     ...progressData,
     ...pitchProgressData,
-  }), [progressData, pitchProgressData]);
+    [WEIGHT_TREND_KEY]: weighIns.map((w) => ({ value: w.weightLbs, recordedAt: w.recordedOn })),
+  }), [progressData, pitchProgressData, weighIns]);
+
+  /* Latest reading for the Weight card's headline number. */
+  const trendTopMetrics = useMemo(() => (weighIns[0]
+    ? { ...topMetrics, [WEIGHT_TREND_KEY]: { value: weighIns[0].weightLbs, unit: 'lb', recordedAt: weighIns[0].recordedOn } }
+    : topMetrics), [topMetrics, weighIns]);
 
 
   /* ── Development snapshot — Next Steps notes per Tool Grades section ──
@@ -1837,7 +1887,7 @@ export function PlayerSummaryTab({
         <TrendsSection
           player={player}
           progressData={mergedProgressData}
-          topMetrics={topMetrics}
+          topMetrics={trendTopMetrics}
         />
       ) : (
       <>

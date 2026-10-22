@@ -223,6 +223,7 @@ model Player {
   leaderboardEntries LeaderboardEntry[]
   scheduledDrills    ScheduledDrill[]
   checkIns           DrillCheckIn[]
+  weightEntries      WeightEntry[]
 
   uploadedVideos Video[] @relation("UploadedBy")
   posts          Post[]
@@ -725,6 +726,23 @@ model DrillCheckIn {
   /// One check-in per athlete per day; the upsert key.
   @@unique([playerId, date])
   @@index([date])
+}
+
+/// One weigh-in for an athlete (weight tracked over time). Player.weightLbs
+/// always mirrors the newest entry, so everything that shows a single
+/// weight (profile, Athlete Hub, PDFs) keeps working unchanged.
+model WeightEntry {
+  id          String   @id @default(uuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  weightLbs   Int
+  /// The weigh-in date, "YYYY-MM-DD".
+  recordedOn  String
+  /// Who typed it in (coach or the athlete), when known.
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([playerId, recordedOn])
 }
 
 model ScheduledDrill {

@@ -423,6 +423,77 @@ export class PlayersService {
     return { hiddenTabs: clean };
   }
 
+  /* ── Weight history ────────────────────────────────────────────
+     Every weigh-in is its own entry; Player.weightLbs mirrors the newest
+     (by date, then entry time) so single-weight displays stay correct. */
+
+  /** Newest first. An athlete who only ever had the old single weight
+   *  gets it carried over as their first entry (dated when their profile
+   *  was last updated), so the history never starts empty. */
+  async listWeights(playerId: string, limit = 10) {
+    const player = await this.prisma.player.findUnique({
+      where: { id: playerId },
+      select: { id: true, weightLbs: true, updatedAt: true },
+    });
+    if (!player) throw new NotFoundException('Player not found');
+    const take = Math.min(Math.max(Number(limit) || 10, 1), 200);
+    let entries = await this.prisma.weightEntry.findMany({
+      where: { playerId },
+      orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }],
+      take,
+    });
+    if (entries.length === 0 && player.weightLbs != null) {
+      await this.prisma.weightEntry.create({
+        data: { playerId, weightLbs: player.weightLbs, recordedOn: player.updatedAt.toISOString().slice(0, 10) },
+      });
+      entries = await this.prisma.weightEntry.findMany({
+        where: { playerId },
+        orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }],
+        take,
+      });
+    }
+    return entries.map((e) => ({ id: e.id, weightLbs: e.weightLbs, recordedOn: e.recordedOn, createdAt: e.createdAt }));
+  }
+
+  async addWeight(playerId: string, dto: { weightLbs?: unknown; recordedOn?: unknown }, createdById?: string) {
+    const weight = Math.round(Number(dto?.weightLbs));
+    if (!Number.isFinite(weight) || weight < 50 || weight > 500) {
+      throw new BadRequestException('Enter a weight between 50 and 500 lb');
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const day = typeof dto?.recordedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dto.recordedOn) ? dto.recordedOn : today;
+    /* A day of slack: the server runs on UTC, which is already tomorrow
+       during a US evening. */
+    const latestAllowed = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    if (day > latestAllowed) throw new BadRequestException('A weigh-in can’t be in the future');
+    const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Player not found');
+    // Carry an old single weight over first, so the new entry isn't the only one.
+    await this.listWeights(playerId, 1);
+    await this.prisma.weightEntry.create({
+      data: { playerId, weightLbs: weight, recordedOn: day, createdById: createdById ?? null },
+    });
+    await this.syncLatestWeight(playerId);
+    return this.listWeights(playerId);
+  }
+
+  async deleteWeight(playerId: string, entryId: string) {
+    const entry = await this.prisma.weightEntry.findUnique({ where: { id: entryId } });
+    if (!entry || entry.playerId !== playerId) throw new NotFoundException('Weigh-in not found');
+    await this.prisma.weightEntry.delete({ where: { id: entryId } });
+    await this.syncLatestWeight(playerId);
+    return this.listWeights(playerId);
+  }
+
+  /** Player.weightLbs = the newest weigh-in (null when none are left). */
+  private async syncLatestWeight(playerId: string) {
+    const latest = await this.prisma.weightEntry.findFirst({
+      where: { playerId },
+      orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }],
+    });
+    await this.prisma.player.update({ where: { id: playerId }, data: { weightLbs: latest?.weightLbs ?? null } });
+  }
+
   /**
    * Extra Training Calendar areas switched on for this athlete (Infield,
    * Outfield, Catching, Physical). Unknown keys are dropped, like hiddenTabs.

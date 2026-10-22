@@ -222,6 +222,34 @@ export class PlayersController {
     return this.playersService.setHiddenTabs(id, dto?.tabs);
   }
 
+  /* ── Weight history ── coaches and the athlete add / remove weigh-ins;
+     linked parents can read them. View-only coaches are read-only (the
+     guard blocks their writes). */
+  @Get(':id/weights')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed()
+  @ApiOperation({ summary: "An athlete's weigh-ins, newest first (ownership-checked)" })
+  listWeights(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Query('limit') limit?: string) {
+    assertPlayerOwnership(req, id);
+    return this.playersService.listWeights(id, limit ? Number(limit) : 10);
+  }
+
+  @Post(':id/weights')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Add a weigh-in (coach, or the athlete for themself)' })
+  addWeight(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { weightLbs?: number; recordedOn?: string }) {
+    assertPlayerOwnership(req, id);
+    return this.playersService.addWeight(id, dto, req.user?.sub);
+  }
+
+  @Delete(':id/weights/:entryId')
+  @Roles('COACH', 'PLAYER')
+  @ApiOperation({ summary: 'Remove a weigh-in (coach, or the athlete for themself)' })
+  deleteWeight(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Param('entryId') entryId: string) {
+    assertPlayerOwnership(req, id);
+    return this.playersService.deleteWeight(id, entryId);
+  }
+
   @Patch(':id/calendar-tabs')
   @Roles('COACH')
   @ApiOperation({ summary: "Set which extra Training Calendar areas are on for an athlete (COACH only)" })

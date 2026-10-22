@@ -1629,3 +1629,61 @@
     position: relative;
   }
 }
+
+/* The athlete's own profile: the name bubble matches the player app's
+   title bars exactly (education/page.module.css .heroCompact -- keep the
+   two heights in step). Content centred vertically in the fixed height. */
+.commandDeck.commandDeckSelf {
+  box-sizing: border-box;
+  height: calc(2.25rem + 51.4px);
+  /* The name keeps a fixed top inset; the info line (POS / HT / WT ...)
+     then centres itself in the space between the name and the bubble's
+     bottom edge (auto margins in the stretched identity column). */
+  padding-top: 16px;
+  padding-bottom: 0;
+  align-content: stretch;
+}
+.commandDeckSelf .identityBlock { height: 100%; }
+.commandDeckSelf .telemetryStrip { margin-top: auto; margin-bottom: auto; }
+@media (max-width: 768px) {
+  .commandDeck.commandDeckSelf { height: calc(2.25rem + 41.5px); }
+}
+/* The athlete's own profile: POS beside the name (same type as the info
+   line), so the line under the name is personal info only. */
+.namePos {
+  flex-shrink: 0;
+  border-bottom: none;
+  align-self: center;
+  /* Doubles the space after the name: the row's 14px gap + 14px more
+     (both rem-scaled, so it stays double at every width). */
+  margin-left: 14px;
+  /* ~61% of the name's FINAL size (85%, then 15% smaller twice; --name-px
+     is set by the name auto-fit in page.tsx); the fallback mirrors .megaName. */
+  font-size: calc(var(--name-px, clamp(30px, 3.6vw, 46px)) * 0.6141);
+  line-height: 0.94;
+}
+.namePos span,
+.namePos b { font-size: inherit; line-height: inherit; }
+.namePos span { gap: 0.3em; }
+/* Own profile: the name stays on ONE line (the fixed-height bubble has no
+   room for a second); the auto-fit shrinks it, and POS with it, instead. */
+.commandDeckSelf .megaName { white-space: nowrap; }
+/* An athlete with no commitment has an empty right-hand cluster; on a phone
+   it still wrapped to its own line and pushed the info line off-centre. */
+.commandDeckSelf .nameRow > div:empty { display: none !important; } /* beats its inline display:flex */
+/* WT readout = a button opening the weight history: looks like the other
+   readouts (inherits the strip's type), with a hover underline cue. */
+.wtTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.wtTrigger:hover b,
+.wtTrigger:focus-visible b { text-decoration: underline; text-underline-offset: 3px; }

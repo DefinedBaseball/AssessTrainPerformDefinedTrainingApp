@@ -59,6 +59,7 @@ const TAB_TO_REPORT_TYPE: Record<string, string> = Object.fromEntries(
 import type { ReportSummary, TabProps } from './helpers';
 import { usePlayerProfileData } from './usePlayerProfileData';
 import { AthleteSwitcher } from './components/AthleteSwitcher';
+import { WeightTracker, useLiveWeight } from '@/components/WeightTracker';
 
 /* ── Tab icons (inline SVG, stroke-based) ── */
 const iconProps = {
@@ -397,6 +398,10 @@ export default function PlayerProfilePage() {
       const base = parseFloat(getComputedStyle(el).fontSize);
       const min = base / 2;
       let size = base;
+      /* The position beside the name is sized off the name (--name-px), so
+         it shrinks in step with it and the two fit on the line together. */
+      const setNamePx = (px: number) => el.parentElement?.style.setProperty('--name-px', `${px}px`);
+      setNamePx(base);
       const overflowing = () => {
         const lineH = parseFloat(getComputedStyle(el).lineHeight) || size;
         return el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().height > lineH * 2.2;
@@ -404,12 +409,16 @@ export default function PlayerProfilePage() {
       while (size > min && overflowing()) {
         size -= 1;
         el.style.fontSize = `${size}px`;
+        setNamePx(size);
       }
     };
     fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
   }, [player?.firstName, player?.lastName, player?.profilePhoto]);
+
+  /* WT in the name bubble follows weigh-ins added anywhere (no reload). */
+  const liveWeight = useLiveWeight(player?.id, player?.weightLbs);
 
   const tabParamDoneRef = useRef<string | null>(null);
   useEffect(() => {
@@ -708,11 +717,17 @@ export default function PlayerProfilePage() {
             })()
           : null;
 
+        const positionsText = player.positions
+          ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ')
+          : '—';
+
         return (
           <div className={styles.heroOuter}>
             {/* "New Report" has moved into the Reports dropdown on each tab. */}
 
-            <div className={styles.commandDeck}>
+            {/* The athlete's own profile: the name bubble is the same height as
+                the player app's title bars (Dashboard, Training, ...). */}
+            <div className={`${styles.commandDeck} ${!isCoach && !isParent ? styles.commandDeckSelf : ''}`}>
               {/* LEFT: identity block */}
               <div className={styles.identityBlock}>
                 {/* TOP LINE = player name + College Commitment, side by side.
@@ -741,6 +756,11 @@ export default function PlayerProfilePage() {
                       {player.firstName}{' '}
                       <span className={styles.lastName}>{player.lastName}</span>
                     </h1>
+                    {/* Position sits beside the name (no label), leaving only
+                        personal info on the line below. */}
+                    <div className={`${styles.telemetryStrip} ${styles.namePos}`}>
+                      <span><b>{positionsText}</b></span>
+                    </div>
                   </div>
                   {/* Right-side cluster — Commitment + Gauge grouped
                       together. Order is Commitment (left) → Gauge
@@ -917,9 +937,19 @@ export default function PlayerProfilePage() {
                   className={styles.telemetryStrip}
                   style={{ borderBottom: 'none', paddingBottom: 0 }}
                 >
-                  <span>POS <b>{player.positions ? player.positions.split(',').map(p => p.trim()).filter(Boolean).join(', ') : '—'}</b></span>
                   <span>HT <b>{formatHeight(player.heightInches)}</b></span>
-                  <span>WT <b>{player.weightLbs ? `${player.weightLbs} lb` : '—'}</b></span>
+                  {/* WT opens the weight history (+ New Entry for coaches and
+                      the athlete; parents / view-only coaches just look). */}
+                  <span>
+                    <WeightTracker
+                      playerId={player.id}
+                      canEdit={!isParent && !isViewer && (isCoach || user?.playerId === player.id)}
+                      triggerClassName={styles.wtTrigger}
+                      triggerTitle="Weight history"
+                    >
+                      WT <b>{liveWeight != null ? `${liveWeight} lb` : '—'}</b>
+                    </WeightTracker>
+                  </span>
                   <span>B/T <b>{(player.bats || '—')}/{(player.throws || '—')}</b></span>
                   <span>AGE <b>{getAge(player.birthDate)}</b></span>
                   <span>GRAD <b>{api.formatGradYear(player.gradYear)}</b></span>

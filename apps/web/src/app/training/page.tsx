@@ -1587,21 +1587,20 @@ export default function TrainingPage() {
       <EduHeader
         tone="light"
         chipInline
+        /* Players: the thin one-line "My Training Calendar" bar. */
+        compact={!isCoach && !isParent}
         icon={<IconAttendance />}
         eyebrow="Training Calendar"
         title={
           isCoach || isParent
             ? (selectedPlayer ? selectedPlayer.firstName : 'Select')
-            : 'My'
+            : 'My Training'
         }
         accent={
           isCoach || isParent
             ? (selectedPlayer ? selectedPlayer.lastName : 'Athlete')
-            : 'Training'
+            : 'Calendar'
         }
-        subtitle={isCoach || isParent
-          ? undefined
-          : 'Your weekly drill schedule and training history.'}
         readout={todayDateStr}
         readoutClassName={theme.firm}
       />

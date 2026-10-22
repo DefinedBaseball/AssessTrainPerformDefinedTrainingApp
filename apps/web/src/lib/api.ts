@@ -794,6 +794,29 @@ export async function setPlayerSeasonStats(playerId: string, stats: unknown) {
 }
 
 /** Save which profile tabs are hidden on an athlete's profile (coach-only). */
+/** One weigh-in (weight tracked over time). recordedOn = "YYYY-MM-DD". */
+export interface WeightEntry {
+  id: string;
+  weightLbs: number;
+  recordedOn: string;
+  createdAt: string;
+}
+
+/** An athlete's weigh-ins, newest first. */
+export async function getWeightEntries(playerId: string, limit = 10) {
+  return request<WeightEntry[]>(`/players/${playerId}/weights?limit=${limit}`);
+}
+
+/** Add a weigh-in (coach, or the athlete for themself); returns the newest 10. */
+export async function addWeightEntry(playerId: string, data: { weightLbs: number; recordedOn: string }) {
+  return request<WeightEntry[]>(`/players/${playerId}/weights`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** Remove a weigh-in; returns the newest 10. */
+export async function deleteWeightEntry(playerId: string, entryId: string) {
+  return request<WeightEntry[]>(`/players/${playerId}/weights/${entryId}`, { method: 'DELETE' });
+}
+
 /** Coach: switch extra Training Calendar areas on for an athlete. */
 export async function setPlayerCalendarTabs(playerId: string, tabs: string[]) {
   return request<{ calendarTabs: string[] }>(`/players/${playerId}/calendar-tabs`, {

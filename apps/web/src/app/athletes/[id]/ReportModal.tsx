@@ -41,6 +41,7 @@ import {
   normalizePositionsForSave,
 } from './helpers';
 import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
+import { WeightTracker, useLiveWeight } from '@/components/WeightTracker';
 
 /* ── Constants ── */
 
@@ -378,7 +379,9 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
   /* Athlete Type is coach-set; an athlete sees their tags but cannot edit
      them. See the chip row below and the save payload in the SUMMARY
      branch of the submit. */
-  const { isCoach: canEditAthleteType } = useAuth();
+  const { isCoach: canEditAthleteType, isViewer } = useAuth();
+  /* Weight is a history now: the field opens the weigh-in list (+ New Entry). */
+  const liveWeight = useLiveWeight(player.id, player.weightLbs);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const update = (fields: Partial<SummaryData>) => setData({ ...data, ...fields });
   const togglePosition = (pos: string) => {
@@ -572,7 +575,19 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
           </div>
           <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>Weight (lbs)</label>
-            <input type="number" className={rs.summaryInput} value={data.weight} onChange={e => update({ weight: e.target.value })} placeholder="185" />
+            {/* Each weigh-in is its own dated entry (saved straight away, not
+                with the form); this opens the last 10 + New Entry. */}
+            <WeightTracker
+              playerId={player.id}
+              canEdit={!isViewer}
+              triggerClassName={rs.summarySelect}
+              triggerTitle="Weight history: last 10 weigh-ins and + New Entry"
+            >
+              {/* summarySelect draws the dropdown arrow itself. */}
+              <span style={{ display: 'block', textAlign: 'left' }}>
+                {liveWeight != null ? `${liveWeight} lb` : 'Add a weigh-in'}
+              </span>
+            </WeightTracker>
           </div>
         </div>
         <div className={rs.summaryGrid}>
@@ -2985,7 +3000,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
              a self-service endpoint is added later. */
           ...(isCoachViewer ? { athleteTypes: summaryData.athleteTypes.join(',') } : null),
           bats: summaryData.bats || null, throws: summaryData.throws || null,
-          heightInches: heightToInches(summaryData.height), weightLbs: summaryData.weight ? parseInt(summaryData.weight) : null,
+          heightInches: heightToInches(summaryData.height),
           gradYear: summaryData.gradYear ? parseInt(summaryData.gradYear) : null,
           birthDate: summaryData.birthDate || null, highSchool: summaryData.highSchool || null,
           college: summaryData.college.trim() || null,
