@@ -1687,3 +1687,11 @@
 }
 .wtTrigger:hover b,
 .wtTrigger:focus-visible b { text-decoration: underline; text-underline-offset: 3px; }
+/* Own profile: the photo is sized to the name's line (the name's final
+   size, --name-px, x its 0.94 line-height). At its fixed 58px it was taller
+   than the room the fixed-height bubble gives the name, which pushed the
+   info line (HT / WT / B/T ...) down under the tab bar. */
+.commandDeckSelf .heroPhoto {
+  width: calc(var(--name-px, 40px) * 0.94);
+  height: calc(var(--name-px, 40px) * 0.94);
+}
