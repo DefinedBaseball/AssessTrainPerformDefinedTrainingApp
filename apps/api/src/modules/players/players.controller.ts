@@ -222,6 +222,13 @@ export class PlayersController {
     return this.playersService.setHiddenTabs(id, dto?.tabs);
   }
 
+  @Patch(':id/calendar-tabs')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Set which extra Training Calendar areas are on for an athlete (COACH only)" })
+  setCalendarTabs(@Param('id') id: string, @Body() dto: { tabs: string[] }) {
+    return this.playersService.setCalendarTabs(id, dto?.tabs);
+  }
+
   @Patch(':id/lock')
   @Roles('COACH')
   @ApiOperation({ summary: "Pause or restore an athlete's account access (COACH only)" })

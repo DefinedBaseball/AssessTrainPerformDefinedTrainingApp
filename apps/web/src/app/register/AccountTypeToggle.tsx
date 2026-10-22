@@ -5,9 +5,12 @@
    athletes-closed screen, since parents can sign up any time). */
 
 import Link from 'next/link';
+import { PARENT_SELF_SIGNUP } from '@/lib/features';
 import styles from './page.module.css';
 
 export function AccountTypeToggle({ active }: { active: 'athlete' | 'parent' }) {
+  /* No public parent sign-up (live, for now): nothing to switch between. */
+  if (!PARENT_SELF_SIGNUP) return null;
   return (
     <div className={styles.typeToggle} role="tablist" aria-label="Account type">
       <Link

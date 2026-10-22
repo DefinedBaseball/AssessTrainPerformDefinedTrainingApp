@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -280,6 +281,19 @@ export class ParentsService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('An account with this email already exists. Sign in instead.');
 
+    /* Public parent sign-up is off on the live site until the academy opens
+       it (PARENT_SELF_SIGNUP=true); until then only a coach's invite, used
+       with the email it was sent to, can create a parent account. Local
+       development keeps it open. */
+    const code = typeof dto.inviteCode === 'string' ? dto.inviteCode : '';
+    const selfSignupOpen = process.env.NODE_ENV !== 'production' || process.env.PARENT_SELF_SIGNUP === 'true';
+    if (!selfSignupOpen) {
+      const invite = code ? await this.prisma.parentInvite.findUnique({ where: { id: code } }) : null;
+      if (!invite || invite.acceptedAt || this.inviteExpired(invite.createdAt) || norm(invite.email) !== email) {
+        throw new ForbiddenException('Parent accounts are by invitation for now. Ask your athlete’s coach for an invite link.');
+      }
+    }
+
     const created = await this.prisma.user.create({
       data: {
         email,
@@ -295,7 +309,6 @@ export class ParentsService {
     /* A coach's invite link: linked straight away, but only when they
        signed up with the email it was sent to. */
     let linked = 0;
-    const code = typeof dto.inviteCode === 'string' ? dto.inviteCode : '';
     if (code && created.parent) {
       const invite = await this.prisma.parentInvite.findUnique({ where: { id: code } });
       if (invite && !invite.acceptedAt && !this.inviteExpired(invite.createdAt) && norm(invite.email) === email) {

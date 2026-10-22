@@ -16,6 +16,7 @@ import { useAcademy, AcademyContactLine } from '@/lib/academy';
 import * as api from '@/lib/api';
 import styles from '../page.module.css';
 import { AccountTypeToggle } from '../AccountTypeToggle';
+import { PARENT_SELF_SIGNUP } from '@/lib/features';
 
 export default function ParentRegisterPage() {
   const router = useRouter();
@@ -34,8 +35,12 @@ export default function ParentRegisterPage() {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState('');
+  /* Read the URL once on mount; until then we can't tell an invite visit
+     from a public one (matters while public parent sign-up is off). */
+  const [inviteChecked, setInviteChecked] = useState(false);
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('invite') || '';
+    setInviteChecked(true);
     if (!code) return;
     setInviteCode(code);
     api.getParentInvite(code)
@@ -83,6 +88,29 @@ export default function ParentRegisterPage() {
   };
 
   if (!isLoading && user) return null;
+
+  /* Public parent sign-up is off (live, for now): only a coach's invite
+     link opens this form. The API enforces the same rule. */
+  if (!PARENT_SELF_SIGNUP && !inviteChecked) return null;
+  if (!PARENT_SELF_SIGNUP && !inviteCode) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.card}>
+          <div className={styles.brandRow}>
+            <img src={appLogoUrl} alt="" width={34} height={34} />
+          </div>
+          <h1 className={styles.title}>Parent accounts are by invitation</h1>
+          <p className={styles.subtitle}>
+            Ask your athlete’s coach to send you an invite. The link in that email sets up your account.
+          </p>
+          <p className={styles.footerLink}>
+            Already have an account? <Link href="/login">Sign in</Link>
+          </p>
+          <AcademyContactLine />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

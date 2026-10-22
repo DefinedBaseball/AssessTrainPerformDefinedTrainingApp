@@ -155,6 +155,11 @@ model Player {
   // which means the app default (defense + Physical hidden). Lives on the
   // athlete, not in a browser, so the athlete's own login sees the same tabs.
   hiddenTabs       String?
+  // Extra Training Calendar areas the coach switched on for this athlete
+  // (JSON array of "infield" | "outfield" | "catching" | "strength").
+  // Hitting / Pitching come from the positions; these are opt-in. Null =
+  // none (the default). Like hiddenTabs it lives on the athlete.
+  calendarTabs     String?
   /// Season stats typed in by the athlete or a coach (Player Summary → Stats).
   /// JSON: { hitting|pitching|defense|catching: { "<season start year>": { "<stat>": "<typed value>" } } }
   seasonStats      String?
@@ -753,6 +758,14 @@ model ScheduledDrill {
   // same section). See training.service.reorderScheduledDrills.
   order        Int      @default(0)
   sectionOrder Int      @default(0)
+  // Modular workouts: the super-set block (1, 2, 3…) this drill sits in.
+  // Null = a normal (Structured) section drill. When a day's tab has any
+  // blocked rows the calendar shows that tab as blocks, and `order` is the
+  // drill's position inside its block.
+  block        Int?
+  // Modular drill environment -- JSON {"feed":[],"implement":[],"situation":[],"goal":[]}
+  // of the coach's picks (Feed Type / Implement / Situation / Goal). Null = none.
+  environment  String?
   createdAt    DateTime @default(now())
 
   @@index([playerId, tab, date])

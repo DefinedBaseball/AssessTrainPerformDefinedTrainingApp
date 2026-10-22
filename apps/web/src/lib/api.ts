@@ -94,6 +94,9 @@ export interface Player {
   /** JSON array of profile tab keys hidden on this athlete's profile (the
    *  coach's eye toggle). Null = never set → the app default. */
   hiddenTabs?: string | null;
+  /** JSON array of extra Training Calendar areas switched on for this
+   *  athlete ("infield" | "outfield" | "catching" | "strength"). */
+  calendarTabs?: string | null;
   /** Season stats JSON (Player Summary → Stats) -- see lib/season-stats. */
   seasonStats?: string | null;
   /** Background answers shown under Goals in Edit Profile. */
@@ -791,6 +794,14 @@ export async function setPlayerSeasonStats(playerId: string, stats: unknown) {
 }
 
 /** Save which profile tabs are hidden on an athlete's profile (coach-only). */
+/** Coach: switch extra Training Calendar areas on for an athlete. */
+export async function setPlayerCalendarTabs(playerId: string, tabs: string[]) {
+  return request<{ calendarTabs: string[] }>(`/players/${playerId}/calendar-tabs`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tabs }),
+  });
+}
+
 export async function setPlayerHiddenTabs(playerId: string, tabs: string[]) {
   return request<{ hiddenTabs: string[] }>(`/players/${playerId}/hidden-tabs`, {
     method: 'PATCH',
@@ -1793,6 +1804,10 @@ export interface ScheduledDrill {
   // Coach drag-reorder positions (default 0 = fall back to time/canonical order).
   order: number;
   sectionOrder: number;
+  /** Modular super-set block (1, 2, 3…); null = a Structured section drill. */
+  block?: number | null;
+  /** Modular drill environment, JSON {feed, implement, situation}; null = none. */
+  environment?: string | null;
   createdAt: string;
   drill: Drill | null;
 }
@@ -1928,6 +1943,8 @@ export async function createScheduledDrillsBatch(items: {
    *  the template's curated drill/section ordering. */
   order?: number;
   sectionOrder?: number;
+  block?: number | null;
+  environment?: string | null;
 }[]) {
   return request<ScheduledDrill[]>('/training/schedule/batch', { method: 'POST', body: JSON.stringify({ items }) });
 }
@@ -1965,6 +1982,10 @@ export interface ScheduleTemplateItem {
   notes?: string | null;
   order: number;
   sectionOrder: number;
+  /** Set on a Modular (super-set block) template: the drill's block. */
+  block?: number | null;
+  /** Modular drill environment (same JSON as ScheduledDrill.environment). */
+  environment?: string | null;
 }
 
 export interface ScheduleTemplate {

@@ -40,6 +40,10 @@ class CreateScheduledDrillDto {
   // the created day reproduces the template's curated ordering. Default 0.
   order?: number;
   sectionOrder?: number;
+  /** Modular super-set block number; null/absent = Structured. */
+  block?: number | null;
+  /** Modular drill environment (JSON string); null = none. */
+  environment?: string | null;
 }
 
 class UpdateScheduledDrillDto {
@@ -57,6 +61,8 @@ class UpdateScheduledDrillDto {
   notes?: string | null;
   order?: number;
   sectionOrder?: number;
+  block?: number | null;
+  environment?: string | null;
 }
 
 // Coach drag-to-reorder payload. One PATCH carries new positions (and an

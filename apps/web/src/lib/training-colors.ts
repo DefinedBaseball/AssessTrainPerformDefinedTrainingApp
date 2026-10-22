@@ -24,6 +24,18 @@ export const TAB_LABELS: Record<string, string> = {
   strength: 'S&C',
 };
 
+/* Modular (super-set) colour per position: the dark shade of the tab's hue
+   used for Movement drills and the "Modular" switch (white type on top).
+   Drills from the Drills picker stay white with black type everywhere. */
+export const TAB_MODULAR_DARK: Record<string, string> = {
+  hitting:  '#1e3a8a',
+  pitching: '#b45309',
+  catching: '#0f766e',
+  infield:  '#15803d',
+  outfield: '#15803d',
+  strength: '#b91c1c',
+};
+
 /* Single-day-view tab badge colors — unified app-wide palette. */
 export const TAB_COLORS: Record<string, { bg: string; text: string }> = {
   hitting:  { bg: 'rgba(59,130,246,0.15)',  text: '#3B82F6' },

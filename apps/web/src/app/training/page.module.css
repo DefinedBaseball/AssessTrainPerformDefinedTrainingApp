@@ -800,8 +800,9 @@
   padding: 9px 4px;
   /* Hairline divider between drills inside a category bubble. Same
    * pattern as .dayColCardItem but slightly thicker / softer to match
-   * the focused-view's larger typography. */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+   * the focused-view's larger typography. Drawn from the text colour so
+   * it reads in both themes (white hairlines vanished on light grey). */
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
   transition: background 0.12s;
 }
 .dayFocusCardItem:last-child { border-bottom: none; }
@@ -2235,7 +2236,8 @@
 /* Section labels and the "Select Movement Prep…" text in each picker, in
    the column's colour (one colour per column, not a shade per section). */
 .dayCol .dayColFieldLabel,
-.dayCol .multiTriggerCompact .multiPlaceholder { color: var(--tab-ink); font-weight: 700; }
+.dayCol .multiTriggerCompact .multiPlaceholder,
+.focusBuilder .multiTriggerCompact .multiPlaceholder { color: var(--tab-ink); font-weight: 700; }
 
 /* ── Month view, light theme: Athlete Hub list colours ──
    Weekday header row = the list's header strip; current-month days = the
@@ -2305,3 +2307,439 @@
 .dayGrid .dayCol { background: #2b2c2f; }
 .dayGrid .dayColHeader { background: linear-gradient(180deg, #1e1f23 0%, #1b1c20 100%); }
 .dayFocus .dayFocusBody { background: #2b2c2f; }
+
+/* ── Athlete / parent Day view: one Education-style bubble per workout ──
+   Reuses the Education hub .tile (and its light theme) laid out as a
+   full-width row: icon · eyebrow / title / sections · drill count + go.
+   Doubled class names outrank .tile whatever order the sheets load in. */
+.workoutStackWrap { position: relative; }
+.workoutStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.workoutTile.workoutTile {
+  width: 100%;
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 22px 20px;
+}
+.workoutTile.workoutTile:hover { transform: translateY(-2px); }
+/* Plain bubble (dashTheme .inner supplies the colour) -- no stripe layer. */
+.workoutTile.workoutTile::before { display: none; }
+.workoutWatermark.workoutWatermark {
+  top: 50%;
+  right: 90px;
+  width: 140px;
+  height: 140px;
+  margin-top: -70px;
+}
+.workoutBody.workoutBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+.workoutTitle.workoutTitle { margin-bottom: 6px; }
+.workoutFoot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .workoutTile.workoutTile { gap: 14px; padding: 18px 16px 16px; }
+  .workoutWatermark.workoutWatermark { right: 40px; width: 110px; height: 110px; margin-top: -55px; }
+  .workoutFoot { flex-direction: column; align-items: flex-end; gap: 10px; }
+}
+
+/* ── Coach single-position workout builder (focused Day view) ──
+   One card per drill section: its picker, then the drills in it. The
+   compact picker is scaled back up — here it has the whole page width. */
+.focusBuilder {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.focusBuilderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tab-ink, var(--border));
+  background: color-mix(in srgb, var(--tab-c, #888) 6%, transparent);
+}
+.focusBuilderSection .dayColFieldLabel { font-size: 11px; color: var(--tab-ink, var(--text-muted)); margin-bottom: 2px; }
+.focusBuilderSection .multiTriggerCompact { min-height: 34px; padding: 5px 10px; font-size: 13px; border-radius: 6px; }
+.focusBuilderSection .dayFocusCardList { margin-top: 6px; }
+.focusBuilderEmpty {
+  padding: 8px 2px 2px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--faint);
+}
+
+/* ── Modular workouts: super-set blocks ──
+   Movement drills (Movement Prep / Vision) = dark blue, white type.
+   Drills (Tee, Flips, BP, Machine…) = white, black type. Same in both
+   themes so the colour always means the same thing to the athlete. */
+:root .modeBtnModular.modeBtnModular.modeBtnModular.modeBtnModular {
+  background: var(--move-bg, #1e3a8a); /* shorthand also drops the .field gradient */
+  border-color: var(--move-bg, #1e3a8a);
+  color: #ffffff;
+}
+.blockBuilder { display: flex; flex-direction: column; gap: 12px; }
+/* The athlete / parent workout: sets run top to bottom, one per row. */
+.blockStack { display: flex; flex-direction: column; gap: 12px; }
+.blockCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tab-ink, var(--border));
+  background: color-mix(in srgb, var(--tab-c, #888) 6%, transparent);
+}
+.blockCardHead { display: flex; align-items: center; gap: 8px; }
+.blockCardTitle {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tab-ink, var(--text));
+}
+.blockCardCount {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.blockRemove {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.blockRemove:hover { color: var(--red, #c64545); border-color: currentColor; }
+.blockDrills { display: flex; flex-direction: column; gap: 5px; }
+.blockDrill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+/* --move-bg = the position's dark shade (TAB_MODULAR_DARK), set on the
+   focused view / day column; hitting's dark blue is the fallback. */
+.blockDrillMove { background: var(--move-bg, #1e3a8a); color: #ffffff; border-color: var(--move-bg, #1e3a8a); }
+.blockDrillWork { background: #ffffff; color: #111214; border-color: rgba(0, 0, 0, 0.18); }
+.blockDrillClickable { cursor: pointer; }
+/* Hover = a ring, NOT a filter: a filter makes the row the containing
+   block for position:fixed children, which threw the environment lists
+   (fixed, inside the row) out of place while the row was hovered. */
+.blockDrillClickable:hover { box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent); }
+.blockDrillNum {
+  flex: 0 0 auto;
+  min-width: 1.4em;
+  font-size: 0.8em;
+  font-weight: 800;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.blockDrillName { flex: 1; min-width: 0; word-break: break-word; }
+.blockDrillRemove {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.blockDrillRemove:hover { opacity: 1; }
+.blockPickers { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.blockPickers .dayColFieldLabel { font-size: 11px; margin-bottom: 2px; }
+.blockPickers .multiTriggerCompact { min-height: 34px; padding: 5px 10px; font-size: 13px; border-radius: 6px; border-width: 1.5px; }
+.blockPickerMove .dayColFieldLabel,
+.blockPickerMove .multiPlaceholder { color: color-mix(in srgb, var(--move-bg, #1e3a8a) 70%, #fff); font-weight: 700; }
+[data-theme="light"] .blockPickerMove .dayColFieldLabel,
+[data-theme="light"] .blockPickerMove .multiPlaceholder { color: var(--move-bg, #1e3a8a); }
+.blockPickerWork .dayColFieldLabel,
+.blockPickerWork .multiPlaceholder { color: var(--text); font-weight: 700; }
+.addSetBtn {
+  align-self: flex-start;
+  padding: 10px 16px;
+  border-radius: 7px;
+  border: 1.5px dashed var(--tab-ink, var(--border-light));
+  background: transparent;
+  color: var(--tab-ink, var(--text));
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.addSetBtn:hover { background: color-mix(in srgb, var(--tab-c, #888) 12%, transparent); }
+.blockFull { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+/* Modular builder: one row per block -- the block (60%) beside its own
+   "Adding to Block N" picker (40%). Phones stack the picker under it. */
+.modularBlocks { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.modularRow {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 899px) {
+  .modularRow { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+}
+.modularPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 14px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--tab-ink, var(--border));
+  background: color-mix(in srgb, var(--tab-c, #888) 6%, transparent);
+}
+.modularPickerHead { display: flex; align-items: center; gap: 8px; }
+
+/* Editor blocks run ~20% shorter than the athlete's read-only blocks:
+   tighter card padding, slimmer drill rows and gaps. */
+.modularBlocks .blockCard { padding: 9px 14px 10px; gap: 6px; }
+.modularBlocks .blockDrills { gap: 4px; }
+.modularBlocks .blockDrill { padding: 5px 10px; font-size: 13px; }
+
+/* ── Modular in a day column (all-positions Day view) ──
+   The single-position Modular editor shrunk to column size: compact sets,
+   one "Add drills" button per set opening a side bubble with the Movement
+   + Drills pickers. */
+:root .colChip.colChipModular { background: var(--move-bg, #1e3a8a); border-color: var(--move-bg, #1e3a8a); color: #ffffff; }
+.colModular { display: flex; flex-direction: column; gap: 6px; }
+.colModular .blockCard { padding: 6px 6px 7px; gap: 4px; border-radius: 7px; }
+.colModular .blockCardTitle { font-size: 9px; }
+.colModular .blockCardCount { font-size: 9px; }
+.colModular .blockRemove { width: 16px; height: 16px; font-size: 11px; }
+.colModular .blockDrills { gap: 3px; }
+.colModular .blockDrill { padding: 3px 6px; gap: 5px; font-size: 11px; border-radius: 5px; }
+.colModular .blockDrillRemove { font-size: 13px; }
+.colModular .focusBuilderEmpty { padding: 2px 0 0; font-size: 10px; }
+.colSetOpen.colSetOpen { border-color: var(--tab-ink, var(--border)); box-shadow: 0 0 0 1px var(--tab-ink, transparent); }
+.colSetAdd,
+.colAddSet {
+  align-self: stretch;
+  padding: 4px 6px;
+  border-radius: 5px;
+  border: 1px dashed var(--tab-ink, var(--border-light));
+  background: transparent;
+  color: var(--tab-ink, var(--text));
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.colSetAdd[aria-expanded="true"] { border-style: solid; background: color-mix(in srgb, var(--tab-c, #888) 14%, transparent); }
+.colAddSet { border-width: 1.5px; padding: 6px; }
+.colSetAdd:hover,
+.colAddSet:hover { background: color-mix(in srgb, var(--tab-c, #888) 12%, transparent); }
+/* The side bubble: solid card so it reads over whatever column it covers. */
+.colSetBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  border-top: 3px solid var(--tab-ink, var(--border));
+  background: var(--card-elev-bg, var(--bg));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Drill environment (Modular) ──
+   Coach: three chips per drill (Feed Type / Implement / Situation) beside
+   the name, wrapping under it when the row is narrow. They take the row's
+   own ink so they read on both the dark-blue and white drills.
+   Athlete: the picks in small text after the name, "ENVIRONMENT (…)". */
+/* Builder drill row (single-position builder AND the day columns): number,
+   name and remove on the first line; the four chips on their own line,
+   stretched edge to edge across the whole drill bubble in equal widths --
+   four across when the row has room, 2 x 2 when it does not (container
+   query on the row). */
+.modularBlocks .blockDrill,
+.colModular .blockDrill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "num name rm" "env env env";
+  row-gap: 5px;
+  container-type: inline-size;
+}
+.modularBlocks .blockDrillNum, .colModular .blockDrillNum { grid-area: num; }
+.modularBlocks .blockDrillName, .colModular .blockDrillName { grid-area: name; }
+.modularBlocks .blockDrillRemove, .colModular .blockDrillRemove { grid-area: rm; }
+/* Column-size chips (the column's drills are smaller type too). */
+.colModular .envPickers { gap: 4px; }
+.colModular .envChip { font-size: 9.5px; padding: 1px 6px; }
+.envPickers {
+  grid-area: env;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+/* Four across only once each quarter still fits the base chip size
+   (14em of the chip font = ~11.3em of the row font, x4 + gaps ~= 47em). */
+@container (min-width: 47em) {
+  .envPickers { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* Each chip fills its share of the row (never narrower than the base size
+   unless the row itself is). */
+.envPickers .envWrap { display: flex; }
+.envPickers .envChip { width: 100%; min-width: 0; }
+.envWrap { position: relative; display: inline-flex; min-width: 0; }
+.envChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  /* One fixed size for all four chips -- wide enough for "Power Trainer,
+     250g Ball" -- in em so it tracks the chip's (fluid) font size. Longer
+     picks ellipsis; the full list is in the tooltip. */
+  width: 14em;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.envChip:hover { border-color: currentColor; }
+.envChipOn { border-color: currentColor; background: color-mix(in srgb, currentColor 14%, transparent); }
+.envChipText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.envChipCaret { font-size: 8px; opacity: 0.7; }
+/* The list hangs inside the drill row in the DOM, so reset the row's ink. */
+.envWrap .multiPanel { color: var(--text); font-weight: 400; text-align: left; }
+.envPanelHead {
+  padding: 9px 12px 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+/* Athlete / parent set table: Drill | Environment | Goal. Same column
+   template on the header and every row so the columns line up. */
+.blockTable { display: flex; flex-direction: column; gap: 5px; }
+.blockTableHead,
+.blockTableRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+.blockTableHead {
+  padding: 0 11px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tab-ink, var(--text-muted));
+}
+.blockTableName { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.blockTableCell {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.blockTableNone { opacity: 0.45; }
+@media (max-width: 520px) {
+  .blockTableHead, .blockTableRow { column-gap: 8px; }
+  .blockTableHead { padding: 0 8px; font-size: 9px; }
+  .blockTableRow { padding: 7px 8px; font-size: 12.5px; }
+  .blockTableCell { font-size: 11px; }
+}
+
+/* ── Areas button (coach): left of Month / Week / Day ──
+   Switches Infield / Outfield / Catching / Physical on for the athlete. */
+.areasWrap { position: relative; display: inline-flex; margin-left: auto; }
+.areasBtn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.areasPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light, var(--border));
+  background: var(--card-elev-bg, var(--bg));
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+}
+.areasHead {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.areasNote { font-size: 11px; color: var(--text-muted); margin: 2px 0 6px; }
+.areasItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.areasItem:hover { background: rgba(127, 127, 127, 0.12); }
+.areasItemOn { background: rgba(127, 127, 127, 0.1); }
+.areasItem input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }

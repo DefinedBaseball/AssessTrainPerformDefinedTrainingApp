@@ -4,6 +4,8 @@ import { randomBytes } from 'crypto';
 /** Profile tabs a coach may hide (matches the web tab keys). Summary and
  *  Videos are never hideable. */
 const HIDEABLE_TABS = new Set(['hitting', 'pitching', 'catching', 'infield', 'outfield', 'strength']);
+/** Training Calendar areas a coach can switch on beyond Hitting / Pitching. */
+const CALENDAR_EXTRA_TABS = new Set(['catching', 'infield', 'outfield', 'strength']);
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -419,6 +421,24 @@ export class PlayersService {
       data: { hiddenTabs: JSON.stringify(clean) },
     });
     return { hiddenTabs: clean };
+  }
+
+  /**
+   * Extra Training Calendar areas switched on for this athlete (Infield,
+   * Outfield, Catching, Physical). Unknown keys are dropped, like hiddenTabs.
+   */
+  async setCalendarTabs(playerId: string, tabs: unknown) {
+    if (!Array.isArray(tabs)) throw new BadRequestException('"tabs" must be an array of area names');
+    const clean = [...new Set(tabs.filter(
+      (t): t is string => typeof t === 'string' && CALENDAR_EXTRA_TABS.has(t),
+    ))];
+    const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Player not found');
+    await this.prisma.player.update({
+      where: { id: playerId },
+      data: { calendarTabs: JSON.stringify(clean) },
+    });
+    return { calendarTabs: clean };
   }
 
   /**

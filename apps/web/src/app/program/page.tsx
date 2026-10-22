@@ -45,7 +45,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { sortScheduled, moveDrillWithinSection, moveSection } from '@/lib/scheduleReorder';
+import { sortScheduled, moveDrillWithinSection, moveSection, shiftBlocksPast } from '@/lib/scheduleReorder';
 
 /* A small grip glyph used as the drag handle for coach reorder. The handle —
    not the whole row — carries the dnd-kit listeners so a tap/click on the row
@@ -1157,6 +1157,8 @@ export default function ProgramPage() {
   const applyTemplate = async (t: api.ScheduleTemplate, items: api.ScheduleTemplateItem[]) => {
     if (!tplPlayer || items.length === 0) return;
     setApplyingTpl(true);
+    /* A Modular template's sets go after any sets the athlete already has. */
+    const shift = shiftBlocksPast(drillsByPlayer[tplPlayer.id] || []);
     try {
       await api.createScheduledDrillsBatch(items.map(it => ({
         playerId: tplPlayer.id,
@@ -1170,6 +1172,8 @@ export default function ProgramPage() {
         notes: it.notes ?? undefined,
         order: it.order,
         sectionOrder: it.sectionOrder,
+        block: shift(t.tab, it.block),
+        environment: it.environment ?? null,
       })));
       await refetchAthletes([tplPlayer.id]);
       setTplPlayer(null);

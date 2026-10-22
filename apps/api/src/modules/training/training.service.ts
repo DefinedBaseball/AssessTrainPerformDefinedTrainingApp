@@ -413,6 +413,8 @@ export class TrainingService {
     notes?: string;
     order?: number;
     sectionOrder?: number;
+    block?: number | null;
+    environment?: string | null;
   }) {
     return this.prisma.scheduledDrill.create({
       data,
@@ -432,6 +434,8 @@ export class TrainingService {
     notes?: string;
     order?: number;
     sectionOrder?: number;
+    block?: number | null;
+    environment?: string | null;
   }[]) {
     // One real transaction (single batched round-trip) instead of the old
     // sequential per-item awaits — template applies create dozens of rows,
@@ -531,6 +535,8 @@ export class TrainingService {
            the one it came from. */
         order: d.order,
         sectionOrder: d.sectionOrder,
+        block: d.block,
+        environment: d.environment,
       })),
     );
 
@@ -683,6 +689,8 @@ export class TrainingService {
       notes: r.notes ?? null,
       order: r.order ?? 0,
       sectionOrder: r.sectionOrder ?? 0,
+      block: r.block ?? null,
+      environment: r.environment ?? null,
     }));
 
     await this.prisma.$transaction([
@@ -729,6 +737,8 @@ export class TrainingService {
     notes?: string | null;
     order?: number;
     sectionOrder?: number;
+    block?: number | null;
+    environment?: string | null;
   }) {
     return this.prisma.scheduledDrill.update({
       where: { id },

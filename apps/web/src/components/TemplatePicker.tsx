@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import { parseTemplateItems, type ScheduleTemplate, type ScheduleTemplateItem } from '@/lib/api';
+import { TAB_MODULAR_DARK } from '@/lib/training-colors';
 
 const TAB_LABELS: Record<string, string> = {
   hitting: 'Hitting', pitching: 'Pitching', catching: 'Catching',
@@ -26,12 +27,14 @@ const TAB_LABELS: Record<string, string> = {
    before auto-closing. The caller owns the actual API write via onSave so
    this stays a dumb, reusable shell. */
 export function SaveTemplateModal({
-  open, sportLabel, itemCount, sectionCount, onClose, onSave,
+  open, sportLabel, itemCount, sectionCount, groupNoun = 'section', onClose, onSave,
 }: {
   open: boolean;
   sportLabel: string;
   itemCount: number;
   sectionCount: number;
+  /** What the groups are called: sections, or blocks for a Modular day. */
+  groupNoun?: 'section' | 'set';
   onClose: () => void;
   /** Persist the template; throw to surface an inline error. */
   onSave: (name: string) => Promise<void>;
@@ -94,7 +97,7 @@ export function SaveTemplateModal({
           )}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {sportLabel} · {itemCount} drill{itemCount !== 1 ? 's' : ''} · {sectionCount} section{sectionCount !== 1 ? 's' : ''}
+          {sportLabel} · {itemCount} drill{itemCount !== 1 ? 's' : ''} · {sectionCount} {groupNoun}{sectionCount !== 1 ? 's' : ''}
         </div>
 
         {saved ? (
@@ -149,6 +152,20 @@ export function SaveTemplateModal({
    in order, each section's drills in order, with time / duration / notes
    when the template carries them. Rendered through a portal so it sits
    above everything regardless of where the opener lives. */
+/* Set drill colours, as the athlete sees them: Movement (Movement Prep /
+   Vision) in the position's dark shade with white type, everything else
+   white with black. */
+function blockRowStyle(category: string, tab: string): React.CSSProperties {
+  const movement = category === 'Movement Prep' || category === 'Vision';
+  const dark = TAB_MODULAR_DARK[tab] || TAB_MODULAR_DARK.hitting;
+  return {
+    display: 'flex', gap: 8, padding: '6px 8px', marginBottom: 4, fontSize: 12.5, borderRadius: 6,
+    background: movement ? dark : '#ffffff',
+    color: movement ? '#ffffff' : '#111214',
+    border: movement ? `1px solid ${dark}` : '1px solid rgba(0, 0, 0, 0.18)',
+  };
+}
+
 export function TemplatePreviewModal({
   template, onClose,
 }: {
@@ -167,8 +184,19 @@ export function TemplatePreviewModal({
   const items = [...parseTemplateItems(template)].sort(
     (a, b) => (a.sectionOrder ?? 0) - (b.sectionOrder ?? 0) || (a.order ?? 0) - (b.order ?? 0),
   );
+  /* A Modular (block) template previews as Block 1, Block 2… with each
+     drill coloured like the athlete sees it; others group by section. */
+  const modular = items.some((it) => it.block != null);
   const sections: { name: string; items: ScheduleTemplateItem[] }[] = [];
-  for (const it of items) {
+  if (modular) {
+    for (const it of items) {
+      const name = `Set ${it.block ?? '–'}`;
+      const existing = sections.find((s) => s.name === name);
+      if (existing) existing.items.push(it);
+      else sections.push({ name, items: [it] });
+    }
+  }
+  for (const it of modular ? [] : items) {
     const last = sections[sections.length - 1];
     if (last && last.name === it.category) last.items.push(it);
     else {
@@ -212,7 +240,7 @@ export function TemplatePreviewModal({
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 12 }}>
           {TAB_LABELS[template.tab] || template.tab} · {items.length} drill{items.length !== 1 ? 's' : ''}
-          {' · '}{sections.length} section{sections.length !== 1 ? 's' : ''}
+          {' · '}{sections.length} {modular ? 'set' : 'section'}{sections.length !== 1 ? 's' : ''}
           {totalMin > 0 ? ` · ${totalMin} min` : ''}
         </div>
 
@@ -230,10 +258,10 @@ export function TemplatePreviewModal({
                 {s.name}
               </div>
               {s.items.map((it, i) => (
-                <div key={`${s.name}-${i}`} style={{ display: 'flex', gap: 8, padding: '4px 2px', fontSize: 12.5 }}>
-                  <span style={{ color: 'var(--text-muted)', minWidth: 16, textAlign: 'right' }}>{i + 1}.</span>
+                <div key={`${s.name}-${i}`} style={modular ? blockRowStyle(it.category, template.tab) : { display: 'flex', gap: 8, padding: '4px 2px', fontSize: 12.5 }}>
+                  <span style={{ color: modular ? 'inherit' : 'var(--text-muted)', opacity: modular ? 0.6 : 1, minWidth: 16, textAlign: 'right' }}>{i + 1}.</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ color: 'var(--text-bright, var(--text))', fontWeight: 600 }}>{it.name}</span>
+                    <span style={{ color: modular ? 'inherit' : 'var(--text-bright, var(--text))', fontWeight: 600 }}>{it.name}</span>
                     {it.notes ? (
                       <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11.5, marginTop: 1 }}>{it.notes}</span>
                     ) : null}
@@ -332,7 +360,8 @@ export function TemplatePicker({
         ) : (
           templates.map(t => {
             const items = parseTemplateItems(t);
-            const sections = [...new Set(items.map(i => i.category))];
+            const modular = items.some(i => i.block != null);
+            const sections = [...new Set(items.map(i => (modular ? `b${i.block}` : i.category)))];
             return (
               <div key={t.id}
                 style={{
@@ -345,7 +374,7 @@ export function TemplatePicker({
                     {t.name}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {TAB_LABELS[t.tab] || t.tab} · {items.length} drill{items.length !== 1 ? 's' : ''} · {sections.length} section{sections.length !== 1 ? 's' : ''}
+                    {TAB_LABELS[t.tab] || t.tab} · {items.length} drill{items.length !== 1 ? 's' : ''} · {sections.length} {modular ? 'set' : 'section'}{sections.length !== 1 ? 's' : ''}
                   </div>
                 </div>
                 {confirmId === t.id ? (

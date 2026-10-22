@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useAcademy } from '@/lib/academy';
+import { PARENT_SELF_SIGNUP } from '@/lib/features';
 import styles from './page.module.css';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, user, isLoading } = useAuth();
-  const { appLogoUrl } = useAcademy();
+  const { academy, appLogoUrl } = useAcademy();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -121,12 +122,19 @@ export default function LoginPage() {
           </>
         )}
 
-        {/* Always shown: /register asks Athlete or Parent. Parents can sign up
-            any time; the athlete form shows the closed message while new
-            athletes are switched off (Settings → Academy). */}
-        <p className={styles.signupPrompt}>
-          New here? <Link href="/register">Create an account</Link>
-        </p>
+        {/* With parent sign-up open, always shown: /register asks Athlete or
+            Parent, and parents can sign up any time. Without it (live, for
+            now) it is the athlete link, hidden while new athletes are
+            switched off (Settings → Academy). */}
+        {PARENT_SELF_SIGNUP ? (
+          <p className={styles.signupPrompt}>
+            New here? <Link href="/register">Create an account</Link>
+          </p>
+        ) : academy.acceptingAthletes && (
+          <p className={styles.signupPrompt}>
+            New athlete? <Link href="/register">Create an account</Link>
+          </p>
+        )}
       </div>
     </div>
   );

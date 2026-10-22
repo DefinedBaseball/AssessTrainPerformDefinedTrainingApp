@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -24,12 +24,12 @@ import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
-import { EduHeader, IconAttendance } from '../education/EduHeader';
+import { EduHeader, IconAttendance, IconBall } from '../education/EduHeader';
 /* Tab + category color system lives in a shared module so the Player
    Summary's Upcoming Drills panel renders the same color treatment as
    the Training day-column cards do here — single source of truth. */
 import {
-  TAB_LABELS, TAB_COLORS,
+  TAB_LABELS, TAB_COLORS, TAB_MODULAR_DARK,
   LEGEND_CATEGORIES, getTabCatStyle,
 } from '@/lib/training-colors';
 import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
@@ -52,7 +52,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { moveDrillWithinSection, moveSection } from '@/lib/scheduleReorder';
+import { moveDrillWithinSection, moveSection, shiftBlocksPast } from '@/lib/scheduleReorder';
 
 /* Grip glyph for the coach drag handles (matches the Program board). */
 const CalGrip = ({ size = 13 }: { size?: number }) => (
@@ -223,14 +223,12 @@ function CalPendingDrill({
 }
 
 /* ── Constants ──
-   The full tab catalog. Visibility on the calendar is filtered per-athlete
-   by position (see `visibleTabsForPlayer` below):
-     • hitting     — any non-pitcher field position (C, 1B-3B, SS, LF/CF/RF)
+   The full tab catalog. Which areas the calendar offers is per-athlete
+   (see `visibleTabsForPlayer` below):
+     • hitting     — any field position (C, 1B-3B, SS, LF/CF/RF, OF, INF, UTIL)
      • pitching    — P
-     • catching    — C
-     • infield     — 1B / 2B / 3B / SS  (or the INF position code)
-     • outfield    — LF / CF / RF       (or the OF position code)
-     • strength    — always
+     • catching / infield / outfield / strength (Physical) — off until a
+       coach switches them on with the Areas button (Player.calendarTabs)
    Cognition / vision was retired — no longer surfaced in Training. */
 const TABS = [
   { key: 'hitting',  label: 'Hitting' },
@@ -241,10 +239,57 @@ const TABS = [
   { key: 'strength', label: 'S&C' },
 ];
 
-/** Position codes (raw and grouped) that grant access to each tab. */
+/* Line icons for the athlete Day view's workout bubbles — same 24-unit,
+   currentColor style as the Education hub icons. */
+const wi = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+const WORKOUT_ICONS: Record<string, React.ReactNode> = {
+  hitting: (
+    <svg {...wi}>
+      <path d="M20.5 3.5c.9.9.6 2.6-.7 3.9l-8.6 8.6-3.2-3.2 8.6-8.6c1.3-1.3 3-1.6 3.9-.7z" />
+      <path d="M8 12.8l-4.6 4.6M6.2 17.8l-.8.8M4.6 19.4l.8-.8" />
+      <circle cx="6" cy="6" r="2.2" opacity=".7" />
+    </svg>
+  ),
+  pitching: <IconBall />,
+  catching: (
+    <svg {...wi}>
+      <path d="M12 3.5c-4.6 0-8 3.3-8 8.2 0 4.6 3.4 8.8 8 8.8s8-4.2 8-8.8c0-4.9-3.4-8.2-8-8.2z" />
+      <path d="M12 9.5c-2 0-3.5 1.4-3.5 3.3S10 16.5 12 16.5s3.5-1.8 3.5-3.7-1.5-3.3-3.5-3.3z" opacity=".7" />
+      <path d="M7 6.5l2 2M17 6.5l-2 2" opacity=".55" />
+    </svg>
+  ),
+  infield: (
+    <svg {...wi}>
+      <path d="M12 3l9 9-9 9-9-9z" />
+      <rect x="10.6" y="10.6" width="2.8" height="2.8" rx=".6" opacity=".7" />
+      <path d="M12 21v-2.5M3 12h2.5M21 12h-2.5M12 3v2.5" opacity=".55" />
+    </svg>
+  ),
+  outfield: (
+    <svg {...wi}>
+      <path d="M12 21L3.3 12.3a12.3 12.3 0 0 1 17.4 0z" />
+      <path d="M12 21l-4.2-4.2a6 6 0 0 1 8.4 0z" opacity=".7" />
+      <path d="M12 21V8.6" opacity=".45" />
+    </svg>
+  ),
+  strength: (
+    <svg {...wi}>
+      <path d="M7 12h10" />
+      <rect x="3.5" y="8" width="3.5" height="8" rx="1" />
+      <rect x="17" y="8" width="3.5" height="8" rx="1" />
+      <path d="M2 10.5v3M22 10.5v3" />
+    </svg>
+  ),
+};
+
+/** "#3B82F6" → "59,130,246" for the tile's --tile-rgb accent. */
+function hexToRgb(hex: string): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
+/** Position codes that make an athlete a hitter (Hitting area by default). */
 const HITTER_POSITIONS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'INF', 'UTIL'];
-const INFIELD_POSITIONS = ['1B', '2B', '3B', 'SS', 'INF'];
-const OUTFIELD_POSITIONS = ['LF', 'CF', 'RF', 'OF'];
 
 function parsePositions(player: Player | null | undefined): string[] {
   if (!player?.positions) return [];
@@ -254,25 +299,40 @@ function parsePositions(player: Player | null | undefined): string[] {
 /** Returns the calendar tabs visible for the given player. Multi-position
  *  athletes get every applicable tab (e.g., a C/INF gets Catching + Infield).
  *  Pitcher-only athletes only see Pitching + S&C. */
-function visibleTabsForPlayer(player: Player | null | undefined): typeof TABS {
+function visibleTabsForPlayer(player: Player | null | undefined, extras: string[] = []): typeof TABS {
+  /* Hitting / Pitching come from the positions: a position player gets
+     Hitting, a pitcher Pitching, a two-way athlete both. Infield, Outfield,
+     Catching and Physical are opt-in per athlete (the Areas button), the
+     same way the report tabs are. No positions on file → both defaults so
+     the coach still has somewhere to build. */
   const positions = parsePositions(player);
-  const isPitcher    = positions.includes('P');
-  const isHitter     = positions.some(p => HITTER_POSITIONS.includes(p));
-  const isCatcher    = positions.includes('C');
-  const isInfielder  = positions.some(p => INFIELD_POSITIONS.includes(p));
-  const isOutfielder = positions.some(p => OUTFIELD_POSITIONS.includes(p));
-  // No player selected (or no positions on file) → show every tab so the
-  // coach UI doesn't collapse to nothing while picking an athlete.
-  if (positions.length === 0) return TABS;
+  const isPitcher = positions.includes('P');
+  const isHitter  = positions.some(p => HITTER_POSITIONS.includes(p));
+  const none = !isPitcher && !isHitter;
   return TABS.filter(t => {
-    if (t.key === 'hitting')  return isHitter;
-    if (t.key === 'pitching') return isPitcher;
-    if (t.key === 'catching') return isCatcher;
-    if (t.key === 'infield')  return isInfielder;
-    if (t.key === 'outfield') return isOutfielder;
-    if (t.key === 'strength') return true;
-    return true;
+    if (t.key === 'hitting')  return isHitter || none;
+    if (t.key === 'pitching') return isPitcher || none;
+    return extras.includes(t.key);
   });
+}
+
+/** Areas the Areas button can switch on (Hitting / Pitching follow positions). */
+const CALENDAR_EXTRA_AREAS: { key: string; label: string }[] = [
+  { key: 'infield', label: 'Infield' },
+  { key: 'outfield', label: 'Outfield' },
+  { key: 'catching', label: 'Catching' },
+  { key: 'strength', label: 'Physical (S&C)' },
+];
+
+/** An athlete's switched-on extra areas (Player.calendarTabs JSON). */
+function parseCalendarTabs(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 /* TAB_CAT_COLORS / DEFAULT_CAT_COLOR / getTabCatStyle moved to
@@ -390,6 +450,177 @@ function parsePendingId(id: string): { ddKey: string; drillId: string } | null {
   return { ddKey: rest.slice(0, cut), drillId: rest.slice(cut + 1) };
 }
 
+/* ── Modular workouts (super-set blocks) ──
+   A position's day can be Structured (one picker per section, the default)
+   or Modular: drills from any section grouped into numbered blocks of up
+   to 8. A block drill is saved as a normal row with its SECTION label as
+   `category` plus a `block` number, so the colour (Movement vs Drills)
+   always comes from the section it was picked from. */
+type BlockItem = { drillId: string; ddKey: string; env?: DrillEnv };
+
+/* ── Drill environment (Modular) ──
+   Per drill in a set the coach can tag the Feed Type, Implement and
+   Situation (multi-select each). Saved on the row as JSON; athletes see the
+   picks beside the drill name under "Environment". */
+type DrillEnv = { feed?: string[]; implement?: string[]; situation?: string[]; goal?: string[] };
+type EnvField = keyof DrillEnv;
+const ENV_FIELDS: { key: EnvField; label: string; options: string[] }[] = [
+  {
+    key: 'feed',
+    label: 'Feed Type',
+    options: [
+      'Tee', 'Side Toss', 'Soft Toss', 'Overhead Soft Toss', 'Batting Practice', 'Machine', 'IPitch',
+      '1B Angle', '3B Angle', 'Low Angle', 'High Angle', 'Close', 'Far',
+      '20 ft', '30 ft', '40 ft', '50 ft', 'Slow', 'Firm', 'Extra Firm',
+      '50 mph', '60 mph', '70 mph', '80 mph', '90 mph', '100 mph',
+    ],
+  },
+  {
+    key: 'implement',
+    label: 'Implement',
+    options: [
+      'Short Bat', '1 Hand Trainer', 'End Load Trainer', 'Handle Load Trainer', 'Power Trainer', 'Bazooka',
+      'Underload Trainer', 'V-Paddle', 'V-Bat', 'Smash Trainer', 'Light Skinny Bat', 'Heavy Skinny Bat',
+      'Fat Grip', 'Black Farm Band', 'Red Farm Band', 'Decel Vest', 'Farm Board Long', 'Farm Board Short',
+      'Yoga Blocks', 'Bosu Ball', 'Wedge', 'Bucket', 'Havoc', 'Vector Bands', 'Farm Sled', 'Water Ball',
+      'Water Bag (Heavy)', 'Water Bag (Light)', '2x Water Ball', '3oz Ball', '200g Ball', '250g Ball',
+      '7oz Tater Ball', 'Tater Ball', 'Driveline Ball', 'Wiffle Ball', 'Tennis Ball', 'Soccer Ball',
+      'Mini Wiffle Ball',
+    ],
+  },
+  {
+    key: 'situation',
+    label: 'Situation',
+    options: [
+      'Fastball', 'Carry Fastball', '2-Seam', 'Sinker', 'Slider', 'Sweeper', 'Slurve', '12-6', 'Changeup',
+      'Splitter', 'Mix', '0-0', '1-1', '2-0', '0-2', '3-1', '3-2', 'Infield In', 'Infield Back',
+      'Get Him Over', 'Get Him In', 'Game on the Line',
+    ],
+  },
+  {
+    key: 'goal',
+    label: 'Goal',
+    options: ['Line Drive', 'Ground Ball', 'Fly Ball', 'Pull', 'Middle', 'Oppo', 'Oppo Foul', 'Pull Foul'],
+  },
+];
+
+/* Athletes see Goal under its own title, apart from the Environment picks. */
+const GOAL_FIELDS: EnvField[] = ['goal'];
+
+/** A row's saved environment, or undefined when none / unreadable. */
+function parseEnv(raw: string | null | undefined): DrillEnv | undefined {
+  if (!raw) return undefined;
+  try {
+    const v = JSON.parse(raw);
+    if (!v || typeof v !== 'object') return undefined;
+    const out: DrillEnv = {};
+    for (const f of ENV_FIELDS) {
+      const list = Array.isArray(v[f.key]) ? v[f.key].filter((x: unknown) => typeof x === 'string') : [];
+      if (list.length) out[f.key] = list;
+    }
+    return Object.keys(out).length ? out : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The environment as saved on a row (null when nothing is picked). */
+function envString(env: DrillEnv | undefined): string | null {
+  if (!env) return null;
+  const out: DrillEnv = {};
+  for (const f of ENV_FIELDS) if (env[f.key]?.length) out[f.key] = env[f.key];
+  return Object.keys(out).length ? JSON.stringify(out) : null;
+}
+
+/** "Tee, Short Bat, Fastball" -- the picks of the given fields, in field
+ *  order (Environment = Feed → Implement → Situation; Goal on its own). */
+function envSummary(env: DrillEnv | undefined, goal = false): string {
+  if (!env) return '';
+  return ENV_FIELDS
+    .filter(f => GOAL_FIELDS.includes(f.key) === goal)
+    .flatMap(f => env[f.key] || [])
+    .join(', ');
+}
+const MAX_BLOCK_DRILLS = 8;
+/** Sections offered in a block's "Movement" picker (Vision = cognitive). */
+const MOVEMENT_SECTIONS = ['Movement Prep', 'Vision'];
+/** Sections kept out of a block's "Drills" picker, per position. */
+const MODULAR_DRILL_EXCLUDE: Record<string, string[]> = { hitting: ['Live'] };
+
+function isMovementSection(label: string): boolean {
+  return MOVEMENT_SECTIONS.includes(label);
+}
+
+/** A position's sections split into the two block pickers. */
+function modularPickerDds(tabKey: string): { movement: ModalDropdown[]; drills: ModalDropdown[] } {
+  const dds = MODAL_DROPDOWNS[tabKey] || [];
+  const exclude = MODULAR_DRILL_EXCLUDE[tabKey] || [];
+  return {
+    movement: dds.filter(d => isMovementSection(d.label)),
+    drills: dds.filter(d => !isMovementSection(d.label) && !exclude.includes(d.label)),
+  };
+}
+
+/** A tab's day is Modular once any of its rows carries a block number. */
+function isModularRows(rows: { block?: number | null }[]): boolean {
+  return rows.some(r => r.block != null);
+}
+
+/**
+ * A modular day's rows as ordered blocks. Rows with no block number (pasted
+ * in beside a block day) trail as extra blocks of up to 8, so nothing is
+ * hidden from either the coach or the athlete.
+ */
+function groupBlocks<T extends { block?: number | null; order: number; sectionOrder: number; time: string }>(rows: T[]): T[][] {
+  const byBlock = new Map<number, T[]>();
+  const loose: T[] = [];
+  for (const r of rows) {
+    if (r.block == null) { loose.push(r); continue; }
+    const arr = byBlock.get(r.block) || [];
+    arr.push(r);
+    byBlock.set(r.block, arr);
+  }
+  const byPos = (a: T, b: T) => a.order - b.order || parseTime(a.time) - parseTime(b.time);
+  const out = [...byBlock.entries()].sort((a, b) => a[0] - b[0]).map(([, arr]) => arr.sort(byPos));
+  loose.sort((a, b) => a.sectionOrder - b.sectionOrder || byPos(a, b));
+  for (let i = 0; i < loose.length; i += MAX_BLOCK_DRILLS) out.push(loose.slice(i, i + MAX_BLOCK_DRILLS));
+  return out;
+}
+
+/** The day's Modular tabs as editable blocks (library-linked rows only). */
+function buildBlocksFromEvents(events: ScheduledDrill[]): Record<string, BlockItem[][]> {
+  const out: Record<string, BlockItem[][]> = {};
+  for (const tab of TABS) {
+    const rows = events.filter(ev => ev.tab === tab.key);
+    if (!isModularRows(rows)) continue;
+    out[tab.key] = groupBlocks(rows.filter(ev => ev.drillId && ddForEvent(ev)))
+      .map(b => b.map(ev => ({ drillId: ev.drillId!, ddKey: ddForEvent(ev)!.key, env: parseEnv(ev.environment) })));
+  }
+  return out;
+}
+
+/** A Structured position's picks laid out as sets of up to 8, in section
+ *  order -- what switching it to Modular shows. */
+function picksAsBlocks(tabKey: string, sel: Record<string, Set<string>>): BlockItem[][] {
+  const items: BlockItem[] = [];
+  for (const dd of MODAL_DROPDOWNS[tabKey] || []) {
+    for (const id of sel[dd.key] || []) items.push({ drillId: id, ddKey: dd.key });
+  }
+  const blocks: BlockItem[][] = [];
+  for (let i = 0; i < items.length; i += MAX_BLOCK_DRILLS) blocks.push(items.slice(i, i + MAX_BLOCK_DRILLS));
+  return blocks;
+}
+
+/** Same blocks? Empty blocks and drill-less Modular tabs save nothing, so
+ *  they don't count as a change. */
+function sameBlocks(a: Record<string, BlockItem[][]>, b: Record<string, BlockItem[][]>): boolean {
+  const norm = (x: Record<string, BlockItem[][]>) => JSON.stringify(
+    TABS.map(t => (x[t.key] || []).filter(bl => bl.length).map(bl => bl.map(it => `${it.ddKey}:${it.drillId}:${envString(it.env) || ''}`)))
+      .map((bls, i) => (bls.length ? [TABS[i].key, bls] : null)),
+  );
+  return norm(a) === norm(b);
+}
+
 /**
  * A template's drills, keyed by the picker section that owns them.
  *
@@ -407,13 +638,26 @@ function templateDrillsByDd(
   allDrills: Drill[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
-  const options = drillsForTabDropdowns(allDrills, t.tab);
-  const byId = new Map(allDrills.map(d => [d.id, d]));
-
+  const resolve = templateResolver(t.tab, allDrills);
   for (const it of api.parseTemplateItems(t)) {
-    if (!it.drillId) continue;
-    const dd = ddForEvent({ tab: t.tab, category: it.category });
-    if (!dd) continue;
+    const hit = resolve(it);
+    if (!hit) continue;
+    const bucket = (out[hit.ddKey] ||= []);
+    /* A template listing the same drill twice must not double it. */
+    if (!bucket.includes(hit.drillId)) bucket.push(hit.drillId);
+  }
+  return out;
+}
+
+/** Maps a template item to the picker section + drill row it lands on, or
+ *  null when no picker can represent it (hand-entered, or deleted drill). */
+function templateResolver(tab: string, allDrills: Drill[]) {
+  const options = drillsForTabDropdowns(allDrills, tab);
+  const byId = new Map(allDrills.map(d => [d.id, d]));
+  return (it: api.ScheduleTemplateItem): BlockItem | null => {
+    if (!it.drillId) return null;
+    const dd = ddForEvent({ tab, category: it.category });
+    if (!dd) return null;
     const choices = options[dd.key] || [];
 
     /* Resolve to the row this picker actually offers.
@@ -428,13 +672,30 @@ function templateDrillsByDd(
       const wanted = (byId.get(it.drillId)?.name || it.name || '').trim().toLowerCase();
       if (wanted) resolved = choices.find(d => d.name.trim().toLowerCase() === wanted);
     }
-    if (!resolved) continue;
+    return resolved ? { drillId: resolved.id, ddKey: dd.key } : null;
+  };
+}
 
-    const bucket = (out[dd.key] ||= []);
-    /* A template listing the same drill twice must not double it. */
-    if (!bucket.includes(resolved.id)) bucket.push(resolved.id);
+/** A Modular template is one saved from blocks (its items carry `block`). */
+function isModularTemplate(t: api.ScheduleTemplate): boolean {
+  return api.parseTemplateItems(t).some(it => it.block != null);
+}
+
+/** A Modular template's blocks, ready to append to a position's draft. */
+function templateBlocks(t: api.ScheduleTemplate, allDrills: Drill[]): BlockItem[][] {
+  const resolve = templateResolver(t.tab, allDrills);
+  const byBlock = new Map<number, { order: number; item: BlockItem }[]>();
+  for (const it of api.parseTemplateItems(t)) {
+    const hit = resolve(it);
+    if (!hit) continue;
+    const n = it.block ?? 0;
+    const arr = byBlock.get(n) || [];
+    arr.push({ order: it.order ?? 0, item: { ...hit, env: parseEnv(it.environment) } });
+    byBlock.set(n, arr);
   }
-  return out;
+  return [...byBlock.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, arr]) => arr.sort((a, b) => a.order - b.order).map(x => x.item).slice(0, MAX_BLOCK_DRILLS));
 }
 
 /** Do two selection maps hold the same drills? Drives the dirty flag. */
@@ -485,7 +746,7 @@ function getLegendCategories(tab: string): string[] {
 
 export default function TrainingPage() {
   const router = useRouter();
-  const { user, isCoach, isParent, isLoading: authLoading } = useAuth();
+  const { user, isCoach, isParent, isViewer, isLoading: authLoading } = useAuth();
 
   // State
   const [players, setPlayers] = useState<Player[]>([]);
@@ -729,6 +990,7 @@ export default function TrainingPage() {
   // Paste day
   const handlePasteDay = async (targetDate: string) => {
     if (copiedDrills.length === 0) return;
+    const shift = shiftBlocksPast(allEventsByDate[targetDate] || []);
     const items = copiedDrills.map(ev => ({
       playerId: selectedPlayerId,
       drillId: ev.drillId || undefined,
@@ -738,6 +1000,12 @@ export default function TrainingPage() {
       date: targetDate,
       time: ev.time,
       duration: ev.duration,
+      /* Keep the day's layout: drag order and Modular sets (numbered
+         after any sets the day already has). */
+      order: ev.order,
+      sectionOrder: ev.sectionOrder,
+      block: shift(ev.tab, ev.block),
+      environment: ev.environment ?? null,
     }));
     try {
       const results = await api.createScheduledDrillsBatch(items);
@@ -776,19 +1044,34 @@ export default function TrainingPage() {
     if (!selectedPlayerId || copiedWeek.length === 0 || !copiedWeekStart) return;
     const targetStart = parseLocalDate(weekStartOf(currentDate));
     const srcStart = parseLocalDate(copiedWeekStart);
+    /* The target week as saved, so pasted Modular sets are numbered after
+       each day's existing sets (only the viewed day is loaded here). */
+    const targetEnd = new Date(targetStart);
+    targetEnd.setDate(targetEnd.getDate() + 6);
+    let targetWeek: ScheduledDrill[] = [];
+    try {
+      targetWeek = await api.getScheduledDrills(selectedPlayerId, { startDate: toDateStr(targetStart), endDate: toDateStr(targetEnd) });
+    } catch { /* nothing known -- sets keep their numbers */ }
+    const shiftByDate: Record<string, ReturnType<typeof shiftBlocksPast>> = {};
     const items = copiedWeek.map(ev => {
       const offset = Math.round((parseLocalDate(ev.date).getTime() - srcStart.getTime()) / 86400000);
       const tgt = new Date(targetStart);
       tgt.setDate(tgt.getDate() + offset);
+      const date = toDateStr(tgt);
+      const shift = (shiftByDate[date] ||= shiftBlocksPast(targetWeek.filter(r => r.date === date)));
       return {
         playerId: selectedPlayerId,
         drillId: ev.drillId || undefined,
         tab: ev.tab,
         category: ev.category,
         name: ev.name,
-        date: toDateStr(tgt),
+        date,
         time: ev.time,
         duration: ev.duration,
+        order: ev.order,
+        sectionOrder: ev.sectionOrder,
+        block: shift(ev.tab, ev.block),
+        environment: ev.environment ?? null,
       };
     });
     try {
@@ -805,10 +1088,41 @@ export default function TrainingPage() {
   // Find the selected player by ID — pure derivation, no hook.
   const selectedPlayer = players.find(p => p.id === selectedPlayerId);
 
-  /* Position-aware visible tabs (Hitting / Pitching / Catching / Infield /
-     Outfield / S&C). Falls back to the full catalog when no player is
-     selected so the coach UI stays populated while picking an athlete. */
-  const visibleTabs = useMemo(() => visibleTabsForPlayer(selectedPlayer), [selectedPlayer]);
+  /* Extra areas switched on for this athlete. Saved on the athlete; a
+     coach's toggle shows straight away (override) and rolls back if the
+     save fails. */
+  const [extrasOverride, setExtrasOverride] = useState<Record<string, string[]>>({});
+  const calendarExtras = useMemo(
+    () => (selectedPlayerId && extrasOverride[selectedPlayerId]) || parseCalendarTabs(selectedPlayer?.calendarTabs),
+    [selectedPlayerId, extrasOverride, selectedPlayer?.calendarTabs],
+  );
+  /* Quick toggles must land in order: each one builds on the latest choice
+     (not a render that may not have happened yet) and the saves run one
+     after another, so the last tick is what the server keeps. */
+  const latestExtras = useRef<Record<string, string[]>>({});
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const toggleCalendarArea = useCallback((key: string) => {
+    if (!selectedPlayerId) return;
+    const pid = selectedPlayerId;
+    const cur = latestExtras.current[pid] ?? calendarExtras;
+    const next = cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key];
+    latestExtras.current[pid] = next;
+    setExtrasOverride(o => ({ ...o, [pid]: next }));
+    saveQueue.current = saveQueue.current
+      .then(() => api.setPlayerCalendarTabs(pid, next))
+      .then(
+        () => setPlayers(ps => ps.map(p => (p.id === pid ? { ...p, calendarTabs: JSON.stringify(next) } : p))),
+        (err) => {
+          /* Fall back to what the athlete record says. */
+          console.error('Saving calendar areas failed:', err);
+          delete latestExtras.current[pid];
+          setExtrasOverride(o => { const n = { ...o }; delete n[pid]; return n; });
+        },
+      );
+  }, [selectedPlayerId, calendarExtras]);
+
+  /* Visible areas: Hitting / Pitching by position + the switched-on extras. */
+  const visibleTabs = useMemo(() => visibleTabsForPlayer(selectedPlayer, calendarExtras), [selectedPlayer, calendarExtras]);
 
   /* If the current activeTab is no longer in the visible list (e.g. coach
      just switched athletes), fall back to "All". */
@@ -849,6 +1163,39 @@ export default function TrainingPage() {
 
   const [draftSel, setDraftSel] = useState<Record<string, Set<string>>>(persistedDraft);
   const [savingDay, setSavingDay] = useState(false);
+
+  /* Modular positions for the day: tab → its super-set blocks. A tab with
+     no entry is Structured and is edited through draftSel instead. */
+  const persistedBlocks = useMemo(
+    () => buildBlocksFromEvents(allEventsByDate[todayDateStr] || []),
+    [allEventsByDate, todayDateStr],
+  );
+  const [blockDraft, setBlockDraft] = useState<Record<string, BlockItem[][]>>(persistedBlocks);
+  /* Positions the coach switched to Modular. The choice sticks while they
+     move between athletes and days: each day opens in Modular, with any
+     saved Structured drills shown as sets (see blockBaseline -- that view
+     alone is not an unsaved change). */
+  const modularPref = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const next = { ...persistedBlocks };
+    for (const tab of modularPref.current) {
+      if (!next[tab]) next[tab] = picksAsBlocks(tab, persistedDraft);
+    }
+    setBlockDraft(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persistedDraft comes from the same events as persistedBlocks
+  }, [persistedBlocks]);
+
+  /* What the blocks look like with no edits: the saved sets, plus -- for a
+     Structured day being viewed in Modular -- its saved picks as sets. A
+     draft equal to this is unchanged, so viewing a day in Modular never
+     lights up Save or rewrites the day; editing it does. */
+  const blockBaseline = useMemo(() => {
+    const base = { ...persistedBlocks };
+    for (const tab of Object.keys(blockDraft)) {
+      if (!base[tab]) base[tab] = picksAsBlocks(tab, persistedDraft);
+    }
+    return base;
+  }, [persistedBlocks, persistedDraft, blockDraft]);
 
   /* Apply Calendar — pushes this athlete's forward schedule onto a group.
      The banner is how a bulk write that touches other athletes' calendars
@@ -951,9 +1298,36 @@ export default function TrainingPage() {
   }, [persistedDraft]);
 
   const dayDirty = useMemo(
-    () => !sameDraft(draftSel, persistedDraft),
-    [draftSel, persistedDraft],
+    () => !sameDraft(draftSel, persistedDraft) || !sameBlocks(blockDraft, blockBaseline),
+    [draftSel, persistedDraft, blockDraft, blockBaseline],
   );
+
+  /* Structured ⇄ Modular for one position. Nothing is lost either way:
+     Structured picks become blocks of up to 8 (in section order), and a
+     block day's drills go back into their own sections' pickers. */
+  const setTabModular = useCallback((tabKey: string, on: boolean) => {
+    const dds = MODAL_DROPDOWNS[tabKey] || [];
+    if (on) modularPref.current.add(tabKey);
+    else modularPref.current.delete(tabKey);
+    if (on) {
+      setBlockDraft(prev => ({ ...prev, [tabKey]: picksAsBlocks(tabKey, draftSel) }));
+      return;
+    }
+    const sets: Record<string, Set<string>> = {};
+    for (const dd of dds) sets[dd.key] = new Set<string>();
+    for (const block of blockDraft[tabKey] || []) for (const it of block) sets[it.ddKey]?.add(it.drillId);
+    setDraftSel(prev => ({ ...prev, ...sets }));
+    setBlockDraft(prev => {
+      const next = { ...prev };
+      delete next[tabKey];
+      return next;
+    });
+  }, [draftSel, blockDraft]);
+
+  /** Edit one Modular position's blocks (no-op if it isn't Modular). */
+  const updateBlocks = useCallback((tabKey: string, fn: (blocks: BlockItem[][]) => BlockItem[][]) => {
+    setBlockDraft(prev => (prev[tabKey] ? { ...prev, [tabKey]: fn(prev[tabKey]) } : prev));
+  }, []);
 
   /**
    * Add or remove a whole template's drills from the draft.
@@ -972,6 +1346,33 @@ export default function TrainingPage() {
   }, []);
 
   const toggleTemplate = useCallback((t: api.ScheduleTemplate) => {
+    /* Modular template: its blocks are appended after the position's own,
+       and unticking takes out the blocks that still match it exactly (a
+       block the coach has since edited is theirs now and stays). */
+    if (isModularTemplate(t)) {
+      const tBlocks = templateBlocks(t, allDrills);
+      const key = (b: BlockItem[]) => b.map(it => `${it.ddKey}:${it.drillId}`).join('|');
+      const on = Object.prototype.hasOwnProperty.call(tplAdded, t.id);
+      setBlockDraft(prev => {
+        const cur = prev[t.tab];
+        if (!cur) return prev;
+        if (!on) return { ...prev, [t.tab]: [...cur, ...tBlocks] };
+        const next = [...cur];
+        for (const tb of tBlocks) {
+          const at = next.findIndex(b => key(b) === key(tb));
+          if (at >= 0) next.splice(at, 1);
+        }
+        return { ...prev, [t.tab]: next };
+      });
+      setTplAdded(prev => {
+        const next = { ...prev };
+        if (on) delete next[t.id];
+        else next[t.id] = {};
+        return next;
+      });
+      return;
+    }
+
     const byDd = templateDrillsByDd(t, allDrills);
 
     if (Object.prototype.hasOwnProperty.call(tplAdded, t.id)) {
@@ -1041,10 +1442,49 @@ export default function TrainingPage() {
       const existing = allEventsByDate[todayDateStr] || [];
       const toDelete: string[] = [];
       const toAdd: Parameters<typeof api.createScheduledDrillsBatch>[0] = [];
+      /* Drills kept when a Modular day goes back to Structured: they lose
+         their block number and rejoin their section's position. */
+      const toUnblock: { id: string; sectionOrder: number }[] = [];
 
       for (const tab of TABS) {
         const dds = MODAL_DROPDOWNS[tab.key] || [];
         const tabEvents = existing.filter(ev => ev.tab === tab.key);
+
+        /* Modular: the blocks ARE the plan, so an edited block day is
+           rebuilt from them (block n, position within the block as order).
+           Untouched block days are left alone; hand-entered one-offs and
+           rows no section can represent always survive. */
+        const blocks = blockDraft[tab.key];
+        if (blocks) {
+          /* Unedited (incl. a Structured day only being viewed as sets). */
+          if (sameBlocks({ [tab.key]: blocks }, { [tab.key]: blockBaseline[tab.key] || [] })) continue;
+          for (const ev of tabEvents) if (ev.drillId && ddForEvent(ev)) toDelete.push(ev.id);
+          let blockSlot = 9 * 60;
+          blocks.filter(b => b.length).forEach((block, bi) => {
+            block.forEach((it, ii) => {
+              const drill = allDrills.find(d => d.id === it.drillId);
+              const dd = dds.find(d => d.key === it.ddKey);
+              if (!drill || !dd) return;
+              const h = Math.floor(blockSlot / 60), m = blockSlot % 60;
+              toAdd.push({
+                playerId: selectedPlayerId,
+                drillId: drill.id,
+                tab: tab.key,
+                category: dd.label,
+                name: drill.name,
+                date: todayDateStr,
+                time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+                duration: 15,
+                order: ii,
+                sectionOrder: bi,
+                block: bi + 1,
+                environment: envString(it.env),
+              });
+              blockSlot += 15;
+            });
+          });
+          continue;
+        }
 
         /* New drills queue up after the last one already on the day, so a
            save never collides two drills onto the same time slot. */
@@ -1056,8 +1496,14 @@ export default function TrainingPage() {
           const sel = draftSel[dd.key] || EMPTY_SET;
           const mine = tabEvents.filter(ev => ev.drillId && ddForEvent(ev)?.key === dd.key);
 
+          /* A section holds each drill once. A Modular day can repeat a
+             drill across blocks, so going back to Structured keeps the
+             first copy and drops the rest. */
+          const kept = new Set<string>();
           for (const ev of mine) {
-            if (!sel.has(ev.drillId!)) toDelete.push(ev.id);
+            if (!sel.has(ev.drillId!) || (ev.block != null && kept.has(ev.drillId!))) { toDelete.push(ev.id); continue; }
+            kept.add(ev.drillId!);
+            if (ev.block != null) toUnblock.push({ id: ev.id, sectionOrder: ddIndex });
           }
 
           const alreadyThere = new Set(mine.map(ev => ev.drillId!));
@@ -1067,7 +1513,7 @@ export default function TrainingPage() {
           /* Slot new drills into the section where it already exists so they
              land beside their siblings; a brand-new section takes its
              canonical position in the taxonomy. */
-          const sectionOrder = mine.length ? mine[0].sectionOrder : ddIndex;
+          const sectionOrder = mine.length && mine[0].block == null ? mine[0].sectionOrder : ddIndex;
           const baseOrder = mine.length ? Math.max(...mine.map(ev => ev.order)) + 1 : 0;
 
           added.forEach((drillId, i) => {
@@ -1094,6 +1540,7 @@ export default function TrainingPage() {
       }
 
       for (const id of toDelete) await api.deleteScheduledDrill(id);
+      for (const u of toUnblock) await api.updateScheduledDrill(u.id, { block: null, sectionOrder: u.sectionOrder });
       if (toAdd.length) await api.createScheduledDrillsBatch(toAdd);
 
       refreshEvents();
@@ -1105,7 +1552,7 @@ export default function TrainingPage() {
     } finally {
       setSavingDay(false);
     }
-  }, [selectedPlayerId, dayDirty, allEventsByDate, todayDateStr, draftSel, allDrills, refreshEvents]);
+  }, [selectedPlayerId, dayDirty, allEventsByDate, todayDateStr, draftSel, blockDraft, blockBaseline, allDrills, refreshEvents]);
 
   /* Unsaved edits die when the day or athlete changes, so warn on the way
      out of the page entirely. */
@@ -1306,6 +1753,15 @@ export default function TrainingPage() {
             </>
           )}
         </div>
+        {/* Areas: switch Infield / Outfield / Catching / Physical on for
+            this athlete (Hitting / Pitching follow positions). Coaches only. */}
+        {isCoach && !isViewer && selectedPlayerId && (
+          <CalendarAreasMenu
+            enabled={calendarExtras}
+            onToggle={toggleCalendarArea}
+            className={`${styles.areasBtn} ${theme.field} ${theme.firm}`}
+          />
+        )}
         <div className={`${styles.viewSwitcher} ${theme.field}`}>
           {(['month', 'week', 'day'] as const).map(v => (
             <button
@@ -1419,6 +1875,9 @@ export default function TrainingPage() {
           allDrills={allDrills}
           draftSel={draftSel}
           onToggleDd={toggleDraftDd}
+          blockDraft={blockDraft}
+          onSetModular={setTabModular}
+          onUpdateBlocks={updateBlocks}
           templatesByTab={templatesByTab}
           selectedTemplateIds={tplAdded}
           onToggleTemplate={toggleTemplate}
@@ -1431,7 +1890,8 @@ export default function TrainingPage() {
         open={!!saveTpl}
         sportLabel={saveTpl?.label ?? ''}
         itemCount={saveTpl?.items.length ?? 0}
-        sectionCount={saveTpl ? new Set(saveTpl.items.map(i => i.category)).size : 0}
+        sectionCount={saveTpl ? new Set(saveTpl.items.map(i => (i.block != null ? `b${i.block}` : i.category))).size : 0}
+        groupNoun={saveTpl?.items.some(i => i.block != null) ? 'set' : 'section'}
         onClose={() => setSaveTpl(null)}
         onSave={async (nm) => {
           if (!saveTpl) return;
@@ -1680,7 +2140,7 @@ function WeekView({
    ══════════════════════════════════════════════════════════════════ */
 
 function DayView({
-  /* Still passed in, no longer shown (the date header was removed). */
+  /* Not shown (the date header was removed); only resets the athlete view. */
   currentDate: _currentDate,
   allDayEvents,
   isCoach,
@@ -1696,6 +2156,9 @@ function DayView({
   allDrills,
   draftSel,
   onToggleDd,
+  blockDraft,
+  onSetModular,
+  onUpdateBlocks,
   templatesByTab,
   selectedTemplateIds,
   onToggleTemplate,
@@ -1735,6 +2198,12 @@ function DayView({
   draftSel: Record<string, Set<string>>;
   /** Tick / untick one drill in one section. */
   onToggleDd: (ddKey: string, drillId: string) => void;
+  /** Coach draft of the day's Modular positions (tab → blocks). */
+  blockDraft: Record<string, BlockItem[][]>;
+  /** Switch one position between Structured and Modular. */
+  onSetModular: (tabKey: string, on: boolean) => void;
+  /** Edit one Modular position's blocks. */
+  onUpdateBlocks: (tabKey: string, fn: (blocks: BlockItem[][]) => BlockItem[][]) => void;
 }) {
 
   /* Focused-tab state — null means "show full day across every visible
@@ -1743,6 +2212,12 @@ function DayView({
    * area's plan at a comfortable size. Click "← All areas" to return.
    * Drill-click → DrillVideoModal flow is unchanged in both modes. */
   const [focusedTab, setFocusedTab] = useState<string | null>(null);
+  /* Athletes + parents land on the workout bubbles each time they move
+     to another day, rather than inside a workout that day may not have. */
+  const dayKey = _currentDate.toDateString();
+  useEffect(() => {
+    if (!isCoach) setFocusedTab(null);
+  }, [dayKey, isCoach]);
 
   // Group events by tab
   const eventsByTab = useMemo(() => {
@@ -1903,6 +2378,32 @@ function DayView({
      (honouring any drag-reorder), so an applied template reproduces the
      day exactly. */
   const buildTemplateItems = (tabKey: string): api.ScheduleTemplateItem[] => {
+    /* Modular: snapshot the blocks (draft included) -- each drill keeps its
+       section as category plus its block number and place in the block. */
+    const blocks = blockDraft[tabKey];
+    if (blocks) {
+      const dds = MODAL_DROPDOWNS[tabKey] || [];
+      let blockSlot = 9 * 60;
+      return blocks.filter((b) => b.length).flatMap((block, bi) => block.flatMap((it, ii) => {
+        const drill = drillById.get(it.drillId);
+        const dd = dds.find((d) => d.key === it.ddKey);
+        if (!drill || !dd) return [];
+        const h = Math.floor(blockSlot / 60), m = blockSlot % 60;
+        blockSlot += 15;
+        return [{
+          drillId: drill.id,
+          category: dd.label,
+          name: drill.name,
+          time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+          duration: 15,
+          notes: null,
+          order: ii,
+          sectionOrder: bi,
+          block: bi + 1,
+          environment: envString(it.env),
+        }];
+      }));
+    }
     /* Snapshots the DISPLAYED day, draft included, so "+Temp" captures a day
        the coach has just assembled and not yet saved — which is the moment
        they are most likely to want it as a template.
@@ -1933,9 +2434,31 @@ function DayView({
   };
 
   // When entering focus mode, look up the tab's metadata once.
-  const focusedTabMeta = focusedTab ? visibleTabs.find((t) => t.key === focusedTab) ?? null : null;
+  const focusedTabMeta = focusedTab ? TABS.find((t) => t.key === focusedTab) ?? null : null;
   const focusedEvents = focusedTab ? (displayByTab[focusedTab] || []) : [];
   const focusedColor = focusedTab ? (TAB_COLORS[focusedTab] || TAB_COLORS.hitting) : null;
+
+  /* Modular (super-set block) positions. Coaches read their draft; athletes
+     and parents read the saved rows. */
+  const drillById = useMemo(() => new Map(allDrills.map((d) => [d.id, d])), [allDrills]);
+  const rowBlockView = (rows: ScheduledDrill[]): BlockViewDrill[][] =>
+    groupBlocks(rows).map((block) => block.map((ev) => ({
+      key: ev.id, name: ev.name, movement: isMovementSection(ev.category), drill: ev.drill,
+      env: envSummary(parseEnv(ev.environment)),
+      goal: envSummary(parseEnv(ev.environment), true),
+    })));
+  const focusedModular = !!focusedTab && (isCoach ? !!blockDraft[focusedTab] : isModularRows(focusedEvents));
+  /* A position only offers templates of its own kind: block templates while
+     Modular, section templates while Structured. */
+  const templatesFor = (tabKey: string) =>
+    (templatesByTab[tabKey] || []).filter((t) => isModularTemplate(t) === !!blockDraft[tabKey]);
+  /* Drills in the position's plan as drawn (draft included) -- what +Temp saves. */
+  const planSize = (tabKey: string) => (blockDraft[tabKey]
+    ? blockDraft[tabKey].reduce((n, b) => n + b.length, 0)
+    : (displayByTab[tabKey] || []).length);
+  const focusedCount = isCoach && focusedModular && focusedTab
+    ? (blockDraft[focusedTab] || []).reduce((n, b) => n + b.length, 0)
+    : focusedEvents.length;
 
   /* Athletes only see areas that actually have a drill — an empty category
    * renders no column for them.
@@ -1945,8 +2468,13 @@ function DayView({
    * Outfield column is where you go to add the athlete's first outfield
    * drill. visibleTabsForPlayer() is what decides that list, so a C/INF gets
    * Catching + Infield and a pitcher-only athlete never sees Hitting. */
-  const populatedTabs = visibleTabs.filter((t) => (displayByTab[t.key] || []).length > 0);
-  const columnTabs = isCoach ? visibleTabs : populatedTabs;
+  /* Athletes / parents: every area that has drills that day. Coaches: the
+     athlete's areas, plus any other area that already has drills that day
+     so nothing scheduled is ever hidden by an area being switched off. */
+  const populatedTabs = TABS.filter((t) => (displayByTab[t.key] || []).length > 0);
+  const columnTabs = isCoach
+    ? TABS.filter((t) => visibleTabs.some((v) => v.key === t.key) || populatedTabs.some((p) => p.key === t.key))
+    : populatedTabs;
 
   /* Section → selectable drills, for every tab at once. Memoised on the
      library alone so opening a dropdown does not recompute the others. */
@@ -1997,7 +2525,9 @@ function DayView({
   };
 
   return (
-    <div className={`${styles.dayView} ${theme.inner}`}>
+    /* The athlete bubble stack sits straight on the canvas like the
+       Education hub tiles, so it drops the Day view's own panel. */
+    <div className={!isCoach && !focusedTabMeta && columnTabs.length > 0 ? styles.workoutStackWrap : `${styles.dayView} ${theme.inner}`}>
       <DndContext
         sensors={sensors}
         collisionDetection={calReorderCollision}
@@ -2017,15 +2547,31 @@ function DayView({
               onClick={() => setFocusedTab(null)}
               title="Back to the full day across every area"
             >
-              ← All areas
+              {isCoach ? '← All areas' : '← All workouts'}
             </button>
           )}
           {/* Applying a template is per column now — see the Template picker
               in each column header. In the focused single-area view it sits
               beside Copy below. */}
+          {/* Structured (a picker per section) ⇄ Modular (super-set blocks).
+              The label names the mode this position is in now. */}
+          {isCoach && focusedTabMeta && (
+            <button
+              type="button"
+              className={`${styles.dayActionBtn} ${theme.field} ${focusedModular ? styles.modeBtnModular : ''}`}
+              style={{ '--move-bg': TAB_MODULAR_DARK[focusedTabMeta.key] } as React.CSSProperties}
+              onClick={() => onSetModular(focusedTabMeta.key, !focusedModular)}
+              title={focusedModular
+                ? 'Modular: drills grouped into super sets. Click for Structured.'
+                : 'Structured: one picker per section. Click for Modular super sets.'}
+              aria-pressed={focusedModular}
+            >
+              {focusedModular ? 'Modular' : 'Structured'}
+            </button>
+          )}
           {isCoach && focusedTabMeta && (
             <TemplateMultiSelect
-              templates={templatesByTab[focusedTabMeta.key] || []}
+              templates={templatesFor(focusedTabMeta.key)}
               selectedIds={selectedTemplateIds}
               onToggle={onToggleTemplate}
               onDelete={onDeleteTemplate}
@@ -2047,7 +2593,7 @@ function DayView({
             </button>
           )}
           {/* Save the focused sport's day as a named reusable template. */}
-          {isCoach && focusedTabMeta && focusedEvents.length > 0 && (
+          {isCoach && focusedTabMeta && planSize(focusedTabMeta.key) > 0 && (
             <button
               className={`${styles.dayActionBtn} ${theme.field}`}
               onClick={() => onSaveTemplate(focusedTabMeta.key, buildTemplateItems(focusedTabMeta.key))}
@@ -2083,7 +2629,7 @@ function DayView({
         <div
           className={styles.dayFocus}
           /* --tab-c drives --tab-ink (darker in light theme) for the card titles. */
-          style={{ borderTop: `3px solid ${focusedColor.text}`, '--tab-c': focusedColor.text } as React.CSSProperties}
+          style={{ borderTop: `3px solid ${focusedColor.text}`, '--tab-c': focusedColor.text, '--move-bg': TAB_MODULAR_DARK[focusedTabMeta.key] } as React.CSSProperties}
         >
           <div
             className={styles.dayFocusHeader}
@@ -2093,11 +2639,108 @@ function DayView({
               {focusedTabMeta.label}
             </span>
             <span className={styles.dayFocusCount}>
-              {focusedEvents.length} drill{focusedEvents.length !== 1 ? 's' : ''}
+              {focusedCount} drill{focusedCount !== 1 ? 's' : ''}
             </span>
           </div>
           <div className={styles.dayFocusBody}>
-            {focusedEvents.length === 0 ? (
+            {isCoach && focusedModular ? (
+              <ModularBuilder
+                tabKey={focusedTabMeta.key}
+                blocks={blockDraft[focusedTabMeta.key] || []}
+                onChange={(fn) => onUpdateBlocks(focusedTabMeta.key, fn)}
+                drillsByDd={drillsByTabDd[focusedTabMeta.key] || {}}
+                drillById={drillById}
+                onDrillClick={onDrillClick}
+              />
+            ) : !isCoach && focusedModular ? (
+              <BlockList blocks={rowBlockView(focusedEvents)} onDrillClick={onDrillClick} />
+            ) : isCoach ? (
+              /* ── Coach: this position's workout builder ──
+                 The same picker-led editor as the day columns, given the full
+                 width: one card per section (picker + the drills in it), laid
+                 out in a grid. Ticking only changes the draft; Save in the
+                 calendar controls publishes the day. */
+              (() => {
+                const { byDd, orphans } = splitBySection(focusedTabMeta.key);
+                return (
+                  <div className={styles.focusBuilder}>
+                    {(MODAL_DROPDOWNS[focusedTabMeta.key] || []).map(dd => {
+                      const rows = byDd.get(dd.key) || [];
+                      return (
+                        <div key={dd.key} className={styles.focusBuilderSection}>
+                          <MultiSelectDropdown
+                            label={dd.label}
+                            drills={drillsByTabDd[focusedTabMeta.key]?.[dd.key] || []}
+                            selected={draftSel[dd.key] || EMPTY_SET}
+                            onToggle={(id) => onToggleDd(dd.key, id)}
+                            color="var(--tab-ink)"
+                            compact
+                          />
+                          {rows.length > 0 ? (
+                            <div className={styles.dayFocusCardList}>
+                              <SortableContext
+                                items={rows.filter((ev) => !isPendingRow(ev.id)).map((ev) => ev.id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {rows.map((ev) => isPendingRow(ev.id) ? (
+                                  <CalPendingDrill
+                                    key={ev.id}
+                                    rowClass={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                    nameClass={styles.dayFocusCardItemName}
+                                    name={ev.name}
+                                    onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                    onRemove={() => removeRow(ev)}
+                                    isCoach={isCoach}
+                                  />
+                                ) : (
+                                  <CalSortableDrill
+                                    key={ev.id}
+                                    id={ev.id}
+                                    tab={focusedTabMeta.key}
+                                    category={ev.category}
+                                    disabled={false}
+                                    rowClass={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                                    nameClass={styles.dayFocusCardItemName}
+                                    name={ev.name}
+                                    onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                                    onDelete={() => removeRow(ev)}
+                                    isCoach={isCoach}
+                                  />
+                                ))}
+                              </SortableContext>
+                            </div>
+                          ) : (
+                            <div className={styles.focusBuilderEmpty}>No drills yet</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* Rows no picker can represent stay visible + removable. */}
+                    {groupByCategory(orphans, focusedTabMeta.key).map(([category, items]) => (
+                      <div key={`orphan-${category}`} className={styles.focusBuilderSection}>
+                        <span className={styles.dayColFieldLabel}>{category}</span>
+                        <div className={styles.dayFocusCardList}>
+                          {items.map((ev) => (
+                            <div
+                              key={ev.id}
+                              className={`${styles.dayFocusCardItem} ${ev.drill ? styles.dayColCardClickable : ''}`}
+                              onClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
+                            >
+                              <span className={styles.dayFocusCardItemName}>{ev.name}</span>
+                              <button
+                                className={styles.dayEventDelete}
+                                onClick={(e) => { e.stopPropagation(); onDelete(ev.id); }}
+                                title="Delete"
+                              >×</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+            ) : focusedEvents.length === 0 ? (
               <div className={styles.dayFocusEmpty}>
                 No {focusedTabMeta.label.toLowerCase()} drills scheduled for this day.
               </div>
@@ -2182,6 +2825,46 @@ function DayView({
         <div className={styles.dayFocusEmpty} style={{ padding: '2.5rem 1rem', textAlign: 'center' }}>
           No workouts scheduled for this day.
         </div>
+      ) : !isCoach ? (
+        /* ── Athletes + parents: one Education-style bubble per workout,
+           stacked. Tapping one opens that workout (the focused view above). */
+        <div className={styles.workoutStack}>
+          {columnTabs.map((tab, i) => {
+            const tabEvents = displayByTab[tab.key] || [];
+            const blockCount = isModularRows(tabEvents) ? groupBlocks(tabEvents).length : 0;
+            const cats = blockCount
+              ? [`${blockCount} super set${blockCount !== 1 ? 's' : ''}`]
+              : groupByCategory(tabEvents, tab.key).map(([c]) => c);
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                className={`${eduStyles.tile} ${styles.workoutTile} ${theme.inner}`}
+                style={{ '--tile-rgb': hexToRgb((TAB_COLORS[tab.key] || TAB_COLORS.hitting).text) } as React.CSSProperties}
+                onClick={() => setFocusedTab(tab.key)}
+                aria-label={`${tab.label}: ${tabEvents.length} drill${tabEvents.length !== 1 ? 's' : ''}`}
+              >
+                <span className={eduStyles.tileRule} aria-hidden="true" />
+                <span className={`${eduStyles.tileWatermark} ${styles.workoutWatermark}`} aria-hidden="true">{WORKOUT_ICONS[tab.key]}</span>
+                <span className={eduStyles.tileIcon} aria-hidden="true">{WORKOUT_ICONS[tab.key]}</span>
+                <span className={`${eduStyles.tileBody} ${styles.workoutBody}`}>
+                  <span className={eduStyles.tileEyebrow}>Workout {String(i + 1).padStart(2, '0')}</span>
+                  <span className={`${eduStyles.tileTitle} ${styles.workoutTitle}`}>{tab.label}</span>
+                  {cats.length > 0 && <span className={eduStyles.tileDesc}>{cats.join(' · ')}</span>}
+                </span>
+                <span className={styles.workoutFoot}>
+                  <span className={eduStyles.tileStat}>
+                    <span className={eduStyles.tileStatNum}>{tabEvents.length}</span>
+                    <span className={eduStyles.tileStatLabel}>{tabEvents.length === 1 ? 'drill' : 'drills'}</span>
+                  </span>
+                  <span className={eduStyles.tileGo} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       ) : (
         /* ── Multi-column grid — one column per position area ── */
         /* Column count travels as a custom property, NOT as an inline
@@ -2200,7 +2883,7 @@ function DayView({
             return (
               /* --tab-c = this column's sport colour; CSS derives --tab-ink (a darker
                  version in light theme) for the header, chips and section labels. */
-              <div key={tab.key} className={styles.dayCol} style={{ '--tab-c': tabColor.text } as React.CSSProperties}>
+              <div key={tab.key} className={styles.dayCol} style={{ '--tab-c': tabColor.text, '--move-bg': TAB_MODULAR_DARK[tab.key] } as React.CSSProperties}>
                 {/* Column header — `<div>` wrapper instead of a single
                     `<button>` so the focus-tab click and the per-tab
                     Copy click can each be their own buttons (nested
@@ -2214,7 +2897,7 @@ function DayView({
                   <button
                     type="button"
                     onClick={() => setFocusedTab(tab.key)}
-                    title={`Focus on ${tab.label}`}
+                    title={isCoach ? `Build the ${tab.label} workout` : `Open ${tab.label}`}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -2240,8 +2923,22 @@ function DayView({
                       column keeps the sport name readable. */}
                   {isCoach && (
                     <div className={styles.dayColActions}>
+                      {/* Structured ⇄ Modular for this column -- the same
+                          switch as the single-position builder's. */}
+                      <button
+                        type="button"
+                        className={`${styles.colChip} ${blockDraft[tab.key] ? styles.colChipModular : ''}`}
+                        onClick={(e) => { e.stopPropagation(); onSetModular(tab.key, !blockDraft[tab.key]); }}
+                        title={blockDraft[tab.key]
+                          ? `${tab.label} is Modular (super sets). Click for Structured.`
+                          : `${tab.label} is Structured (a picker per section). Click for Modular super sets.`}
+                        aria-pressed={!!blockDraft[tab.key]}
+                        style={blockDraft[tab.key] ? undefined : { borderColor: 'var(--tab-ink)', color: 'var(--tab-ink)' }}
+                      >
+                        {blockDraft[tab.key] ? 'Modular' : 'Structured'}
+                      </button>
                       <TemplateMultiSelect
-                        templates={templatesByTab[tab.key] || []}
+                        templates={templatesFor(tab.key)}
                         selectedIds={selectedTemplateIds}
                         onToggle={onToggleTemplate}
                         onDelete={onDeleteTemplate}
@@ -2251,12 +2948,12 @@ function DayView({
                       <button
                         type="button"
                         className={styles.colChip}
-                        disabled={tabEvents.length === 0}
+                        disabled={planSize(tab.key) === 0}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (tabEvents.length > 0) onSaveTemplate(tab.key, buildTemplateItems(tab.key));
+                          if (planSize(tab.key) > 0) onSaveTemplate(tab.key, buildTemplateItems(tab.key));
                         }}
-                        title={tabEvents.length > 0
+                        title={planSize(tab.key) > 0
                           ? `Save this ${tab.label} column as a reusable template`
                           : `Nothing in ${tab.label} to save as a template`}
                         style={{ borderColor: 'var(--tab-ink)', color: 'var(--tab-ink)' }}
@@ -2296,9 +2993,20 @@ function DayView({
                       Section-level drag is deliberately absent here: a
                       section's position is now its picker's position, which
                       follows the drill taxonomy. Drills still reorder within
-                      their own section, and the focused single-area view still
-                      offers section dragging. */}
-                  {isCoach && (() => {
+                      their own section (also in the single-position builder). */}
+                  {/* Modular column: sets instead of the section pickers. */}
+                  {isCoach && blockDraft[tab.key] && (
+                    <ColumnModularEditor
+                      tabKey={tab.key}
+                      label={tab.label}
+                      blocks={blockDraft[tab.key]}
+                      onChange={(fn) => onUpdateBlocks(tab.key, fn)}
+                      drillsByDd={drillsByTabDd[tab.key] || {}}
+                      drillById={drillById}
+                      onDrillClick={onDrillClick}
+                    />
+                  )}
+                  {isCoach && !blockDraft[tab.key] && (() => {
                     const { byDd, orphans } = splitBySection(tab.key);
                     return (
                       <>
@@ -2615,6 +3323,593 @@ function TemplateMultiSelect({
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   Modular workouts — super-set blocks
+   ══════════════════════════════════════════════════════════════════ */
+
+/** One drill as a block shows it. */
+type BlockViewDrill = { key: string; name: string; movement: boolean; drill: Drill | null; env?: string; goal?: string };
+
+/** A drill in a block, coloured by the picker it came from: Movement (dark
+ *  blue, white type) or Drills (white, black type). */
+function BlockDrillPill({ name, movement, index, onClick, onRemove, children }: {
+  name: string;
+  movement: boolean;
+  index: number;
+  onClick?: () => void;
+  onRemove?: () => void;
+  /** Coach view: the environment pickers, between the name and remove. */
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`${styles.blockDrill} ${movement ? styles.blockDrillMove : styles.blockDrillWork} ${onClick ? styles.blockDrillClickable : ''}`}
+      onClick={onClick}
+    >
+      <span className={styles.blockDrillNum}>{index + 1}</span>
+      <span className={styles.blockDrillName}>{name}</span>
+      {children}
+      {onRemove && (
+        <button
+          type="button"
+          className={styles.blockDrillRemove}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title="Remove from set"
+          aria-label={`Remove ${name}`}
+        >×</button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The athlete / parent workout: sets top to bottom, each a small table --
+ * Drill | Environment (Feed Type, Implement, Situation) | Goal -- with each
+ * drill row in its Movement / Drills colour. Tapping a row plays the drill.
+ */
+function BlockList({ blocks, onDrillClick }: {
+  blocks: BlockViewDrill[][];
+  onDrillClick: (drill: Drill) => void;
+}) {
+  if (blocks.length === 0) {
+    return <div className={styles.focusBuilderEmpty}>No sets yet</div>;
+  }
+  return (
+    <div className={styles.blockStack}>
+      {blocks.map((block, bi) => (
+        <div key={bi} className={styles.blockCard}>
+          <div className={styles.blockCardHead}>
+            <span className={styles.blockCardTitle}>Set {bi + 1}</span>
+            <span className={styles.blockCardCount}>{block.length} drill{block.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className={styles.blockTable} role="table" aria-label={`Set ${bi + 1}`}>
+            <div className={styles.blockTableHead} role="row">
+              <span role="columnheader">Drill</span>
+              <span role="columnheader">Environment</span>
+              <span role="columnheader">Goal</span>
+            </div>
+            {block.map((d, i) => (
+              <div
+                key={d.key}
+                role="row"
+                className={`${styles.blockDrill} ${styles.blockTableRow} ${d.movement ? styles.blockDrillMove : styles.blockDrillWork} ${d.drill ? styles.blockDrillClickable : ''}`}
+                onClick={d.drill ? () => onDrillClick(d.drill!) : undefined}
+              >
+                <span className={styles.blockTableName} role="cell">
+                  <span className={styles.blockDrillNum}>{i + 1}</span>
+                  <span className={styles.blockDrillName}>{d.name}</span>
+                </span>
+                <span className={`${styles.blockTableCell} ${d.env ? '' : styles.blockTableNone}`} role="cell">{d.env || '—'}</span>
+                <span className={`${styles.blockTableCell} ${d.goal ? '' : styles.blockTableNone}`} role="cell">{d.goal || '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Shared set editing for both Modular editors: each picker's drill list (and
+ * the section each drill belongs to -- the row is saved under that section,
+ * which is also what sets its colour), plus tick / untick into one set.
+ */
+function useSetEditing(
+  tabKey: string,
+  onChange: (fn: (blocks: BlockItem[][]) => BlockItem[][]) => void,
+  drillsByDd: Record<string, Drill[]>,
+) {
+  const pickers = useMemo(() => {
+    const { movement, drills } = modularPickerDds(tabKey);
+    const build = (dds: ModalDropdown[]) => {
+      const list: Drill[] = [];
+      const ddOf = new Map<string, string>();
+      for (const dd of dds) {
+        for (const d of drillsByDd[dd.key] || []) {
+          if (ddOf.has(d.id)) continue;
+          ddOf.set(d.id, dd.key);
+          /* Several sections share drill names (Tee and Flips both have
+             "1 Hand (Top)"), so the picker names the section too. */
+          list.push({ ...d, name: `${d.name} · ${dd.label}` });
+        }
+      }
+      return { list, ddOf, keys: new Set(dds.map((d) => d.key)) };
+    };
+    return { movement: build(movement), drills: build(drills) };
+  }, [tabKey, drillsByDd]);
+
+  const editBlock = (bi: number, fn: (block: BlockItem[]) => BlockItem[]) =>
+    onChange((bs) => bs.map((b, j) => (j === bi ? fn(b) : b)));
+
+  const selectedIn = (block: BlockItem[], group: 'movement' | 'drills') =>
+    new Set(block.filter((it) => pickers[group].ddOf.get(it.drillId) === it.ddKey).map((it) => it.drillId));
+
+  /* Ticking adds the drill to the end of the set (until it is full);
+     unticking takes it out. */
+  const toggleIn = (bi: number, group: 'movement' | 'drills') => (id: string) => editBlock(bi, (b) => {
+    const ddKey = pickers[group].ddOf.get(id);
+    if (!ddKey) return b;
+    const at = b.findIndex((it) => it.drillId === id && it.ddKey === ddKey);
+    if (at >= 0) return b.filter((_, k) => k !== at);
+    return b.length >= MAX_BLOCK_DRILLS ? b : [...b, { drillId: id, ddKey }];
+  });
+
+  /* The Movement (dark blue) + Drills pickers for one set. */
+  const pickerPair = (bi: number, block: BlockItem[]) => (
+    <div className={styles.blockPickers}>
+      <div className={styles.blockPickerMove}>
+        <MultiSelectDropdown
+          label="Movement"
+          drills={pickers.movement.list}
+          selected={selectedIn(block, 'movement')}
+          onToggle={toggleIn(bi, 'movement')}
+          color="var(--move-bg, #1e3a8a)"
+          compact
+        />
+      </div>
+      <div className={styles.blockPickerWork}>
+        <MultiSelectDropdown
+          label="Drills"
+          drills={pickers.drills.list}
+          selected={selectedIn(block, 'drills')}
+          onToggle={toggleIn(bi, 'drills')}
+          color="var(--text)"
+          compact
+        />
+      </div>
+      {block.length >= MAX_BLOCK_DRILLS && <div className={styles.blockFull}>Set full ({MAX_BLOCK_DRILLS} drills)</div>}
+    </div>
+  );
+
+  /* Replace one environment field (Feed Type / Implement / Situation) on
+     one drill of one set. */
+  const setEnv = (bi: number, i: number, field: EnvField, values: string[]) => editBlock(bi, (b) =>
+    b.map((it, k) => (k === i ? { ...it, env: { ...it.env, [field]: values } } : it)));
+
+  return { pickers, editBlock, pickerPair, setEnv };
+}
+
+/** A set's drills as editable pills (click = demo video, × = remove). */
+function SetDrills({ block, bi, isMovementKey, drillById, onDrillClick, editBlock, onEnv }: {
+  block: BlockItem[];
+  bi: number;
+  isMovementKey: (ddKey: string) => boolean;
+  drillById: Map<string, Drill>;
+  onDrillClick: (drill: Drill) => void;
+  editBlock: (bi: number, fn: (block: BlockItem[]) => BlockItem[]) => void;
+  /** Given: each drill gets the Feed Type / Implement / Situation pickers. */
+  onEnv?: (i: number, field: EnvField, values: string[]) => void;
+}) {
+  return (
+    <div className={styles.blockDrills}>
+      {block.length === 0 && <div className={styles.focusBuilderEmpty}>No drills yet</div>}
+      {block.map((it, i) => {
+        const drill = drillById.get(it.drillId);
+        return (
+          <BlockDrillPill
+            key={`${it.ddKey}:${it.drillId}`}
+            name={drill?.name || 'Drill'}
+            movement={isMovementKey(it.ddKey)}
+            index={i}
+            onClick={drill ? () => onDrillClick(drill) : undefined}
+            onRemove={() => editBlock(bi, (b) => b.filter((_, k) => k !== i))}
+          >
+            {onEnv && (
+              <span className={styles.envPickers} onClick={(e) => e.stopPropagation()}>
+                {ENV_FIELDS.map((f) => (
+                  <EnvSelect
+                    key={f.key}
+                    label={f.label}
+                    options={f.options}
+                    selected={it.env?.[f.key] || []}
+                    onChange={(values) => onEnv(i, f.key, values)}
+                  />
+                ))}
+              </span>
+            )}
+          </BlockDrillPill>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * One environment picker on a drill: a small chip showing the field's picks
+ * (or its name when empty) that opens a searchable multi-select list.
+ */
+function EnvSelect({ label, options, selected, onChange }: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelPos = useFixedPanel(open, triggerRef, 220);
+
+  useEffect(() => {
+    if (!open) { setSearch(''); return; }
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const q = search.trim().toLowerCase();
+  const shown = q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
+  /* Keep the picks in the list's own order, whatever order they were ticked. */
+  const toggle = (o: string) => onChange(
+    selected.includes(o) ? selected.filter((x) => x !== o) : options.filter((x) => x === o || selected.includes(x)),
+  );
+
+  return (
+    <span className={styles.envWrap} ref={wrapRef}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className={`${styles.envChip} ${selected.length ? styles.envChipOn : ''}`}
+        onClick={() => setOpen((v) => !v)}
+        title={selected.length ? `${label}: ${selected.join(', ')}` : `Pick ${label}`}
+        aria-expanded={open}
+      >
+        <span className={styles.envChipText}>{selected.length ? selected.join(', ') : label}</span>
+        <span className={styles.envChipCaret}>▾</span>
+      </button>
+      {open && (
+        <div className={styles.multiPanel} style={panelPos ?? { visibility: 'hidden' }} role="listbox" aria-label={label} aria-multiselectable>
+          <div className={styles.envPanelHead}>{label}</div>
+          <div className={styles.multiSearch}>
+            <input
+              type="text"
+              className={styles.multiSearchInput}
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus={typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches}
+              style={typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches ? { fontSize: '12pt' } : undefined}
+            />
+          </div>
+          <div className={styles.multiList}>
+            {shown.length === 0 && <div className={styles.multiEmpty}>No matches</div>}
+            {shown.map((o) => {
+              const on = selected.includes(o);
+              return (
+                <label key={o} className={`${styles.multiItem} ${on ? styles.multiItemSelected : ''}`}>
+                  <input type="checkbox" checked={on} onChange={() => toggle(o)} className={styles.multiCheckbox} />
+                  <span className={styles.multiItemName}>{o}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** A set's title row: "Set N", count, remove. */
+function SetHead({ bi, count, onRemove }: { bi: number; count: number; onRemove: () => void }) {
+  return (
+    <div className={styles.blockCardHead}>
+      <span className={styles.blockCardTitle}>Set {bi + 1}</span>
+      <span className={styles.blockCardCount}>{count} / {MAX_BLOCK_DRILLS}</span>
+      <button
+        type="button"
+        className={styles.blockRemove}
+        onClick={onRemove}
+        title="Remove this set"
+        aria-label={`Remove set ${bi + 1}`}
+      >×</button>
+    </div>
+  );
+}
+
+/**
+ * Coach editor for a Modular position. Sets stack down the left, each with
+ * its own "Adding to Set N" picker beside it on the right (stacked under it
+ * on phones); + Add Set makes a new set. Two pickers -- Movement
+ * (Movement Prep + Vision) and Drills (the position's other sections) -- so
+ * dry and live work can be super-setted. Up to 8 drills a set, any number
+ * of sets. Changes stay in the draft until the calendar's Save.
+ */
+function ModularBuilder({ tabKey, blocks, onChange, drillsByDd, drillById, onDrillClick }: {
+  tabKey: string;
+  blocks: BlockItem[][];
+  onChange: (fn: (blocks: BlockItem[][]) => BlockItem[][]) => void;
+  drillsByDd: Record<string, Drill[]>;
+  drillById: Map<string, Drill>;
+  onDrillClick: (drill: Drill) => void;
+}) {
+  const { pickers, editBlock, pickerPair, setEnv } = useSetEditing(tabKey, onChange, drillsByDd);
+  const isMovementKey = (k: string) => pickers.movement.keys.has(k);
+
+  return (
+    <div className={styles.modularBlocks}>
+      {blocks.length === 0 && (
+        <div className={styles.focusBuilderEmpty}>No sets yet. Add a set to start building super sets.</div>
+      )}
+      {/* One row per set: the set (60%) beside its own picker (40%),
+          which only ever adds to that set. Phones stack the two. */}
+      {blocks.map((block, bi) => (
+        <div key={bi} className={styles.modularRow}>
+          <div className={styles.blockCard}>
+            <SetHead bi={bi} count={block.length} onRemove={() => onChange((bs) => bs.filter((_, j) => j !== bi))} />
+            <SetDrills
+              block={block}
+              bi={bi}
+              isMovementKey={isMovementKey}
+              drillById={drillById}
+              onDrillClick={onDrillClick}
+              editBlock={editBlock}
+              onEnv={(i, field, values) => setEnv(bi, i, field, values)}
+            />
+          </div>
+          <div className={styles.modularPicker}>
+            <div className={styles.modularPickerHead}>
+              <span className={styles.blockCardTitle}>Adding to Set {bi + 1}</span>
+              <span className={styles.blockCardCount}>{block.length} / {MAX_BLOCK_DRILLS}</span>
+            </div>
+            {pickerPair(bi, block)}
+          </div>
+        </div>
+      ))}
+      <button type="button" className={styles.addSetBtn} onClick={() => onChange((bs) => [...bs, []])}>+ Add Set</button>
+    </div>
+  );
+}
+
+/** Window event a column fires when it opens its set bubble (detail = tab). */
+const COL_BUBBLE_EVENT = 'training:col-set-bubble';
+
+/**
+ * The same Modular editor shrunk into a day column. Each set has one
+ * "Add drills" button; it opens a side bubble beside the column holding the
+ * Movement + Drills pickers. The bubble stays open while you work on that
+ * set and moves when you open another set (or add one); × closes it.
+ */
+function ColumnModularEditor({ tabKey, label, blocks, onChange, drillsByDd, drillById, onDrillClick }: {
+  tabKey: string;
+  label: string;
+  blocks: BlockItem[][];
+  onChange: (fn: (blocks: BlockItem[][]) => BlockItem[][]) => void;
+  drillsByDd: Record<string, Drill[]>;
+  drillById: Map<string, Drill>;
+  onDrillClick: (drill: Drill) => void;
+}) {
+  const { pickers, editBlock, pickerPair, setEnv } = useSetEditing(tabKey, onChange, drillsByDd);
+  const isMovementKey = (k: string) => pickers.movement.keys.has(k);
+
+  /* The set whose bubble is open, and the button it hangs off. */
+  const [openSet, setOpenSet] = useState<number | null>(null);
+  const anchors = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [bubblePos, setBubblePos] = useState<React.CSSProperties | null>(null);
+
+  /* A removed set takes its bubble with it. */
+  useEffect(() => {
+    if (openSet !== null && openSet >= blocks.length) setOpenSet(null);
+  }, [openSet, blocks.length]);
+
+  /* One bubble at a time across ALL columns: opening a set in another
+     column closes this one (moving to a new set moves the bubble). */
+  useEffect(() => {
+    const onOther = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== tabKey) setOpenSet(null);
+    };
+    window.addEventListener(COL_BUBBLE_EVENT, onOther);
+    return () => window.removeEventListener(COL_BUBBLE_EVENT, onOther);
+  }, [tabKey]);
+  const openBubble = (bi: number) => {
+    setOpenSet(bi);
+    window.dispatchEvent(new CustomEvent(COL_BUBBLE_EVENT, { detail: tabKey }));
+  };
+
+  /* Pinned to the screen beside the column (right side, or left when the
+     column is near the right edge), following it on scroll. */
+  useLayoutEffect(() => {
+    if (openSet === null) { setBubblePos(null); return; }
+    const place = () => {
+      const r = anchors.current[openSet]?.getBoundingClientRect();
+      if (!r) return;
+      const col = anchors.current[openSet]?.closest(`.${styles.dayCol}`)?.getBoundingClientRect() || r;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const width = Math.min(300, vw - 16);
+      let left = col.right + 8;
+      if (left + width > vw - 8) left = col.left - 8 - width;
+      if (left < 8) left = Math.max(8, Math.min(vw - width - 8, r.left));
+      const top = Math.max(8, Math.min(r.top - 8, vh - 260));
+      setBubblePos({ position: 'fixed', left, top, width, zIndex: 250 });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [openSet, blocks]);
+
+  const open = openSet !== null ? blocks[openSet] : undefined;
+
+  return (
+    <div className={styles.colModular}>
+      {blocks.length === 0 && <div className={styles.focusBuilderEmpty}>No sets yet</div>}
+      {blocks.map((block, bi) => (
+        <div key={bi} className={`${styles.blockCard} ${openSet === bi ? styles.colSetOpen : ''}`}>
+          <SetHead bi={bi} count={block.length} onRemove={() => onChange((bs) => bs.filter((_, j) => j !== bi))} />
+          {/* Same Feed Type / Implement / Situation / Goal pickers as the
+              single-position builder -- most athletes only have two columns. */}
+          <SetDrills
+            block={block}
+            bi={bi}
+            isMovementKey={isMovementKey}
+            drillById={drillById}
+            onDrillClick={onDrillClick}
+            editBlock={editBlock}
+            onEnv={(i, field, values) => setEnv(bi, i, field, values)}
+          />
+          <button
+            type="button"
+            ref={(el) => { anchors.current[bi] = el; }}
+            className={styles.colSetAdd}
+            onClick={() => openBubble(bi)}
+            aria-expanded={openSet === bi}
+          >
+            {openSet === bi ? 'Adding drills…' : 'Add drills ▸'}
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className={styles.colAddSet}
+        onClick={() => { onChange((bs) => [...bs, []]); openBubble(blocks.length); }}
+      >
+        + Add Set
+      </button>
+
+      {openSet !== null && open && (
+        <div className={styles.colSetBubble} style={bubblePos ?? { visibility: 'hidden' }} role="dialog" aria-label={`Add drills to ${label} set ${openSet + 1}`}>
+          <div className={styles.modularPickerHead}>
+            <span className={styles.blockCardTitle}>{label} · Set {openSet + 1}</span>
+            <span className={styles.blockCardCount}>{open.length} / {MAX_BLOCK_DRILLS}</span>
+            <button type="button" className={styles.blockRemove} onClick={() => setOpenSet(null)} title="Close" aria-label="Close">×</button>
+          </div>
+          {pickerPair(openSet, open)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The coach's "Areas" button beside Month / Week / Day: a small menu to
+ * switch Infield, Outfield, Catching and Physical workouts on or off for
+ * the selected athlete (saved on the athlete, like the report tabs).
+ */
+function CalendarAreasMenu({ enabled, onToggle, className }: {
+  enabled: string[];
+  onToggle: (key: string) => void;
+  className: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  const count = CALENDAR_EXTRA_AREAS.filter((a) => enabled.includes(a.key)).length;
+  return (
+    <div className={styles.areasWrap} ref={wrapRef}>
+      <button
+        type="button"
+        className={className}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="Choose which extra workout areas this athlete has"
+      >
+        Areas{count ? ` (${count})` : ''} ▾
+      </button>
+      {open && (
+        <div className={styles.areasPanel} role="group" aria-label="Workout areas">
+          <div className={styles.areasHead}>Workout areas</div>
+          <div className={styles.areasNote}>Hitting / Pitching follow the athlete&apos;s positions.</div>
+          {CALENDAR_EXTRA_AREAS.map((a) => {
+            const on = enabled.includes(a.key);
+            return (
+              <label key={a.key} className={`${styles.areasItem} ${on ? styles.areasItemOn : ''}`}>
+                <input type="checkbox" checked={on} onChange={() => onToggle(a.key)} />
+                <span>{a.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Where an open dropdown list goes: pinned to the SCREEN beside its trigger
+ * (position: fixed). Drawn inside the Day view it used to be clipped by the
+ * view's overflow:hidden, so the last pickers' lists ran off the bottom
+ * where no scroll could reach them. It opens downward when there is room,
+ * upward when there is more room above, and is sized to the visible space
+ * (above a phone's bottom bar). Follows the trigger on scroll. `minWidth`
+ * widens a list hung off a small chip (kept on screen).
+ */
+function useFixedPanel(open: boolean, triggerRef: React.RefObject<HTMLElement | null>, minWidth = 0) {
+  const [panelPos, setPanelPos] = useState<React.CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    if (!open) { setPanelPos(null); return; }
+    const place = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const vh = window.innerHeight, vw = window.innerWidth;
+      /* The phone's bottom bar (the app shell's fixed sidebar, docked to the
+         bottom beside <main>) shortens the space below. */
+      let limit = vh;
+      const shell = document.querySelector('main.app-main')?.parentElement;
+      for (const el of Array.from(shell?.children || [])) {
+        if (getComputedStyle(el).position !== 'fixed') continue;
+        const top = el.getBoundingClientRect().top;
+        if (top > vh / 2) limit = Math.min(limit, top);
+      }
+      const gap = 4, margin = 8, want = 260;
+      const below = limit - r.bottom - gap - margin;
+      const above = r.top - gap - margin;
+      const up = below < Math.min(want, 200) && above > below;
+      const maxHeight = Math.max(120, Math.min(want, up ? above : below));
+      const width = Math.min(Math.max(r.width, minWidth), vw - 2 * margin);
+      const left = Math.max(margin, Math.min(r.left, vw - width - margin));
+      setPanelPos({
+        position: 'fixed',
+        left,
+        width,
+        right: 'auto',
+        maxHeight,
+        zIndex: 300,
+        ...(up ? { top: 'auto', bottom: vh - r.top + gap } : { top: r.bottom + gap, bottom: 'auto' }),
+      });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, triggerRef, minWidth]);
+  return panelPos;
+}
+
+/* ══════════════════════════════════════════════════════════════════
    Multi-Select Dropdown Component
    ══════════════════════════════════════════════════════════════════ */
 
@@ -2639,6 +3934,7 @@ function MultiSelectDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -2647,6 +3943,8 @@ function MultiSelectDropdown({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const panelPos = useFixedPanel(open, triggerRef);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return drills;
@@ -2664,6 +3962,7 @@ function MultiSelectDropdown({
       <label className={compact ? styles.dayColFieldLabel : styles.fieldLabel}>{label}</label>
       <div className={styles.multiWrap} ref={wrapRef}>
         <div
+          ref={triggerRef}
           role="button"
           tabIndex={0}
           className={`${styles.multiTrigger} ${compact ? styles.multiTriggerCompact : ''}`}
@@ -2698,7 +3997,7 @@ function MultiSelectDropdown({
         </div>
 
         {open && (
-          <div className={styles.multiPanel}>
+          <div className={styles.multiPanel} style={panelPos ?? { visibility: 'hidden' }}>
             <div className={styles.multiSearch}>
               <input
                 type="text"

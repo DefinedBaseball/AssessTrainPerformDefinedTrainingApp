@@ -99,3 +99,19 @@ export function moveSection(
   const payload = rows.map((r) => ({ id: r.id, sectionOrder: r.sectionOrder }));
   return { rows: sortScheduled(rows), payload };
 }
+
+/**
+ * Modular sets that are pasted or applied onto a day go AFTER the sets
+ * already there, never merge into them (Set 1 + Set 1 could pass the
+ * 8-drill cap). Returns a mapper that shifts each tab's incoming set
+ * numbers past the target day's highest set for that tab.
+ */
+export function shiftBlocksPast(
+  targetRows: { tab: string; block?: number | null }[],
+): (tab: string, block?: number | null) => number | null {
+  const max: Record<string, number> = {};
+  for (const r of targetRows) {
+    if (r.block != null) max[r.tab] = Math.max(max[r.tab] || 0, r.block);
+  }
+  return (tab, block) => (block == null ? null : block + (max[tab] || 0));
+}
