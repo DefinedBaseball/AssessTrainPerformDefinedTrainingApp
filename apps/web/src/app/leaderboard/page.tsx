@@ -109,10 +109,7 @@ export default function LeaderboardPage() {
         chipInline
         icon={<IconPodium />}
         eyebrow="Rankings"
-        /* Players: the thin one-line "Leaderboards" bar. */
-        compact={user?.role === 'PLAYER'}
-        title={user?.role === 'PLAYER' ? 'Leaderboards' : 'Leader'}
-        accent={user?.role === 'PLAYER' ? undefined : 'Boards'}
+        title="Leaderboards"
         readout="Live"
         readoutClassName={theme.firm}
         actions={isCoach ? (

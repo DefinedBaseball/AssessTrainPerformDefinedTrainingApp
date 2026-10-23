@@ -725,9 +725,9 @@ export default function PlayerProfilePage() {
           <div className={styles.heroOuter}>
             {/* "New Report" has moved into the Reports dropdown on each tab. */}
 
-            {/* The athlete's own profile: the name bubble is the same height as
-                the player app's title bars (Dashboard, Training, ...). */}
-            <div className={`${styles.commandDeck} ${!isCoach && !isParent ? styles.commandDeckSelf : ''}`}>
+            {/* The name bubble is the same height as the app's title bars
+                (Dashboard, Training, ...) for every viewer. */}
+            <div className={`${styles.commandDeck} ${styles.commandDeckBar}`}>
               {/* LEFT: identity block */}
               <div className={styles.identityBlock}>
                 {/* TOP LINE = player name + College Commitment, side by side.

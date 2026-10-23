@@ -10,7 +10,7 @@
 import type React from 'react';
 import styles from './page.module.css';
 
-export function EduHeader({ eyebrow, title, accent, subtitle, readout, readoutClassName, actions, icon, tone = 'dark', chipInline = false, compact = false }: {
+export function EduHeader({ eyebrow, title, accent, subtitle, readout, readoutClassName, actions, icon, tone = 'dark', chipInline = false, compact = true }: {
   eyebrow: string;
   title: string;
   /** Second word, set apart in an off-white-to-grey fade ("Library", "Hub"). */
@@ -26,8 +26,8 @@ export function EduHeader({ eyebrow, title, accent, subtitle, readout, readoutCl
   tone?: 'dark' | 'light';
   /** Icon chip on the same line as the eyebrow instead of above it. */
   chipInline?: boolean;
-  /** Thin one-line banner (player app): icon chip + title side by side,
-   *  no eyebrow or subtitle. */
+  /** Thin one-line banner (the default everywhere): icon chip + title side
+   *  by side, no eyebrow or subtitle. false = the original tall banner. */
   compact?: boolean;
 }) {
   const chip = icon && <span className={styles.heroChip} aria-hidden="true">{icon}</span>;

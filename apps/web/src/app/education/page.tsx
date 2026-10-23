@@ -222,7 +222,6 @@ export default function EducationPage() {
       {/* Pages */}
       {page === 'landing' && (
         <LandingView
-          compact={user?.role === 'PLAYER'}
           classCount={classes.length}
           drillCount={drills.length}
           playerCount={mlbPlayers.length}
@@ -310,9 +309,7 @@ export default function EducationPage() {
 
 /* ══════════ LANDING ══════════ */
 
-function LandingView({ compact = false, classCount, drillCount, playerCount, docCount, memberAccess, lockedNotice, goTo }: {
-  /** Player app: the thin one-line "Education Hub" bar. */
-  compact?: boolean;
+function LandingView({ classCount, drillCount, playerCount, docCount, memberAccess, lockedNotice, goTo }: {
   classCount: number; drillCount: number; playerCount: number; docCount: number;
   memberAccess: boolean | null; lockedNotice: boolean; goTo: (p: Page) => void;
 }) {
@@ -321,7 +318,6 @@ function LandingView({ compact = false, classCount, drillCount, playerCount, doc
     <>
       <EduHeader
         tone="light"
-        compact={compact}
         icon={<IconHub />}
         eyebrow="Player Development"
         title="Education"

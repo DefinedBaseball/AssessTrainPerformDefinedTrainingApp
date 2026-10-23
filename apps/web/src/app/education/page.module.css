@@ -1639,12 +1639,12 @@
   background: none;
 }
 
-/* ── Compact banner (player app) ──
+/* ── Compact banner (the default title bar) ──
    One thin line: the icon chip with the title beside it, no eyebrow or
    subtitle; the readout / actions stay on the right. Kept as a row on
    phones too (the full banner stacks there). */
-/* Player title bar height -- shared with the athlete's own profile name
-   bubble (athletes/[id] .commandDeckSelf), so the two must change together.
+/* Title bar height -- shared with the athlete profile name
+   bubble (athletes/[id] .commandDeckBar), so the two must change together.
    15% taller than the first version of this bar: height is not rem-scaled
    by the build, so it mixes rem (tracks the fluid type) with px (the fixed
    44px icon chip) to land at +15% across desktop widths; phones below. */

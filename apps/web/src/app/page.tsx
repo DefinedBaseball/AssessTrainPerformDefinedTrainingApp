@@ -282,7 +282,6 @@ export default function DashboardPage() {
         {/* ── Hero ── */}
         <EduHeader
           tone="light"
-          compact
           icon={<IconHub />}
           eyebrow="Player Dashboard"
           /* The academy's tagline, as on the Coach Dashboard. */

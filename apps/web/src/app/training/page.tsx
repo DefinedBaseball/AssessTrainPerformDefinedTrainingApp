@@ -1587,8 +1587,6 @@ export default function TrainingPage() {
       <EduHeader
         tone="light"
         chipInline
-        /* Players: the thin one-line "My Training Calendar" bar. */
-        compact={!isCoach && !isParent}
         icon={<IconAttendance />}
         eyebrow="Training Calendar"
         title={
