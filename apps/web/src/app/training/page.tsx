@@ -32,7 +32,7 @@ import {
   TAB_LABELS, TAB_COLORS, TAB_MODULAR_DARK,
   LEGEND_CATEGORIES, getTabCatStyle,
 } from '@/lib/training-colors';
-import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
+import { DRILL_LIBRARY, DRILL_TAXONOMY, libraryCategoryFor } from '@/lib/drill-taxonomy.generated';
 import {
   DndContext,
   DragOverlay,
@@ -351,16 +351,56 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 /* TAB_COLORS + TAB_LABELS moved to `@/lib/training-colors`. */
 
-/* Modal dropdown config per tab — `dbCategory` is the Drill Library category it pulls from.
-   Each secondary tab is now its OWN drill category (1:1 label ↔ dbCategory), matching the
-   coaches' Drills Workbook import. `color` is the hex accent color (border, chips). */
+/* Structured picker config per tab: one per calendar section. `label` is the
+   section (saved as a row's category), `dbCategory` the Drill Library
+   category it pulls from -- the section itself, except Hitting's Tee /
+   Flips / Batting Practice / Machine / Live, which all draw from "Drills".
+   `color` is the hex accent color (border, chips). */
 type ModalDropdown = { key: string; label: string; dbCategory: string; color: string };
 const MODAL_DROPDOWNS: Record<string, ModalDropdown[]> = Object.fromEntries(
   Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, ModalDropdown[]] => [
     tab,
-    cats.map((c, i) => ({ key: `${tab}-${i}`, label: c.id, dbCategory: c.id, color: c.dot })),
+    cats.map((c, i) => ({ key: `${tab}-${i}`, label: c.id, dbCategory: libraryCategoryFor(tab, c.id), color: c.dot })),
   ]),
 );
+
+/* Modular's picker sections per tab. Sections sharing one library category
+   merge into a single picker named after it (Hitting's five → "Drills"),
+   and the rows it adds are saved under that name. */
+const MODULAR_DROPDOWNS: Record<string, ModalDropdown[]> = Object.fromEntries(
+  Object.entries(MODAL_DROPDOWNS).map(([tab, dds]): [string, ModalDropdown[]] => {
+    const out: ModalDropdown[] = [];
+    for (const dd of dds) {
+      const shared = dds.filter(d => d.dbCategory === dd.dbCategory);
+      if (shared.length === 1) { out.push(dd); continue; }
+      if (out.some(d => d.dbCategory === dd.dbCategory)) continue;
+      const lib = (DRILL_LIBRARY[tab] || []).find(c => c.id === dd.dbCategory);
+      out.push({ key: `${tab}-lib-${dd.dbCategory}`, label: dd.dbCategory, dbCategory: dd.dbCategory, color: lib?.dot || dd.color });
+    }
+    return [tab, out];
+  }),
+);
+
+/* Every picker section, Structured and Modular, by key. */
+const DD_BY_KEY = new Map(
+  [...Object.values(MODAL_DROPDOWNS), ...Object.values(MODULAR_DROPDOWNS)].flat().map(d => [d.key, d] as const),
+);
+
+/** A Structured section's Modular picker (itself, or the merged one). */
+function modularDdKey(tab: string, key: string): string {
+  const dd = DD_BY_KEY.get(key);
+  if (!dd) return key;
+  return (MODULAR_DROPDOWNS[tab] || []).find(d => d.dbCategory === dd.dbCategory)?.key ?? key;
+}
+
+/** A Modular picker's Structured section (itself, or the first section the
+ *  merged picker covers -- Hitting's "Drills" → Tee). */
+function structuredDdKey(tab: string, key: string): string {
+  const dds = MODAL_DROPDOWNS[tab] || [];
+  const dd = DD_BY_KEY.get(key);
+  if (!dd || dds.some(d => d.key === key)) return key;
+  return dds.find(d => d.dbCategory === dd.dbCategory)?.key ?? key;
+}
 
 /* Stable empty set passed to dropdowns with no current selection (avoids
    allocating a fresh Set on every render). */
@@ -401,32 +441,18 @@ function buildDraftFromEvents(events: ScheduledDrill[]): Record<string, Set<stri
 }
 
 /**
- * Which library drills each dropdown section of a tab can offer.
- *
- * Movement Prep is a SHARED warm-up library across every sport: each tab's
- * Movement Prep picker shows ALL Movement Prep drills (deduped by name)
- * whichever tab they were created under, so a warm-up built under Hitting is
- * also selectable for Pitching / Infield / Outfield / Catching — videos
- * included, no duplicated rows. Every other category stays tab-specific.
+ * Which library drills each dropdown section of a tab can offer: that tab's
+ * own drills in the section's library category. Movement Prep included --
+ * each position offers only its own warm-ups (it used to share one library
+ * across every position).
  */
 function drillsForTabDropdowns(allDrills: Drill[], tabKey: string): Record<string, Drill[]> {
-  const dds = MODAL_DROPDOWNS[tabKey] || [];
+  /* Structured sections plus any merged Modular picker. */
+  const dds = [...(MODAL_DROPDOWNS[tabKey] || []), ...(MODULAR_DROPDOWNS[tabKey] || [])]
+    .filter((d, i, all) => all.findIndex(x => x.key === d.key) === i);
   const tabDrills = allDrills.filter(d => d.tab === tabKey);
   const map: Record<string, Drill[]> = {};
-  for (const dd of dds) {
-    if (dd.dbCategory === 'Movement Prep') {
-      const seen = new Set<string>();
-      map[dd.key] = allDrills.filter(d => {
-        if (d.category !== 'Movement Prep') return false;
-        const key = d.name.trim().toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    } else {
-      map[dd.key] = tabDrills.filter(d => d.category === dd.dbCategory);
-    }
-  }
+  for (const dd of dds) map[dd.key] = tabDrills.filter(d => d.category === dd.dbCategory);
   return map;
 }
 
@@ -480,7 +506,7 @@ const ENV_FIELDS: { key: EnvField; label: string; options: string[] }[] = [
     label: 'Implement',
     options: [
       'Short Bat', '1 Hand Trainer', 'End Load Trainer', 'Handle Load Trainer', 'Power Trainer', 'Bazooka',
-      'Underload Trainer', 'V-Paddle', 'V-Bat', 'Smash Trainer', 'Light Skinny Bat', 'Heavy Skinny Bat',
+      'Underload Trainer', 'V-Paddle', 'V-Bat', 'Smash Trainer', 'Light Skinny Bat', 'Heavy Skinny Bat', 'Cricket Bat',
       'Fat Grip', 'Black Farm Band', 'Red Farm Band', 'Decel Vest', 'Farm Board Long', 'Farm Board Short',
       'Yoga Blocks', 'Bosu Ball', 'Wedge', 'Bucket', 'Havoc', 'Vector Bands', 'Farm Sled', 'Water Ball',
       'Water Bag (Heavy)', 'Water Bag (Light)', '2x Water Ball', '3oz Ball', '200g Ball', '250g Ball',
@@ -544,20 +570,17 @@ function envSummary(env: DrillEnv | undefined, goal = false): string {
 const MAX_BLOCK_DRILLS = 8;
 /** Sections offered in a block's "Movement" picker (Vision = cognitive). */
 const MOVEMENT_SECTIONS = ['Movement Prep', 'Vision'];
-/** Sections kept out of a block's "Drills" picker, per position. */
-const MODULAR_DRILL_EXCLUDE: Record<string, string[]> = { hitting: ['Live'] };
 
 function isMovementSection(label: string): boolean {
   return MOVEMENT_SECTIONS.includes(label);
 }
 
-/** A position's sections split into the two block pickers. */
+/** A position's Modular sections split into the two block pickers. */
 function modularPickerDds(tabKey: string): { movement: ModalDropdown[]; drills: ModalDropdown[] } {
-  const dds = MODAL_DROPDOWNS[tabKey] || [];
-  const exclude = MODULAR_DRILL_EXCLUDE[tabKey] || [];
+  const dds = MODULAR_DROPDOWNS[tabKey] || [];
   return {
     movement: dds.filter(d => isMovementSection(d.label)),
-    drills: dds.filter(d => !isMovementSection(d.label) && !exclude.includes(d.label)),
+    drills: dds.filter(d => !isMovementSection(d.label)),
   };
 }
 
@@ -594,7 +617,7 @@ function buildBlocksFromEvents(events: ScheduledDrill[]): Record<string, BlockIt
     const rows = events.filter(ev => ev.tab === tab.key);
     if (!isModularRows(rows)) continue;
     out[tab.key] = groupBlocks(rows.filter(ev => ev.drillId && ddForEvent(ev)))
-      .map(b => b.map(ev => ({ drillId: ev.drillId!, ddKey: ddForEvent(ev)!.key, env: parseEnv(ev.environment) })));
+      .map(b => b.map(ev => ({ drillId: ev.drillId!, ddKey: modularDdKey(tab.key, ddForEvent(ev)!.key), env: parseEnv(ev.environment) })));
   }
   return out;
 }
@@ -603,8 +626,15 @@ function buildBlocksFromEvents(events: ScheduledDrill[]): Record<string, BlockIt
  *  order -- what switching it to Modular shows. */
 function picksAsBlocks(tabKey: string, sel: Record<string, Set<string>>): BlockItem[][] {
   const items: BlockItem[] = [];
+  const seen = new Set<string>();
   for (const dd of MODAL_DROPDOWNS[tabKey] || []) {
-    for (const id of sel[dd.key] || []) items.push({ drillId: id, ddKey: dd.key });
+    /* Sections merged into one Modular picker hold each drill once. */
+    const ddKey = modularDdKey(tabKey, dd.key);
+    for (const id of sel[dd.key] || []) {
+      if (seen.has(`${ddKey}:${id}`)) continue;
+      seen.add(`${ddKey}:${id}`);
+      items.push({ drillId: id, ddKey });
+    }
   }
   const blocks: BlockItem[][] = [];
   for (let i = 0; i < items.length; i += MAX_BLOCK_DRILLS) blocks.push(items.slice(i, i + MAX_BLOCK_DRILLS));
@@ -662,11 +692,10 @@ function templateResolver(tab: string, allDrills: Drill[]) {
 
     /* Resolve to the row this picker actually offers.
 
-       Exact id first. Failing that, match on name: Movement Prep is a shared
-       library deduped BY NAME across sports, so the same warm-up exists as a
-       separate Drill row per tab (47 of them do) and the picker surfaces only
-       one. A template holding a sibling row's id would otherwise land a
-       second, identical-looking drill next to the one already selected. */
+       Exact id first. Failing that, match on name: templates saved while
+       Movement Prep was one library shared across positions can hold another
+       position's copy of a warm-up, and same-named drills merged in the 2026
+       Hitting reshape left templates pointing at a removed copy. */
     let resolved = choices.find(d => d.id === it.drillId);
     if (!resolved) {
       const wanted = (byId.get(it.drillId)?.name || it.name || '').trim().toLowerCase();
@@ -690,7 +719,7 @@ function templateBlocks(t: api.ScheduleTemplate, allDrills: Drill[]): BlockItem[
     if (!hit) continue;
     const n = it.block ?? 0;
     const arr = byBlock.get(n) || [];
-    arr.push({ order: it.order ?? 0, item: { ...hit, env: parseEnv(it.environment) } });
+    arr.push({ order: it.order ?? 0, item: { ...hit, ddKey: modularDdKey(t.tab, hit.ddKey), env: parseEnv(it.environment) } });
     byBlock.set(n, arr);
   }
   return [...byBlock.entries()]
@@ -1315,7 +1344,7 @@ export default function TrainingPage() {
     }
     const sets: Record<string, Set<string>> = {};
     for (const dd of dds) sets[dd.key] = new Set<string>();
-    for (const block of blockDraft[tabKey] || []) for (const it of block) sets[it.ddKey]?.add(it.drillId);
+    for (const block of blockDraft[tabKey] || []) for (const it of block) sets[structuredDdKey(tabKey, it.ddKey)]?.add(it.drillId);
     setDraftSel(prev => ({ ...prev, ...sets }));
     setBlockDraft(prev => {
       const next = { ...prev };
@@ -1463,7 +1492,7 @@ export default function TrainingPage() {
           blocks.filter(b => b.length).forEach((block, bi) => {
             block.forEach((it, ii) => {
               const drill = allDrills.find(d => d.id === it.drillId);
-              const dd = dds.find(d => d.key === it.ddKey);
+              const dd = DD_BY_KEY.get(it.ddKey);
               if (!drill || !dd) return;
               const h = Math.floor(blockSlot / 60), m = blockSlot % 60;
               toAdd.push({
@@ -2379,11 +2408,10 @@ function DayView({
        section as category plus its block number and place in the block. */
     const blocks = blockDraft[tabKey];
     if (blocks) {
-      const dds = MODAL_DROPDOWNS[tabKey] || [];
       let blockSlot = 9 * 60;
       return blocks.filter((b) => b.length).flatMap((block, bi) => block.flatMap((it, ii) => {
         const drill = drillById.get(it.drillId);
-        const dd = dds.find((d) => d.key === it.ddKey);
+        const dd = DD_BY_KEY.get(it.ddKey);
         if (!drill || !dd) return [];
         const h = Math.floor(blockSlot / 60), m = blockSlot % 60;
         blockSlot += 15;
@@ -3419,9 +3447,9 @@ function useSetEditing(
         for (const d of drillsByDd[dd.key] || []) {
           if (ddOf.has(d.id)) continue;
           ddOf.set(d.id, dd.key);
-          /* Several sections share drill names (Tee and Flips both have
-             "1 Hand (Top)"), so the picker names the section too. */
-          list.push({ ...d, name: `${d.name} · ${dd.label}` });
+          /* A picker spanning several sections (Movement Prep + Vision)
+             names each drill's section too. */
+          list.push(dds.length > 1 ? { ...d, name: `${d.name} · ${dd.label}` } : d);
         }
       }
       return { list, ddOf, keys: new Set(dds.map((d) => d.key)) };

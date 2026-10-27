@@ -11,6 +11,7 @@ import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
 import { PendingInvites, type PendingInviteRow } from '@/components/PendingInvites';
 import { AcademyTab } from './AcademyTab';
+import { DrillsTab } from './DrillsTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
@@ -28,7 +29,7 @@ const ReportModal = nextDynamic(
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
 import { tzOpt } from '@/lib/academy';
 
-type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'cameras' | 'myProfile' | 'staff' | 'academy';
+type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'cameras' | 'myProfile' | 'staff' | 'academy';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -55,6 +56,9 @@ export default function SettingsPage() {
        Hidden from viewers (read-only). */
     ...(isEditorCoach ? ([{ key: 'data' as TabKey, label: 'Data & Integrations' }]) : []),
     ...(isEditorCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
+    /* The drill library as a spreadsheet; typing in its blank bottom row
+       adds a drill (view-only coaches just see the lists). */
+    ...(isCoach ? ([{ key: 'drills' as TabKey, label: 'Drills' }]) : []),
     /* Admin-only "Staff" tab — create + manage coach accounts and access levels. */
     ...(isAdmin ? ([{ key: 'staff' as TabKey, label: 'Staff' }]) : []),
     /* Admin-only "Academy" tab — name, logos, contact info, email wording,
@@ -99,6 +103,7 @@ export default function SettingsPage() {
       {tab === 'notifications' && isCoach && <NotificationsTab isCoach={isCoach} />}
       {tab === 'data' && isEditorCoach && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isEditorCoach && <TeamsAndCollegesTab />}
+      {tab === 'drills' && isCoach && <DrillsTab />}
       {tab === 'staff' && isAdmin && <StaffTab />}
       {tab === 'academy' && isAdmin && <AcademyTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}

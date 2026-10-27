@@ -23,7 +23,7 @@ import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconClipboard } from '../education/EduHeader';
-import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
+import { TAB_CAT_COLORS, DEFAULT_CAT_COLOR } from '@/lib/training-colors';
 import { TemplatePicker } from '@/components/TemplatePicker';
 import {
   DndContext,
@@ -172,21 +172,9 @@ function playerMatchesSchedule(player: Player, schedule: ScheduleKey): boolean {
 
 /* ── Small helpers ── */
 
-/* Per-tab, per-category color matrix — DERIVED from the generated drill
-   taxonomy (single source of truth shared with the Drill Library, Training
-   modal, and training-colors). Unknown categories fall back to
-   DEFAULT_CAT_COLOR via getTabCatStyle below. */
-const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> =
-  Object.fromEntries(
-    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, Record<string, { dot: string; bg: string; text: string }>] => [
-      tab,
-      Object.fromEntries(
-        cats.map((c): [string, { dot: string; bg: string; text: string }] => [c.id, { dot: c.dot, bg: c.bg, text: c.text }]),
-      ),
-    ]),
-  );
-
-const DEFAULT_CAT_COLOR = { dot: '#5A9BD5', bg: 'rgba(90,155,213,0.13)', text: '#5A9BD5' };
+/* Per-tab, per-category color matrix + fallback: the shared ones in
+   training-colors (sections plus library-only categories like Hitting's
+   "Drills"). Unknown categories fall back via getTabCatStyle below. */
 
 /* Per-sport label anchor — the single shade EVERY category-card label
    in a column resolves to, regardless of which category that card is

@@ -19,6 +19,7 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { DRILLS } from './drills.seed';
+import { migrateHittingDrillsOnce } from './migrate-hitting-drills';
 import { seedColleges } from './colleges.seed';
 
 const prisma = new PrismaClient();
@@ -87,6 +88,9 @@ async function main() {
   } else {
     console.log(`[seed.prod] drill library already populated (${drillCount} rows) — skipped`);
   }
+
+  // 2b. Hitting library reshape (Final Drills List) — once per database.
+  await migrateHittingDrillsOnce(prisma);
 
   // 3. Sample inquiries — seed a few the FIRST time only (skip if any exist) so
   //    the coach's Inquiry roster has data to review before the public inquiry

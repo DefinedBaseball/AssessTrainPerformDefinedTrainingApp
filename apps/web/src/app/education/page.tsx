@@ -11,7 +11,7 @@ import styles from './page.module.css';
 import theme from '../dashTheme.module.css';
 import DrillVideoRecorder from './DrillVideoRecorder';
 import { InformationView } from './InformationView';
-import { DRILL_TAXONOMY } from '@/lib/drill-taxonomy.generated';
+import { DRILL_LIBRARY } from '@/lib/drill-taxonomy.generated';
 
 /* Unified app-wide section identity palette:
      Hitting  → Blue, Pitching → Orange,
@@ -33,11 +33,12 @@ const LEVELS = [
   { id: 'expert', label: 'Expert', cls: styles.levelExpert },
 ];
 
-/* Secondary tabs per primary tab — DERIVED from the generated taxonomy
-   (single source of truth shared with Training + Program). */
+/* Secondary tabs per primary tab: the drill LIBRARY categories from the
+   shared taxonomy (Hitting = Movement Prep / Vision / Drills; the calendar
+   splits Drills into Tee, Flips, ... sections). */
 const DRILL_CATS: Record<string, { id: string; label: string }[]> =
   Object.fromEntries(
-    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, { id: string; label: string }[]] => [
+    Object.entries(DRILL_LIBRARY).map(([tab, cats]): [string, { id: string; label: string }[]] => [
       tab,
       cats.map((c) => ({ id: c.id, label: c.id })),
     ]),
@@ -142,7 +143,11 @@ export default function EducationPage() {
         api.getEduDocuments().then(setDocuments).catch(() => {});
       })
       .catch(() => setMemberAccess(false));
-    api.getDrills().then(setDrills).catch(() => {});
+    /* Only drills filed under a library category (Hitting's "Not on List"
+       leftovers are managed in Settings → Drills, not shown here). */
+    api.getDrills()
+      .then((ds) => setDrills(ds.filter((d) => (DRILL_CATS[d.tab] || []).some((c) => c.id === d.category))))
+      .catch(() => {});
     api.getMlbPlayers().then(setMlbPlayers).catch(() => {});
   }, [user]);
 

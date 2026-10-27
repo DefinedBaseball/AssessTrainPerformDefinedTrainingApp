@@ -13,7 +13,16 @@
  * → Live / Post-Throw / Cool Down).
  */
 
-import { DRILL_TAXONOMY } from './drill-taxonomy.generated';
+import { DRILL_LIBRARY, DRILL_TAXONOMY, type DrillCat } from './drill-taxonomy.generated';
+
+/* Each tab's calendar sections, then any library-only category (Hitting's
+   "Drills", which Modular rows are saved under). */
+const CATS_WITH_LIBRARY: Record<string, DrillCat[]> = Object.fromEntries(
+  Object.entries(DRILL_TAXONOMY).map(([tab, sections]): [string, DrillCat[]] => [
+    tab,
+    [...sections, ...(DRILL_LIBRARY[tab] || []).filter((c) => !sections.some((s) => s.id === c.id))],
+  ]),
+);
 
 export const TAB_LABELS: Record<string, string> = {
   hitting: 'Hitting',
@@ -52,7 +61,7 @@ export const TAB_COLORS: Record<string, { bg: string; text: string }> = {
    DEFAULT_CAT_COLOR via getTabCatStyle below. */
 export const TAB_CAT_COLORS: Record<string, Record<string, { dot: string; bg: string; text: string }>> =
   Object.fromEntries(
-    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, Record<string, { dot: string; bg: string; text: string }>] => [
+    Object.entries(CATS_WITH_LIBRARY).map(([tab, cats]): [string, Record<string, { dot: string; bg: string; text: string }>] => [
       tab,
       Object.fromEntries(
         cats.map((c): [string, { dot: string; bg: string; text: string }] => [c.id, { dot: c.dot, bg: c.bg, text: c.text }]),
@@ -116,7 +125,7 @@ export const TAB_ANCHOR_COLORS_DARK: Record<string, string> = {
  *  order. */
 export const LEGEND_CATEGORIES: Record<string, string[]> =
   Object.fromEntries(
-    Object.entries(DRILL_TAXONOMY).map(([tab, cats]): [string, string[]] => [tab, cats.map((c) => c.id)]),
+    Object.entries(CATS_WITH_LIBRARY).map(([tab, cats]): [string, string[]] => [tab, cats.map((c) => c.id)]),
   );
 
 /** Top-to-bottom tab order used by anywhere the Player Summary mixes

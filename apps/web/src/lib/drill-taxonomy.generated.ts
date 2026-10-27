@@ -1,9 +1,12 @@
-// AUTO-GENERATED from 'Drills Workbook.xlsx'. Do not edit by hand — regenerate
-// when the workbook changes. SINGLE SOURCE OF TRUTH for each primary tab's
-// ordered secondary tabs (categories) + their colors. Every drill-category UI
-// surface (Drill Library, Training modal, Program board, legends) derives from
-// this, so they can never drift apart.
+// First generated from 'Drills Workbook.xlsx'; maintained by hand since the
+// Hitting library was reshaped to the 'Final Drills List.xlsx' (2026-10).
+// SINGLE SOURCE OF TRUTH for each primary tab's drill categories + colors.
+// Every drill-category UI surface (Drill Library, Training calendar, Program
+// board, legends, Settings → Drills) derives from this.
 export interface DrillCat { id: string; dot: string; bg: string; text: string; }
+
+/* Calendar SECTIONS per primary tab, in order: what a Structured day is
+   split into and what scheduled rows are labelled. */
 export const DRILL_TAXONOMY: Record<string, DrillCat[]> = {
   hitting: [
     { id: "Movement Prep", dot: "#ADCAEB", bg: "rgba(173,202,235,0.13)", text: "#ADCAEB" },
@@ -53,3 +56,34 @@ export const DRILL_TAXONOMY: Record<string, DrillCat[]> = {
     { id: "Endurance", dot: "#8D1F1B", bg: "rgba(141,31,27,0.13)", text: "#8D1F1B" },
   ],
 };
+
+/* The library category a calendar section draws its drills from, where it
+   isn't the section itself: Hitting's five on-field sections all share one
+   "Drills" library. */
+export const SECTION_LIBRARY: Record<string, Record<string, string>> = {
+  hitting: { Tee: 'Drills', Flips: 'Drills', 'Batting Practice': 'Drills', Machine: 'Drills', Live: 'Drills' },
+};
+
+/* Library categories that aren't calendar sections themselves. */
+const LIBRARY_ONLY: Record<string, DrillCat[]> = {
+  hitting: [
+    { id: "Drills", dot: "#3D81CF", bg: "rgba(61,129,207,0.13)", text: "#3D81CF" },
+  ],
+};
+
+/* Drill LIBRARY categories per primary tab, in order: what a drill is filed
+   under (Education → Drill Library, Settings → Drills). Each section's
+   library category, first appearance first. */
+export const DRILL_LIBRARY: Record<string, DrillCat[]> = Object.fromEntries(
+  Object.entries(DRILL_TAXONOMY).map(([tab, sections]): [string, DrillCat[]] => {
+    const map = SECTION_LIBRARY[tab] || {};
+    const byId = new Map([...sections, ...(LIBRARY_ONLY[tab] || [])].map((c) => [c.id, c]));
+    const ids = [...new Set(sections.map((s) => map[s.id] || s.id))];
+    return [tab, ids.map((id) => byId.get(id)!)];
+  }),
+);
+
+/** The library category a tab's section pulls drills from. */
+export function libraryCategoryFor(tab: string, section: string): string {
+  return SECTION_LIBRARY[tab]?.[section] || section;
+}
