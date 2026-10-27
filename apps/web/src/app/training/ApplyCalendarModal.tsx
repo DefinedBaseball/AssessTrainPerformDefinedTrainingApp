@@ -120,10 +120,11 @@ export function ApplyCalendarModal({
     return [...ids];
   }, [players, checkedTypes, checkedPlayers, sourcePlayer]);
 
+  /* First name, then last -- the order the rest of the app lists athletes. */
   const sortedPlayers = useMemo(
     () => [...players].sort((a, b) =>
-      (a.lastName || '').localeCompare(b.lastName || '') ||
-      (a.firstName || '').localeCompare(b.firstName || ''),
+      (a.firstName || '').localeCompare(b.firstName || '') ||
+      (a.lastName || '').localeCompare(b.lastName || ''),
     ),
     [players],
   );

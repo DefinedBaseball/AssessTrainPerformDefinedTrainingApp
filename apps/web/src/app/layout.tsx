@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   /* The academy name from Settings → Academy replaces this once loaded. */
   title: 'Defined Baseball Academy',
   description: 'Baseball player development platform for coaches and players',
+  /* Tab / home-screen icons come from app/favicon.ico, icon.png and
+     apple-icon.png; this names the app when added to an iPhone home screen. */
+  appleWebApp: { title: 'Defined', capable: true },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

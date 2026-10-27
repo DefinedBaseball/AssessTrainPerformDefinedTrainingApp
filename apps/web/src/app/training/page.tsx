@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -3229,13 +3229,7 @@ function TemplateMultiSelect({
     }
   };
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  useDismiss(open, wrapRef, setOpen);
 
   const applied = templates.filter(t => Object.prototype.hasOwnProperty.call(selectedIds, t.id));
 
@@ -3547,13 +3541,9 @@ function EnvSelect({ label, options, selected, onChange }: {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelPos = useFixedPanel(open, triggerRef, 220);
 
+  useDismiss(open, wrapRef, setOpen);
   useEffect(() => {
-    if (!open) { setSearch(''); return; }
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    if (!open) setSearch('');
   }, [open]);
 
   const q = search.trim().toLowerCase();
@@ -3813,14 +3803,7 @@ function CalendarAreasMenu({ enabled, onToggle, className }: {
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+  useDismiss(open, wrapRef, setOpen);
   const count = CALENDAR_EXTRA_AREAS.filter((a) => enabled.includes(a.key)).length;
   return (
     <div className={styles.areasWrap} ref={wrapRef}>
@@ -3881,7 +3864,10 @@ function useFixedPanel(open: boolean, triggerRef: React.RefObject<HTMLElement | 
       const gap = 4, margin = 8, want = 260;
       const below = limit - r.bottom - gap - margin;
       const above = r.top - gap - margin;
-      const up = below < Math.min(want, 200) && above > below;
+      /* Flip up only when there's truly no room below: an upward list lands
+         on whatever sits above the trigger -- for the lower of the Modular
+         Movement / Drills pair, that's the Movement picker. */
+      const up = below < 150 && above > below;
       const maxHeight = Math.max(120, Math.min(want, up ? above : below));
       const width = Math.min(Math.max(r.width, minWidth), vw - 2 * margin);
       const left = Math.max(margin, Math.min(r.left, vw - width - margin));
@@ -3904,6 +3890,36 @@ function useFixedPanel(open: boolean, triggerRef: React.RefObject<HTMLElement | 
     };
   }, [open, triggerRef, minWidth]);
   return panelPos;
+}
+
+/** Fired when a picker opens (detail = its id), so any other open one closes. */
+const PICKER_OPEN_EVENT = 'training:picker-open';
+
+/**
+ * Closes an open dropdown on a tap / click outside it, or when another picker
+ * opens. Listens for pointerdown, not mousedown: iPad Safari sends no mouse
+ * events for a tap on a non-clickable spot, so a tap on blank space never
+ * closed the list -- it stayed open over the picker beside it (Movement under
+ * an upward Drills list), and taps meant for that picker hit the list.
+ */
+function useDismiss(open: boolean, wrapRef: React.RefObject<HTMLElement | null>, setOpen: (open: boolean) => void) {
+  const id = useId();
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new CustomEvent(PICKER_OPEN_EVENT, { detail: id }));
+    const onDown = (e: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onOther = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== id) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    window.addEventListener(PICKER_OPEN_EVENT, onOther);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      window.removeEventListener(PICKER_OPEN_EVENT, onOther);
+    };
+  }, [open, id, wrapRef, setOpen]);
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3933,14 +3949,7 @@ function MultiSelectDropdown({
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
+  useDismiss(open, wrapRef, setOpen);
   const panelPos = useFixedPanel(open, triggerRef);
 
   const filtered = useMemo(() => {
