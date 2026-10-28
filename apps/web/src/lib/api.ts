@@ -1450,6 +1450,29 @@ export async function saveVendorContacts(contacts: Pick<VendorContact, 'source' 
   return request<VendorContact[]>('/vendor-contacts', { method: 'PUT', body: JSON.stringify({ contacts }) });
 }
 
+// ---- Per-drill drop-down options (Settings → Drills; Modular sets) ----
+
+/** { tab: { field: options } } -- every editable drop-down list. */
+export type DrillOptionListsResponse = Record<string, Record<string, string[]>>;
+
+export async function getDrillOptions() {
+  return request<DrillOptionListsResponse>('/drill-options');
+}
+
+export async function addDrillOption(tab: string, field: string, value: string) {
+  return request<DrillOptionListsResponse>(`/drill-options/${encodeURIComponent(tab)}/${encodeURIComponent(field)}`, {
+    method: 'POST',
+    body: JSON.stringify({ value }),
+  });
+}
+
+export async function removeDrillOption(tab: string, field: string, value: string) {
+  return request<DrillOptionListsResponse>(`/drill-options/${encodeURIComponent(tab)}/${encodeURIComponent(field)}/remove`, {
+    method: 'POST',
+    body: JSON.stringify({ value }),
+  });
+}
+
 // ---- Coach To Do list (coach dashboard) ----
 
 /** Task type -- sets its colour on the board. (Stored in `column`.) */

@@ -33,6 +33,7 @@ import {
   LEGEND_CATEGORIES, getTabCatStyle,
 } from '@/lib/training-colors';
 import { DRILL_LIBRARY, DRILL_TAXONOMY, libraryCategoryFor } from '@/lib/drill-taxonomy.generated';
+import { drillOptionFields, drillOptionColumns, optionsFor, useDrillOptionLists } from '@/lib/drill-options';
 import {
   DndContext,
   DragOverlay,
@@ -485,64 +486,24 @@ function parsePendingId(id: string): { ddKey: string; drillId: string } | null {
 type BlockItem = { drillId: string; ddKey: string; env?: DrillEnv };
 
 /* ── Drill environment (Modular) ──
-   Per drill in a set the coach can tag the Feed Type, Implement and
-   Situation (multi-select each). Saved on the row as JSON; athletes see the
-   picks beside the drill name under "Environment". */
-type DrillEnv = { feed?: string[]; implement?: string[]; situation?: string[]; goal?: string[] };
-type EnvField = keyof DrillEnv;
-const ENV_FIELDS: { key: EnvField; label: string; options: string[] }[] = [
-  {
-    key: 'feed',
-    label: 'Feed Type',
-    options: [
-      'Tee', 'Side Toss', 'Soft Toss', 'Overhead Soft Toss', 'Batting Practice', 'Machine', 'IPitch',
-      '1B Angle', '3B Angle', 'Low Angle', 'High Angle', 'Close', 'Far',
-      '20 ft', '30 ft', '40 ft', '50 ft', 'Slow', 'Firm', 'Extra Firm',
-      '50 mph', '60 mph', '70 mph', '80 mph', '90 mph', '100 mph',
-    ],
-  },
-  {
-    key: 'implement',
-    label: 'Implement',
-    options: [
-      'Short Bat', '1 Hand Trainer', 'End Load Trainer', 'Handle Load Trainer', 'Power Trainer', 'Bazooka',
-      'Underload Trainer', 'V-Paddle', 'V-Bat', 'Smash Trainer', 'Light Skinny Bat', 'Heavy Skinny Bat', 'Cricket Bat',
-      'Fat Grip', 'Black Farm Band', 'Red Farm Band', 'Decel Vest', 'Farm Board Long', 'Farm Board Short',
-      'Yoga Blocks', 'Bosu Ball', 'Wedge', 'Bucket', 'Havoc', 'Vector Bands', 'Farm Sled', 'Water Ball',
-      'Water Bag (Heavy)', 'Water Bag (Light)', '2x Water Ball', '3oz Ball', '200g Ball', '250g Ball',
-      '7oz Tater Ball', 'Tater Ball', 'Driveline Ball', 'Wiffle Ball', 'Tennis Ball', 'Soccer Ball',
-      'Mini Wiffle Ball',
-    ],
-  },
-  {
-    key: 'situation',
-    label: 'Situation',
-    options: [
-      'Fastball', 'Carry Fastball', '2-Seam', 'Sinker', 'Slider', 'Sweeper', 'Slurve', '12-6', 'Changeup',
-      'Splitter', 'Mix', '0-0', '1-1', '2-0', '0-2', '3-1', '3-2', 'Infield In', 'Infield Back',
-      'Get Him Over', 'Get Him In', 'Game on the Line',
-    ],
-  },
-  {
-    key: 'goal',
-    label: 'Goal',
-    options: ['Line Drive', 'Ground Ball', 'Fly Ball', 'Pull', 'Middle', 'Oppo', 'Oppo Foul', 'Pull Foul'],
-  },
-];
+   Per drill in a set the coach tags the position's drop-downs (Hitting:
+   Feed Type / Implement / Situation / Goal; Pitching: Reps / Tool /
+   Intensity-Goal -- lib/drill-options, lists editable in Settings → Drills).
+   Saved on the row as JSON { field: picks[] }; athletes see them in two
+   columns (Environment | Goal, or Reps & Tool | Intensity / Goal). */
+type DrillEnv = Record<string, string[]>;
+type EnvField = string;
 
-/* Athletes see Goal under its own title, apart from the Environment picks. */
-const GOAL_FIELDS: EnvField[] = ['goal'];
-
-/** A row's saved environment, or undefined when none / unreadable. */
+/** A row's saved picks, or undefined when none / unreadable. */
 function parseEnv(raw: string | null | undefined): DrillEnv | undefined {
   if (!raw) return undefined;
   try {
     const v = JSON.parse(raw);
-    if (!v || typeof v !== 'object') return undefined;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
     const out: DrillEnv = {};
-    for (const f of ENV_FIELDS) {
-      const list = Array.isArray(v[f.key]) ? v[f.key].filter((x: unknown) => typeof x === 'string') : [];
-      if (list.length) out[f.key] = list;
+    for (const [k, val] of Object.entries(v)) {
+      const list = Array.isArray(val) ? val.filter((x: unknown): x is string => typeof x === 'string') : [];
+      if (list.length) out[k] = list;
     }
     return Object.keys(out).length ? out : undefined;
   } catch {
@@ -550,21 +511,22 @@ function parseEnv(raw: string | null | undefined): DrillEnv | undefined {
   }
 }
 
-/** The environment as saved on a row (null when nothing is picked). */
+/** The picks as saved on a row (null when nothing is picked). Keys sorted
+ *  so the same picks always give the same text (change detection). */
 function envString(env: DrillEnv | undefined): string | null {
   if (!env) return null;
   const out: DrillEnv = {};
-  for (const f of ENV_FIELDS) if (env[f.key]?.length) out[f.key] = env[f.key];
+  for (const k of Object.keys(env).sort()) if (env[k]?.length) out[k] = env[k];
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
-/** "Tee, Short Bat, Fastball" -- the picks of the given fields, in field
- *  order (Environment = Feed → Implement → Situation; Goal on its own). */
-function envSummary(env: DrillEnv | undefined, goal = false): string {
+/** "Tee, Short Bat, Fastball" / "6 reps, Plyo Balls" -- one column's picks
+ *  (the Goal-type drop-down, or all the others) in drop-down order. */
+function envSummary(env: DrillEnv | undefined, tab: string, goal = false): string {
   if (!env) return '';
-  return ENV_FIELDS
-    .filter(f => GOAL_FIELDS.includes(f.key) === goal)
-    .flatMap(f => env[f.key] || [])
+  return drillOptionFields(tab)
+    .filter(f => !!f.goal === goal)
+    .flatMap(f => (env[f.key] || []).map(v => (f.suffix ? `${v}${f.suffix}` : v)))
     .join(', ');
 }
 const MAX_BLOCK_DRILLS = 8;
@@ -2469,8 +2431,8 @@ function DayView({
   const rowBlockView = (rows: ScheduledDrill[]): BlockViewDrill[][] =>
     groupBlocks(rows).map((block) => block.map((ev) => ({
       key: ev.id, name: ev.name, movement: isMovementSection(ev.category), drill: ev.drill,
-      env: envSummary(parseEnv(ev.environment)),
-      goal: envSummary(parseEnv(ev.environment), true),
+      env: envSummary(parseEnv(ev.environment), ev.tab),
+      goal: envSummary(parseEnv(ev.environment), ev.tab, true),
     })));
   const focusedModular = !!focusedTab && (isCoach ? !!blockDraft[focusedTab] : isModularRows(focusedEvents));
   /* A position only offers templates of its own kind: block templates while
@@ -2678,7 +2640,7 @@ function DayView({
                 onDrillClick={onDrillClick}
               />
             ) : !isCoach && focusedModular ? (
-              <BlockList blocks={rowBlockView(focusedEvents)} onDrillClick={onDrillClick} />
+              <BlockList tab={focusedTab!} blocks={rowBlockView(focusedEvents)} onDrillClick={onDrillClick} />
             ) : isCoach ? (
               /* ── Coach: this position's workout builder ──
                  The same picker-led editor as the day columns, given the full
@@ -3382,16 +3344,19 @@ function BlockDrillPill({ name, movement, index, onClick, onRemove, children }: 
 
 /**
  * The athlete / parent workout: sets top to bottom, each a small table --
- * Drill | Environment (Feed Type, Implement, Situation) | Goal -- with each
- * drill row in its Movement / Drills colour. Tapping a row plays the drill.
+ * Drill | Environment (Feed Type, Implement, Situation) | Goal, or for
+ * Pitching Drill | Reps & Tool | Intensity / Goal -- with each drill row in
+ * its Movement / Drills colour. Tapping a row plays the drill.
  */
-function BlockList({ blocks, onDrillClick }: {
+function BlockList({ tab, blocks, onDrillClick }: {
+  tab: string;
   blocks: BlockViewDrill[][];
   onDrillClick: (drill: Drill) => void;
 }) {
   if (blocks.length === 0) {
     return <div className={styles.focusBuilderEmpty}>No sets yet</div>;
   }
+  const cols = drillOptionColumns(tab);
   return (
     <div className={styles.blockStack}>
       {blocks.map((block, bi) => (
@@ -3403,8 +3368,8 @@ function BlockList({ blocks, onDrillClick }: {
           <div className={styles.blockTable} role="table" aria-label={`Set ${bi + 1}`}>
             <div className={styles.blockTableHead} role="row">
               <span role="columnheader">Drill</span>
-              <span role="columnheader">Environment</span>
-              <span role="columnheader">Goal</span>
+              <span role="columnheader">{cols.env}</span>
+              <span role="columnheader">{cols.goal}</span>
             </div>
             {block.map((d, i) => (
               <div
@@ -3470,7 +3435,11 @@ function useSetEditing(
     if (!ddKey) return b;
     const at = b.findIndex((it) => it.drillId === id && it.ddKey === ddKey);
     if (at >= 0) return b.filter((_, k) => k !== at);
-    return b.length >= MAX_BLOCK_DRILLS ? b : [...b, { drillId: id, ddKey }];
+    if (b.length >= MAX_BLOCK_DRILLS) return b;
+    /* Drop-downs with a starting pick get it (Pitching: 6 reps). */
+    const env: DrillEnv = {};
+    for (const f of drillOptionFields(tabKey)) if (f.defaultPick) env[f.key] = [f.defaultPick];
+    return [...b, { drillId: id, ddKey, ...(Object.keys(env).length ? { env } : {}) }];
   });
 
   /* The Movement (dark blue) + Drills pickers for one set. */
@@ -3509,16 +3478,19 @@ function useSetEditing(
 }
 
 /** A set's drills as editable pills (click = demo video, × = remove). */
-function SetDrills({ block, bi, isMovementKey, drillById, onDrillClick, editBlock, onEnv }: {
+function SetDrills({ tabKey, block, bi, isMovementKey, drillById, onDrillClick, editBlock, onEnv }: {
+  tabKey: string;
   block: BlockItem[];
   bi: number;
   isMovementKey: (ddKey: string) => boolean;
   drillById: Map<string, Drill>;
   onDrillClick: (drill: Drill) => void;
   editBlock: (bi: number, fn: (block: BlockItem[]) => BlockItem[]) => void;
-  /** Given: each drill gets the Feed Type / Implement / Situation pickers. */
+  /** Given: each drill gets the position's drop-downs (Feed Type …, Reps …). */
   onEnv?: (i: number, field: EnvField, values: string[]) => void;
 }) {
+  const fields = drillOptionFields(tabKey);
+  const lists = useDrillOptionLists(!!onEnv);
   return (
     <div className={styles.blockDrills}>
       {block.length === 0 && <div className={styles.focusBuilderEmpty}>No drills yet</div>}
@@ -3534,12 +3506,18 @@ function SetDrills({ block, bi, isMovementKey, drillById, onDrillClick, editBloc
             onRemove={() => editBlock(bi, (b) => b.filter((_, k) => k !== i))}
           >
             {onEnv && (
-              <span className={styles.envPickers} onClick={(e) => e.stopPropagation()}>
-                {ENV_FIELDS.map((f) => (
+              <span
+                className={styles.envPickers}
+                style={{ '--env-cols': fields.length } as React.CSSProperties}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {fields.map((f) => (
                   <EnvSelect
                     key={f.key}
                     label={f.label}
-                    options={f.options}
+                    options={optionsFor(lists, tabKey, f)}
+                    single={f.single}
+                    suffix={f.suffix}
                     selected={it.env?.[f.key] || []}
                     onChange={(values) => onEnv(i, f.key, values)}
                   />
@@ -3555,14 +3533,21 @@ function SetDrills({ block, bi, isMovementKey, drillById, onDrillClick, editBloc
 
 /**
  * One environment picker on a drill: a small chip showing the field's picks
- * (or its name when empty) that opens a searchable multi-select list.
+ * (or its name when empty) that opens a searchable list -- multi-select, or
+ * one pick that closes the list (Reps).
  */
-function EnvSelect({ label, options, selected, onChange }: {
+function EnvSelect({ label, options: listed, selected, onChange, single = false, suffix = '' }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (values: string[]) => void;
+  single?: boolean;
+  /** Appended to picks on the chip ("6" → "6 reps"). */
+  suffix?: string;
 }) {
+  /* A pick since removed from the list (Settings → Drills) stays listed so
+     it can still be unticked. */
+  const options = useMemo(() => [...listed, ...selected.filter((s) => !listed.includes(s))], [listed, selected]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const wrapRef = useRef<HTMLSpanElement>(null);
@@ -3576,10 +3561,17 @@ function EnvSelect({ label, options, selected, onChange }: {
 
   const q = search.trim().toLowerCase();
   const shown = q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
-  /* Keep the picks in the list's own order, whatever order they were ticked. */
-  const toggle = (o: string) => onChange(
-    selected.includes(o) ? selected.filter((x) => x !== o) : options.filter((x) => x === o || selected.includes(x)),
-  );
+  /* Keep the picks in the list's own order, whatever order they were ticked.
+     Single: the pick replaces the last one and the list closes. */
+  const toggle = (o: string) => {
+    if (single) {
+      onChange(selected.includes(o) ? [] : [o]);
+      setOpen(false);
+      return;
+    }
+    onChange(selected.includes(o) ? selected.filter((x) => x !== o) : options.filter((x) => x === o || selected.includes(x)));
+  };
+  const shownPicks = selected.map((s) => `${s}${suffix}`).join(', ');
 
   return (
     <span className={styles.envWrap} ref={wrapRef}>
@@ -3588,14 +3580,14 @@ function EnvSelect({ label, options, selected, onChange }: {
         ref={triggerRef}
         className={`${styles.envChip} ${selected.length ? styles.envChipOn : ''}`}
         onClick={() => setOpen((v) => !v)}
-        title={selected.length ? `${label}: ${selected.join(', ')}` : `Pick ${label}`}
+        title={selected.length ? `${label}: ${shownPicks}` : `Pick ${label}`}
         aria-expanded={open}
       >
-        <span className={styles.envChipText}>{selected.length ? selected.join(', ') : label}</span>
+        <span className={styles.envChipText}>{selected.length ? shownPicks : label}</span>
         <span className={styles.envChipCaret}>▾</span>
       </button>
       {open && (
-        <div className={styles.multiPanel} style={panelPos ?? { visibility: 'hidden' }} role="listbox" aria-label={label} aria-multiselectable>
+        <div className={styles.multiPanel} style={panelPos ?? { visibility: 'hidden' }} role="listbox" aria-label={label} aria-multiselectable={!single}>
           <div className={styles.envPanelHead}>{label}</div>
           <div className={styles.multiSearch}>
             <input
@@ -3609,13 +3601,17 @@ function EnvSelect({ label, options, selected, onChange }: {
             />
           </div>
           <div className={styles.multiList}>
-            {shown.length === 0 && <div className={styles.multiEmpty}>No matches</div>}
+            {shown.length === 0 && (
+              <div className={styles.multiEmpty}>
+                {options.length ? 'No matches' : `No ${label} options yet. Add them in Settings → Drills.`}
+              </div>
+            )}
             {shown.map((o) => {
               const on = selected.includes(o);
               return (
                 <label key={o} className={`${styles.multiItem} ${on ? styles.multiItemSelected : ''}`}>
-                  <input type="checkbox" checked={on} onChange={() => toggle(o)} className={styles.multiCheckbox} />
-                  <span className={styles.multiItemName}>{o}</span>
+                  <input type={single ? 'radio' : 'checkbox'} checked={on} onChange={() => toggle(o)} onClick={single && on ? () => toggle(o) : undefined} className={styles.multiCheckbox} />
+                  <span className={styles.multiItemName}>{o}{suffix}</span>
                 </label>
               );
             })}
@@ -3674,6 +3670,7 @@ function ModularBuilder({ tabKey, blocks, onChange, drillsByDd, drillById, onDri
           <div className={styles.blockCard}>
             <SetHead bi={bi} count={block.length} onRemove={() => onChange((bs) => bs.filter((_, j) => j !== bi))} />
             <SetDrills
+              tabKey={tabKey}
               block={block}
               bi={bi}
               isMovementKey={isMovementKey}
@@ -3778,6 +3775,7 @@ function ColumnModularEditor({ tabKey, label, blocks, onChange, drillsByDd, dril
           {/* Same Feed Type / Implement / Situation / Goal pickers as the
               single-position builder -- most athletes only have two columns. */}
           <SetDrills
+            tabKey={tabKey}
             block={block}
             bi={bi}
             isMovementKey={isMovementKey}

@@ -142,7 +142,7 @@
 }
 .cellInput::placeholder { color: var(--muted); font-style: italic; }
 .cellInput:focus { outline-color: #1d6f42; background: rgba(29, 111, 66, 0.08); }
-.cellInput:disabled { opacity: 0.6; }
+.cellInput:read-only { opacity: 0.6; }
 /* iOS zooms into fields under 16px; 12pt === 16px and isn't rem-scaled. */
 @media (pointer: coarse) { .cellInput { font-size: 12pt; } }
 
@@ -159,3 +159,25 @@
 :global([data-theme="light"]) .cell,
 :global([data-theme="light"]) .cellInput { color: #111214; }
 :global([data-theme="light"]) .posTabOn { border-color: #16171a; background: #16171a; color: #f6f5f1; }
+
+/* Between the drill types and the drop-down lists / Not on List. */
+.catDivider {
+  align-self: stretch;
+  width: 1px;
+  margin: 2px 4px;
+  background: var(--border);
+}
+
+/* Remove an option (drop-down lists only). */
+.removeBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.removeBtn:hover { background: rgba(221, 105, 116, 0.18); color: #dd6974; }

@@ -2615,7 +2615,8 @@
 /* Four across only once each quarter still fits the base chip size
    (14em of the chip font = ~11.3em of the row font, x4 + gaps ~= 47em). */
 @container (min-width: 47em) {
-  .envPickers { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* One column per drop-down (Hitting 4, Pitching 3). */
+  .envPickers { grid-template-columns: repeat(var(--env-cols, 4), minmax(0, 1fr)); }
 }
 /* Each chip fills its share of the row (never narrower than the base size
    unless the row itself is). */
