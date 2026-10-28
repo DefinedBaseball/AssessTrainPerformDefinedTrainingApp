@@ -706,6 +706,19 @@ function templateResolver(tab: string, allDrills: Drill[]) {
   };
 }
 
+/** A Structured template's drop-down picks (Reps, Tool, …) per drill, keyed
+ *  like envDraft, so applying it brings them back with its drills. */
+function templateEnvs(t: api.ScheduleTemplate, allDrills: Drill[]): Record<string, DrillEnv> {
+  const out: Record<string, DrillEnv> = {};
+  const resolve = templateResolver(t.tab, allDrills);
+  for (const it of api.parseTemplateItems(t)) {
+    const hit = resolve(it);
+    const env = parseEnv(it.environment);
+    if (hit && env) out[envKeyOf(hit.ddKey, hit.drillId)] ??= env;
+  }
+  return out;
+}
+
 /** A Modular template is one saved from blocks (its items carry `block`). */
 function isModularTemplate(t: api.ScheduleTemplate): boolean {
   return api.parseTemplateItems(t).some(it => it.block != null);
@@ -1434,6 +1447,18 @@ export default function TrainingPage() {
         }
         return next;
       });
+      /* Its drills leave, so their picks go back to what's saved. */
+      setEnvDraft(prev => {
+        const next = { ...prev };
+        for (const [ddKey, ids] of Object.entries(contributed)) {
+          for (const id of ids) {
+            const k = envKeyOf(ddKey, id);
+            if (persistedEnv[k]) next[k] = persistedEnv[k];
+            else delete next[k];
+          }
+        }
+        return next;
+      });
       setTplAdded(prev => {
         const next = { ...prev };
         delete next[t.id];
@@ -1459,8 +1484,22 @@ export default function TrainingPage() {
       }
       return next;
     });
+    /* The drills it adds come with the picks saved in the template (Reps,
+       Tool, Intensity / Feed Type …); drills already on the day keep the
+       coach's own. */
+    const envs = templateEnvs(t, allDrills);
+    setEnvDraft(prev => {
+      const next = { ...prev };
+      for (const [ddKey, ids] of Object.entries(added)) {
+        for (const id of ids) {
+          const k = envKeyOf(ddKey, id);
+          if (envs[k]) next[k] = envs[k];
+        }
+      }
+      return next;
+    });
     setTplAdded(prev => ({ ...prev, [t.id]: added }));
-  }, [tplAdded, draftSel, allDrills]);
+  }, [tplAdded, draftSel, allDrills, persistedEnv]);
 
   const toggleDraftDd = useCallback((ddKey: string, drillId: string) => {
     setDraftSel(prev => {
