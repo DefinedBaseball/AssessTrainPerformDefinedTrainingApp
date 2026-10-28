@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -133,7 +134,7 @@ function CalSortableSection({
 /* One draggable DRILL row (grip + name + delete). Tap still opens the drill
    video. Drag disabled for players. */
 function CalSortableDrill({
-  id, tab, category, disabled, rowClass, nameClass, name, onRowClick, onDelete, isCoach,
+  id, tab, category, disabled, rowClass, nameClass, name, onRowClick, onDelete, isCoach, extra,
 }: {
   id: string;
   tab: string;
@@ -145,6 +146,8 @@ function CalSortableDrill({
   onRowClick?: () => void;
   onDelete: () => void;
   isCoach: boolean;
+  /** A second line under the name (the drill's drop-downs / picks). */
+  extra?: React.ReactNode;
 }) {
   const {
     attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging,
@@ -152,7 +155,7 @@ function CalSortableDrill({
   return (
     <div
       ref={setNodeRef}
-      className={rowClass}
+      className={`${rowClass} ${extra ? styles.calRowWithEnv : ''}`}
       onClick={onRowClick}
       style={{
         transform: CSS.Transform.toString(transform),
@@ -184,6 +187,7 @@ function CalSortableDrill({
           title="Delete"
         >×</button>
       )}
+      {extra && <div className={styles.calRowEnv}>{extra}</div>}
     </div>
   );
 }
@@ -195,7 +199,7 @@ function CalSortableDrill({
    the demo video, which is the whole point of listing these here rather
    than as chips inside the picker. */
 function CalPendingDrill({
-  rowClass, nameClass, name, onRowClick, onRemove, isCoach,
+  rowClass, nameClass, name, onRowClick, onRemove, isCoach, extra,
 }: {
   rowClass: string;
   nameClass: string;
@@ -203,10 +207,11 @@ function CalPendingDrill({
   onRowClick?: () => void;
   onRemove: () => void;
   isCoach: boolean;
+  extra?: React.ReactNode;
 }) {
   return (
     <div
-      className={`${rowClass} ${styles.calPendingRow}`}
+      className={`${rowClass} ${styles.calPendingRow} ${extra ? styles.calRowWithEnv : ''}`}
       onClick={onRowClick}
       title={onRowClick ? 'Watch demo (unsaved — press Save to publish)' : 'Unsaved — press Save to publish'}
     >
@@ -219,6 +224,7 @@ function CalPendingDrill({
           title="Remove"
         >×</button>
       )}
+      {extra && <div className={styles.calRowEnv}>{extra}</div>}
     </div>
   );
 }
@@ -529,6 +535,38 @@ function envSummary(env: DrillEnv | undefined, tab: string, goal = false): strin
     .flatMap(f => (env[f.key] || []).map(v => (f.suffix ? `${v}${f.suffix}` : v)))
     .join(', ');
 }
+/* Structured days keep the same per-drill picks, keyed by section picker +
+   drill (picker keys are unique per position). */
+function envKeyOf(ddKey: string, drillId: string): string {
+  return `${ddKey}|${drillId}`;
+}
+
+/** The picks a drill starts with when it's added (Pitching: 6 reps). */
+function defaultEnv(tab: string): DrillEnv | undefined {
+  const env: DrillEnv = {};
+  for (const f of drillOptionFields(tab)) if (f.defaultPick) env[f.key] = [f.defaultPick];
+  return Object.keys(env).length ? env : undefined;
+}
+
+/** A Structured day's saved picks (library rows outside any set). */
+function buildEnvFromEvents(events: ScheduledDrill[]): Record<string, DrillEnv> {
+  const out: Record<string, DrillEnv> = {};
+  for (const ev of events) {
+    if (!ev.drillId || ev.block != null) continue;
+    const dd = ddForEvent(ev);
+    const env = parseEnv(ev.environment);
+    if (dd && env) out[envKeyOf(dd.key, ev.drillId)] = env;
+  }
+  return out;
+}
+
+function sameEnv(a: Record<string, DrillEnv>, b: Record<string, DrillEnv>): boolean {
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (envString(a[k]) !== envString(b[k])) return false;
+  }
+  return true;
+}
+
 const MAX_BLOCK_DRILLS = 8;
 /** Sections offered in a block's "Movement" picker (Vision = cognitive). */
 const MOVEMENT_SECTIONS = ['Movement Prep', 'Vision'];
@@ -586,7 +624,7 @@ function buildBlocksFromEvents(events: ScheduledDrill[]): Record<string, BlockIt
 
 /** A Structured position's picks laid out as sets of up to 8, in section
  *  order -- what switching it to Modular shows. */
-function picksAsBlocks(tabKey: string, sel: Record<string, Set<string>>): BlockItem[][] {
+function picksAsBlocks(tabKey: string, sel: Record<string, Set<string>>, envs: Record<string, DrillEnv> = {}): BlockItem[][] {
   const items: BlockItem[] = [];
   const seen = new Set<string>();
   for (const dd of MODAL_DROPDOWNS[tabKey] || []) {
@@ -595,7 +633,8 @@ function picksAsBlocks(tabKey: string, sel: Record<string, Set<string>>): BlockI
     for (const id of sel[dd.key] || []) {
       if (seen.has(`${ddKey}:${id}`)) continue;
       seen.add(`${ddKey}:${id}`);
-      items.push({ drillId: id, ddKey });
+      const env = envs[envKeyOf(dd.key, id)];
+      items.push({ drillId: id, ddKey, ...(env ? { env } : {}) });
     }
   }
   const blocks: BlockItem[][] = [];
@@ -1153,6 +1192,13 @@ export default function TrainingPage() {
   );
 
   const [draftSel, setDraftSel] = useState<Record<string, Set<string>>>(persistedDraft);
+  /* Structured drills' drop-down picks (Feed Type … / Reps …), keyed by
+     envKeyOf. A drill added in this draft with no entry gets defaultEnv. */
+  const persistedEnv = useMemo(
+    () => buildEnvFromEvents(allEventsByDate[todayDateStr] || []),
+    [allEventsByDate, todayDateStr],
+  );
+  const [envDraft, setEnvDraft] = useState<Record<string, DrillEnv>>(persistedEnv);
   const [savingDay, setSavingDay] = useState(false);
 
   /* Modular positions for the day: tab → its super-set blocks. A tab with
@@ -1170,7 +1216,7 @@ export default function TrainingPage() {
   useEffect(() => {
     const next = { ...persistedBlocks };
     for (const tab of modularPref.current) {
-      if (!next[tab]) next[tab] = picksAsBlocks(tab, persistedDraft);
+      if (!next[tab]) next[tab] = picksAsBlocks(tab, persistedDraft, persistedEnv);
     }
     setBlockDraft(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- persistedDraft comes from the same events as persistedBlocks
@@ -1183,10 +1229,10 @@ export default function TrainingPage() {
   const blockBaseline = useMemo(() => {
     const base = { ...persistedBlocks };
     for (const tab of Object.keys(blockDraft)) {
-      if (!base[tab]) base[tab] = picksAsBlocks(tab, persistedDraft);
+      if (!base[tab]) base[tab] = picksAsBlocks(tab, persistedDraft, persistedEnv);
     }
     return base;
-  }, [persistedBlocks, persistedDraft, blockDraft]);
+  }, [persistedBlocks, persistedDraft, persistedEnv, blockDraft]);
 
   /* Apply Calendar — pushes this athlete's forward schedule onto a group.
      The banner is how a bulk write that touches other athletes' calendars
@@ -1283,14 +1329,16 @@ export default function TrainingPage() {
      The nav guard below is what stops that happening silently. */
   useEffect(() => {
     setDraftSel(persistedDraft);
+    setEnvDraft(persistedEnv);
     /* Templates come off with it: once a day is saved its drills are simply
        part of the day, not a pending template application. */
     setTplAdded({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persistedEnv comes from the same events as persistedDraft
   }, [persistedDraft]);
 
   const dayDirty = useMemo(
-    () => !sameDraft(draftSel, persistedDraft) || !sameBlocks(blockDraft, blockBaseline),
-    [draftSel, persistedDraft, blockDraft, blockBaseline],
+    () => !sameDraft(draftSel, persistedDraft) || !sameEnv(envDraft, persistedEnv) || !sameBlocks(blockDraft, blockBaseline),
+    [draftSel, persistedDraft, envDraft, persistedEnv, blockDraft, blockBaseline],
   );
 
   /* Structured ⇄ Modular for one position. Nothing is lost either way:
@@ -1301,19 +1349,28 @@ export default function TrainingPage() {
     if (on) modularPref.current.add(tabKey);
     else modularPref.current.delete(tabKey);
     if (on) {
-      setBlockDraft(prev => ({ ...prev, [tabKey]: picksAsBlocks(tabKey, draftSel) }));
+      setBlockDraft(prev => ({ ...prev, [tabKey]: picksAsBlocks(tabKey, draftSel, envDraft) }));
       return;
     }
     const sets: Record<string, Set<string>> = {};
+    const envs: Record<string, DrillEnv> = {};
     for (const dd of dds) sets[dd.key] = new Set<string>();
-    for (const block of blockDraft[tabKey] || []) for (const it of block) sets[structuredDdKey(tabKey, it.ddKey)]?.add(it.drillId);
+    for (const block of blockDraft[tabKey] || []) {
+      for (const it of block) {
+        const key = structuredDdKey(tabKey, it.ddKey);
+        if (sets[key]?.has(it.drillId)) continue;
+        sets[key]?.add(it.drillId);
+        if (it.env) envs[envKeyOf(key, it.drillId)] = it.env;
+      }
+    }
     setDraftSel(prev => ({ ...prev, ...sets }));
+    setEnvDraft(prev => ({ ...prev, ...envs }));
     setBlockDraft(prev => {
       const next = { ...prev };
       delete next[tabKey];
       return next;
     });
-  }, [draftSel, blockDraft]);
+  }, [draftSel, envDraft, blockDraft]);
 
   /** Edit one Modular position's blocks (no-op if it isn't Modular). */
   const updateBlocks = useCallback((tabKey: string, fn: (blocks: BlockItem[][]) => BlockItem[][]) => {
@@ -1412,6 +1469,24 @@ export default function TrainingPage() {
       else set.add(drillId);
       return { ...prev, [ddKey]: set };
     });
+    /* Ticked or unticked, the drill's picks go back to what's saved (a new
+       drill starts from defaultEnv again). */
+    const k = envKeyOf(ddKey, drillId);
+    setEnvDraft(prev => {
+      const next = { ...prev };
+      if (persistedEnv[k]) next[k] = persistedEnv[k];
+      else delete next[k];
+      return next;
+    });
+  }, [persistedEnv]);
+
+  /** Change one drop-down on a Structured drill. */
+  const setDraftEnv = useCallback((tab: string, ddKey: string, drillId: string, pending: boolean, field: EnvField, values: string[]) => {
+    const k = envKeyOf(ddKey, drillId);
+    setEnvDraft(prev => {
+      const base = prev[k] ?? (pending ? defaultEnv(tab) : undefined) ?? {};
+      return { ...prev, [k]: { ...base, [field]: values } };
+    });
   }, []);
 
   /**
@@ -1436,6 +1511,8 @@ export default function TrainingPage() {
       /* Drills kept when a Modular day goes back to Structured: they lose
          their block number and rejoin their section's position. */
       const toUnblock: { id: string; sectionOrder: number }[] = [];
+      /* Kept Structured drills whose drop-down picks changed. */
+      const toEnv: { id: string; environment: string | null }[] = [];
 
       for (const tab of TABS) {
         const dds = MODAL_DROPDOWNS[tab.key] || [];
@@ -1495,6 +1572,8 @@ export default function TrainingPage() {
             if (!sel.has(ev.drillId!) || (ev.block != null && kept.has(ev.drillId!))) { toDelete.push(ev.id); continue; }
             kept.add(ev.drillId!);
             if (ev.block != null) toUnblock.push({ id: ev.id, sectionOrder: ddIndex });
+            const want = envString(envDraft[envKeyOf(dd.key, ev.drillId!)]);
+            if (want !== envString(parseEnv(ev.environment))) toEnv.push({ id: ev.id, environment: want });
           }
 
           const alreadyThere = new Set(mine.map(ev => ev.drillId!));
@@ -1524,6 +1603,7 @@ export default function TrainingPage() {
               duration: 15,
               order: baseOrder + i,
               sectionOrder,
+              environment: envString(envDraft[envKeyOf(dd.key, drill.id)] ?? defaultEnv(tab.key)),
             });
             slot += 15;
           });
@@ -1532,6 +1612,7 @@ export default function TrainingPage() {
 
       for (const id of toDelete) await api.deleteScheduledDrill(id);
       for (const u of toUnblock) await api.updateScheduledDrill(u.id, { block: null, sectionOrder: u.sectionOrder });
+      for (const u of toEnv) await api.updateScheduledDrill(u.id, { environment: u.environment });
       if (toAdd.length) await api.createScheduledDrillsBatch(toAdd);
 
       refreshEvents();
@@ -1543,7 +1624,7 @@ export default function TrainingPage() {
     } finally {
       setSavingDay(false);
     }
-  }, [selectedPlayerId, dayDirty, allEventsByDate, todayDateStr, draftSel, blockDraft, blockBaseline, allDrills, refreshEvents]);
+  }, [selectedPlayerId, dayDirty, allEventsByDate, todayDateStr, draftSel, envDraft, blockDraft, blockBaseline, allDrills, refreshEvents]);
 
   /* Unsaved edits die when the day or athlete changes, so warn on the way
      out of the page entirely. */
@@ -1863,6 +1944,8 @@ export default function TrainingPage() {
           allDrills={allDrills}
           draftSel={draftSel}
           onToggleDd={toggleDraftDd}
+          envDraft={envDraft}
+          onEnv={setDraftEnv}
           blockDraft={blockDraft}
           onSetModular={setTabModular}
           onUpdateBlocks={updateBlocks}
@@ -2144,6 +2227,8 @@ function DayView({
   allDrills,
   draftSel,
   onToggleDd,
+  envDraft,
+  onEnv,
   blockDraft,
   onSetModular,
   onUpdateBlocks,
@@ -2186,6 +2271,9 @@ function DayView({
   draftSel: Record<string, Set<string>>;
   /** Tick / untick one drill in one section. */
   onToggleDd: (ddKey: string, drillId: string) => void;
+  /** Structured drills' drop-down picks (envKeyOf → picks) + their setter. */
+  envDraft: Record<string, DrillEnv>;
+  onEnv: (tab: string, ddKey: string, drillId: string, pending: boolean, field: EnvField, values: string[]) => void;
   /** Coach draft of the day's Modular positions (tab → blocks). */
   blockDraft: Record<string, BlockItem[][]>;
   /** Switch one position between Structured and Modular. */
@@ -2313,6 +2401,49 @@ function DayView({
      throwing away every other unsaved edit the coach had made. Only rows no
      dropdown can represent (hand-entered one-offs, retired categories) go
      directly, because there is no draft entry to untick. */
+  /* A Structured row's picks: the draft (or a new drill's defaults) for
+     coaches; what's saved for everyone else. */
+  const rowEnvKey = (ev: ScheduledDrill): { ddKey: string; drillId: string; pending: boolean } | null => {
+    if (isPendingRow(ev.id)) {
+      const p = parsePendingId(ev.id);
+      return p ? { ...p, pending: true } : null;
+    }
+    const dd = ev.drillId ? ddForEvent(ev) : undefined;
+    return dd && ev.drillId ? { ddKey: dd.key, drillId: ev.drillId, pending: false } : null;
+  };
+  const rowEnv = (ev: ScheduledDrill): DrillEnv | undefined => {
+    const k = isCoach ? rowEnvKey(ev) : null;
+    if (!k) return parseEnv(ev.environment);
+    const key = envKeyOf(k.ddKey, k.drillId);
+    if (key in envDraft) return envDraft[key];
+    return k.pending ? defaultEnv(ev.tab) : parseEnv(ev.environment);
+  };
+  /** Second line of a Structured drill row: the coach's drop-downs, or the
+   *  athlete's read-only picks. */
+  const rowExtra = (ev: ScheduledDrill): React.ReactNode => {
+    if (!isCoach) {
+      const env = rowEnv(ev);
+      const main = envSummary(env, ev.tab);
+      const goal = envSummary(env, ev.tab, true);
+      if (!main && !goal) return null;
+      const goalLabel = ev.tab === 'pitching' ? 'Intensity / Goal' : 'Goal';
+      return (
+        <span className={styles.calRowEnvText}>
+          {main}{main && goal ? ' · ' : ''}{goal ? `${goalLabel}: ${goal}` : ''}
+        </span>
+      );
+    }
+    const k = rowEnvKey(ev);
+    if (!k) return null;
+    return (
+      <RowEnvPickers
+        tab={ev.tab}
+        env={rowEnv(ev)}
+        onChange={(field, values) => onEnv(ev.tab, k.ddKey, k.drillId, k.pending, field, values)}
+      />
+    );
+  };
+
   const removeRow = (ev: ScheduledDrill) => {
     if (isPendingRow(ev.id)) {
       const parsed = parsePendingId(ev.id);
@@ -2415,6 +2546,7 @@ function DayView({
           notes: ev.notes,
           order: i,
           sectionOrder: gi,
+          environment: envString(rowEnv(ev)),
         };
       }),
     );
@@ -2678,6 +2810,7 @@ function DayView({
                                     onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                     onRemove={() => removeRow(ev)}
                                     isCoach={isCoach}
+                                    extra={rowExtra(ev)}
                                   />
                                 ) : (
                                   <CalSortableDrill
@@ -2692,6 +2825,7 @@ function DayView({
                                     onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                     onDelete={() => removeRow(ev)}
                                     isCoach={isCoach}
+                                    extra={rowExtra(ev)}
                                   />
                                 ))}
                               </SortableContext>
@@ -2779,6 +2913,7 @@ function DayView({
                                 onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                 onRemove={() => removeRow(ev)}
                                 isCoach={isCoach}
+                                extra={rowExtra(ev)}
                               />
                             ) : (
                               <CalSortableDrill
@@ -2793,6 +2928,7 @@ function DayView({
                                 onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                 onDelete={() => removeRow(ev)}
                                 isCoach={isCoach}
+                                extra={rowExtra(ev)}
                               />
                             ))}
                           </SortableContext>
@@ -3029,6 +3165,7 @@ function DayView({
                                         onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                         onRemove={() => removeRow(ev)}
                                         isCoach={isCoach}
+                                        extra={rowExtra(ev)}
                                       />
                                     ) : (
                                       <CalSortableDrill
@@ -3045,6 +3182,7 @@ function DayView({
                                         onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                         onDelete={() => removeRow(ev)}
                                         isCoach={isCoach}
+                                        extra={rowExtra(ev)}
                                       />
                                     ))}
                                   </SortableContext>
@@ -3129,6 +3267,7 @@ function DayView({
                                     onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                     onRemove={() => removeRow(ev)}
                                     isCoach={isCoach}
+                                    extra={rowExtra(ev)}
                                   />
                                 ) : (
                                   <CalSortableDrill
@@ -3143,6 +3282,7 @@ function DayView({
                                     onRowClick={ev.drill ? () => onDrillClick(ev.drill!) : undefined}
                                     onDelete={() => removeRow(ev)}
                                     isCoach={isCoach}
+                                    extra={rowExtra(ev)}
                                   />
                                 ))}
                               </SortableContext>
@@ -3437,9 +3577,8 @@ function useSetEditing(
     if (at >= 0) return b.filter((_, k) => k !== at);
     if (b.length >= MAX_BLOCK_DRILLS) return b;
     /* Drop-downs with a starting pick get it (Pitching: 6 reps). */
-    const env: DrillEnv = {};
-    for (const f of drillOptionFields(tabKey)) if (f.defaultPick) env[f.key] = [f.defaultPick];
-    return [...b, { drillId: id, ddKey, ...(Object.keys(env).length ? { env } : {}) }];
+    const env = defaultEnv(tabKey);
+    return [...b, { drillId: id, ddKey, ...(env ? { env } : {}) }];
   });
 
   /* The Movement (dark blue) + Drills pickers for one set. */
@@ -3475,6 +3614,35 @@ function useSetEditing(
     b.map((it, k) => (k === i ? { ...it, env: { ...it.env, [field]: values } } : it)));
 
   return { pickers, editBlock, pickerPair, setEnv };
+}
+
+/** A Structured drill's drop-downs (same as a Modular set drill's). */
+function RowEnvPickers({ tab, env, onChange }: {
+  tab: string;
+  env: DrillEnv | undefined;
+  onChange: (field: EnvField, values: string[]) => void;
+}) {
+  const fields = drillOptionFields(tab);
+  const lists = useDrillOptionLists();
+  return (
+    <span
+      className={styles.envPickers}
+      style={{ '--env-cols': fields.length } as React.CSSProperties}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {fields.map((f) => (
+        <EnvSelect
+          key={f.key}
+          label={f.label}
+          options={optionsFor(lists, tab, f)}
+          single={f.single}
+          suffix={f.suffix}
+          selected={env?.[f.key] || []}
+          onChange={(values) => onChange(f.key, values)}
+        />
+      ))}
+    </span>
+  );
 }
 
 /** A set's drills as editable pills (click = demo video, × = remove). */
@@ -3552,9 +3720,10 @@ function EnvSelect({ label, options: listed, selected, onChange, single = false,
   const [search, setSearch] = useState('');
   const wrapRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const panelPos = useFixedPanel(open, triggerRef, 220);
 
-  useDismiss(open, wrapRef, setOpen);
+  useDismiss(open, wrapRef, setOpen, panelRef);
   useEffect(() => {
     if (!open) setSearch('');
   }, [open]);
@@ -3586,8 +3755,10 @@ function EnvSelect({ label, options: listed, selected, onChange, single = false,
         <span className={styles.envChipText}>{selected.length ? shownPicks : label}</span>
         <span className={styles.envChipCaret}>▾</span>
       </button>
-      {open && (
-        <div className={styles.multiPanel} style={panelPos ?? { visibility: 'hidden' }} role="listbox" aria-label={label} aria-multiselectable={!single}>
+      {/* Portaled to <body>: a faded (unsaved) drill row is its own layer,
+          which trapped the list under the sections below it. */}
+      {open && createPortal(
+        <div ref={panelRef} className={`${styles.multiPanel} ${styles.envPanel}`} style={panelPos ?? { visibility: 'hidden' }} role="listbox" aria-label={label} aria-multiselectable={!single}>
           <div className={styles.envPanelHead}>{label}</div>
           <div className={styles.multiSearch}>
             <input
@@ -3616,7 +3787,8 @@ function EnvSelect({ label, options: listed, selected, onChange, single = false,
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );
@@ -3928,13 +4100,21 @@ const PICKER_OPEN_EVENT = 'training:picker-open';
  * closed the list -- it stayed open over the picker beside it (Movement under
  * an upward Drills list), and taps meant for that picker hit the list.
  */
-function useDismiss(open: boolean, wrapRef: React.RefObject<HTMLElement | null>, setOpen: (open: boolean) => void) {
+function useDismiss(
+  open: boolean,
+  wrapRef: React.RefObject<HTMLElement | null>,
+  setOpen: (open: boolean) => void,
+  /** A list portaled out of the wrapper (it still counts as inside). */
+  panelRef?: React.RefObject<HTMLElement | null>,
+) {
   const id = useId();
   useEffect(() => {
     if (!open) return;
     window.dispatchEvent(new CustomEvent(PICKER_OPEN_EVENT, { detail: id }));
     const onDown = (e: PointerEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (panelRef?.current?.contains(t)) return;
+      if (wrapRef.current && !wrapRef.current.contains(t)) setOpen(false);
     };
     const onOther = (e: Event) => {
       if ((e as CustomEvent<string>).detail !== id) setOpen(false);
@@ -3945,7 +4125,7 @@ function useDismiss(open: boolean, wrapRef: React.RefObject<HTMLElement | null>,
       document.removeEventListener('pointerdown', onDown);
       window.removeEventListener(PICKER_OPEN_EVENT, onOther);
     };
-  }, [open, id, wrapRef, setOpen]);
+  }, [open, id, wrapRef, setOpen, panelRef]);
 }
 
 /* ══════════════════════════════════════════════════════════════════

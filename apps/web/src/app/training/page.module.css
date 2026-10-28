@@ -1604,6 +1604,9 @@
   margin: 1px 0 0 5px;
   padding-left: 6px;
   border-left: 2px solid var(--border);
+  /* Measured so a wide column (one position on the day) can lay each drill
+     out on one line -- see the @container rule with .calRowWithEnv. */
+  container-type: inline-size;
 }
 
 .dayColField {
@@ -2359,9 +2362,11 @@
 /* ── Coach single-position workout builder (focused Day view) ──
    One card per drill section: its picker, then the drills in it. The
    compact picker is scaled back up — here it has the whole page width. */
+/* Sections stacked top to bottom, each the full width (Movement Prep over
+   Plyo Balls over Throw …), so every drill row has room for its drop-downs. */
 .focusBuilder {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -2649,7 +2654,7 @@
 .envChipText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .envChipCaret { font-size: 8px; opacity: 0.7; }
 /* The list hangs inside the drill row in the DOM, so reset the row's ink. */
-.envWrap .multiPanel { color: var(--text); font-weight: 400; text-align: left; }
+.envPanel { color: var(--text); font-weight: 400; text-align: left; }
 .envPanelHead {
   padding: 9px 12px 0;
   font-size: 10px;
@@ -2744,3 +2749,49 @@
 .areasItem:hover { background: rgba(127, 127, 127, 0.12); }
 .areasItemOn { background: rgba(127, 127, 127, 0.1); }
 .areasItem input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+/* ── Structured drill rows with their drop-downs / picks ──
+   The row wraps: name (with grip and ×) on the first line, the drill's
+   Feed Type … / Reps … pickers (coach) or picks (athlete) beneath. The
+   absolute grip / × stay pinned to the first line. */
+.calRowWithEnv { flex-wrap: wrap; }
+.calRowEnv { flex-basis: 100%; min-width: 0; padding: 4px 0 2px; }
+.calRowWithEnv > .calRowHandle,
+.dayColCardItem.calRowWithEnv > .dayEventDelete { top: 6px; transform: none; }
+.calRowEnvText {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+/* Single-position builder: each drill on ONE line -- the name at the far
+   left, its drop-downs (Feed Type … / Reps …) filling the rest, × last.
+   Phones wrap back to the drop-downs under the name. */
+.focusBuilderSection .calRowWithEnv { flex-wrap: nowrap; align-items: center; gap: 12px; }
+.focusBuilderSection .calRowWithEnv .dayFocusCardItemName { flex: 0 0 clamp(9em, 26%, 16em); padding-left: 20px; }
+.focusBuilderSection .calPendingRow.calRowWithEnv .dayFocusCardItemName { padding-left: 0; }
+.focusBuilderSection .calRowWithEnv > .calRowHandle { top: 50%; transform: translateY(-50%); }
+.focusBuilderSection .calRowEnv { order: 2; flex: 1 1 auto; padding: 0; }
+.focusBuilderSection .calRowWithEnv > .dayEventDelete { order: 3; flex-shrink: 0; }
+.focusBuilderSection .calRowEnv .envPickers { grid-template-columns: repeat(var(--env-cols, 4), minmax(0, 1fr)); }
+@media (max-width: 720px) {
+  .focusBuilderSection .calRowWithEnv { flex-wrap: wrap; }
+  .focusBuilderSection .calRowWithEnv .dayFocusCardItemName { flex: 1 1 auto; }
+  .focusBuilderSection .calRowEnv { flex-basis: 100%; }
+  .focusBuilderSection .calRowEnv .envPickers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Day columns wide enough (one or two positions on the day): each drill on
+   ONE line like the single-position builder -- name at the far left, its
+   drop-downs across the rest, × last. Narrow columns keep the drop-downs
+   under the centred name. */
+@container (min-width: 36em) {
+  .dayColCardItem.calRowWithEnv { flex-wrap: nowrap; justify-content: flex-start; gap: 12px; }
+  .dayColCardItem.calRowWithEnv .dayColCardItemName { flex: 0 0 clamp(8em, 26%, 16em); text-align: left; padding: 0 0 0 20px; }
+  .dayColCardItem.calPendingRow.calRowWithEnv .dayColCardItemName { padding-left: 0; }
+  .dayColCardItem.calRowWithEnv > .calRowHandle { top: 50%; transform: translateY(-50%); }
+  .dayColCardItem.calRowWithEnv .calRowEnv { order: 2; flex: 1 1 auto; padding: 0; }
+  .dayColCardItem.calRowWithEnv > .dayEventDelete { position: static; transform: none; order: 3; flex-shrink: 0; }
+  .dayColCardItem.calRowWithEnv .envPickers { grid-template-columns: repeat(var(--env-cols, 4), minmax(0, 1fr)); }
+}
