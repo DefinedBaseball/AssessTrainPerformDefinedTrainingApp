@@ -368,12 +368,22 @@ interface SummaryData {
   /** Guardian contacts — surfaced on the coach Client Directory. */
   parentEmail: string;
   parentPhone: string;
-  playingLevelGoal: string; goals: string;
+  playingLevelGoal: string; mainGoal: string; goals: string; longTermGoals: string;
   /** Background, under Goals. Pre-filled from an inquiry when the athlete
    *  came in through the inquiry form. */
   trainingHistory: string; trainingAvailability: string;
   otherSports: string; injuryHistory: string;
 }
+
+/* The goal boxes' examples (placeholders, so they go once typing starts)
+   and the bracketed note after each title, kept in normal case beside the
+   uppercase label. */
+const GOAL_EXAMPLE =
+  'Example: Make Varsity - Add 10 Pounds - Increase Exit Velocity to 99 - Increase Breaking Ball Recognition';
+const MAIN_GOAL_EXAMPLE = 'Main Goal (Example: Make Varsity)';
+const MEASURABLES_EXAMPLE =
+  'Measurables to accomplish it (Example: Add 10 Pounds - Increase Exit Velocity to 99 - Increase Breaking Ball Recognition)';
+const GOAL_HINT_STYLE: React.CSSProperties = { textTransform: 'none', fontWeight: 500, letterSpacing: 0 };
 
 function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d: SummaryData) => void; player: Player }) {
   /* Athlete Type is coach-set; an athlete sees their tags but cannot edit
@@ -704,12 +714,46 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
           </div>
         </div>
         <div className={rs.summaryField}>
-          <label className={rs.summaryLabel}>Goals</label>
+          {/* Both goals show above the trend graphs on the Player
+              Summary / Dashboard. The example is a placeholder, so it
+              disappears as soon as the athlete starts typing. */}
+          <label className={rs.summaryLabel}>
+            Goals <span style={GOAL_HINT_STYLE}>(Main Goal, then the Measurables to Accomplish that Goal)</span>
+          </label>
+          {/* One box in two parts: the Main Goal line on top (shown in the
+              Goals bar on the Player Summary), the measurables attached
+              beneath it (the numbered list under that bar). */}
+          <input
+            className={rs.summaryInput}
+            value={data.mainGoal}
+            onChange={e => update({ mainGoal: e.target.value })}
+            placeholder={MAIN_GOAL_EXAMPLE}
+            maxLength={200}
+            aria-label="Main Goal"
+            style={{ fontWeight: 700, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+          />
           <textarea
             className={rs.summaryInput}
             value={data.goals}
             onChange={e => update({ goals: e.target.value })}
-            placeholder="Your personal goals…"
+            placeholder={MEASURABLES_EXAMPLE}
+            aria-label="Measurables to accomplish the Main Goal"
+            rows={4}
+            style={{
+              resize: 'vertical', minHeight: 80,
+              marginTop: -6, borderTop: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0,
+            }}
+          />
+        </div>
+        <div className={rs.summaryField}>
+          <label className={rs.summaryLabel}>
+            Process Goals <span style={GOAL_HINT_STYLE}>(Processes to Accomplish Goal)</span>
+          </label>
+          <textarea
+            className={rs.summaryInput}
+            value={data.longTermGoals}
+            onChange={e => update({ longTermGoals: e.target.value })}
+            placeholder={GOAL_EXAMPLE}
             rows={4}
             style={{ resize: 'vertical', minHeight: 80 }}
           />
@@ -2698,7 +2742,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     parentEmail: '', parentPhone: '',
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
     collegeCommit: '', logoFile: null,
-    playingLevelGoal: '', goals: '',
+    playingLevelGoal: '', mainGoal: '', goals: '', longTermGoals: '',
     trainingHistory: '', trainingAvailability: '', otherSports: '', injuryHistory: '',
   };
   const [summaryData, setSummaryData] = useState<SummaryData>(emptySummary);
@@ -2871,6 +2915,8 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       pgScore: player.pgScore ? String(player.pgScore) : '',
       collegeCommit: player.collegeCommit || '', logoFile: null,
       playingLevelGoal: (player as any).playingLevelGoal || '', goals: (player as any).goals || '',
+      mainGoal: player.mainGoal || '',
+      longTermGoals: player.longTermGoals || '',
       trainingHistory: player.trainingHistory || '',
       trainingAvailability: player.trainingAvailability || '',
       otherSports: player.otherSports || '',
@@ -3014,7 +3060,9 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           pgScore: summaryData.pgScore ? parseFloat(summaryData.pgScore) : null,
           collegeCommit: summaryData.collegeCommit || null,
           playingLevelGoal: summaryData.playingLevelGoal || null,
+          mainGoal: summaryData.mainGoal.trim() || null,
           goals: summaryData.goals || null,
+          longTermGoals: summaryData.longTermGoals || null,
           trainingHistory: summaryData.trainingHistory.trim() || null,
           trainingAvailability: summaryData.trainingAvailability.trim() || null,
           otherSports: summaryData.otherSports.trim() || null,

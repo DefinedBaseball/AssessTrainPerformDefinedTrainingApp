@@ -325,7 +325,10 @@ export class PlayersService {
     pgScore?: number | null;
     developmentNotes?: string | null;
     playingLevelGoal?: string | null;
+    mainGoal?: string | null;
     goals?: string | null;
+    longTermGoals?: string | null;
+    summaryCharts?: string | null;
     trainingHistory?: string | null;
     trainingAvailability?: string | null;
     otherSports?: string | null;

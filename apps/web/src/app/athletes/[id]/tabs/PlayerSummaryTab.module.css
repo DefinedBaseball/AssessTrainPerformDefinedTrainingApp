@@ -1904,3 +1904,188 @@
      2px double hairline rather than one continuous bubble edge. */
   margin-top: -1px;
 }
+
+/* ── Section trend graphs + goals (replaced the Tool Grades scoring bars) ──
+   One column per visible section, each holding its two trend cards. Phones
+   and tablets let the columns wrap instead of squeezing five charts into
+   one row. */
+.sectionTrendGrid {
+  display: grid;
+  grid-template-columns: repeat(var(--section-cols, 1), minmax(0, 1fr));
+  gap: 0.6rem;
+}
+@media (max-width: 1100px) {
+  .sectionTrendGrid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+}
+.sectionTrendCard.sectionTrendCard {
+  align-items: stretch;
+  cursor: default;
+}
+.sectionTrendCard .toolGraphLabel { align-self: center; }
+/* A section's two charts: stacked, or side by side when there are 3
+   or fewer sections (all charts on one line). Phones always stack. */
+.sectionTrendCharts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.sectionTrendCharts.sectionTrendChartsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 720px) {
+  .sectionTrendCharts.sectionTrendChartsRow { grid-template-columns: minmax(0, 1fr); }
+}
+.sectionTrendNone {
+  padding: 18px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Goals / Process Goals: read-only cards like the section notes -- the
+   title in the plain-colour bar (dashTheme .notesCard), the numbered goals
+   in the lighter plain colour beneath. Both cards share the tallest height. */
+.goalsRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.goalCol { display: flex; flex-direction: column; min-width: 0; }
+@media (max-width: 720px) {
+  .goalsRow { grid-template-columns: minmax(0, 1fr); }
+}
+.goalBody {
+  flex: 1 1 auto;
+  padding: 4px 12px 6px;
+  background: var(--notes-bg);
+}
+/* Title on the left, the Main Goal centred in the bar (the empty third
+   column balances the title so the centring is true). */
+.goalHead {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, max-content) 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.goalTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  line-height: 1.05;
+}
+.goalList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.goalItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.goalItem + .goalItem { border-top: 1px solid rgba(127, 127, 127, 0.18); }
+.goalNum {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-bright);
+  color: var(--text-bright);
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.goalEmpty {
+  margin: 6px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Progress bubble notes: every section's notes card is as tall as the
+   tallest in the row (the grid stretches each column; the card, its
+   typing area and the editable surface fill it). */
+.notesFill { flex: 1 1 auto; }
+.notesFill > :last-child { flex: 1 1 auto; display: flex; flex-direction: column; }
+.notesFill > :last-child > [contenteditable] { flex: 1 1 auto; }
+
+/* The Main Goal, centred in the Goals bar (its measurables are the
+   numbered list beneath). */
+.goalMain {
+  min-width: 0;
+  color: var(--text-bright);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Coach's chart picker on each Progress section: an Edit button at the
+   right of the section title, and the checklist that replaces the charts
+   while it's open. */
+.sectionTrendHead {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.chartEditBtn {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chartEditBtn:hover { color: var(--text); border-color: var(--text-muted); }
+.chartEditBtnOn { color: var(--text); border-color: var(--text); }
+.chartPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 4px;
+}
+.chartPickerNote {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.chartPickerItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.chartPickerItem:hover { background: rgba(127, 127, 127, 0.12); }
+.chartPickerItem input { flex: none; accent-color: var(--text); cursor: pointer; }
+.chartPickerItemOff { opacity: 0.45; cursor: default; }
+.chartPickerItemOff input { cursor: default; }
+/* Centred section title stays clear of the Edit button on the right. */
+.sectionTrendCard .toolGraphLabel { max-width: calc(100% - 64px); }

@@ -133,7 +133,11 @@ export interface Player {
    *  Player Summary tab. Coach-editable; player view is read-only. */
   developmentNotes?: string | null;
   playingLevelGoal?: string | null;
+  mainGoal?: string | null;
+  /** Coach-picked Player Summary charts: JSON { sectionKey: [metricKey, …] }. */
+  summaryCharts?: string | null;
   goals?: string | null;
+  longTermGoals?: string | null;
   /** The linked account. `email` and `phone` are the athlete's own contact
    *  details — they live on User, not Player, so the Client Directory reads
    *  them from here. */

@@ -15,9 +15,7 @@ import {
 import { usePdfExport } from '@/components/PdfExportDialog';
 import {
   TabProps,
-  scoreColor,
   computeAggregateScores,
-  type AggregateSection,
 } from '../helpers';
 /* Shared tab/category color system — used by both this tab's
    Upcoming Drills panel and the Training (`/training`) page so the
@@ -36,30 +34,6 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
 import { SeasonStatsSection } from '../components/SeasonStatsSection';
 import { WEIGHT_CHANGED_EVENT, type WeightChangedDetail } from '@/components/WeightTracker';
-
-/* ═══════════════════════════════════════════
-   SCALE HELPERS (20 → 80 scouting)
-   ═══════════════════════════════════════════ */
-
-const SCALE_MIN = 20;
-const SCALE_MAX = 80;
-const SCALE_RANGE = SCALE_MAX - SCALE_MIN; // 60
-
-/** Map a 20-80 score to 0-100 percent on the bar track. */
-function scoreToPct(score: number): number {
-  const clamped = Math.max(SCALE_MIN, Math.min(SCALE_MAX, score));
-  return ((clamped - SCALE_MIN) / SCALE_RANGE) * 100;
-}
-
-
-/** Average a section's populated bars, or null if none. */
-function sectionAvg(section: AggregateSection): number | null {
-  const scored = section.bars
-    .map((b) => b.score)
-    .filter((v): v is number => v !== null);
-  if (scored.length === 0) return null;
-  return Math.round(scored.reduce((a, b) => a + b, 0) / scored.length);
-}
 
 /* ═══════════════════════════════════════════
    CHART TOKENS — master is dark-only, so these
@@ -1098,6 +1072,85 @@ interface TrendCardSpec {
   accent: string;
 }
 
+/* Each trend group's charts -- the Trends tab lists them all, and a Player
+   Summary section's coach can show any 2 of its own. */
+const HITTING_TREND_CARDS: TrendCardSpec[] = [
+  { key: 'max_exit_velo',      label: 'Max Exit Velocity', unit: 'mph', accent: '#3B82F6' },
+  { key: 'avg_exit_velo',      label: 'Avg Exit Velocity', unit: 'mph', accent: '#3B82F6' },
+  { key: 'max_bat_speed',      label: 'Max Bat Speed',     unit: 'mph', accent: '#3B82F6' },
+  { key: 'bat_speed',          label: 'Bat Speed',         unit: 'mph', accent: '#3B82F6' },
+  { key: 'distance',           label: 'Distance',          unit: 'ft',  accent: '#3B82F6' },
+  { key: 'squared_up_pct',     label: 'Squared Up %',      unit: '%',   accent: '#3B82F6' },
+  { key: 'attack_angle',       label: 'Attack Angle',      unit: '°',   accent: '#3B82F6' },
+  { key: 'plane_angle',        label: 'Plane Angle',       unit: '°',   accent: '#3B82F6' },
+];
+const PITCHING_TREND_CARDS: TrendCardSpec[] = [
+  { key: 'fb_max_velo', label: 'Fastball Max Velo', unit: 'mph', accent: '#F59E0B' },
+  { key: 'fb_avg_velo', label: 'Fastball Avg Velo', unit: 'mph', accent: '#F59E0B' },
+  { key: 'spin_rate',   label: 'Spin Rate',         unit: 'rpm', accent: '#F59E0B' },
+  { key: 'h_break',     label: 'Horizontal Break',  unit: 'in',  accent: '#F59E0B' },
+  { key: 'v_break',     label: 'Vertical Break',    unit: 'in',  accent: '#F59E0B' },
+];
+const CATCHING_TREND_CARDS: TrendCardSpec[] = [
+  { key: 'catcher_velo',  label: 'Catcher Velocity', unit: 'mph', accent: '#22C55E' },
+  { key: 'pop_time',      label: 'Pop Time',         unit: 's',   accent: '#22C55E' },
+  { key: 'exchange_time', label: 'Exchange Time',    unit: 's',   accent: '#22C55E' },
+];
+const INFIELD_TREND_CARDS: TrendCardSpec[] = [
+  { key: 'infield_velo', label: 'Infield Velocity', unit: 'mph', accent: '#22C55E' },
+  { key: 'sprint_60',    label: '60-yard Dash',     unit: 's',   accent: '#22C55E' },
+  { key: 'sprint_10',    label: '10 Yard Sprint',   unit: 's',   accent: '#22C55E' },
+];
+const OUTFIELD_TREND_CARDS: TrendCardSpec[] = [
+  { key: 'outfield_velo', label: 'Outfield Velocity', unit: 'mph', accent: '#22C55E' },
+  { key: 'sprint_60',     label: '60-yard Dash',      unit: 's',   accent: '#22C55E' },
+  { key: 'sprint_10',     label: '10 Yard Sprint',    unit: 's',   accent: '#22C55E' },
+];
+
+/* The charts a Player Summary section can show (its Trends group), and the
+   two it shows until a coach picks others (Edit on the section). S&C has
+   none. */
+const SECTION_CHART_OPTIONS: Record<string, TrendCardSpec[]> = {
+  hitting: HITTING_TREND_CARDS,
+  pitching: PITCHING_TREND_CARDS,
+  defense_catching: CATCHING_TREND_CARDS,
+  defense_infield: INFIELD_TREND_CARDS,
+  defense_outfield: OUTFIELD_TREND_CARDS,
+};
+const SECTION_CHART_DEFAULTS: Record<string, string[]> = {
+  hitting: ['max_exit_velo', 'max_bat_speed'],
+  pitching: ['fb_avg_velo', 'fb_max_velo'],
+  defense_catching: ['pop_time', 'catcher_velo'],
+  defense_infield: ['sprint_60', 'infield_velo'],
+  defense_outfield: ['sprint_60', 'outfield_velo'],
+};
+const MAX_SECTION_CHARTS = 2;
+
+/** A section's charts: the coach's picks (Player.summaryCharts) or the
+ *  defaults, limited to that section's options. */
+function sectionCharts(picks: Record<string, string[]>, key: string): TrendCardSpec[] {
+  const options = SECTION_CHART_OPTIONS[key] || [];
+  const chosen = picks[key] ?? SECTION_CHART_DEFAULTS[key] ?? [];
+  return chosen
+    .map((k) => options.find((o) => o.key === k))
+    .filter((o): o is TrendCardSpec => !!o)
+    .slice(0, MAX_SECTION_CHARTS);
+}
+
+function parseChartPicks(raw: string | null | undefined): Record<string, string[]> {
+  try {
+    const v = raw ? JSON.parse(raw) : {};
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, list] of Object.entries(v)) {
+      if (Array.isArray(list)) out[k] = list.filter((x): x is string => typeof x === 'string');
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 interface TrendSubgroup {
   /** Sub-section label inside a category (e.g. each pitch type
    *  inside the Pitching bubble). */
@@ -1159,16 +1212,7 @@ function getTrendCategoriesForPlayer(
   categories.push({
     label: 'Hitting',
     accent: '#3B82F6',
-    cards: [
-      { key: 'max_exit_velo',      label: 'Max Exit Velocity', unit: 'mph', accent: '#3B82F6' },
-      { key: 'avg_exit_velo',      label: 'Avg Exit Velocity', unit: 'mph', accent: '#3B82F6' },
-      { key: 'max_bat_speed',      label: 'Max Bat Speed',     unit: 'mph', accent: '#3B82F6' },
-      { key: 'bat_speed',          label: 'Bat Speed',         unit: 'mph', accent: '#3B82F6' },
-      { key: 'distance',           label: 'Distance',          unit: 'ft',  accent: '#3B82F6' },
-      { key: 'squared_up_pct',     label: 'Squared Up %',      unit: '%',   accent: '#3B82F6' },
-      { key: 'attack_angle',       label: 'Attack Angle',      unit: '°',   accent: '#3B82F6' },
-      { key: 'plane_angle',        label: 'Plane Angle',       unit: '°',   accent: '#3B82F6' },
-    ],
+    cards: HITTING_TREND_CARDS,
   });
 
   /* ── Pitching (pitcher only) — ROW PER PITCH TYPE.
@@ -1183,13 +1227,7 @@ function getTrendCategoriesForPlayer(
     categories.push({
       label: 'Pitching',
       accent: '#F59E0B',
-      cards: [
-        { key: 'fb_max_velo', label: 'Fastball Max Velo', unit: 'mph', accent: '#F59E0B' },
-        { key: 'fb_avg_velo', label: 'Fastball Avg Velo', unit: 'mph', accent: '#F59E0B' },
-        { key: 'spin_rate',   label: 'Spin Rate',         unit: 'rpm', accent: '#F59E0B' },
-        { key: 'h_break',     label: 'Horizontal Break',  unit: 'in',  accent: '#F59E0B' },
-        { key: 'v_break',     label: 'Vertical Break',    unit: 'in',  accent: '#F59E0B' },
-      ],
+      cards: PITCHING_TREND_CARDS,
     });
   }
 
@@ -1198,11 +1236,7 @@ function getTrendCategoriesForPlayer(
     categories.push({
       label: 'Catching',
       accent: '#22C55E',
-      cards: [
-        { key: 'catcher_velo',  label: 'Catcher Velocity', unit: 'mph', accent: '#22C55E' },
-        { key: 'pop_time',      label: 'Pop Time',         unit: 's',   accent: '#22C55E' },
-        { key: 'exchange_time', label: 'Exchange Time',    unit: 's',   accent: '#22C55E' },
-      ],
+      cards: CATCHING_TREND_CARDS,
     });
   }
 
@@ -1211,11 +1245,7 @@ function getTrendCategoriesForPlayer(
     categories.push({
       label: 'Infield',
       accent: '#22C55E',
-      cards: [
-        { key: 'infield_velo', label: 'Infield Velocity', unit: 'mph', accent: '#22C55E' },
-        { key: 'sprint_60',    label: '60-yard Dash',     unit: 's',   accent: '#22C55E' },
-        { key: 'sprint_10',    label: '10 Yard Sprint',   unit: 's',   accent: '#22C55E' },
-      ],
+      cards: INFIELD_TREND_CARDS,
     });
   }
 
@@ -1224,11 +1254,7 @@ function getTrendCategoriesForPlayer(
     categories.push({
       label: 'Outfield',
       accent: '#22C55E',
-      cards: [
-        { key: 'outfield_velo', label: 'Outfield Velocity', unit: 'mph', accent: '#22C55E' },
-        { key: 'sprint_60',     label: '60-yard Dash',      unit: 's',   accent: '#22C55E' },
-        { key: 'sprint_10',     label: '10 Yard Sprint',    unit: 's',   accent: '#22C55E' },
-      ],
+      cards: OUTFIELD_TREND_CARDS,
     });
   }
 
@@ -1395,24 +1421,30 @@ function TrendsSection({
 /** A single dark-grey metric card with its label, latest reading, and
  *  a mini TrendChart. Extracted so both the flat-grid and
  *  subgroup-row layouts can reuse the same card chrome. */
-/* Notes column heading ("HITTING NOTES") — shared by the coach editor's
-   toolbar row and the athlete's read-only view. */
-const notesLabelStyle: React.CSSProperties = {
-  fontSize: rem(11),
-  fontWeight: 700,
+/* Section notes title ("HITTING NOTES") -- the Hitting tab's Hitting Notes
+   title (NoteBlock largeLabel), for the coach editor's bar and the
+   athlete's read-only card alike. */
+const notesTitleStyle: React.CSSProperties = {
+  fontFamily: 'inherit',
+  fontSize: '1rem',
+  fontWeight: 600,
+  letterSpacing: '-0.025em',
   textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-  color: 'var(--text-muted)',
+  color: 'var(--text-bright)',
+  lineHeight: 1.05,
 };
 
 function TrendMetricCard({
   spec,
   points,
   latest,
+  chartHeight = 110,
 }: {
   spec: TrendCardSpec;
   points: TrendPoint[];
   latest: { value: number; unit: string; recordedAt: string } | undefined;
+  /** Chart area height (the full-width weight strip is shorter). */
+  chartHeight?: number;
 }) {
   return (
     <div
@@ -1465,13 +1497,159 @@ function TrendMetricCard({
           }}>{spec.unit}</span>
         </span>
       </div>
-      <div style={{ height: 110 }}>
+      <div style={{ height: chartHeight }}>
         <TrendChart
           data={points}
           unit={spec.unit}
           accent={spec.accent}
         />
       </div>
+    </div>
+  );
+}
+
+/** The profile tab a summary section belongs to: the defensive sections
+ *  are keyed defense_catching / _infield / _outfield, the tabs plain
+ *  catching / infield / outfield. */
+function sectionTabKey(key: string): string {
+  return key.replace(/^defense_/, '');
+}
+
+/** One section of the Progress bubble: its title, then its two trend
+ *  charts. Coaches get an Edit button at the right of the title that swaps
+ *  the charts for a checklist of the section's charts (up to 2 ticked). */
+function SectionTrendCard({ sectionKey, label, charts, sideBySide, canEdit, onPick, progressData, topMetrics }: {
+  sectionKey: string;
+  label: string;
+  charts: TrendCardSpec[];
+  sideBySide: boolean;
+  canEdit: boolean;
+  onPick: (keys: string[]) => void;
+  progressData: Record<string, { value: number; recordedAt: string }[]>;
+  topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const options = SECTION_CHART_OPTIONS[sectionKey] || [];
+  const picked = charts.map((c) => c.key);
+  const toggle = (key: string) => onPick(
+    picked.includes(key)
+      ? picked.filter((k) => k !== key)
+      /* Keep the section's own order, whatever order they were ticked. */
+      : options.map((o) => o.key).filter((k) => k === key || picked.includes(k)),
+  );
+
+  return (
+    <div data-section={sectionKey} className={`${styles.toolGraphCard} ${styles.sectionTrendCard}`}>
+      {/* Title bar, with the Edit button centred on it at the right. */}
+      <div className={styles.sectionTrendHead}>
+      <div className={styles.toolGraphLabel}>{label}</div>
+      {canEdit && options.length > 0 && (
+        <button
+          type="button"
+          className={`${styles.chartEditBtn} ${editing ? styles.chartEditBtnOn : ''}`}
+          onClick={() => setEditing((v) => !v)}
+          aria-expanded={editing}
+          aria-label={editing ? `Done choosing ${label} charts` : `Choose ${label} charts`}
+          title={editing ? 'Done' : 'Choose charts'}
+        >
+          {editing ? 'Done' : (
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          )}
+        </button>
+      )}
+      </div>
+      <div className={styles.toolGraphRule} aria-hidden />
+      {editing ? (
+        <div className={styles.chartPicker} role="group" aria-label={`${label} charts`}>
+          <div className={styles.chartPickerNote}>
+            Pick up to {MAX_SECTION_CHARTS} charts ({picked.length}/{MAX_SECTION_CHARTS})
+          </div>
+          {options.map((o) => {
+            const on = picked.includes(o.key);
+            const full = !on && picked.length >= MAX_SECTION_CHARTS;
+            return (
+              <label key={o.key} className={`${styles.chartPickerItem} ${full ? styles.chartPickerItemOff : ''}`}>
+                <input type="checkbox" checked={on} disabled={full} onChange={() => toggle(o.key)} />
+                <span>{o.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      ) : charts.length ? (
+        <div className={`${styles.sectionTrendCharts} ${sideBySide ? styles.sectionTrendChartsRow : ''}`}>
+          {charts.map((c) => (
+            <TrendMetricCard
+              key={c.key}
+              spec={c}
+              points={buildTrendPoints(progressData[c.key])}
+              latest={topMetrics[c.key]}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={styles.sectionTrendNone}>
+          {options.length ? 'No charts picked.' : `No trend graphs for ${label} yet.`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A goals box's text as separate goals: one per line, and a line written
+ *  as "Make Varsity - Add 10 Pounds" (spaced dashes, like the example)
+ *  splits too. Leading bullets / "1." numbering are dropped. */
+function goalItems(text?: string | null): string[] {
+  return (text || '')
+    .split(/\r?\n/)
+    .flatMap((line) => line.split(/\s+[-–—]\s+/))
+    .map((g) => g.replace(/^\s*(?:[-–—•*]+|\d+[.)])\s*/, '').trim())
+    .filter(Boolean);
+}
+
+/** The athlete's Goals and Process Goals (typed in Edit Profile / My
+ *  Profile), shown read-only above the section trend graphs: two plain
+ *  columns of numbered goals rather than text boxes. */
+function GoalsRow({ mainGoal, goals, longTermGoals, isCoach }: {
+  /** Shown in the Goals bar beside the title; `goals` are its measurables. */
+  mainGoal?: string | null;
+  goals?: string | null;
+  longTermGoals?: string | null;
+  isCoach: boolean;
+}) {
+  const { isParent } = useAuth();
+  const empty = isCoach || isParent ? 'Not set yet.' : 'Add yours in Settings → My Profile.';
+  return (
+    <div className={styles.goalsRow}>
+      {([['Goals', goals, mainGoal], ['Process Goals', longTermGoals, null]] as const).map(([label, text, headline]) => {
+        const items = goalItems(text);
+        return (
+          /* Same card as the section notes: the title in the plain-colour
+             bar, the numbered goals in the lighter plain colour below. */
+          <section key={label} className={`${dashTheme.notesCard} ${styles.goalCol}`} aria-label={label}>
+            <div className={styles.goalHead}>
+              <span className={styles.goalTitle}>{label}</span>
+              {headline?.trim() && <span className={styles.goalMain}>{headline.trim()}</span>}
+            </div>
+            <div className={styles.goalBody}>
+              {items.length ? (
+                <ol className={styles.goalList}>
+                  {items.map((g, i) => (
+                    <li key={i} className={styles.goalItem}>
+                      <span className={styles.goalNum} aria-hidden="true">{i + 1}</span>
+                      <span>{g}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className={styles.goalEmpty}>{empty}</p>
+              )}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -1505,7 +1683,19 @@ export function PlayerSummaryTab({
   visibleTabKeys?: readonly string[];
 }) {
   /* Parents view this tab read-only (no Edit Profile). */
-  const { isParent: isParentViewer } = useAuth();
+  const { isParent: isParentViewer, isViewer } = useAuth();
+  /* Which 2 charts each section shows: picked per athlete by coaches
+     (view-only coaches just see them). Saved on every tick. */
+  const canPickCharts = isCoach && !isViewer;
+  const [chartPicks, setChartPicks] = useState<Record<string, string[]>>(() => parseChartPicks(player.summaryCharts));
+  useEffect(() => { setChartPicks(parseChartPicks(player.summaryCharts)); }, [player.id, player.summaryCharts]);
+  const saveChartPicks = (sectionKey: string, keys: string[]) => {
+    const before = chartPicks;
+    const next = { ...chartPicks, [sectionKey]: keys };
+    setChartPicks(next);
+    api.updatePlayer(player.id, { summaryCharts: JSON.stringify(next) })
+      .catch(() => setChartPicks(before));
+  };
   const [selectedReport, setSelectedReport] = useState<import('../helpers').ReportSummary | null>(null);
   /* Summary-page sub-tab: "Current Grades" (the existing dashboard
      content) or "Trends" (a position-aware grid of growth-trend
@@ -1641,7 +1831,7 @@ export function PlayerSummaryTab({
     return () => { cancelled = true; window.removeEventListener(WEIGHT_CHANGED_EVENT, onChange); };
   }, [player.id]);
 
-  const mergedProgressData = useMemo(() => ({
+  const mergedProgressData = useMemo((): Record<string, { value: number; recordedAt: string }[]> => ({
     ...progressData,
     ...pitchProgressData,
     [WEIGHT_TREND_KEY]: weighIns.map((w) => ({ value: w.weightLbs, recordedAt: w.recordedOn })),
@@ -1803,7 +1993,7 @@ export function PlayerSummaryTab({
           dark-navy on light mode. */}
       <div className={styles.subTabBar}>
         {[
-          { key: 'current' as const, label: 'Current Grades' },
+          { key: 'current' as const, label: 'Overview' },
           { key: 'trends'  as const, label: 'Trends' },
           { key: 'stats'   as const, label: 'Stats' },
         ].map((t) => {
@@ -1909,7 +2099,7 @@ export function PlayerSummaryTab({
                   the same way Sub-Grade Breakdown / Upcoming Drills /
                   Videos / every per-category video header do. The
                   earlier inline style override is gone. */}
-              <h2 className={styles.panelTitle}>Tool Grades</h2>
+              <h2 className={styles.panelTitle}>Progress</h2>
             </div>
             {/* Title-midline hairline — same rhythm the Pitch Report
                 and every SectionHeader-driven bubble use: a 1 px
@@ -1962,120 +2152,56 @@ export function PlayerSummaryTab({
               />
             </div>
           </div>
-          {/* Each section renders as an upright bar-chart card:
-              total score on top, section label, then a row of vertical
-              bars — one per underlying sub-grade. The card lineup is
-              now filtered by `visibleTabKeys` so Tool Grades only
-              populates the sections whose tabs actually appear at the
-              top of the profile (position-aware + Eye-toggle-aware).
-              A hitter who hid the Catching / Infield / Outfield / S&C
-              tabs via the Eye toggle in the Report modal will see ONLY
-              the Hitting card here. When `visibleTabKeys` is absent
-              (legacy caller), the full section list renders as before. */}
+          {/* The athlete's goals, above the trend graphs (edited in Edit
+              Profile / My Profile by the athlete or a coach). */}
+          <GoalsRow mainGoal={player.mainGoal} goals={player.goals} longTermGoals={player.longTermGoals} isCoach={isCoach} />
+
+          {/* Each section: two trend graphs (defaults in
+              SECTION_CHART_DEFAULTS -- Hitting Max Exit Velo + Max Bat Speed,
+              Pitching Fastball Avg + Max Velo, Catching Pop Time + Catcher
+              Velo, Infield / Outfield 60-yard Dash + throwing velo; coaches
+              pick others per athlete) in place of the old 20-80 scoring bars. Filtered by `visibleTabKeys` exactly like the
+              Notes columns below, so each Notes column still sits under
+              its section. */}
           {(() => {
             const visibleSections = aggregate.sections.filter(
-              (s) => !visibleTabKeys || visibleTabKeys.includes(s.key),
+              (s) => !visibleTabKeys || visibleTabKeys.includes(sectionTabKey(s.key)),
             );
+            /* Up to 3 sections: each section's two charts sit side by
+               side, so every chart is on one line. From 4 sections the
+               columns get narrow, so the pair stacks. */
+            const sideBySide = visibleSections.length <= 3;
             return (
-          <div
-            className={styles.toolGraphGrid}
-            /* Force the cards to fill the entire Tool Grades bar
-               width regardless of count. The base CSS uses
-               `repeat(auto-fit, minmax(140px, 1fr))` which leaves
-               leftover gutter when there are only 1–2 cards (the
-               minmax min keeps each card at 140px and the
-               remaining tracks collapse). Overriding to
-               `repeat(<count>, 1fr)` makes each visible card take
-               an equal share of the row, so a single Hitting card
-               stretches to the full width and two cards each take
-               half — same way the Daily Training day-grid scales
-               per-column. The Notes grid below uses the same
-               `repeat(<count>, 1fr)` so each Notes column sits
-               directly under its paired Tool Grades card. */
-            style={visibleSections.length > 0
-              ? { gridTemplateColumns: `repeat(${visibleSections.length}, minmax(0, 1fr))` }
-              : undefined}
-          >
-            {visibleSections.map((s) => {
-              /* Tool Grades — show every bar for each section. The HITTING
-                 section's three bars are Swing / Quality of Contact /
-                 Mechanical Grades (the `hit_coach` key, which now averages
-                 the coach swing-mechanics grades). It used to be filtered
-                 out of the chart back when there was a separate Swing
-                 Decision bar; now it IS a primary bar and must show. */
-              const visibleSection = s;
-              const avg = sectionAvg(visibleSection);
-              // `palette` (DOMAIN_PALETTE[s.key]) used to drive the
-              // leading colored dot in the section label. That dot was
-              // retired, so the palette lookup is gone — the per-bar
-              // tone now comes from `scoreColor(b.score)` and the total
-              // tone from `scoreColor(avg)` (the band color).
-              const hasScore = avg !== null;
-              const bandColor = hasScore ? scoreColor(avg!) : '#6e767d';
-              return (
-                <div
-                  key={s.key}
-                  // `data-section` exposes the section key as a CSS hook
-                  // so per-section styling (e.g. the off-white-with-
-                  // tiny-gradient on the Hitting card, the heavier
-                  // chrome on the Pitching card) can target a single
-                  // card without refactoring the shared chrome.
-                  data-section={s.key}
-                  className={styles.toolGraphCard}
-                >
-                  {/* Inner blue bubble retired per spec — the section
-                      label, accent hairline, aggregate total, and bar
-                      chart now render directly on the outer grey card.
-                      One bubble (the outer Tool Grades panel) wraps
-                      everything; each section card carries only its
-                      own grey chrome with no nested blue accent. */}
-                  <div className={styles.toolGraphLabel}>
-                    {s.label}
-                  </div>
-
-                  <div className={styles.toolGraphRule} aria-hidden />
-
-                  <div className={styles.toolGraphTotal} style={hasScore ? { color: bandColor } : undefined}>
-                    {avg ?? '—'}
-                  </div>
-
-                  <div className={styles.toolGraphBars}>
-                    {visibleSection.bars.map((b) => {
-                      const hasSub = b.score !== null;
-                      const subColor = hasSub ? scoreColor(b.score!) : '#6e767d';
-                      const subHeightPct = hasSub ? scoreToPct(b.score!) : 0;
-                      return (
-                        <div key={b.key} className={styles.toolGraphBarCol}>
-                          <span
-                            className={styles.toolGraphBarScore}
-                            style={hasSub ? { color: subColor } : undefined}
-                          >
-                            {b.score ?? '—'}
-                          </span>
-                          <div className={styles.toolGraphBarTrack}>
-                            <div
-                              className={styles.toolGraphBarFill}
-                              style={{
-                                height: `${subHeightPct}%`,
-                                background: subColor,
-                                color: subColor,
-                                opacity: hasSub ? 1 : 0.2,
-                              }}
-                            />
-                          </div>
-                          <span className={styles.toolGraphBarLabel} title={b.label}>
-                            {b.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+              <div
+                className={styles.sectionTrendGrid}
+                style={{ '--section-cols': Math.max(1, visibleSections.length) } as React.CSSProperties}
+              >
+                {visibleSections.map((s) => (
+                  <SectionTrendCard
+                    key={s.key}
+                    sectionKey={s.key}
+                    label={s.label}
+                    charts={sectionCharts(chartPicks, s.key)}
+                    sideBySide={sideBySide}
+                    canEdit={canPickCharts}
+                    onPick={(keys) => saveChartPicks(s.key, keys)}
+                    progressData={mergedProgressData}
+                    topMetrics={trendTopMetrics}
+                  />
+                ))}
+              </div>
             );
           })()}
+
+          {/* Body weight across the full width, shorter than the skill
+              charts, between them and the Notes (weigh-ins from the WT
+              tracker). */}
+          <TrendMetricCard
+            spec={{ key: WEIGHT_TREND_KEY, label: 'Body Weight', unit: 'lb', accent: '#94A3B8' }}
+            points={buildTrendPoints(mergedProgressData[WEIGHT_TREND_KEY])}
+            latest={trendTopMetrics[WEIGHT_TREND_KEY]}
+            chartHeight={64}
+          />
 
         {/* ── Notes (per Tool Grades section) ──
             Nested INSIDE the Tool Grades panel above (the closing
@@ -2097,7 +2223,7 @@ export function PlayerSummaryTab({
             the bubble doesn't collapse, just shows the grades alone. */}
         {(() => {
           const notesSections = aggregate.sections.filter(
-            (s) => !visibleTabKeys || visibleTabKeys.includes(s.key),
+            (s) => !visibleTabKeys || visibleTabKeys.includes(sectionTabKey(s.key)),
           );
           if (notesSections.length === 0) return null;
           const playerHasAnyNote = notesSections.some(
@@ -2143,13 +2269,11 @@ export function PlayerSummaryTab({
                       data-pdf-empty={isBlankNoteHtml(value) ? '' : undefined}
                       style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
                     >
-                      {/* Append " Notes" so each column reads as its own
-                          scoped label (e.g. "HITTING NOTES"). Coaches get it
-                          inside the editor's toolbar row (buttons on the
-                          right); athletes see it on its own above the text. */}
-                      {!isCoach && (
-                        <div style={notesLabelStyle}>{s.label} Notes</div>
-                      )}
+                      {/* Modelled on the Hitting tab's Hitting Notes: "HITTING
+                          NOTES" (" Notes" appended per section) as the title
+                          in a plain-colour bar, the notes beneath in the
+                          lighter plain colour. Coaches get the editor's
+                          controls on the right of that bar. */}
                       {isCoach ? (
                         /* Same toolbar as the report notes: B / I / U,
                            Size and the dictation mic. The surface keeps
@@ -2164,11 +2288,11 @@ export function PlayerSummaryTab({
                             setDevNotes((m) => ({ ...m, [s.key]: isBlankNoteHtml(html) ? '' : html }))
                           }
                           placeholder={`What we're working on for ${s.label}…`}
-                          label={<div style={notesLabelStyle}>{s.label} Notes</div>}
+                          label={<div style={notesTitleStyle}>{s.label} Notes</div>}
                           /* Card like the Tool Grades section cards: the label +
                              controls form a cross bar on top, the typing area is
                              attached beneath it, one border around both. */
-                          className={dashTheme.notesCard}
+                          className={`${dashTheme.notesCard} ${styles.notesFill}`}
                           minHeight={96}
                           editorStyle={{
                             background: 'var(--notes-bg)',
@@ -2180,20 +2304,22 @@ export function PlayerSummaryTab({
                           }}
                         />
                       ) : (
-                        <div
-                          style={{
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            color: 'var(--text)',
-                            fontSize: rem(13.5),
-                            lineHeight: 1.55,
-                            background: 'var(--notes-bg)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 8,
-                            padding: '10px 12px',
-                          }}
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(persisted) }}
-                        />
+                        <div className={dashTheme.notesCard} style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          <div style={notesTitleStyle}>{s.label} Notes</div>
+                          <div
+                            style={{
+                              flex: 1,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              color: 'var(--text)',
+                              fontSize: rem(13.5),
+                              lineHeight: 1.55,
+                              background: 'var(--notes-bg)',
+                              padding: '10px 12px',
+                            }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(persisted) }}
+                          />
+                        </div>
                       )}
                     </div>
                   );

@@ -206,7 +206,12 @@ model Player {
   // Player-entered aspirations (Edit Profile): target playing level
   // (High School / College / D3 / D2 / D1 / Professional) + free-text goals.
   playingLevelGoal String?
-  goals            String?
+  mainGoal         String? // "Main Goal" (Edit Profile) -- shown in the Goals bar on the Player Summary
+  goals            String? // the Main Goal's measurables, one per line ("Goals" list)
+  longTermGoals    String? // shown as "Process Goals"
+  // Coach-picked trend charts per Player Summary section, JSON
+  // { sectionKey: [metricKey, metricKey] } (max 2). Missing = the defaults.
+  summaryCharts    String?
   // When true, the seed's cleanup phase + any future delete-player flow
   // will refuse to remove this player. Used for the long-lived
   // "Jack Setterland" sandbox player so uploaded data sticks around
