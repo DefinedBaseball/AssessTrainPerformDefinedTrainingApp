@@ -378,11 +378,21 @@ interface SummaryData {
 /* The goal boxes' examples (placeholders, so they go once typing starts)
    and the bracketed note after each title, kept in normal case beside the
    uppercase label. */
-const GOAL_EXAMPLE =
-  'Example: Make Varsity - Add 10 Pounds - Increase Exit Velocity to 99 - Increase Breaking Ball Recognition';
+const PROCESS_GOALS_EXAMPLE = [
+  'Example:',
+  '• Workout 5 days a week',
+  '• Eat 3000 calories a day',
+  '• Sleep 8 hours a night',
+  '• Create a routine',
+].join('\n');
 const MAIN_GOAL_EXAMPLE = 'Main Goal (Example: Make Varsity)';
-const MEASURABLES_EXAMPLE =
-  'Measurables to accomplish it (Example: Add 10 Pounds - Increase Exit Velocity to 99 - Increase Breaking Ball Recognition)';
+const MEASURABLES_EXAMPLE = [
+  'Measurables to Accomplish it',
+  'Example:',
+  '• Add 15 Pounds',
+  '• Increase Avg Exit Velocity to 95 mph',
+  '• Increase Breaking Ball Recognition',
+].join('\n');
 const GOAL_HINT_STYLE: React.CSSProperties = { textTransform: 'none', fontWeight: 500, letterSpacing: 0 };
 
 function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d: SummaryData) => void; player: Player }) {
@@ -739,7 +749,7 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             onChange={e => update({ goals: e.target.value })}
             placeholder={MEASURABLES_EXAMPLE}
             aria-label="Measurables to accomplish the Main Goal"
-            rows={4}
+            rows={5}
             style={{
               resize: 'vertical', minHeight: 80,
               marginTop: -6, borderTop: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0,
@@ -754,8 +764,8 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             className={rs.summaryInput}
             value={data.longTermGoals}
             onChange={e => update({ longTermGoals: e.target.value })}
-            placeholder={GOAL_EXAMPLE}
-            rows={4}
+            placeholder={PROCESS_GOALS_EXAMPLE}
+            rows={5}
             style={{ resize: 'vertical', minHeight: 80 }}
           />
         </div>
