@@ -87,7 +87,7 @@ export interface Player {
   firstName: string;
   lastName: string;
   positions: string;
-  /** Coach roster categories, comma-separated: PROGRAM,LESSON,MEMBERSHIP,REMOTE.
+  /** Coach roster categories, comma-separated codes (see lib/athlete-types.ts).
    *  Drives the Athlete Hub type filter. `updatePlayer` (Partial<Player>) accepts
    *  it automatically. */
   athleteTypes: string;

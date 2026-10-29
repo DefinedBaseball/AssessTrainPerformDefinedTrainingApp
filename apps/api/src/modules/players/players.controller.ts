@@ -54,7 +54,7 @@ class UpdatePlayerDto {
   firstName?: string;
   lastName?: string;
   positions?: string;
-  athleteTypes?: string; // comma-separated: PROGRAM,LESSON,MEMBERSHIP,REMOTE
+  athleteTypes?: string; // comma-separated codes from web lib/athlete-types.ts
   profilePhoto?: string;
   heightInches?: number | null;
   weightLbs?: number | null;

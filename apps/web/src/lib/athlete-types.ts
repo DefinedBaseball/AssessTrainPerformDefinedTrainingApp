@@ -31,6 +31,8 @@ export const ATHLETE_TYPES: AthleteTypeDef[] = [
   { key: 'WINTER_PROGRAM', label: 'Winter Program' },
   { key: 'SUMMER_PROGRAM', label: 'Summer Program' },
   { key: 'FALL_PROGRAM',   label: 'Fall Program' },
+  { key: 'CATCHING_PROGRAM_HS', label: 'Catching Program (HS)' },
+  { key: 'CATCHING_PROGRAM_MS', label: 'Catching Program (MS)' },
   { key: 'MEMBERSHIP',     label: 'Membership' },
   { key: 'LESSON',         label: 'Lesson' },
   { key: 'REMOTE',         label: 'Remote' },
