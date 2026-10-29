@@ -67,25 +67,42 @@ export class PlayersService {
    * athlete is almost certainly signed out, so a deep link would bounce to
    * /login anyway.
    */
-  async sendProfileReminder(playerId: string): Promise<{ ok: boolean; emailed: boolean; to: string }> {
+  async sendProfileReminder(
+    playerId: string,
+    rawRecipients?: unknown,
+  ): Promise<{ ok: boolean; emailed: boolean; results: Array<{ recipient: 'player' | 'guardian'; email: string; sent: boolean }> }> {
+    /* The coach ticks player and/or parent; no list (an older client) means
+       the player only, which is what the reminder always did. One email
+       each, like the report PDF, so neither sees the other's address. */
+    const wanted = Array.isArray(rawRecipients) ? rawRecipients : ['player'];
+    const recipients = (['player', 'guardian'] as const).filter((r) => wanted.includes(r));
+    if (recipients.length === 0) throw new BadRequestException('Choose who to email: the player, the parent or both.');
+
     const player = await this.prisma.player.findUnique({
       where: { id: playerId },
-      select: { firstName: true, user: { select: { email: true } } },
+      select: { firstName: true, parentEmail: true, user: { select: { email: true } } },
     });
     if (!player) throw new NotFoundException('Player not found');
 
-    const to = player.user?.email?.trim();
-    if (!to) {
+    const addressOf = { player: player.user?.email?.trim() || '', guardian: player.parentEmail?.trim() || '' };
+    const missing = recipients.filter((r) => !addressOf[r]);
+    if (missing.length) {
       throw new BadRequestException(
-        'That athlete has no email address on file, so there is nowhere to send the reminder.',
+        missing.length === 2 ? 'Neither the player nor the parent has an email address on file.'
+          : missing[0] === 'player' ? 'The player has no email address on file.'
+          : 'There is no parent email on file for this athlete.',
       );
     }
 
-    const emailed = await this.mail.sendTemplate('PROFILE_REMINDER', to, {
-      name: player.firstName,
-      url: `${this.mail.webAppUrl}/login`,
-    });
-    return { ok: true, emailed, to };
+    const results: Array<{ recipient: 'player' | 'guardian'; email: string; sent: boolean }> = [];
+    for (const recipient of recipients) {
+      const sent = await this.mail.sendTemplate('PROFILE_REMINDER', addressOf[recipient], {
+        name: player.firstName,
+        url: `${this.mail.webAppUrl}/login`,
+      });
+      results.push({ recipient, email: addressOf[recipient], sent });
+    }
+    return { ok: true, emailed: results.some((r) => r.sent), results };
   }
 
   /** The "Assessment report" email's saved wording for this athlete, as the

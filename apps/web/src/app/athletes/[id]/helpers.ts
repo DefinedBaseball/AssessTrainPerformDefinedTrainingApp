@@ -170,6 +170,25 @@ function parseTabList(raw: unknown): string[] | null {
   } catch { return null; }
 }
 
+/** The position tabs (hitting / pitching / catching / infield / outfield /
+ *  strength) an athlete shows: the ones their positions call for, minus the
+ *  ones a coach has hidden (DEFAULT_HIDDEN_TABS until a coach changes them).
+ *  Same rule as the profile's tab bar, for surfaces that only have the
+ *  player record -- the athlete's Dashboard. */
+export function visiblePositionTabs(player: { positions?: string | null; hiddenTabs?: string | null }): string[] {
+  const hidden = parseTabList(player.hiddenTabs) ?? [...DEFAULT_HIDDEN_TABS];
+  const positions = (player.positions || '').split(',').map((p) => p.trim()).filter(Boolean);
+  const has: Record<string, boolean> = {
+    hitting: positions.some((p) => p !== 'P'),
+    pitching: positions.includes('P'),
+    catching: positions.includes('C'),
+    infield: positions.some((p) => ['1B', '2B', '3B', 'SS', 'INF'].includes(p)),
+    outfield: positions.some((p) => ['LF', 'CF', 'RF', 'OF'].includes(p)),
+    strength: true,
+  };
+  return Object.keys(has).filter((k) => has[k] && !hidden.includes(k));
+}
+
 function readLegacyHiddenTabs(playerId: string): string[] | null {
   if (typeof window === 'undefined') return null;
   try { return parseTabList(window.localStorage.getItem(legacyHiddenTabsKey(playerId))); } catch { return null; }

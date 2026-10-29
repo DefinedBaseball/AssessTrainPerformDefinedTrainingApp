@@ -23,6 +23,16 @@
   font-size: 13px;
   font-weight: 600;
 }
+/* Athlete-type dropdown beside the search — fixed width, search keeps the rest. */
+.typeFilter {
+  flex: 0 0 180px;
+  min-width: 0;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .typeFilter { flex: 1 1 100%; }
+}
+
 .search::placeholder {
   color: var(--text-muted);
   font-weight: 500;

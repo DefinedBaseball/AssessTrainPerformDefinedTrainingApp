@@ -525,6 +525,7 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
                 playerId={player.id}
                 playerName={`${player.firstName} ${player.lastName}`.trim()}
                 email={player.user?.email}
+                parentEmail={player.parentEmail}
                 variant="block"
               />
             </div>

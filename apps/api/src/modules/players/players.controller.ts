@@ -175,8 +175,8 @@ export class PlayersController {
      otherwise trip a tighter cap. */
   @Throttle({ short: { limit: 20, ttl: 600_000 } })
   @ApiOperation({ summary: 'Email an athlete a reminder to complete their profile (COACH only)' })
-  profileReminder(@Param('id') id: string) {
-    return this.playersService.sendProfileReminder(id);
+  profileReminder(@Param('id') id: string, @Body() body: { recipients?: unknown }) {
+    return this.playersService.sendProfileReminder(id, body?.recipients);
   }
 
   @Get(':id/report-email-draft')

@@ -856,14 +856,15 @@ export async function removePlayerPhoto(playerId: string) {
   return request<{ profilePhoto: null }>(`/players/${playerId}/photo`, { method: 'DELETE' });
 }
 
-/** Email one athlete a reminder to finish filling in their profile (COACH
- *  only). `emailed` is false when the server has no mail provider
- *  configured -- the call still succeeds, so callers must check it rather
- *  than reporting "sent" on a bare 2xx. */
-export async function sendProfileReminder(playerId: string) {
-  return request<{ ok: boolean; emailed: boolean; to: string }>(
+/** Email one athlete's player and/or parent address a reminder to finish
+ *  filling in their profile (COACH only). `sent` is false per recipient
+ *  when the server has no mail provider configured -- the call still
+ *  succeeds, so callers must check it rather than reporting "sent" on a
+ *  bare 2xx. */
+export async function sendProfileReminder(playerId: string, recipients: Array<'player' | 'guardian'>) {
+  return request<{ ok: boolean; emailed: boolean; results: Array<{ recipient: 'player' | 'guardian'; email: string; sent: boolean }> }>(
     `/players/${playerId}/profile-reminder`,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify({ recipients }) },
   );
 }
 

@@ -1274,14 +1274,21 @@ function TrendsSection({
   player,
   progressData,
   topMetrics,
+  visibleTabKeys,
 }: {
   player: { positions?: string | null };
   progressData: Record<string, { value: number; recordedAt: string }[]>;
   topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>;
+  /** Position tabs the coach has on; a hidden position's group is left out
+   *  (Weight always shows). */
+  visibleTabKeys?: readonly string[];
 }) {
   const categories = useMemo(
-    () => getTrendCategoriesForPlayer(player, progressData),
-    [player, progressData],
+    () => getTrendCategoriesForPlayer(player, progressData).filter((c) => {
+      const key = c.label.toLowerCase();
+      return key === 'weight' || !visibleTabKeys || visibleTabKeys.includes(key);
+    }),
+    [player, progressData, visibleTabKeys],
   );
 
   if (categories.length === 0) {
@@ -2078,6 +2085,7 @@ export function PlayerSummaryTab({
           player={player}
           progressData={mergedProgressData}
           topMetrics={trendTopMetrics}
+          visibleTabKeys={visibleTabKeys}
         />
       ) : (
       <>

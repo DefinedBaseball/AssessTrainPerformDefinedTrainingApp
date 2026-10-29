@@ -17,6 +17,11 @@ import theme from '../dashTheme.module.css';
 import { EduHeader, IconAthletes } from '../education/EduHeader';
 import { AthleteAvatar } from '@/components/AthleteAvatar';
 import { PendingInvites, useAthletePendingInvites } from '@/components/PendingInvites';
+import { ATHLETE_TYPE_FILTERS, matchesAthleteTypeFilter } from '@/lib/athlete-types';
+
+/* Same persisted choice as the Athlete Hub's type dropdown, so picking
+   "Winter Program" on one page carries over to the other. */
+const TYPE_FILTER_KEY = 'athleteHub.typeFilter';
 
 
 /**
@@ -60,6 +65,15 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    try {
+      const saved = localStorage.getItem(TYPE_FILTER_KEY);
+      return saved && ATHLETE_TYPE_FILTERS.some(f => f.key === saved) ? saved : 'ALL';
+    } catch {
+      return 'ALL';
+    }
+  });
 
   /* Contact details for the whole client base — coaches only. Guard on
      `isLoading`, never on `user` alone: `user` is undefined while auth is
@@ -102,10 +116,12 @@ export default function ClientsPage() {
   const isPendingInvite = pending.isPendingInvite;
 
   const rows = useMemo(() => {
-    const sorted = [...players].filter((p) => !isPendingInvite(p)).sort((a, b) =>
-      (a.lastName || '').localeCompare(b.lastName || '') ||
-      (a.firstName || '').localeCompare(b.firstName || ''),
-    );
+    const sorted = [...players]
+      .filter((p) => !isPendingInvite(p) && matchesAthleteTypeFilter(p.athleteTypes, typeFilter))
+      .sort((a, b) =>
+        (a.firstName || '').localeCompare(b.firstName || '') ||
+        (a.lastName || '').localeCompare(b.lastName || ''),
+      );
     const q = query.trim().toLowerCase();
     if (!q) return sorted;
     /* Search every column shown, so a coach can find a client by the parent's
@@ -114,7 +130,7 @@ export default function ClientsPage() {
       p.firstName, p.lastName, teamFor(p),
       p.user?.email, p.user?.phone, p.parentEmail, p.parentPhone,
     ].some((v) => (v || '').toLowerCase().includes(q)));
-  }, [players, query, isPendingInvite]);
+  }, [players, query, typeFilter, isPendingInvite]);
 
   if (isLoading || !user) return null;
 
@@ -143,6 +159,20 @@ export default function ClientsPage() {
           placeholder="Search name, team, email or phone…"
           aria-label="Search clients"
         />
+        <select
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value);
+            try { localStorage.setItem(TYPE_FILTER_KEY, e.target.value); } catch { /* storage unavailable */ }
+          }}
+          className={`${styles.search} ${styles.typeFilter} ${theme.field} ${theme.firm}`}
+          title="Filter by athlete type"
+          aria-label="Filter by athlete type"
+        >
+          {ATHLETE_TYPE_FILTERS.map((f) => (
+            <option key={f.key} value={f.key}>{f.label}</option>
+          ))}
+        </select>
         <span className={styles.count}>
           {loading ? '' : `${rows.length} of ${players.length} client${players.length === 1 ? '' : 's'}`}
         </span>
@@ -158,7 +188,11 @@ export default function ClientsPage() {
       ) : players.length === 0 || rows.length === 0 ? (
         <>
           <div className={`${aStyles.empty} ${theme.inner}`}>
-            {players.length === 0 || !query.trim() ? 'No athletes on the roster yet.' : <>No clients match “{query}”.</>}
+            {players.length === 0
+              ? 'No athletes on the roster yet.'
+              : query.trim()
+                ? <>No clients match “{query}”.</>
+                : 'No clients match this filter.'}
           </div>
           {pending.rows.length > 0 && (
             <div className={`${aStyles.listWrap} ${theme.inner}`} style={{ marginTop: 12 }}>
@@ -206,6 +240,7 @@ export default function ClientsPage() {
                       playerId={p.id}
                       playerName={`${p.firstName} ${p.lastName}`.trim()}
                       email={p.user?.email}
+                      parentEmail={p.parentEmail}
                     />
                   </span>
                 </div>

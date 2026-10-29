@@ -373,16 +373,23 @@ export class AuthService {
     if (!email) return { ok: true };
     try {
       const user = await this.prisma.user.findUnique({ where: { email } });
-      if (user && user.status === 'ACTIVE') {
+      /* A parent email signs in to the athlete's account too (see
+         athletesByParentEmail), so it can reset that password as well: one
+         link per athlete, sent to the parent address that asked. */
+      const targets = [
+        ...(user && user.status === 'ACTIVE' ? [user] : []),
+        ...(await this.athletesByParentEmail(email)).filter((u) => u.status === 'ACTIVE' && u.id !== user?.id),
+      ];
+      for (const target of targets) {
         // Drop any prior outstanding tokens so only the newest link works.
-        await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+        await this.prisma.passwordResetToken.deleteMany({ where: { userId: target.id, usedAt: null } });
         const token = randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
         await this.prisma.passwordResetToken.create({
-          data: { userId: user.id, tokenHash: this.hashToken(token), expiresAt },
+          data: { userId: target.id, tokenHash: this.hashToken(token), expiresAt },
         });
         const resetUrl = `${this.mail.webAppUrl}/reset-password?token=${token}`;
-        await this.mail.sendTemplate('PASSWORD_RESET', user.email, { name: user.name, url: resetUrl });
+        await this.mail.sendTemplate('PASSWORD_RESET', email, { name: target.name, url: resetUrl });
       }
     } catch {
       // Deliberately swallowed — the caller's response must not reveal outcome.
@@ -807,19 +814,49 @@ export class AuthService {
     else f.count += 1;
   }
 
+  /** Athlete logins whose Player.parentEmail is this (normalised) address.
+   *  Compared in JS, like the parents module, because parentEmail is typed
+   *  freely on the profile (any case, stray spaces) and SQLite has no
+   *  case-insensitive match. */
+  private async athletesByParentEmail(email: string) {
+    const players = await this.prisma.player.findMany({
+      where: { parentEmail: { not: null } },
+      select: { parentEmail: true, user: { include: { player: true } } },
+    });
+    return players
+      .filter((p) => (p.parentEmail || '').trim().toLowerCase() === email)
+      .map((p) => p.user);
+  }
+
   async login(email: string, password: string) {
     const attemptKey = (email || '').trim().toLowerCase();
     this.assertNotLockedOut(attemptKey);
-    const user = await this.prisma.user.findUnique({
+    const direct = await this.prisma.user.findUnique({
       where: { email },
       include: { player: true },
     });
-    if (!user) {
-      this.recordFailedLogin(attemptKey);
-      throw new UnauthorizedException('Invalid credentials');
+    let user = direct && (await this.verifyPassword(password, direct.password)) ? direct : null;
+
+    /* Parent-email sign-in: an athlete's parent email + the athlete's
+       password opens the athlete's account (one password, two emails).
+       Tried only when the email isn't a login of its own or its password
+       didn't match, so a coach or parent whose address is also on file as an
+       athlete's parent email still reaches their own account with their own
+       password. Siblings can share a parent email; the password decides. */
+    if (!user && attemptKey) {
+      const matches: typeof direct[] = [];
+      for (const athlete of await this.athletesByParentEmail(attemptKey)) {
+        if (athlete.id !== direct?.id && (await this.verifyPassword(password, athlete.password))) matches.push(athlete);
+      }
+      if (matches.length > 1) {
+        throw new UnauthorizedException(
+          "More than one athlete on this parent email uses that password. Sign in with the athlete's own email.",
+        );
+      }
+      user = matches[0] ?? null;
     }
 
-    if (!(await this.verifyPassword(password, user.password))) {
+    if (!user) {
       this.recordFailedLogin(attemptKey);
       throw new UnauthorizedException('Invalid credentials');
     }

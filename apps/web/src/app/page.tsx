@@ -18,7 +18,7 @@ import {
 } from '@/components/announcements/AnnouncementFeed';
 import { usePlayerProfileData } from './athletes/[id]/usePlayerProfileData';
 import profileStyles from './athletes/[id]/page.module.css';
-import { REPORT_TYPE_TO_TAB } from './athletes/[id]/helpers';
+import { visiblePositionTabs } from './athletes/[id]/helpers';
 import styles from './page.module.css';
 /* The coach dashboard wears the Education Hub theme: same canvas, tokens,
    hero banner and tile surfaces. */
@@ -230,22 +230,14 @@ export default function DashboardPage() {
     withColleges: false,
   });
 
-  /* Which Tool Grades cards to show. `computeAggregateScores` builds its
-     sections from the player's POSITIONS, so a two-way / utility athlete
-     gets a card for every position they list — including ones they have no
-     report for, which renders as an empty card. On the Dashboard we narrow
-     that to the sections the player actually has a report for, so Tool
-     Grades only shows sections with real data. (The profile's Summary tab
-     still follows the tab bar, which stays position-based so a coach can
-     open an empty tab to CREATE that first report.) */
-  const summaryTabKeys = useMemo(() => {
-    const keys = new Set<string>();
-    summary.reports.forEach((r) => {
-      const key = REPORT_TYPE_TO_TAB[r.reportType];
-      if (key) keys.add(key);
-    });
-    return Array.from(keys);
-  }, [summary.reports]);
+  /* Which Progress sections (and Trends groups) to show: exactly the
+     position tabs the coach has on for this athlete -- their positions,
+     minus the tabs hidden on the profile (Outfield, S&C … stay off until a
+     coach turns them on) -- so the Dashboard matches the coach's view. */
+  const summaryTabKeys = useMemo(
+    () => (summary.player ? visiblePositionTabs(summary.player) : []),
+    [summary.player],
+  );
 
   /* Athlete Workouts — how many athletes have drills on TODAY's calendar.
      Replaced the Committed count, which was a roster attribute that rarely
