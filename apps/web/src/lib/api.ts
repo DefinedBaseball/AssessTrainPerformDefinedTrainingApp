@@ -1316,6 +1316,31 @@ export async function uploadVideo(
   }
 }
 
+/** Push a file straight to Bunny over TUS with a presign bundle from our API.
+ *  Dynamic import keeps tus-js-client out of the SSR/server bundle. */
+async function tusToBunny(file: File, presign: BunnyPresign, title: string, onProgress?: (pct: number) => void) {
+  const tus = await import('tus-js-client');
+  await new Promise<void>((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: presign.endpoint,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        AuthorizationSignature: presign.signature,
+        AuthorizationExpire: String(presign.expiration),
+        VideoId: presign.guid,
+        LibraryId: String(presign.libraryId),
+      },
+      metadata: { filetype: file.type || 'video/mp4', title },
+      onError: reject,
+      onProgress: (sent: number, total: number) => {
+        if (onProgress && total > 0) onProgress(Math.round((sent / total) * 100));
+      },
+      onSuccess: () => resolve(),
+    });
+    upload.start();
+  });
+}
+
 async function uploadVideoDirectToBunny(
   file: File,
   playerId: string,
@@ -1338,27 +1363,7 @@ async function uploadVideoDirectToBunny(
   const presign = (await presignRes.json()) as BunnyPresign;
 
   // 2. Push the bytes STRAIGHT to Bunny (resumable; never touches our API).
-  //    Dynamic import keeps tus-js-client out of the SSR/server bundle.
-  const tus = await import('tus-js-client');
-  await new Promise<void>((resolve, reject) => {
-    const upload = new tus.Upload(file, {
-      endpoint: presign.endpoint,
-      retryDelays: [0, 3000, 5000, 10000, 20000],
-      headers: {
-        AuthorizationSignature: presign.signature,
-        AuthorizationExpire: String(presign.expiration),
-        VideoId: presign.guid,
-        LibraryId: String(presign.libraryId),
-      },
-      metadata: { filetype: file.type || 'video/mp4', title },
-      onError: reject,
-      onProgress: (sent: number, total: number) => {
-        if (onProgress && total > 0) onProgress(Math.round((sent / total) * 100));
-      },
-      onSuccess: () => resolve(),
-    });
-    upload.start();
-  });
+  await tusToBunny(file, presign, title, onProgress);
 
   // 3. Finalize: server creates the READY Video row pointing at the guid.
   const completeRes = await fetch('/api/videos/bunny-complete', {
@@ -1824,7 +1829,35 @@ export async function createDrill(data: { name: string; tab: string; category: s
   return request<Drill>('/training/drills', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function uploadDrillVideo(drillId: string, file: File): Promise<Drill> {
+/**
+ * Set a drill's video. Production goes browser-direct to Bunny (like athlete
+ * videos): the buffered POST runs through the web app's /api proxy, which
+ * only passes ~10MB of a body and times out at 30s, so a phone clip used to
+ * hang Edit Drill on "Uploading..." for good. The buffered route is kept for
+ * dev (the presign 503s there) and small files if the direct path errors.
+ */
+export async function uploadDrillVideo(drillId: string, file: File, onProgress?: (pct: number) => void): Promise<Drill> {
+  const token = getAuthToken();
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  let presign: BunnyPresign | null = null;
+  try {
+    const res = await fetch(`/api/training/drills/${drillId}/bunny-presign`, { method: 'POST', headers: authHeaders });
+    if (res.ok) presign = await res.json();
+  } catch { /* fall through to the buffered upload */ }
+  if (presign) {
+    await tusToBunny(file, presign, `drill-${drillId}`, onProgress);
+    const done = await fetch(`/api/training/drills/${drillId}/bunny-complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      body: JSON.stringify({ guid: presign.guid }),
+    });
+    if (!done.ok) throw new Error(`Video uploaded, but saving it to the drill failed (${done.status})`);
+    return done.json();
+  }
+  return uploadDrillVideoBuffered(drillId, file);
+}
+
+async function uploadDrillVideoBuffered(drillId: string, file: File): Promise<Drill> {
   const token = getAuthToken();
   const formData = new FormData();
   formData.append('file', file);

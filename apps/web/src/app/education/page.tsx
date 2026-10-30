@@ -917,22 +917,32 @@ function DrillModal({ sport, onClose, onSaved }: { sport: string; onClose: () =>
   const [category, setCategory] = useState((DRILL_CATS[sport] || [])[0]?.id || 'Drills');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pct, setPct] = useState<number | null>(null);
 
   const cats = DRILL_CATS[sp] || [];
 
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
+    setPct(null);
     try {
       // Create the drill first
       let result = await api.createDrill({ name, tab: sp, category, description: desc || undefined });
       // Then upload the video if one was selected
       if (videoFile) {
-        result = await api.uploadDrillVideo(result.id, videoFile);
+        try {
+          result = await api.uploadDrillVideo(result.id, videoFile, setPct);
+        } catch (err) {
+          /* The drill itself is saved; say so rather than leaving the coach
+             to guess whether to try again from scratch. */
+          console.error('Failed to upload drill video:', err);
+          alert(`The drill was saved, but the video didn't upload: ${(err as Error)?.message || 'upload failed'}. Open it with Edit to try the video again.`);
+        }
       }
       onSaved(result);
     } catch (err) {
       console.error('Failed to save drill:', err);
+      alert(`Could not save the drill: ${(err as Error)?.message || 'unknown error'}`);
       setSaving(false);
     }
   };
@@ -959,7 +969,7 @@ function DrillModal({ sport, onClose, onSaved }: { sport: string; onClose: () =>
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
-          <button className={styles.btnSave} onClick={save} disabled={saving || !name.trim()}>{saving ? (videoFile ? 'Uploading...' : 'Saving...') : 'Save Drill'}</button>
+          <button className={styles.btnSave} onClick={save} disabled={saving || !name.trim()}>{saving ? (videoFile ? `Uploading${pct != null ? ` ${pct}%` : '...'}` : 'Saving...') : 'Save Drill'}</button>
         </div>
       </div>
     </div>
@@ -1080,6 +1090,7 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
   const [category, setCategory] = useState(drill.category);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pct, setPct] = useState<number | null>(null);
   /* When true the recorder replaces the form. Kept here rather than
      inside the recorder so the modal footer swaps out with it. */
   const [recording, setRecording] = useState(false);
@@ -1105,6 +1116,7 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
     if (!name.trim()) return;
     const file = clip ?? videoFile;
     setSaving(true);
+    setPct(null);
     try {
       let result = await api.updateDrill(drill.id, {
         name,
@@ -1114,11 +1126,12 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
       });
       // If a new video was chosen or recorded, upload it
       if (file) {
-        result = await api.uploadDrillVideo(result.id, file);
+        result = await api.uploadDrillVideo(result.id, file, setPct);
       }
       onSaved(result);
     } catch (err) {
       console.error('Failed to update drill:', err);
+      alert(`Could not save the drill: ${(err as Error)?.message || 'unknown error'}`);
       setSaving(false);
     }
   };
@@ -1181,7 +1194,7 @@ function EditDrillModal({ drill, onClose, onSaved }: { drill: Drill; onClose: ()
         </div>
         <div className={styles.modalFooter}>
           <button className={styles.btnCancel} onClick={onClose}>Cancel</button>
-          <button className={styles.btnSave} onClick={() => save()} disabled={saving || !name.trim()}>{saving ? (videoFile ? 'Uploading...' : 'Saving...') : 'Save Changes'}</button>
+          <button className={styles.btnSave} onClick={() => save()} disabled={saving || !name.trim()}>{saving ? (videoFile ? `Uploading${pct != null ? ` ${pct}%` : '...'}` : 'Saving...') : 'Save Changes'}</button>
         </div>
         </>
         )}

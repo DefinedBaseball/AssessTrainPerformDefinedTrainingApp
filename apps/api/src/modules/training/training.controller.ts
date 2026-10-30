@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Request, UseInterceptors, UploadedFile, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrainingService } from './training.service';
@@ -7,6 +7,9 @@ import { BunnyService } from '../videos/bunny.service';
 import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 import * as fs from 'fs';
 import * as path from 'path';
+
+/** A Bunny Stream video id (UUID). */
+const BUNNY_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─── DTOs ────────────────────────────────────────────────────────
 
@@ -146,6 +149,33 @@ export class TrainingController {
   @ApiOperation({ summary: 'Delete a drill (COACH only)' })
   deleteDrill(@Param('id') id: string) {
     return this.trainingService.deleteDrill(id);
+  }
+
+  /* Browser-direct drill video upload, same as athlete videos (videos
+   * controller bunny-presign / bunny-complete). The buffered upload below
+   * runs through the web app's /api proxy, which only passes ~10MB of a
+   * request body and gives up after 30s -- a phone clip blew past both and
+   * Edit Drill sat on "Uploading..." forever (2026-10-30). Going straight to
+   * Bunny skips the proxy and this API's memory entirely. */
+  @Post('drills/:id/bunny-presign')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Create a Bunny video + signed TUS token for a drill video (COACH only)' })
+  async drillBunnyPresign(@Param('id') id: string) {
+    /* 503 = use the buffered route instead (dev, or another storage driver). */
+    if ((process.env.STORAGE_DRIVER || 'local') !== 'bunny' || !this.bunny.isConfigured()) {
+      throw new ServiceUnavailableException('Direct upload unavailable -- use upload-video');
+    }
+    const drill = await this.trainingService.getDrill(id);
+    const guid = await this.bunny.createVideoObject(`drill-${drill.id}-${Date.now()}`);
+    return { guid, ...this.bunny.makeTusUpload(guid) };
+  }
+
+  @Post('drills/:id/bunny-complete')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Point a drill at its finished direct Bunny upload (COACH only)' })
+  async drillBunnyComplete(@Param('id') id: string, @Body() dto: { guid?: string }) {
+    if (!dto?.guid || !BUNNY_GUID.test(dto.guid)) throw new BadRequestException('A valid guid is required');
+    return this.trainingService.updateDrill(id, { videoUrl: this.bunny.mp4Url(dto.guid) });
   }
 
   @Post('drills/:id/upload-video')
