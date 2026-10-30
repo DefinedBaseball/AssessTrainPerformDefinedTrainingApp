@@ -3,6 +3,8 @@
  * Uses Next.js rewrites to proxy /api/* to the NestJS backend.
  */
 
+import type { FacilitySlot } from './facility-schedule';
+
 const TOKEN_KEY = 'pdapp_token';
 
 export function getAuthToken(): string | null {
@@ -97,6 +99,8 @@ export interface Player {
   /** JSON array of extra Training Calendar areas switched on for this
    *  athlete ("infield" | "outfield" | "catching" | "strength"). */
   calendarTabs?: string | null;
+  /** JSON weekly facility time slots -- see lib/facility-schedule. */
+  facilitySchedule?: string | null;
   /** Season stats JSON (Player Summary → Stats) -- see lib/season-stats. */
   seasonStats?: string | null;
   /** Background answers shown under Goals in Edit Profile. */
@@ -826,6 +830,14 @@ export async function setPlayerCalendarTabs(playerId: string, tabs: string[]) {
   return request<{ calendarTabs: string[] }>(`/players/${playerId}/calendar-tabs`, {
     method: 'PATCH',
     body: JSON.stringify({ tabs }),
+  });
+}
+
+/** Coach: replace an athlete's weekly facility schedule. */
+export async function setFacilitySchedule(playerId: string, schedule: FacilitySlot[]) {
+  return request<{ facilitySchedule: FacilitySlot[] }>(`/players/${playerId}/facility-schedule`, {
+    method: 'PUT',
+    body: JSON.stringify({ schedule }),
   });
 }
 

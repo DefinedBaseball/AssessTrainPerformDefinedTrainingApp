@@ -160,6 +160,11 @@ model Player {
   // Hitting / Pitching come from the positions; these are opt-in. Null =
   // none (the default). Like hiddenTabs it lives on the athlete.
   calendarTabs     String?
+  // The weekly time slots the athlete is in the facility, set by a coach
+  // (Edit Profile, or the clock on Upcoming Drills). JSON array of
+  // { program, days: { mon: "18:00", ... }, startDate, endDate } -- see web
+  // lib/facility-schedule.ts. Null = none.
+  facilitySchedule String?
   /// Season stats typed in by the athlete or a coach (Player Summary → Stats).
   /// JSON: { hitting|pitching|defense|catching: { "<season start year>": { "<stat>": "<typed value>" } } }
   seasonStats      String?

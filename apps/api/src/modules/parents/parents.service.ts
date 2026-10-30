@@ -19,6 +19,8 @@ const ATHLETE_SELECT = {
   gradYear: true,
   positions: true,
   profilePhoto: true,
+  // So the parent's Training Calendar shows the athlete's facility days.
+  facilitySchedule: true,
 } as const;
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

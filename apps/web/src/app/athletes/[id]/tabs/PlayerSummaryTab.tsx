@@ -28,6 +28,8 @@ import {
    galleries use so the Player Summary's Videos panel reads with
    identical grouping behavior across the app. */
 import { bundleVideos } from '@/lib/video-titles';
+import { FacilityScheduleButton, FacilityLegend } from '@/components/FacilitySchedule';
+import { parseFacilitySchedule, slotsOnDate, formatTime12 } from '@/lib/facility-schedule';
 import styles from './PlayerSummaryTab.module.css';
 import dashTheme from '@/app/dashTheme.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -271,8 +273,14 @@ const UPCOMING_DRILL_TABS: readonly { key: string; label: string }[] = [
   { key: 'strength', label: TAB_LABELS.strength },
 ];
 
-function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
+function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; onScheduleSaved?: () => void }) {
+  const playerId = player.id;
   const [items, setItems] = useState<api.ScheduledDrill[]>([]);
+  /* Facility days (coach-set): each one is painted in its program colour
+     with the start time. Held locally so the clock's save shows at once. */
+  const [scheduleRaw, setScheduleRaw] = useState(player.facilitySchedule ?? null);
+  useEffect(() => { setScheduleRaw(player.facilitySchedule ?? null); }, [player.id, player.facilitySchedule]);
+  const schedule = useMemo(() => parseFacilitySchedule(scheduleRaw), [scheduleRaw]);
   const [loading, setLoading] = useState(true);
 
   /* The 7-day tab strip: today + the next 6 days. Computed once on
@@ -381,8 +389,20 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
           the first inner content. The previous mono-eyebrow
           "Upcoming Drills · Next 14 Days" was the only Summary
           panel with non-conforming title chrome. */}
-      <div className={styles.sectionTitle}>
-        <h2 className={styles.panelTitle}>Upcoming Drills</h2>
+      <div className={styles.sectionTitle} style={{ alignItems: 'center' }}>
+        <h2 className={styles.panelTitle}>Upcoming Workouts</h2>
+        {/* Legend + the coach's clock share the right end; an athlete gets
+            the legend alone in the same spot (the clock renders nothing). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end', marginLeft: 'auto', minWidth: 0 }}>
+          <FacilityLegend />
+          <FacilityScheduleButton
+            playerId={playerId}
+            playerName={player.firstName}
+            raw={scheduleRaw}
+            athleteTypes={player.athleteTypes}
+            onSaved={(next) => { setScheduleRaw(next); onScheduleSaved?.(); }}
+          />
+        </div>
       </div>
 
       {/* ── Day-of-week tab strip ──────────────────────────────────
@@ -407,6 +427,12 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
           const isToday = iso === weekDates[0];
           const count = countByDate[iso] || 0;
           const hasDrills = count > 0;
+          const slots = slotsOnDate(schedule, iso);
+          /* A facility day takes its program's colour; two programs on one
+             day split the chip between both. */
+          const slotFill = slots.length === 0 ? null
+            : slots.length === 1 ? slots[0].color
+            : `linear-gradient(135deg, ${slots.map((sl, i) => `${sl.color} ${(i / slots.length) * 100}% ${((i + 1) / slots.length) * 100}%`).join(', ')})`;
           return (
             <button
               key={iso}
@@ -426,14 +452,21 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                 /* --day-chip-* let a themed page restyle the strip (the
                    profile: every day the plain colour, the selected day the
                    lighter shade + firm edge); fallbacks = original look. */
-                background: isSelected
+                background: slotFill
+                  ? slotFill
+                  : isSelected
                   ? 'var(--day-chip-active-bg, var(--bubble-chrome-bg))'
                   : hasDrills
                     ? 'var(--day-chip-bg, rgba(255,255,255,0.035))'
                     : 'var(--day-chip-bg, transparent)',
-                border: isSelected
+                border: slotFill
+                  ? `1px solid ${slots[0].color}`
+                  : isSelected
                   ? 'var(--day-chip-active-border, 1px solid var(--border-light))'
                   : '1px solid var(--border)',
+                /* The selected facility day keeps its colour, so it is
+                   marked with a ring instead of the usual light fill. */
+                boxShadow: slotFill && isSelected ? '0 0 0 2px var(--text-bright)' : undefined,
                 borderRadius: 8,
                 padding: '8px 4px 6px',
                 cursor: 'pointer',
@@ -450,7 +483,9 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                    `var(--text-muted)` so the day labels read as a
                    subdued grey — selected day stays high-contrast
                    while the rest of the week sits visually back. */
-                color: isSelected
+                color: slotFill
+                  ? '#ffffff'
+                  : isSelected
                   ? 'var(--text-bright)'
                   : 'var(--text-muted)',
                 transition: 'background 150ms ease, border-color 150ms ease, color 150ms ease',
@@ -473,6 +508,18 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
               }}>
                 {md}
               </span>
+              {slots.map((sl) => (
+                <span
+                  key={`${sl.program}-${sl.time}`}
+                  title={`${sl.label} · ${formatTime12(sl.time)}`}
+                  style={{
+                    fontSize: rem(9.5), fontWeight: 700, lineHeight: 1.1,
+                    whiteSpace: 'nowrap', letterSpacing: 0,
+                  }}
+                >
+                  {formatTime12(sl.time).replace(' ', '')}
+                </span>
+              ))}
               {/* Drill-count chip — only renders on days with at
                   least one scheduled drill. Sits in the top-right
                   corner so it doesn't disrupt the weekday/date
@@ -483,13 +530,13 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
                   minWidth: 14, height: 14,
                   padding: '0 4px',
                   borderRadius: 7,
-                  background: isSelected
+                  background: isSelected || slotFill
                     ? 'rgba(255,255,255,0.20)'
                     : 'rgba(95, 245, 223, 0.18)',
                   /* Count text uses `var(--text-bright)` when selected
                      so it flips to near-black in light mode (white on
                      the white selected bubble was invisible). */
-                  color: isSelected ? 'var(--text-bright)' : '#5FF5DF',
+                  color: slotFill ? '#ffffff' : isSelected ? 'var(--text-bright)' : '#5FF5DF',
                   fontSize: rem(9), fontWeight: 700,
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -530,6 +577,19 @@ function UpcomingDrillsPanel({ playerId }: { playerId: string }) {
             }}>
               {selectedDrills.length} drill{selectedDrills.length === 1 ? '' : 's'}
             </span>
+            {slotsOnDate(schedule, selectedDate).map((sl) => (
+              <span
+                key={`${sl.program}-${sl.time}`}
+                style={{
+                  marginLeft: 8, padding: '1px 8px', borderRadius: 10,
+                  background: sl.color, color: '#ffffff',
+                  fontSize: rem(10), fontWeight: 700, letterSpacing: '0.03em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {sl.label} · {formatTime12(sl.time)}
+              </span>
+            ))}
           </div>
 
           {/* Tab-grid body — one column per POPULATED tab (i.e. tabs
@@ -2379,7 +2439,9 @@ export function PlayerSummaryTab({
             under the Tool Grades bubble since the Sub-Grade Breakdown
             panel that used to live between them was retired. */}
         <div className={styles.panel}>
-          <UpcomingDrillsPanel playerId={player.id} />
+          {/* The refresh re-reads the athlete so Edit Profile opens on the
+              schedule just saved here. */}
+          <UpcomingDrillsPanel player={player} onScheduleSaved={onRefresh} />
         </div>
 
         {/* Player Videos — same full-width treatment as Upcoming

@@ -169,11 +169,12 @@ export class PlayersController {
 
   @Post(':id/profile-reminder')
   @Roles('COACH')
-  /* Nudges one athlete to finish their profile. Throttled at the same rate as
-     /auth/invite: it neither creates nor changes anything, it just mails one
-     existing athlete, and a coach working down the Client Directory would
-     otherwise trip a tighter cap. */
-  @Throttle({ short: { limit: 20, ttl: 600_000 } })
+  /* Nudges one athlete to finish their profile. Coach-only and it only mails
+     addresses already on file, so the cap is just a runaway guard: a coach
+     working down the whole Client Directory hit the old 20 / 10 min after
+     ~15 rows (2026-10-29). The tracker is per IP, so every coach in the
+     building shares it. */
+  @Throttle({ short: { limit: 200, ttl: 600_000 } })
   @ApiOperation({ summary: 'Email an athlete a reminder to complete their profile (COACH only)' })
   profileReminder(@Param('id') id: string, @Body() body: { recipients?: unknown }) {
     return this.playersService.sendProfileReminder(id, body?.recipients);
@@ -255,6 +256,13 @@ export class PlayersController {
   @ApiOperation({ summary: "Set which extra Training Calendar areas are on for an athlete (COACH only)" })
   setCalendarTabs(@Param('id') id: string, @Body() dto: { tabs: string[] }) {
     return this.playersService.setCalendarTabs(id, dto?.tabs);
+  }
+
+  @Put(':id/facility-schedule')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Set an athlete's weekly facility time slots (COACH only)" })
+  setFacilitySchedule(@Param('id') id: string, @Body() dto: { schedule: unknown }) {
+    return this.playersService.setFacilitySchedule(id, dto?.schedule);
   }
 
   @Patch(':id/lock')

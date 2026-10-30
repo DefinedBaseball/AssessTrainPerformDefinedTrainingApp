@@ -42,6 +42,8 @@ import {
 } from './helpers';
 import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
 import { WeightTracker, useLiveWeight } from '@/components/WeightTracker';
+import { FacilityScheduleEditor } from '@/components/FacilitySchedule';
+import { type FacilitySlot, parseFacilitySchedule, facilityScheduleProblem, defaultProgramFor } from '@/lib/facility-schedule';
 
 /* ── Constants ── */
 
@@ -358,6 +360,9 @@ interface SummaryData {
   height: string; weight: string; gradYear: string; birthDate: string; highSchool: string;
   clubTeam: string; pbrNational: string; pbrState: string; pbrPosition: string; pgScore: string;
   collegeCommit: string; logoFile: File | null;
+  /** Weekly facility days + start times (coach-set; saved through its own
+   *  endpoint after the profile update). */
+  facilitySchedule: FacilitySlot[];
   /** The college they currently play for — distinct from collegeCommit. */
   college: string;
   /** Pro club, for athletes who have signed. Distinct from `college`. */
@@ -712,6 +717,19 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
           </div>
         </div>
       </div>
+
+      {/* Coach-set: the athlete sees it as coloured days on Upcoming Drills
+          and their Training Calendar. Saves with the form. */}
+      {canEditAthleteType && !isViewer && (
+        <div className={rs.section}>
+          <div className={rs.sectionHeader}><span className={rs.sectionIcon}>📅</span><span className={rs.sectionTitle}>Facility Schedule</span></div>
+          <FacilityScheduleEditor
+            value={data.facilitySchedule}
+            onChange={(facilitySchedule) => update({ facilitySchedule })}
+            defaultProgram={defaultProgramFor(data.athleteTypes.join(','))}
+          />
+        </div>
+      )}
 
       <div className={rs.section}>
         <div className={rs.sectionHeader}><span className={rs.sectionIcon}>🎯</span><span className={rs.sectionTitle}>Goals & Aspirations</span></div>
@@ -2752,7 +2770,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     professionalTeam: '', phone: '',
     parentEmail: '', parentPhone: '',
     clubTeam: '', pbrNational: '', pbrState: '', pbrPosition: '', pgScore: '',
-    collegeCommit: '', logoFile: null,
+    collegeCommit: '', logoFile: null, facilitySchedule: [],
     playingLevelGoal: '', mainGoal: '', goals: '', longTermGoals: '',
     trainingHistory: '', trainingAvailability: '', otherSports: '', injuryHistory: '',
   };
@@ -2925,6 +2943,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       pbrPosition: player.pbrPosition ? String(player.pbrPosition) : '',
       pgScore: player.pgScore ? String(player.pgScore) : '',
       collegeCommit: player.collegeCommit || '', logoFile: null,
+      facilitySchedule: parseFacilitySchedule(player.facilitySchedule),
       playingLevelGoal: (player as any).playingLevelGoal || '', goals: (player as any).goals || '',
       mainGoal: player.mainGoal || '',
       longTermGoals: player.longTermGoals || '',
@@ -3037,6 +3056,14 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    /* Checked before anything is written, so a half-filled schedule never
+       leaves the profile saved and the schedule not. */
+    const scheduleChanged = reportType === 'SUMMARY' && isCoachViewer && !isViewer
+      && JSON.stringify(summaryData.facilitySchedule) !== JSON.stringify(parseFacilitySchedule(player.facilitySchedule));
+    if (scheduleChanged) {
+      const problem = facilityScheduleProblem(summaryData.facilitySchedule);
+      if (problem) { alert(problem); return; }
+    }
     setSubmitting(true);
     try {
       if (reportType === 'SUMMARY') {
@@ -3079,6 +3106,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
           otherSports: summaryData.otherSports.trim() || null,
           injuryHistory: summaryData.injuryHistory.trim() || null,
         } as any);
+        if (scheduleChanged) await api.setFacilitySchedule(player.id, summaryData.facilitySchedule);
 
         /* The athlete's phone lives on their User row, not Player, so it
            cannot ride along with the update above. Coaches go through the

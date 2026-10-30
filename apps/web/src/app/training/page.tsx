@@ -21,6 +21,7 @@ import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
 import { CheckInFlow } from './CheckInFlow';
 import styles from './page.module.css';
+import { type FacilitySlot, parseFacilitySchedule, slotsOnDate, formatTime12 } from '@/lib/facility-schedule';
 /* Coach Dashboard theme: canvas, banner and bubble surfaces. */
 import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
@@ -793,6 +794,8 @@ export default function TrainingPage() {
 
   // State
   const [players, setPlayers] = useState<Player[]>([]);
+  /* Athlete login only: their own Player.facilitySchedule (see the load below). */
+  const [ownScheduleRaw, setOwnScheduleRaw] = useState<string | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [activeTab, setActiveTab] = useState('all');
   /* Initial state is 'week' — the coach default. The useEffect below
@@ -886,7 +889,15 @@ export default function TrainingPage() {
       }).catch(() => {});
     } else {
       const authUser = user as any;
-      if (authUser.playerId) setSelectedPlayerId(authUser.playerId);
+      if (authUser.playerId) {
+        setSelectedPlayerId(authUser.playerId);
+        /* An athlete has no players list here, so their facility days are
+           read from their own profile. Kept out of `players` on purpose:
+           that list drives the coach's tab visibility. */
+        api.getPlayer(authUser.playerId)
+          .then(p => setOwnScheduleRaw(p.facilitySchedule ?? null))
+          .catch(() => {});
+      }
     }
   }, [user, isCoach, isParent]);
 
@@ -1130,6 +1141,12 @@ export default function TrainingPage() {
 
   // Find the selected player by ID — pure derivation, no hook.
   const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+  /* The athlete's facility days (coach-set in Edit Profile / Upcoming
+     Drills), drawn on Month and Week in their program colour. */
+  const facilitySchedule = useMemo(
+    () => parseFacilitySchedule(selectedPlayer ? selectedPlayer.facilitySchedule : ownScheduleRaw),
+    [selectedPlayer, ownScheduleRaw],
+  );
 
   /* Extra areas switched on for this athlete. Saved on the athlete; a
      coach's toggle shows straight away (override) and rolls back if the
@@ -1952,18 +1969,35 @@ export default function TrainingPage() {
         <MonthView
           currentDate={currentDate}
           allEvents={events}
+          schedule={facilitySchedule}
           onDayClick={(date) => { setCurrentDate(parseLocalDate(date)); setView('day'); }}
         />
       )}
       {selectedPlayerId && view === 'week' && (
         <WeekView
           currentDate={currentDate}
+          schedule={facilitySchedule}
           eventsByDate={eventsByDate}
           allEvents={events}
           activeTab={activeTab}
           onDayClick={(date) => { setCurrentDate(parseLocalDate(date)); setView('day'); }}
           onDrillClick={(drill) => setViewingDrill(drill)}
         />
+      )}
+      {/* The day's facility time, above the workout -- the same coloured
+          chips as Month / Week. */}
+      {selectedPlayerId && view === 'day' && slotsOnDate(facilitySchedule, todayDateStr).length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {slotsOnDate(facilitySchedule, todayDateStr).map(sl => (
+            <span
+              key={`${sl.program}-${sl.time}`}
+              className={styles.weekListItem}
+              style={{ background: sl.color, color: '#fff' }}
+            >
+              {formatTime12(sl.time)} · {sl.label}
+            </span>
+          ))}
+        </div>
       )}
       {selectedPlayerId && view === 'day' && (
         <DayView
@@ -2078,10 +2112,12 @@ export default function TrainingPage() {
 function MonthView({
   currentDate,
   allEvents,
+  schedule,
   onDayClick,
 }: {
   currentDate: Date;
   allEvents: ScheduledDrill[];
+  schedule: FacilitySlot[];
   onDayClick: (date: string) => void;
 }) {
   const year = currentDate.getFullYear();
@@ -2130,6 +2166,16 @@ function MonthView({
             onClick={() => onDayClick(cell.date)}
           >
             <div className={isToday ? styles.dayNumToday : styles.dayNum}>{cell.day}</div>
+            {slotsOnDate(schedule, cell.date).map(sl => (
+              <div
+                key={`${sl.program}-${sl.time}`}
+                className={styles.eventPill}
+                style={{ background: sl.color, color: '#fff' }}
+                title={`${sl.label} · ${formatTime12(sl.time)}`}
+              >
+                {formatTime12(sl.time)} · {sl.label}
+              </div>
+            ))}
             {dayTabs.map(tab => {
               const color = TAB_COLORS[tab] || TAB_COLORS.hitting;
               return (
@@ -2151,6 +2197,7 @@ function MonthView({
 
 function WeekView({
   currentDate,
+  schedule,
   eventsByDate,
   allEvents,
   activeTab,
@@ -2158,6 +2205,7 @@ function WeekView({
   onDrillClick,
 }: {
   currentDate: Date;
+  schedule: FacilitySlot[];
   eventsByDate: Record<string, ScheduledDrill[]>;
   allEvents: ScheduledDrill[];
   activeTab: string;
@@ -2192,6 +2240,7 @@ function WeekView({
     <div className={`${styles.weekListGrid} ${theme.inner}`}>
       {weekDays.map(({ date, dateStr }) => {
         const isToday = dateStr === today;
+        const daySlots = slotsOnDate(schedule, dateStr);
         return (
           <div
             key={dateStr}
@@ -2205,10 +2254,21 @@ function WeekView({
               </div>
             </div>
             <div className={styles.weekListBody}>
+              {daySlots.map(sl => (
+                <div
+                  key={`${sl.program}-${sl.time}`}
+                  className={styles.weekListItem}
+                  style={{ background: sl.color, color: '#fff', whiteSpace: 'normal', lineHeight: 1.25 }}
+                  title={`${sl.label} · ${formatTime12(sl.time)}`}
+                >
+                  <div style={{ fontWeight: 800 }}>{formatTime12(sl.time)}</div>
+                  <div style={{ fontWeight: 600, opacity: 0.92 }}>{sl.label}</div>
+                </div>
+              ))}
               {isAll ? (
                 /* "All" tab — show tab pills like Month view */
                 <>
-                  {(tabsByDate[dateStr] || []).length === 0 && <div className={styles.weekListEmpty}>—</div>}
+                  {(tabsByDate[dateStr] || []).length === 0 && daySlots.length === 0 && <div className={styles.weekListEmpty}>—</div>}
                   {(tabsByDate[dateStr] || []).map(tab => {
                     const color = TAB_COLORS[tab] || TAB_COLORS.hitting;
                     return (
@@ -2221,7 +2281,7 @@ function WeekView({
               ) : (
                 /* Specific tab — show individual drill cards */
                 <>
-                  {(eventsByDate[dateStr] || []).length === 0 && <div className={styles.weekListEmpty}>—</div>}
+                  {(eventsByDate[dateStr] || []).length === 0 && daySlots.length === 0 && <div className={styles.weekListEmpty}>—</div>}
                   {(eventsByDate[dateStr] || []).map(ev => {
                     const catStyle = getTabCatStyle(ev.tab, ev.category);
                     return (
