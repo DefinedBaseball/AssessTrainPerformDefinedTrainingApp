@@ -314,3 +314,110 @@
    unchanged), matching the Athlete Hub list. Not white. */
 [data-theme="light"] .row { background: var(--lt-row, #d3d4d4); border-bottom-color: rgba(0, 0, 0, 0.09); }
 [data-theme="light"] .row:hover { background: #cdcece; }
+
+/* ── Tabs: Facility Check In | Workout Attendance ── */
+.tabBar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 5px;
+  background: var(--card-elev, var(--surface));
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+.tabBtn {
+  flex: 1 1 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.tabBtn:hover { color: var(--text); background: var(--surface2); }
+.tabBtnOn,
+.tabBtnOn:hover {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg, #0e1116);
+}
+
+/* ── Facility Check In ── */
+.facLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 0 16px 10px;
+}
+.facLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.facDot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+
+.facList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 16px 16px;
+}
+/* One session: a coloured header strip (time · program · count) over the
+   athletes due for it. --fac is the program colour. */
+.facGroup {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--fac);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.facHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--fac);
+  color: #fff;
+}
+.facTime { font-size: 14px; font-weight: 800; letter-spacing: 0.02em; }
+.facProgram { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.facCount {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.facAthletes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+  padding: 10px 12px;
+}
+.facAthlete {
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface2, transparent);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.facAthlete:hover { border-color: var(--fac); }

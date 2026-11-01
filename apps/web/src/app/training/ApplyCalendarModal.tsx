@@ -3,10 +3,12 @@
 /* ─────────────────────────────────────────────────────────────────────────
    Apply Calendar — push one athlete's forward schedule onto a group.
 
-   Sits beside the Athlete selector. Offers the athlete-type tags (Winter /
-   Summer / Fall Program, Membership, Lesson, Remote) and every athlete
-   individually; both are multi-select and they union together, so a coach can
-   tick "Winter Program" and then add a couple of one-offs.
+   Sits beside the Athlete selector. Offers the scheduled programs (athletes
+   with Hitting / Pitching / Catching / Strength days on their facility
+   schedule), the athlete-type tags (Winter / Summer / Fall Program,
+   Membership, Lesson, Remote) and every athlete individually; all are
+   multi-select and they union together, so a coach can tick "Hitting
+   Program" and then add a couple of one-offs.
 
    This writes to other people's calendars and REPLACES what is there on the
    copied dates, so it never fires straight off the Apply button — Apply
@@ -16,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { ATHLETE_TYPES, parseAthleteTypes } from '@/lib/athlete-types';
+import { activeScheduledPrograms, programColor, FACILITY_GROUPS as SCHEDULE_GROUPS } from '@/lib/facility-schedule';
 import styles from './page.module.css';
 
 /** "2026-04-01" → "Apr 1, 2026" — parsed as LOCAL midnight, never UTC. */
@@ -45,6 +48,7 @@ export function ApplyCalendarModal({
   onApplied: (summary: string, logId: string) => void;
 }) {
   const [checkedTypes, setCheckedTypes] = useState<Set<string>>(new Set());
+  const [checkedSched, setCheckedSched] = useState<Set<string>>(new Set());
   const [checkedPlayers, setCheckedPlayers] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -60,6 +64,7 @@ export function ApplyCalendarModal({
   useEffect(() => {
     if (!open) return;
     setCheckedTypes(new Set());
+    setCheckedSched(new Set());
     setCheckedPlayers(new Set());
     setConfirming(false);
     setError('');
@@ -105,6 +110,29 @@ export function ApplyCalendarModal({
     return out;
   }, [players, sourcePlayer]);
 
+  /* Each athlete's scheduled programs that are still running on the copy's
+     start date, so an athlete whose program ended isn't swept in. */
+  const schedById = useMemo(() => {
+    const out = new Map<string, Set<string>>();
+    for (const p of players) out.set(p.id, activeScheduledPrograms(p.facilitySchedule, fromDate));
+    return out;
+  }, [players, fromDate]);
+
+  const countForSched = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const g of SCHEDULE_GROUPS) {
+      out[g.key] = players.filter(
+        p => p.id !== sourcePlayer?.id && !api.isPlayerLocked(p) && schedById.get(p.id)?.has(g.key),
+      ).length;
+    }
+    return out;
+  }, [players, sourcePlayer, schedById]);
+
+  /** Is this athlete covered by a ticked tag or a ticked scheduled program? */
+  const inTickedGroup = (p: Player) =>
+    parseAthleteTypes(p.athleteTypes).some(t => checkedTypes.has(t))
+    || [...(schedById.get(p.id) ?? [])].some(k => checkedSched.has(k));
+
   /* Tags and individual picks union together, and the source athlete is
      always removed — a coach ticking the tag the source itself carries must
      not wipe the calendar they are copying FROM. */
@@ -112,13 +140,14 @@ export function ApplyCalendarModal({
     const ids = new Set<string>();
     for (const p of players) {
       if (p.id === sourcePlayer?.id || api.isPlayerLocked(p)) continue;
-      if (parseAthleteTypes(p.athleteTypes).some(t => checkedTypes.has(t))) ids.add(p.id);
+      if (inTickedGroup(p)) ids.add(p.id);
     }
     for (const id of checkedPlayers) {
       if (id !== sourcePlayer?.id) ids.add(id);
     }
     return [...ids];
-  }, [players, checkedTypes, checkedPlayers, sourcePlayer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inTickedGroup reads exactly these
+  }, [players, checkedTypes, checkedSched, schedById, checkedPlayers, sourcePlayer]);
 
   /* First name, then last -- the order the rest of the app lists athletes. */
   const sortedPlayers = useMemo(
@@ -219,7 +248,23 @@ export function ApplyCalendarModal({
         </div>
 
         <div className={styles.applyBody}>
-          <div className={styles.applyGroupLabel}>Programs</div>
+          {/* From each athlete's facility schedule (Upcoming Workouts). */}
+          <div className={styles.applyGroupLabel}>Scheduled Programs</div>
+          {SCHEDULE_GROUPS.map(g => (
+            <label key={g.key} className={styles.applyItem}>
+              <input
+                type="checkbox"
+                className={styles.applyCheckbox}
+                checked={checkedSched.has(g.key)}
+                onChange={() => toggle(checkedSched, g.key, setCheckedSched)}
+              />
+              <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: programColor(g.key), flex: '0 0 auto' }} />
+              <span className={styles.applyItemName}>{g.label}</span>
+              <span className={styles.applyItemCount}>{countForSched[g.key] ?? 0}</span>
+            </label>
+          ))}
+
+          <div className={styles.applyGroupLabel}>Athlete Types</div>
           {ATHLETE_TYPES.map(t => (
             <label key={t.key} className={styles.applyItem}>
               <input
@@ -239,7 +284,7 @@ export function ApplyCalendarModal({
             const locked = api.isPlayerLocked(p);
             /* Already covered by a ticked program — shown ticked and locked so
                the count and the list never disagree. */
-            const viaType = !isSource && !locked && parseAthleteTypes(p.athleteTypes).some(t => checkedTypes.has(t));
+            const viaType = !isSource && !locked && inTickedGroup(p);
             return (
               <label
                 key={p.id}

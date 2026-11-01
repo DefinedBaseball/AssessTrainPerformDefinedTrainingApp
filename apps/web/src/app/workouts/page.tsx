@@ -12,9 +12,14 @@
    day navigation below is really navigating the calendar.
 
    Selecting a row opens that athlete's three answers for the day.
+
+   Two tabs share the day bar: Facility Check In (who is due in the building
+   that day, from each athlete's facility schedule, grouped by start time and
+   program in the program colours) and Workout Attendance (the check-in /
+   finished roster described above).
    ───────────────────────────────────────────────────────────────────────── */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -25,6 +30,19 @@ import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconAttendance } from '../education/EduHeader';
+import { FACILITY_GROUPS, parseFacilitySchedule, slotsOnDate, formatTime12, programColor } from '@/lib/facility-schedule';
+
+type AttendanceTab = 'facility' | 'workouts';
+const TAB_KEY = 'attendance.tab';
+
+/** One start time + program on the chosen day, with everyone due for it. */
+interface FacilityGroup {
+  time: string;
+  program: string;
+  label: string;
+  color: string;
+  athletes: { id: string; firstName: string; lastName: string }[];
+}
 
 /** Local YYYY-MM-DD — a training day is the calendar day, not a UTC instant. */
 function toDateStr(d: Date): string {
@@ -163,6 +181,19 @@ export default function WorkoutsPage() {
      filter over the day's rows. null = not searching. */
   const [results, setResults] = useState<api.DayCheckInRow[] | null>(null);
   const [searching, setSearching] = useState(false);
+  /* Remembered per browser so a coach who lives on one tab lands on it. */
+  const [tab, setTabState] = useState<AttendanceTab>(() => {
+    try { return localStorage.getItem(TAB_KEY) === 'workouts' ? 'workouts' : 'facility'; } catch { return 'facility'; }
+  });
+  const setTab = (t: AttendanceTab) => {
+    setTabState(t);
+    setOpenKey(null);
+    try { localStorage.setItem(TAB_KEY, t); } catch { /* private mode */ }
+  };
+  /* Every athlete, for the facility schedule. Loaded once -- the schedule
+     itself is per-athlete JSON, so changing the day is local work. */
+  const [athletes, setAthletes] = useState<api.Player[] | null>(null);
+  const [athletesError, setAthletesError] = useState(false);
 
   /* Guard on `isLoading`, never on `user` alone: `user` is undefined while
      auth resolves, so testing it directly bounces a signed-in coach to
@@ -189,6 +220,52 @@ export default function WorkoutsPage() {
     void load(date);
   }, [isLoading, user, isCoach, date, load]);
 
+  const loadAthletes = useCallback(() => {
+    setAthletesError(false);
+    api.getPlayers()
+      .then((ps) => setAthletes(ps.filter((p) => p.positions !== 'COACH' && !api.isPlayerLocked(p))))
+      .catch(() => { setAthletes([]); setAthletesError(true); });
+  }, []);
+  useEffect(() => {
+    if (isLoading || !user || !isCoach) return;
+    loadAthletes();
+  }, [isLoading, user, isCoach, loadAthletes]);
+
+  /* The day's facility sessions: one group per start time + program,
+     earliest first, programs in the legend order within a time. Lessons are
+     left out -- they're one-on-one, not a group in the building. */
+  const facilityGroups = useMemo<FacilityGroup[]>(() => {
+    if (!athletes) return [];
+    const order = FACILITY_GROUPS.map((g) => g.key);
+    const byKey = new Map<string, FacilityGroup>();
+    for (const p of athletes) {
+      for (const sl of slotsOnDate(parseFacilitySchedule(p.facilitySchedule), date)) {
+        const def = FACILITY_GROUPS.find((g) => g.key === sl.program);
+        if (!def) continue;
+        const key = `${sl.time}|${sl.program}`;
+        let g = byKey.get(key);
+        if (!g) {
+          g = { time: sl.time, program: sl.program, label: def.label, color: programColor(sl.program), athletes: [] };
+          byKey.set(key, g);
+        }
+        g.athletes.push({ id: p.id, firstName: p.firstName, lastName: p.lastName });
+      }
+    }
+    const groups = [...byKey.values()];
+    for (const g of groups) {
+      g.athletes.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '') || (a.lastName || '').localeCompare(b.lastName || ''));
+    }
+    return groups.sort((a, b) => a.time.localeCompare(b.time) || order.indexOf(a.program) - order.indexOf(b.program));
+  }, [athletes, date]);
+
+  const facilityQuery = query.trim().toLowerCase();
+  const shownGroups = facilityQuery
+    ? facilityGroups
+      .map((g) => ({ ...g, athletes: g.athletes.filter((a) => `${a.firstName} ${a.lastName}`.toLowerCase().includes(facilityQuery)) }))
+      .filter((g) => g.athletes.length > 0)
+    : facilityGroups;
+  const facilityAthleteCount = new Set(facilityGroups.flatMap((g) => g.athletes.map((a) => a.id))).size;
+
   /* Changing the day drops any open athlete: their answers belong to the
      date that was showing when the row was clicked. */
   const shiftDay = (delta: number) => {
@@ -203,7 +280,8 @@ export default function WorkoutsPage() {
   /* Debounced so typing a name doesn't fire a request per keystroke. */
   useEffect(() => {
     const q = query.trim();
-    if (!q) { setResults(null); setSearching(false); return; }
+    /* Facility Check In filters its own list locally. */
+    if (!q || tab !== 'workouts') { setResults(null); setSearching(false); return; }
     setSearching(true);
     const t = setTimeout(() => {
       api.searchCheckIns(q)
@@ -212,9 +290,9 @@ export default function WorkoutsPage() {
         .finally(() => setSearching(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, tab]);
 
-  const isSearch = query.trim().length > 0;
+  const isSearch = tab === 'workouts' && query.trim().length > 0;
   const list = isSearch ? results : rows;
   const rowKey = (r: api.DayCheckInRow) => `${r.playerId}|${r.date}`;
   const selected = openKey
@@ -234,15 +312,30 @@ export default function WorkoutsPage() {
         chipInline
         icon={<IconAttendance />}
         eyebrow="Attendance"
-        title="Athlete"
-        accent="Workouts"
-        subtitle="Who is scheduled today, who checked in, and who finished."
+        title={tab === 'facility' ? 'Facility' : 'Athlete'}
+        accent={tab === 'facility' ? 'Check In' : 'Workouts'}
+        subtitle={tab === 'facility'
+          ? 'Who is due in the facility, by start time and program.'
+          : 'Who is scheduled today, who checked in, and who finished.'}
         actions={
           <Link href="/training" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
             Training Calendar →
           </Link>
         }
       />
+
+      <div className={styles.tabBar} role="tablist" aria-label="Attendance view">
+        <button
+          type="button" role="tab" aria-selected={tab === 'facility'}
+          className={`${styles.tabBtn} ${tab === 'facility' ? styles.tabBtnOn : ''}`}
+          onClick={() => setTab('facility')}
+        >Facility Check In</button>
+        <button
+          type="button" role="tab" aria-selected={tab === 'workouts'}
+          className={`${styles.tabBtn} ${tab === 'workouts' ? styles.tabBtnOn : ''}`}
+          onClick={() => setTab('workouts')}
+        >Workout Attendance</button>
+      </div>
 
       {/* ── Day bar ── the page is a window onto the calendar, so it moves
           day by day rather than being pinned to today. */}
@@ -260,7 +353,12 @@ export default function WorkoutsPage() {
           >
             {longLabel(date)}
           </button>
-          {rows !== null && !isSearch && (
+          {tab === 'facility' && athletes !== null && (
+            <span className={styles.daySummary}>
+              {facilityAthleteCount} athlete{facilityAthleteCount === 1 ? '' : 's'} · {facilityGroups.length} session{facilityGroups.length === 1 ? '' : 's'}
+            </span>
+          )}
+          {tab === 'workouts' && rows !== null && !isSearch && (
             <span className={styles.daySummary}>
               {rows.length} scheduled · {checkedInCount} checked in · {finishedCount} finished
             </span>
@@ -282,7 +380,69 @@ export default function WorkoutsPage() {
         )}
       </div>
 
-      {selected ? (
+      {tab === 'facility' ? (
+        <div className={`${styles.panel} ${theme.inner}`}>
+          <div className={styles.toolbar}>
+            <input
+              className={`${styles.search} ${theme.field}`}
+              placeholder="Search athletes…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {athletesError && (
+              <button type="button" className={styles.retry} onClick={loadAthletes}>Retry</button>
+            )}
+          </div>
+          {/* Colour key -- the same colours as Upcoming Workouts. */}
+          <div className={styles.facLegend}>
+            {FACILITY_GROUPS.map((g) => (
+              <span key={g.key} className={styles.facLegendItem}>
+                <span className={styles.facDot} style={{ background: programColor(g.key) }} />
+                {g.label}
+              </span>
+            ))}
+          </div>
+          {athletes === null ? (
+            <div className={styles.state}>Loading…</div>
+          ) : athletesError ? (
+            <div className={styles.state}>Couldn&rsquo;t load the athletes.</div>
+          ) : shownGroups.length === 0 ? (
+            <div className={styles.state}>
+              <p className={styles.emptyTitle}>
+                {facilityQuery ? 'No athletes found' : 'Nobody scheduled in the facility'}
+              </p>
+              <p className={styles.emptyHint}>
+                {facilityQuery
+                  ? 'No one matching that name is due in on this day.'
+                  : 'No athlete has Hitting, Pitching, Catching or Strength days on this date. Set them with the clock on Upcoming Workouts or in Edit Profile.'}
+              </p>
+            </div>
+          ) : (
+            <div className={styles.facList}>
+              {shownGroups.map((g) => (
+                <section
+                  key={`${g.time}|${g.program}`}
+                  className={styles.facGroup}
+                  style={{ '--fac': g.color } as React.CSSProperties}
+                >
+                  <div className={styles.facHead}>
+                    <span className={styles.facTime}>{formatTime12(g.time)}</span>
+                    <span className={styles.facProgram}>{g.label}</span>
+                    <span className={styles.facCount}>{g.athletes.length}</span>
+                  </div>
+                  <div className={styles.facAthletes}>
+                    {g.athletes.map((a) => (
+                      <Link key={a.id} href={`/athletes/${a.id}`} className={styles.facAthlete}>
+                        {a.firstName} {a.lastName}
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : selected ? (
         <div className={`${styles.panel} ${theme.inner}`}>
           <button type="button" className={styles.back} onClick={() => setOpenKey(null)}>
             {isSearch ? '‹ All results' : '‹ All athletes'}

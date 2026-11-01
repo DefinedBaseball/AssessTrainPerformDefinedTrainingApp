@@ -127,3 +127,26 @@ export function defaultProgramFor(athleteTypesCsv: string | null | undefined): s
   if (tags.length > 0 && tags.every((t) => t === 'LESSON')) return 'LESSON';
   return 'HITTING_PROGRAM';
 }
+
+/** Workout types an athlete has facility days for on or after `fromIso` --
+ *  schedules that have already ended don't count. Drives the program boxes
+ *  in the Training Calendar's Apply Calendar. */
+export function activeScheduledPrograms(raw: string | null | undefined, fromIso: string): Set<string> {
+  const out = new Set<string>();
+  for (const s of parseFacilitySchedule(raw)) {
+    if (s.endDate < fromIso) continue;
+    if (Object.values(s.days).some(Boolean)) out.add(s.program);
+  }
+  return out;
+}
+
+/* The facility groups coaches work with (Apply Calendar's program boxes,
+   Attendance → Facility Check In). "Strength Program" is the schedule's
+   Lifting Program -- same days, the name the coaches use for these lists.
+   Lessons are one-on-one, so they aren't a group. */
+export const FACILITY_GROUPS: { key: string; label: string }[] = [
+  { key: 'HITTING_PROGRAM',  label: 'Hitting Program' },
+  { key: 'PITCHING_PROGRAM', label: 'Pitching Program' },
+  { key: 'CATCHING_PROGRAM', label: 'Catching Program' },
+  { key: 'LIFTING_PROGRAM',  label: 'Strength Program' },
+];
