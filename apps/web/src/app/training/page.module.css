@@ -2795,3 +2795,38 @@
   .dayColCardItem.calRowWithEnv > .dayEventDelete { position: static; transform: none; order: 3; flex-shrink: 0; }
   .dayColCardItem.calRowWithEnv .envPickers { grid-template-columns: repeat(var(--env-cols, 4), minmax(0, 1fr)); }
 }
+
+/* ── Apply Calendar: "which workouts?" pop-up (portalled to <body>) ── */
+.applyPopOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.applyPop {
+  width: min(400px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  padding: 18px;
+}
+.applyPopTitle { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.applyPopSub { font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); margin: 0 0 12px; }
+.applyPopList { display: grid; gap: 6px; margin-bottom: 14px; }
+.applyPopItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.applyPopDot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.applyPopActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

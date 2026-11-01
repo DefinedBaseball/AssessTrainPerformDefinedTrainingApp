@@ -315,41 +315,6 @@
 [data-theme="light"] .row { background: var(--lt-row, #d3d4d4); border-bottom-color: rgba(0, 0, 0, 0.09); }
 [data-theme="light"] .row:hover { background: #cdcece; }
 
-/* ── Tabs: Facility Check In | Workout Attendance ── */
-.tabBar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
-  padding: 5px;
-  background: var(--card-elev, var(--surface));
-  border: 1px solid var(--border-light);
-  border-radius: 14px;
-  box-shadow: var(--shadow-card);
-}
-.tabBtn {
-  flex: 1 1 0;
-  padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.tabBtn:hover { color: var(--text); background: var(--surface2); }
-.tabBtnOn,
-.tabBtnOn:hover {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg, #0e1116);
-}
-
 /* ── Facility Check In ── */
 .facLegend {
   display: flex;

@@ -469,12 +469,17 @@ export class TrainingService {
    *     source has nothing on are left completely alone.
    *   - The source is skipped if it appears in the target list, so a coach
    *     ticking "Winter Program" cannot wipe the athlete they copied FROM.
+   *   - `tabs` (workout types: hitting, pitching, ...) narrows BOTH sides:
+   *     only those drills are copied, and only those types are replaced on
+   *     the targets -- a hitter's own Strength day survives a Hitting-only
+   *     apply. Omitted = every type, the original behaviour.
    */
   async applyCalendarToPlayers(
     sourcePlayerId: string,
     targetPlayerIds: string[],
     fromDate: string,
     actorUserId?: string,
+    tabs?: string[],
   ) {
     if (!sourcePlayerId) throw new BadRequestException('sourcePlayerId is required');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate || '')) {
@@ -509,12 +514,15 @@ export class TrainingService {
     });
     const sourceName = sourcePlayer?.firstName ?? 'this athlete';
 
+    const tabFilter = tabs && tabs.length > 0 ? [...new Set(tabs)] : null;
     const source = await this.prisma.scheduledDrill.findMany({
-      where: { playerId: sourcePlayerId, date: { gte: fromDate } },
+      where: { playerId: sourcePlayerId, date: { gte: fromDate }, ...(tabFilter ? { tab: { in: tabFilter } } : {}) },
       orderBy: [{ date: 'asc' }, { sectionOrder: 'asc' }, { order: 'asc' }],
     });
     if (source.length === 0) {
-      throw new BadRequestException('The selected athlete has nothing scheduled from this date forward');
+      throw new BadRequestException(tabFilter
+        ? 'The selected athlete has none of those workouts scheduled from this date forward'
+        : 'The selected athlete has nothing scheduled from this date forward');
     }
 
     const dates = [...new Set(source.map((d) => d.date))];
@@ -543,9 +551,12 @@ export class TrainingService {
     /* Snapshot what is about to be destroyed BEFORE destroying it — this is
        the only record of the targets' previous plans, and undo restores from
        it verbatim. */
-    const removed = await this.prisma.scheduledDrill.findMany({
-      where: { playerId: { in: targetIds }, date: { in: dates } },
-    });
+    const replaceWhere = {
+      playerId: { in: targetIds },
+      date: { in: dates },
+      ...(tabFilter ? { tab: { in: tabFilter } } : {}),
+    };
+    const removed = await this.prisma.scheduledDrill.findMany({ where: replaceWhere });
 
     /* Ids are generated up front so the log can name exactly what this run
        created. createMany cannot return them, and "everything on those dates"
@@ -555,14 +566,15 @@ export class TrainingService {
     /* Wipe-then-write as ONE transaction: a failure mid-way would otherwise
        leave targets with their old plan deleted and the new one missing. */
     await this.prisma.$transaction([
-      this.prisma.scheduledDrill.deleteMany({
-        where: { playerId: { in: targetIds }, date: { in: dates } },
-      }),
+      this.prisma.scheduledDrill.deleteMany({ where: replaceWhere }),
       this.prisma.scheduledDrill.createMany({ data: withIds }),
     ]);
 
+    const tabNote = tabFilter
+      ? ` (${tabFilter.map((t) => (t === 'strength' ? 'S&C' : t.charAt(0).toUpperCase() + t.slice(1))).join(', ')} only)`
+      : '';
     const summary =
-      `Applied ${sourceName}'s calendar — ${source.length} drill${source.length === 1 ? '' : 's'} ` +
+      `Applied ${sourceName}'s calendar${tabNote} — ${source.length} drill${source.length === 1 ? '' : 's'} ` +
       `across ${dates.length} day${dates.length === 1 ? '' : 's'} to ${targetIds.length} athlete${targetIds.length === 1 ? '' : 's'}.`;
 
     const log = await this.prisma.calendarChangeLog.create({

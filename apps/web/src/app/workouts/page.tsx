@@ -324,15 +324,17 @@ export default function WorkoutsPage() {
         }
       />
 
-      <div className={styles.tabBar} role="tablist" aria-label="Attendance view">
+      {/* The Drill Library's sport-tab bar (same classes), so the two read
+          as one control set across the app. */}
+      <div className={`${eduStyles.sportTabs} ${theme.inner} ${theme.firm}`} role="tablist" aria-label="Attendance view">
         <button
           type="button" role="tab" aria-selected={tab === 'facility'}
-          className={`${styles.tabBtn} ${tab === 'facility' ? styles.tabBtnOn : ''}`}
+          className={`${eduStyles.sportTab} ${tab === 'facility' ? eduStyles.sportTabActive : ''}`}
           onClick={() => setTab('facility')}
         >Facility Check In</button>
         <button
           type="button" role="tab" aria-selected={tab === 'workouts'}
-          className={`${styles.tabBtn} ${tab === 'workouts' ? styles.tabBtnOn : ''}`}
+          className={`${eduStyles.sportTab} ${tab === 'workouts' ? eduStyles.sportTabActive : ''}`}
           onClick={() => setTab('workouts')}
         >Workout Attendance</button>
       </div>

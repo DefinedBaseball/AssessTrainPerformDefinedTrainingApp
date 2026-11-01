@@ -12,14 +12,22 @@
 
    This writes to other people's calendars and REPLACES what is there on the
    copied dates, so it never fires straight off the Apply button — Apply
-   resolves the selection into a concrete count and asks first.
+   opens a pop-up that asks which workout types (Hitting, Pitching, ...) to
+   copy and names how many athletes it will touch. Ticking only some types
+   copies just those and replaces just those on the targets; their other
+   workouts on those dates are left alone.
    ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { ATHLETE_TYPES, parseAthleteTypes } from '@/lib/athlete-types';
 import { activeScheduledPrograms, programColor, FACILITY_GROUPS as SCHEDULE_GROUPS } from '@/lib/facility-schedule';
+import { TAB_LABELS, TAB_COLORS } from '@/lib/training-colors';
 import styles from './page.module.css';
+
+/** Workout types in calendar order, for the pop-up's checkboxes. */
+const WORKOUT_ORDER = ['hitting', 'pitching', 'catching', 'infield', 'outfield', 'strength'];
 
 /** "2026-04-01" → "Apr 1, 2026" — parsed as LOCAL midnight, never UTC. */
 function formatFromDate(d: string): string {
@@ -50,14 +58,19 @@ export function ApplyCalendarModal({
   const [checkedTypes, setCheckedTypes] = useState<Set<string>>(new Set());
   const [checkedSched, setCheckedSched] = useState<Set<string>>(new Set());
   const [checkedPlayers, setCheckedPlayers] = useState<Set<string>>(new Set());
+  /* The "which workouts?" pop-up, and what is ticked in it. */
   const [confirming, setConfirming] = useState(false);
+  const [pickedTabs, setPickedTabs] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
   /* What the copy will actually carry. Fetched when the panel opens so the
      coach sees "3 days · 12 drills" BEFORE committing — the alternative was
      finding out via a server error after pressing Apply. */
-  const [preview, setPreview] = useState<{ days: number; drills: number } | null>(null);
+  const [preview, setPreview] = useState<{ days: number; drills: number; byTab: Record<string, number> } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  /* The pop-up is portalled to <body>, outside wrapRef -- clicks in it must
+     not count as "clicked away" and close the panel. */
+  const popRef = useRef<HTMLDivElement>(null);
 
   /* Reset every time it opens: a stale selection from last time is exactly
      the kind of thing that quietly overwrites the wrong group. */
@@ -78,16 +91,20 @@ export function ApplyCalendarModal({
       .then(rows => {
         if (cancelled) return;
         const forward = rows.filter(r => r.date >= fromDate);
-        setPreview({ days: new Set(forward.map(r => r.date)).size, drills: forward.length });
+        const byTab: Record<string, number> = {};
+        for (const r of forward) byTab[r.tab] = (byTab[r.tab] || 0) + 1;
+        setPreview({ days: new Set(forward.map(r => r.date)).size, drills: forward.length, byTab });
       })
-      .catch(() => { if (!cancelled) setPreview({ days: 0, drills: 0 }); });
+      .catch(() => { if (!cancelled) setPreview({ days: 0, drills: 0, byTab: {} }); });
     return () => { cancelled = true; };
   }, [open, sourcePlayer, fromDate]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) onClose();
+      const t = e.target as Node;
+      if (popRef.current?.contains(t)) return;
+      if (wrapRef.current && !wrapRef.current.contains(t)) onClose();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -158,7 +175,21 @@ export function ApplyCalendarModal({
     [players],
   );
 
+  /* Types the source actually has from the start date, in calendar order
+     (anything unexpected goes last). */
+  const sourceTabs = Object.keys(preview?.byTab ?? {}).sort((a, b) => {
+    const ai = WORKOUT_ORDER.indexOf(a); const bi = WORKOUT_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  const pickedDrills = sourceTabs.filter(t => pickedTabs.has(t)).reduce((n, t) => n + (preview?.byTab[t] ?? 0), 0);
+
   if (!open) return null;
+
+  const openPicker = () => {
+    setPickedTabs(new Set(sourceTabs));
+    setError('');
+    setConfirming(true);
+  };
 
   const toggle = (set: Set<string>, key: string, apply: (s: Set<string>) => void) => {
     const next = new Set(set);
@@ -172,10 +203,15 @@ export function ApplyCalendarModal({
     setApplying(true);
     setError('');
     try {
+      /* Every type ticked = the original whole-day replace (no filter), so
+         a full apply still clears a target's other workouts on those dates
+         and the group ends up matching the source. */
+      const chosen = sourceTabs.filter(t => pickedTabs.has(t));
       const res = await api.applyCalendarToPlayers({
         sourcePlayerId: sourcePlayer.id,
         targetPlayerIds: targetIds,
         fromDate,
+        ...(chosen.length < sourceTabs.length ? { tabs: chosen } : {}),
       });
       /* The server composes the summary now, so the banner and the log row
          can never disagree about what happened. */
@@ -217,34 +253,18 @@ export function ApplyCalendarModal({
         {error && <div className={styles.applyError}>{error}</div>}
 
         <div className={styles.applyActions}>
-          {confirming ? (
-            <>
-              <span className={styles.applyConfirmText}>
-                Replace schedules for {targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}?
-              </span>
-              <button type="button" className={styles.applyCancel} onClick={() => setConfirming(false)} disabled={applying}>
-                Cancel
-              </button>
-              <button type="button" className={styles.applyGo} onClick={handleApply} disabled={applying}>
-                {applying ? 'Applying…' : 'Yes, apply'}
-              </button>
-            </>
-          ) : (
-            <>
-              <span className={styles.applyCount}>
-                {targetIds.length} selected
-              </span>
-              <button
-                type="button"
-                className={styles.applyGo}
-                disabled={targetIds.length === 0 || !sourcePlayer || preview?.days === 0}
-                title={preview?.days === 0 ? 'Nothing scheduled from this date forward' : undefined}
-                onClick={() => setConfirming(true)}
-              >
-                Apply
-              </button>
-            </>
-          )}
+          <span className={styles.applyCount}>
+            {targetIds.length} selected
+          </span>
+          <button
+            type="button"
+            className={styles.applyGo}
+            disabled={targetIds.length === 0 || !sourcePlayer || !preview || preview.days === 0}
+            title={preview?.days === 0 ? 'Nothing scheduled from this date forward' : undefined}
+            onClick={openPicker}
+          >
+            Apply
+          </button>
         </div>
 
         <div className={styles.applyBody}>
@@ -313,6 +333,57 @@ export function ApplyCalendarModal({
         </div>
 
       </div>
+
+      {/* ── Which workouts? ── the last step before anything is written. */}
+      {confirming && typeof document !== 'undefined' && createPortal(
+        <div
+          className={styles.applyPopOverlay}
+          onMouseDown={(e) => { if (e.target === e.currentTarget && !applying) setConfirming(false); }}
+        >
+          <div className={styles.applyPop} ref={popRef} role="dialog" aria-label="Choose workouts to apply">
+            <div className={styles.applyPopTitle}>Apply which workouts?</div>
+            <p className={styles.applyPopSub}>
+              Copying {sourcePlayer ? `${sourcePlayer.firstName}’s` : 'this'} schedule to{' '}
+              <strong>{targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}</strong> from{' '}
+              {formatFromDate(fromDate)}. The ticked workouts are replaced on those dates; anything
+              left unticked stays as it is on their calendars.
+            </p>
+            <div className={styles.applyPopList}>
+              {sourceTabs.map(tab => (
+                <label key={tab} className={styles.applyPopItem}>
+                  <input
+                    type="checkbox"
+                    className={styles.applyCheckbox}
+                    checked={pickedTabs.has(tab)}
+                    disabled={applying}
+                    onChange={() => setPickedTabs(prev => { const n = new Set(prev); if (n.has(tab)) n.delete(tab); else n.add(tab); return n; })}
+                  />
+                  <span className={styles.applyPopDot} style={{ background: (TAB_COLORS[tab] || TAB_COLORS.hitting).text }} />
+                  <span className={styles.applyItemName}>{TAB_LABELS[tab] || tab}</span>
+                  <span className={styles.applyItemCount}>
+                    {preview?.byTab[tab] ?? 0} drill{(preview?.byTab[tab] ?? 0) === 1 ? '' : 's'}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {error && <div className={styles.applyError}>{error}</div>}
+            <div className={styles.applyPopActions}>
+              <button type="button" className={styles.applyCancel} onClick={() => setConfirming(false)} disabled={applying}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.applyGo}
+                onClick={handleApply}
+                disabled={applying || pickedDrills === 0}
+              >
+                {applying ? 'Applying…' : `Apply ${pickedDrills} drill${pickedDrills === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

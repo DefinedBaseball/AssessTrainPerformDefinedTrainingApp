@@ -2117,6 +2117,8 @@ export async function applyCalendarToPlayers(data: {
   sourcePlayerId: string;
   targetPlayerIds: string[];
   fromDate: string;
+  /** Workout types (calendar tabs) to copy and replace. Omit for all. */
+  tabs?: string[];
 }) {
   return request<{
     players: number; dates: number; drillsPerPlayer: number; drillsWritten: number;
