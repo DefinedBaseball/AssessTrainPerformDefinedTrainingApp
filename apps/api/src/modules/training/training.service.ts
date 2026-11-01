@@ -474,12 +474,16 @@ export class TrainingService {
    *   - Each target's drills ARE REPLACED on the dates they receive, so the
    *     group ends up matching the source. Dates the source has nothing on
    *     are left completely alone.
-   *   - `programs` (facility programs ticked in Apply Calendar) map by program
-   *     day instead of by date: a target in a ticked program gets the
-   *     source's Week N / Day k workout on THEIR Week N / Day k (Day k = the
-   *     k-th of their picked weekdays, Mon–Sun). Jack's Monday (Hitting Day
-   *     1) lands on a Tue/Thu hitter's Tuesday. Targets in no ticked program
-   *     get the same dates, as before.
+   *   - Program days, not dates, whenever possible: a drill whose workout
+   *     type has a program (hitting → Hitting Program, strength → Lifting,
+   *     ...) that BOTH the source and a target have days in lands on the
+   *     target's matching Day k of the same Mon–Sun week (Day k = k-th of
+   *     their picked weekdays). Jack's Monday (Hitting Day 1) lands on a
+   *     Tue/Thu hitter's Tuesday -- however that hitter was selected
+   *     (2026-11-01: it first only applied to athletes reached through a
+   *     ticked program box, and a hitter ticked by name got Monday). Only
+   *     the types landing on a mapped date are replaced there. Everything
+   *     else keeps its date. `programs` is accepted but no longer needed.
    *   - The source is skipped if it appears in the target list, so a coach
    *     ticking "Winter Program" cannot wipe the athlete they copied FROM.
    *   - `tabs` (workout types: hitting, pitching, ...) narrows BOTH sides:
@@ -560,53 +564,60 @@ export class TrainingService {
     }
     const dates = [...sourceByDate.keys()];
 
-    /* Ticked programs, and the source's own program days -- without them
-       there is no "Day 1" to copy from. */
+    /* Program-day matching. Each drill follows the program for its workout
+       type (hitting → Hitting Program, strength → Lifting, a custom
+       "Infield Program" → infield, ...). When the source AND a target both
+       have days in that program, the source's Day k (k-th of their weekdays,
+       Mon–Sun) lands on the target's Day k in the same week -- Jack's
+       Monday Day 1 goes on Eddie's Tuesday Day 1. This applies to every
+       target however they were picked (program box, season tag or by name);
+       anything else keeps its date. Per type, so an athlete in Hitting AND
+       Lifting gets each on the right day. */
     const allPrograms = await this.facilityPrograms.list();
-    const ticked = allPrograms.filter((p) => (opts.programs ?? []).includes(p.key));
-    const sourceDays = new Map<string, WeekdayKey[]>();
-    for (const p of ticked) {
-      const days = programDaysOf(sourcePlayer?.facilitySchedule, p.key);
-      if (days.length === 0) {
-        throw new BadRequestException(`${sourceName} has no ${p.label} days, so there is no program day to copy from`);
-      }
-      sourceDays.set(p.key, days);
-    }
+    const tabProgram = (tab: string): string | null => {
+      const builtIn: Record<string, string> = {
+        hitting: 'HITTING_PROGRAM', pitching: 'PITCHING_PROGRAM', catching: 'CATCHING_PROGRAM', strength: 'LIFTING_PROGRAM',
+      };
+      if (builtIn[tab]) return builtIn[tab];
+      return allPrograms.find((pr) => !pr.builtIn && pr.key.includes(tab.toUpperCase()))?.key ?? null;
+    };
+    const sourceDaysCache = new Map<string, WeekdayKey[]>();
+    const sourceDays = (key: string) => {
+      if (!sourceDaysCache.has(key)) sourceDaysCache.set(key, programDaysOf(sourcePlayer?.facilitySchedule, key));
+      return sourceDaysCache.get(key)!;
+    };
 
-    /* Per target: which source date lands on which of their dates. */
-    let missingDays = 0;
-    const plans = targets.map((t) => {
-      const inPrograms = ticked.filter((p) => programDaysOf(t.facilitySchedule, p.key).length > 0);
-      const moves = new Map<string, string>(); // `${sourceDate}|${targetDate}` → targetDate
-      if (inPrograms.length === 0) {
-        for (const d of dates) moves.set(`${d}|${d}`, d);
-      } else {
-        for (const p of inPrograms) {
-          const from = sourceDays.get(p.key)!;
-          const to = programDaysOf(t.facilitySchedule, p.key);
-          for (const d of dates) {
-            const k = from.indexOf(weekdayKeyOf(d));
-            if (k < 0) continue; // not one of the source's days for this program
+    const missing = new Set<string>(); // `${target}|${source date}|${program}`
+    const usedPrograms = new Set<string>();
+    type Row = Omit<(typeof source)[number], 'id' | 'playerId' | 'createdAt' | 'updatedAt'> & { playerId: string };
+    const rows: Row[] = [];
+    /* What each target date gets replaced: the whole day (a same-date copy
+       with every type, as before) or just the types landing there. */
+    const replace = new Map<string, { playerId: string; date: string; whole: boolean; tabs: Set<string> }>();
+    for (const t of targets) {
+      for (const d of source) {
+        let td = d.date;
+        let mapped = false;
+        const prog = tabProgram(d.tab);
+        if (prog) {
+          const from = sourceDays(prog);
+          const to = programDaysOf(t.facilitySchedule, prog);
+          const k = from.indexOf(weekdayKeyOf(d.date));
+          if (from.length && to.length && k >= 0) {
             const day = to[k];
-            if (!day) { missingDays++; continue; } // they have fewer days a week
-            const td = addDays(mondayOf(d), WEEKDAY_KEYS.indexOf(day));
-            moves.set(`${d}|${td}`, td);
+            if (!day) { missing.add(`${t.id}|${d.date}|${prog}`); continue; } // they have fewer days a week
+            td = addDays(mondayOf(d.date), WEEKDAY_KEYS.indexOf(day));
+            mapped = true;
+            usedPrograms.add(prog);
           }
         }
-      }
-      return { playerId: t.id, moves, mapped: inPrograms.length > 0 };
-    });
-
-    const rows = plans.flatMap(({ playerId, moves }) =>
-      [...moves.keys()].flatMap((key) => {
-        const [fromD, toD] = key.split('|');
-        return (sourceByDate.get(fromD) ?? []).map((d) => ({
-          playerId,
+        rows.push({
+          playerId: t.id,
           drillId: d.drillId,
           tab: d.tab,
           category: d.category,
           name: d.name,
-          date: toD,
+          date: td,
           time: d.time,
           duration: d.duration,
           notes: d.notes,
@@ -616,23 +627,28 @@ export class TrainingService {
           sectionOrder: d.sectionOrder,
           block: d.block,
           environment: d.environment,
-        }));
-      }),
-    );
+        } as Row);
+        const rk = `${t.id}|${td}`;
+        const entry = replace.get(rk) ?? { playerId: t.id, date: td, whole: false, tabs: new Set<string>() };
+        if (!mapped && !tabFilter) entry.whole = true;
+        entry.tabs.add(d.tab);
+        replace.set(rk, entry);
+      }
+    }
+    const missingDays = missing.size;
     if (rows.length === 0) {
-      throw new BadRequestException(ticked.length
-        ? 'None of the selected athletes have a matching program day for those workouts'
-        : 'Nothing to copy');
+      throw new BadRequestException('None of the selected athletes have a matching program day for those workouts');
     }
 
     /* Snapshot what is about to be destroyed BEFORE destroying it — this is
        the only record of the targets' previous plans, and undo restores from
        it verbatim. */
     const replaceWhere = {
-      OR: plans
-        .filter((pl) => pl.moves.size > 0)
-        .map((pl) => ({ playerId: pl.playerId, date: { in: [...new Set(pl.moves.values())] } })),
-      ...(tabFilter ? { tab: { in: tabFilter } } : {}),
+      OR: [...replace.values()].map((r) => ({
+        playerId: r.playerId,
+        date: r.date,
+        ...(r.whole ? {} : { tab: { in: [...r.tabs] } }),
+      })),
     };
     const removed = await this.prisma.scheduledDrill.findMany({ where: replaceWhere });
 
@@ -653,8 +669,8 @@ export class TrainingService {
       ? ` (${tabFilter.map((t) => (t === 'strength' ? 'S&C' : t.charAt(0).toUpperCase() + t.slice(1))).join(', ')} only)`
       : '';
     const what = scope === 'day' ? 'day' : scope === 'week' ? 'week' : scope === 'month' ? 'month' : 'calendar';
-    const programNote = plans.some((pl) => pl.mapped)
-      ? `, matched to each athlete's ${ticked.map((p) => p.label).join(' / ')} days`
+    const programNote = usedPrograms.size
+      ? `, matched to each athlete's ${allPrograms.filter((pr) => usedPrograms.has(pr.key)).map((pr) => pr.label).join(' / ')} days`
       : '';
     const missingNote = missingDays > 0
       ? ` ${missingDays} program day${missingDays === 1 ? ' was' : 's were'} skipped where an athlete has fewer days a week.`

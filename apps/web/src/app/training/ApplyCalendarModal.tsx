@@ -21,11 +21,13 @@
    copies just those and replaces just those on the targets; their other
    workouts on those dates are left alone.
 
-   Athletes reached through a ticked program get each workout on THEIR
-   matching program day instead of the same date: the source's Week N /
-   Day k (k-th of their picked weekdays, Mon–Sun) lands on the target's Week
-   N / Day k. Jack's Monday Day 1 goes on a Tue/Thu hitter's Tuesday. The
-   server does the matching (training.service applyCalendarToPlayers).
+   Every selected athlete who shares a program with the source (however
+   they were picked) gets each workout on THEIR matching program day rather
+   than the same date: the source's Week N / Day k (k-th of their picked
+   weekdays, Mon–Sun) lands on the target's Day k. Jack's Monday Day 1 goes
+   on a Tue/Thu hitter's Tuesday. Each workout type follows its own program
+   (Hitting drills by Hitting days, S&C by Lifting days). The server does
+   the matching (training.service applyCalendarToPlayers).
    ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -447,14 +449,11 @@ export function ApplyCalendarModal({
               <strong>{targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}</strong>. The ticked workouts
               are replaced on the days they receive; anything left unticked stays as it is on their calendars.
             </p>
-            {checkedSched.size > 0 && (
-              <p className={styles.applyPopSub}>
-                Athletes in{' '}
-                <strong>{programs.filter(g => checkedSched.has(g.key)).map(g => g.label).join(' / ')}</strong>{' '}
-                get each workout on their own matching program day: {sourcePlayer?.firstName ?? 'the source'}&rsquo;s
-                Day 1 lands on their Day 1, Day 2 on their Day 2, in the same program week.
-              </p>
-            )}
+            <p className={styles.applyPopSub}>
+              Athletes who share a program with {sourcePlayer?.firstName ?? 'the source'} get each workout on their own
+              matching program day: {sourcePlayer?.firstName ?? 'the source'}&rsquo;s Day 1 lands on their Day 1, Day 2 on
+              their Day 2, in the same week. Everyone else gets the same dates.
+            </p>
             <div className={styles.applyPopList}>
               {sourceTabs.map(tab => (
                 <label key={tab} className={styles.applyPopItem}>
