@@ -30,7 +30,8 @@ import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconAttendance } from '../education/EduHeader';
-import { FACILITY_GROUPS, parseFacilitySchedule, slotsOnDate, formatTime12, programColor } from '@/lib/facility-schedule';
+import { parseFacilitySchedule, slotsOnDate, formatTime12, programColor, programWeek } from '@/lib/facility-schedule';
+import { useFacilityPrograms } from '@/lib/use-facility-programs';
 
 type AttendanceTab = 'facility' | 'workouts';
 const TAB_KEY = 'attendance.tab';
@@ -41,7 +42,10 @@ interface FacilityGroup {
   program: string;
   label: string;
   color: string;
-  athletes: { id: string; firstName: string; lastName: string }[];
+  /** Program week of the day (shared by everyone in the program). */
+  week: number | null;
+  /** `day` = which of the athlete's program days this is (1st, 2nd, ...). */
+  athletes: { id: string; firstName: string; lastName: string; day: number | null }[];
 }
 
 /** Local YYYY-MM-DD — a training day is the calendar day, not a UTC instant. */
@@ -168,6 +172,9 @@ function StatusBox({ on, label }: { on: boolean; label: string }) {
 export default function WorkoutsPage() {
   const router = useRouter();
   const { user, isCoach, isLoading } = useAuth();
+  /* Settings → Programs: names, colours and weeks. */
+  const programs = useFacilityPrograms();
+  const FACILITY_GROUPS = useMemo(() => programs.map(({ key, label }) => ({ key, label })), [programs]);
 
   const [date, setDate] = useState(() => toDateStr(new Date()));
   const [rows, setRows] = useState<api.DayCheckInRow[] | null>(null);
@@ -245,10 +252,13 @@ export default function WorkoutsPage() {
         const key = `${sl.time}|${sl.program}`;
         let g = byKey.get(key);
         if (!g) {
-          g = { time: sl.time, program: sl.program, label: def.label, color: programColor(sl.program), athletes: [] };
+          g = {
+            time: sl.time, program: sl.program, label: def.label, color: programColor(sl.program),
+            week: programWeek(sl.program, date), athletes: [],
+          };
           byKey.set(key, g);
         }
-        g.athletes.push({ id: p.id, firstName: p.firstName, lastName: p.lastName });
+        g.athletes.push({ id: p.id, firstName: p.firstName, lastName: p.lastName, day: sl.day });
       }
     }
     const groups = [...byKey.values()];
@@ -256,7 +266,7 @@ export default function WorkoutsPage() {
       g.athletes.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '') || (a.lastName || '').localeCompare(b.lastName || ''));
     }
     return groups.sort((a, b) => a.time.localeCompare(b.time) || order.indexOf(a.program) - order.indexOf(b.program));
-  }, [athletes, date]);
+  }, [athletes, date, FACILITY_GROUPS]);
 
   const facilityQuery = query.trim().toLowerCase();
   const shownGroups = facilityQuery
@@ -430,12 +440,15 @@ export default function WorkoutsPage() {
                   <div className={styles.facHead}>
                     <span className={styles.facTime}>{formatTime12(g.time)}</span>
                     <span className={styles.facProgram}>{g.label}</span>
+                    {g.week && <span className={styles.facWeek}>Week {g.week}</span>}
                     <span className={styles.facCount}>{g.athletes.length}</span>
                   </div>
                   <div className={styles.facAthletes}>
                     {g.athletes.map((a) => (
                       <Link key={a.id} href={`/athletes/${a.id}`} className={styles.facAthlete}>
                         {a.firstName} {a.lastName}
+                        {/* Their 1st / 2nd / ... program day this week. */}
+                        {a.day && <span className={styles.facDay}>Day {a.day}</span>}
                       </Link>
                     ))}
                   </div>

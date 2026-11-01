@@ -1,11 +1,15 @@
 'use client';
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Apply Calendar — push one athlete's forward schedule onto a group.
+   Apply Calendar — push one athlete's schedule onto a group.
+
+   Scope: Apply Day / Week / Month / Entire Calendar, defaulting to the
+   calendar view it was opened from (Day view → that day). Entire Calendar is
+   everything from today on.
 
    Sits beside the Athlete selector. Offers the scheduled programs (athletes
-   with Hitting / Pitching / Catching / Strength days on their facility
-   schedule), the athlete-type tags (Winter / Summer / Fall Program,
+   with days in a Settings → Programs program on their facility schedule),
+   the athlete-type tags (Winter / Summer / Fall Program,
    Membership, Lesson, Remote) and every athlete individually; all are
    multi-select and they union together, so a coach can tick "Hitting
    Program" and then add a couple of one-offs.
@@ -16,13 +20,20 @@
    copy and names how many athletes it will touch. Ticking only some types
    copies just those and replaces just those on the targets; their other
    workouts on those dates are left alone.
+
+   Athletes reached through a ticked program get each workout on THEIR
+   matching program day instead of the same date: the source's Week N /
+   Day k (k-th of their picked weekdays, Mon–Sun) lands on the target's Week
+   N / Day k. Jack's Monday Day 1 goes on a Tue/Thu hitter's Tuesday. The
+   server does the matching (training.service applyCalendarToPlayers).
    ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { ATHLETE_TYPES, parseAthleteTypes } from '@/lib/athlete-types';
-import { activeScheduledPrograms, programColor, FACILITY_GROUPS as SCHEDULE_GROUPS } from '@/lib/facility-schedule';
+import { activeScheduledPrograms, programColor, parseFacilitySchedule, programDaysOf } from '@/lib/facility-schedule';
+import { useFacilityPrograms } from '@/lib/use-facility-programs';
 import { TAB_LABELS, TAB_COLORS } from '@/lib/training-colors';
 import styles from './page.module.css';
 
@@ -38,23 +49,73 @@ function formatFromDate(d: string): string {
   });
 }
 
+export type ApplyScope = 'day' | 'week' | 'month' | 'all';
+const SCOPES: { key: ApplyScope; label: string }[] = [
+  { key: 'day', label: 'Apply Day' },
+  { key: 'week', label: 'Apply Week' },
+  { key: 'month', label: 'Apply Month' },
+  { key: 'all', label: 'Apply Entire Calendar' },
+];
+
+function isoOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function dateOf(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** The source dates a scope covers (Mon–Sun weeks, like the server). */
+function scopeRange(scope: ApplyScope, anchor: string, fromDate: string): { from: string; to: string | null } {
+  if (scope === 'day') return { from: anchor, to: anchor };
+  if (scope === 'week') {
+    const mon = dateOf(anchor);
+    mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return { from: isoOf(mon), to: isoOf(sun) };
+  }
+  if (scope === 'month') {
+    const a = dateOf(anchor);
+    return { from: isoOf(new Date(a.getFullYear(), a.getMonth(), 1)), to: isoOf(new Date(a.getFullYear(), a.getMonth() + 1, 0)) };
+  }
+  return { from: fromDate, to: null };
+}
+
+/** "Mon, Nov 2" / "the week of Nov 2 – 8" / "November 2026" / "Nov 1 on". */
+function scopePhrase(scope: ApplyScope, anchor: string, fromDate: string): string {
+  const r = scopeRange(scope, anchor, fromDate);
+  const short = (iso: string) => dateOf(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (scope === 'day') return dateOf(anchor).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  if (scope === 'week') return `the week of ${short(r.from)} – ${short(r.to!)}`;
+  if (scope === 'month') return dateOf(anchor).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  return `${formatFromDate(fromDate)} forward`;
+}
+
 export function ApplyCalendarModal({
   open,
   onClose,
   players,
   sourcePlayer,
   fromDate,
+  anchorDate,
+  view,
   onApplied,
 }: {
   open: boolean;
   onClose: () => void;
   players: Player[];
   sourcePlayer: Player | null | undefined;
-  /** Copy from this date forward — today. */
+  /** Today: where Entire Calendar starts. */
   fromDate: string;
+  /** The date the calendar is showing -- the day / week / month to apply. */
+  anchorDate: string;
+  /** The calendar view; picks the default scope. */
+  view: 'day' | 'week' | 'month';
   /** Summary line plus the id that can roll this apply back. */
   onApplied: (summary: string, logId: string) => void;
 }) {
+  const programs = useFacilityPrograms();
+  const [scope, setScope] = useState<ApplyScope>(view);
   const [checkedTypes, setCheckedTypes] = useState<Set<string>>(new Set());
   const [checkedSched, setCheckedSched] = useState<Set<string>>(new Set());
   const [checkedPlayers, setCheckedPlayers] = useState<Set<string>>(new Set());
@@ -66,7 +127,7 @@ export function ApplyCalendarModal({
   /* What the copy will actually carry. Fetched when the panel opens so the
      coach sees "3 days · 12 drills" BEFORE committing — the alternative was
      finding out via a server error after pressing Apply. */
-  const [preview, setPreview] = useState<{ days: number; drills: number; byTab: Record<string, number> } | null>(null);
+  const [sourceRows, setSourceRows] = useState<api.ScheduledDrill[] | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   /* The pop-up is portalled to <body>, outside wrapRef -- clicks in it must
      not count as "clicked away" and close the panel. */
@@ -81,23 +142,33 @@ export function ApplyCalendarModal({
     setCheckedPlayers(new Set());
     setConfirming(false);
     setError('');
+    setScope(view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
   }, [open]);
 
   useEffect(() => {
-    if (!open || !sourcePlayer) { setPreview(null); return; }
+    if (!open || !sourcePlayer) { setSourceRows(null); return; }
     let cancelled = false;
-    setPreview(null);
+    setSourceRows(null);
     api.getScheduledDrills(sourcePlayer.id)
-      .then(rows => {
-        if (cancelled) return;
-        const forward = rows.filter(r => r.date >= fromDate);
-        const byTab: Record<string, number> = {};
-        for (const r of forward) byTab[r.tab] = (byTab[r.tab] || 0) + 1;
-        setPreview({ days: new Set(forward.map(r => r.date)).size, drills: forward.length, byTab });
-      })
-      .catch(() => { if (!cancelled) setPreview({ days: 0, drills: 0, byTab: {} }); });
+      .then(rows => { if (!cancelled) setSourceRows(rows); })
+      .catch(() => { if (!cancelled) setSourceRows([]); });
     return () => { cancelled = true; };
-  }, [open, sourcePlayer, fromDate]);
+  }, [open, sourcePlayer]);
+
+  /* What the copy will carry for the chosen scope -- shown BEFORE committing
+     ("3 days · 12 drills") rather than found out via a server error. */
+  const preview = useMemo(() => {
+    if (!sourceRows) return null;
+    const r = scopeRange(scope, anchorDate, fromDate);
+    const inRange = sourceRows.filter(x => x.date >= r.from && (r.to === null || x.date <= r.to));
+    const byTab: Record<string, number> = {};
+    for (const x of inRange) byTab[x.tab] = (byTab[x.tab] || 0) + 1;
+    return { days: new Set(inRange.map(x => x.date)).size, drills: inRange.length, byTab };
+  }, [sourceRows, scope, anchorDate, fromDate]);
+
+  /* Programs the source has days in -- the only ones with a Day 1 to copy. */
+  const sourceSchedule = useMemo(() => parseFacilitySchedule(sourcePlayer?.facilitySchedule), [sourcePlayer]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,13 +208,13 @@ export function ApplyCalendarModal({
 
   const countForSched = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const g of SCHEDULE_GROUPS) {
+    for (const g of programs) {
       out[g.key] = players.filter(
         p => p.id !== sourcePlayer?.id && !api.isPlayerLocked(p) && schedById.get(p.id)?.has(g.key),
       ).length;
     }
     return out;
-  }, [players, sourcePlayer, schedById]);
+  }, [players, sourcePlayer, schedById, programs]);
 
   /** Is this athlete covered by a ticked tag or a ticked scheduled program? */
   const inTickedGroup = (p: Player) =>
@@ -211,6 +282,9 @@ export function ApplyCalendarModal({
         sourcePlayerId: sourcePlayer.id,
         targetPlayerIds: targetIds,
         fromDate,
+        scope,
+        anchorDate,
+        programs: [...checkedSched],
         ...(chosen.length < sourceTabs.length ? { tabs: chosen } : {}),
       });
       /* The server composes the summary now, so the banner and the log row
@@ -232,14 +306,25 @@ export function ApplyCalendarModal({
           <span className={styles.applyTitle}>Apply Calendar</span>
           <button type="button" className={styles.applyClose} onClick={onClose} aria-label="Close">×</button>
         </div>
+        {/* What to copy: this day, its week, its month, or everything ahead. */}
+        <div className={styles.applyScopeRow}>
+          <select
+            className={styles.applyScope}
+            value={scope}
+            onChange={(e) => { setScope(e.target.value as ApplyScope); setConfirming(false); }}
+            aria-label="What to apply"
+          >
+            {SCOPES.map(sc => <option key={sc.key} value={sc.key}>{sc.label}</option>)}
+          </select>
+        </div>
         <div className={styles.applySub}>
           Copies {sourcePlayer ? `${sourcePlayer.firstName} ${sourcePlayer.lastName}’s` : 'this athlete’s'} schedule
-          from <strong>{formatFromDate(fromDate)}</strong> forward. Selected athletes have their
-          drills replaced on those dates.
+          for <strong>{scopePhrase(scope, anchorDate, fromDate)}</strong>. Selected athletes have their
+          drills replaced on the days they receive.
           {preview && (
             <span className={preview.days === 0 ? styles.applyNothing : styles.applyPreview}>
               {preview.days === 0
-                ? ' Nothing is scheduled from this date — move to a date with drills on it.'
+                ? ' Nothing is scheduled there — pick another scope or date.'
                 : ` ${preview.days} day${preview.days === 1 ? '' : 's'} · ${preview.drills} drill${preview.drills === 1 ? '' : 's'}.`}
             </span>
           )}
@@ -260,7 +345,7 @@ export function ApplyCalendarModal({
             type="button"
             className={styles.applyGo}
             disabled={targetIds.length === 0 || !sourcePlayer || !preview || preview.days === 0}
-            title={preview?.days === 0 ? 'Nothing scheduled from this date forward' : undefined}
+            title={preview?.days === 0 ? 'Nothing scheduled in this scope' : undefined}
             onClick={openPicker}
           >
             Apply
@@ -269,20 +354,34 @@ export function ApplyCalendarModal({
 
         <div className={styles.applyBody}>
           {/* From each athlete's facility schedule (Upcoming Workouts). */}
+          {/* From each athlete's facility schedule (Upcoming Workouts). The
+              source needs days in a program for it to have a Day 1 / Day 2
+              to match, so programs it isn't in are greyed out. */}
           <div className={styles.applyGroupLabel}>Scheduled Programs</div>
-          {SCHEDULE_GROUPS.map(g => (
-            <label key={g.key} className={styles.applyItem}>
-              <input
-                type="checkbox"
-                className={styles.applyCheckbox}
-                checked={checkedSched.has(g.key)}
-                onChange={() => toggle(checkedSched, g.key, setCheckedSched)}
-              />
-              <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: programColor(g.key), flex: '0 0 auto' }} />
-              <span className={styles.applyItemName}>{g.label}</span>
-              <span className={styles.applyItemCount}>{countForSched[g.key] ?? 0}</span>
-            </label>
-          ))}
+          {programs.map(g => {
+            const srcDays = programDaysOf(sourceSchedule, g.key);
+            const usable = srcDays.length > 0;
+            return (
+              <label
+                key={g.key}
+                className={`${styles.applyItem} ${usable ? '' : styles.applyItemDisabled}`}
+                title={usable
+                  ? `Matched by program day: ${srcDays.map((d, i) => `${d[0].toUpperCase()}${d.slice(1)} = Day ${i + 1}`).join(', ')}`
+                  : `${sourcePlayer?.firstName ?? 'This athlete'} has no ${g.label} days to copy from`}
+              >
+                <input
+                  type="checkbox"
+                  className={styles.applyCheckbox}
+                  disabled={!usable}
+                  checked={usable && checkedSched.has(g.key)}
+                  onChange={() => toggle(checkedSched, g.key, setCheckedSched)}
+                />
+                <span aria-hidden style={{ width: 9, height: 9, borderRadius: '50%', background: programColor(g.key), flex: '0 0 auto' }} />
+                <span className={styles.applyItemName}>{g.label}</span>
+                <span className={styles.applyItemCount}>{countForSched[g.key] ?? 0}</span>
+              </label>
+            );
+          })}
 
           <div className={styles.applyGroupLabel}>Athlete Types</div>
           {ATHLETE_TYPES.map(t => (
@@ -343,11 +442,19 @@ export function ApplyCalendarModal({
           <div className={styles.applyPop} ref={popRef} role="dialog" aria-label="Choose workouts to apply">
             <div className={styles.applyPopTitle}>Apply which workouts?</div>
             <p className={styles.applyPopSub}>
-              Copying {sourcePlayer ? `${sourcePlayer.firstName}’s` : 'this'} schedule to{' '}
-              <strong>{targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}</strong> from{' '}
-              {formatFromDate(fromDate)}. The ticked workouts are replaced on those dates; anything
-              left unticked stays as it is on their calendars.
+              Copying {sourcePlayer ? `${sourcePlayer.firstName}’s` : 'this'} schedule for{' '}
+              {scopePhrase(scope, anchorDate, fromDate)} to{' '}
+              <strong>{targetIds.length} athlete{targetIds.length === 1 ? '' : 's'}</strong>. The ticked workouts
+              are replaced on the days they receive; anything left unticked stays as it is on their calendars.
             </p>
+            {checkedSched.size > 0 && (
+              <p className={styles.applyPopSub}>
+                Athletes in{' '}
+                <strong>{programs.filter(g => checkedSched.has(g.key)).map(g => g.label).join(' / ')}</strong>{' '}
+                get each workout on their own matching program day: {sourcePlayer?.firstName ?? 'the source'}&rsquo;s
+                Day 1 lands on their Day 1, Day 2 on their Day 2, in the same program week.
+              </p>
+            )}
             <div className={styles.applyPopList}>
               {sourceTabs.map(tab => (
                 <label key={tab} className={styles.applyPopItem}>

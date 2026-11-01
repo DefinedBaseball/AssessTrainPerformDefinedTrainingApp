@@ -2830,3 +2830,18 @@
 }
 .applyPopDot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 .applyPopActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* Apply Calendar scope picker (Apply Day / Week / Month / Entire Calendar). */
+.applyScopeRow { padding: 0 14px 8px; }
+.applyScope {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2, transparent);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}

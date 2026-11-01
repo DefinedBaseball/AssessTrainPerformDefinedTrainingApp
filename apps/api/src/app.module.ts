@@ -26,6 +26,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { MailModule } from './modules/mail/mail.module';
 import { InquiriesModule } from './modules/inquiries/inquiries.module';
 import { VendorContactsModule } from './modules/vendor-contacts/vendor-contacts.module';
+import { FacilityProgramsModule } from './modules/facility-programs/facility-programs.module';
 import { DrillOptionsModule } from './modules/drill-options/drill-options.module';
 import { AcademyModule } from './modules/academy/academy.module';
 import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
@@ -78,6 +79,7 @@ import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
     NotificationsModule,
     InquiriesModule,
     VendorContactsModule,
+    FacilityProgramsModule,
     DrillOptionsModule,
     CoachTasksModule,
   ],

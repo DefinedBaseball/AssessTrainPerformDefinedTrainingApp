@@ -4,6 +4,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BunnyService } from '../videos/bunny.service';
 import { S3Service } from '../videos/s3.service';
+import {
+  FacilityProgramsService, WEEKDAY_KEYS, WeekdayKey, addDays, mondayOf, weekdayKeyOf, programDaysOf,
+} from '../facility-programs/facility-programs.service';
+
+const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -22,6 +27,7 @@ export class TrainingService {
     private notifications: NotificationsService,
     private bunny: BunnyService,
     private s3: S3Service,
+    private facilityPrograms: FacilityProgramsService,
   ) {}
 
   /**
@@ -455,7 +461,7 @@ export class TrainingService {
   }
 
   /**
-   * Copy one athlete's forward calendar onto other athletes.
+   * Copy one athlete's calendar onto other athletes.
    *
    * Server-side on purpose. Doing this from the browser would mean fetching
    * each target's calendar, deleting their rows one at a time and re-creating
@@ -463,10 +469,17 @@ export class TrainingService {
    * avoid leaving half the group in a broken state if one failed partway.
    *
    * Semantics (coach spec):
-   *   - Only dates from `fromDate` on are copied; completed history stays put.
-   *   - Each target's drills ARE REPLACED on the dates the source actually
-   *     has drills for, so the group ends up matching the source. Dates the
-   *     source has nothing on are left completely alone.
+   *   - `scope` picks the source dates: the anchor day, its Mon–Sun week, its
+   *     month, or everything from `fromDate` on ('all', the original).
+   *   - Each target's drills ARE REPLACED on the dates they receive, so the
+   *     group ends up matching the source. Dates the source has nothing on
+   *     are left completely alone.
+   *   - `programs` (facility programs ticked in Apply Calendar) map by program
+   *     day instead of by date: a target in a ticked program gets the
+   *     source's Week N / Day k workout on THEIR Week N / Day k (Day k = the
+   *     k-th of their picked weekdays, Mon–Sun). Jack's Monday (Hitting Day
+   *     1) lands on a Tue/Thu hitter's Tuesday. Targets in no ticked program
+   *     get the same dates, as before.
    *   - The source is skipped if it appears in the target list, so a coach
    *     ticking "Winter Program" cannot wipe the athlete they copied FROM.
    *   - `tabs` (workout types: hitting, pitching, ...) narrows BOTH sides:
@@ -480,18 +493,21 @@ export class TrainingService {
     fromDate: string,
     actorUserId?: string,
     tabs?: string[],
+    opts: { scope?: string; anchorDate?: string; programs?: string[] } = {},
   ) {
     if (!sourcePlayerId) throw new BadRequestException('sourcePlayerId is required');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate || '')) {
+    if (!ISO_DAY_RE.test(fromDate || '')) {
       throw new BadRequestException('fromDate must be YYYY-MM-DD');
     }
+    const scope = (['day', 'week', 'month', 'all'] as const).find((s) => s === opts.scope) ?? 'all';
+    const anchor = opts.anchorDate && ISO_DAY_RE.test(opts.anchorDate) ? opts.anchorDate : fromDate;
 
     /* Real players only — a bad id would otherwise create orphan rows that
        no calendar renders and nothing cleans up. */
     const requested = targetPlayerIds.filter((id) => id && id !== sourcePlayerId);
     const candidates = await this.prisma.player.findMany({
       where: { id: { in: requested } },
-      select: { id: true, userId: true, user: { select: { status: true } } },
+      select: { id: true, userId: true, facilitySchedule: true, user: { select: { status: true } } },
     });
 
     /* A locked athlete is paused: no access, and no program schedule pushed
@@ -510,50 +526,112 @@ export class TrainingService {
 
     const sourcePlayer = await this.prisma.player.findUnique({
       where: { id: sourcePlayerId },
-      select: { firstName: true },
+      select: { firstName: true, facilitySchedule: true },
     });
     const sourceName = sourcePlayer?.firstName ?? 'this athlete';
 
+    /* The source dates for the chosen scope. */
+    let range: { gte: string; lte?: string };
+    if (scope === 'day') range = { gte: anchor, lte: anchor };
+    else if (scope === 'week') { const mon = mondayOf(anchor); range = { gte: mon, lte: addDays(mon, 6) }; }
+    else if (scope === 'month') {
+      const first = `${anchor.slice(0, 7)}-01`;
+      const [y, m] = anchor.split('-').map(Number);
+      const last = `${anchor.slice(0, 7)}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+      range = { gte: first, lte: last };
+    } else range = { gte: fromDate };
+
     const tabFilter = tabs && tabs.length > 0 ? [...new Set(tabs)] : null;
     const source = await this.prisma.scheduledDrill.findMany({
-      where: { playerId: sourcePlayerId, date: { gte: fromDate }, ...(tabFilter ? { tab: { in: tabFilter } } : {}) },
+      where: { playerId: sourcePlayerId, date: range, ...(tabFilter ? { tab: { in: tabFilter } } : {}) },
       orderBy: [{ date: 'asc' }, { sectionOrder: 'asc' }, { order: 'asc' }],
     });
+    const scopeWord = scope === 'day' ? 'on this day' : scope === 'week' ? 'in this week' : scope === 'month' ? 'in this month' : 'from this date forward';
     if (source.length === 0) {
       throw new BadRequestException(tabFilter
-        ? 'The selected athlete has none of those workouts scheduled from this date forward'
-        : 'The selected athlete has nothing scheduled from this date forward');
+        ? `The selected athlete has none of those workouts scheduled ${scopeWord}`
+        : `The selected athlete has nothing scheduled ${scopeWord}`);
+    }
+    const sourceByDate = new Map<string, typeof source>();
+    for (const d of source) {
+      const list = sourceByDate.get(d.date) ?? [];
+      list.push(d);
+      sourceByDate.set(d.date, list);
+    }
+    const dates = [...sourceByDate.keys()];
+
+    /* Ticked programs, and the source's own program days -- without them
+       there is no "Day 1" to copy from. */
+    const allPrograms = await this.facilityPrograms.list();
+    const ticked = allPrograms.filter((p) => (opts.programs ?? []).includes(p.key));
+    const sourceDays = new Map<string, WeekdayKey[]>();
+    for (const p of ticked) {
+      const days = programDaysOf(sourcePlayer?.facilitySchedule, p.key);
+      if (days.length === 0) {
+        throw new BadRequestException(`${sourceName} has no ${p.label} days, so there is no program day to copy from`);
+      }
+      sourceDays.set(p.key, days);
     }
 
-    const dates = [...new Set(source.map((d) => d.date))];
-    const targetIds = targets.map((t) => t.id);
+    /* Per target: which source date lands on which of their dates. */
+    let missingDays = 0;
+    const plans = targets.map((t) => {
+      const inPrograms = ticked.filter((p) => programDaysOf(t.facilitySchedule, p.key).length > 0);
+      const moves = new Map<string, string>(); // `${sourceDate}|${targetDate}` → targetDate
+      if (inPrograms.length === 0) {
+        for (const d of dates) moves.set(`${d}|${d}`, d);
+      } else {
+        for (const p of inPrograms) {
+          const from = sourceDays.get(p.key)!;
+          const to = programDaysOf(t.facilitySchedule, p.key);
+          for (const d of dates) {
+            const k = from.indexOf(weekdayKeyOf(d));
+            if (k < 0) continue; // not one of the source's days for this program
+            const day = to[k];
+            if (!day) { missingDays++; continue; } // they have fewer days a week
+            const td = addDays(mondayOf(d), WEEKDAY_KEYS.indexOf(day));
+            moves.set(`${d}|${td}`, td);
+          }
+        }
+      }
+      return { playerId: t.id, moves, mapped: inPrograms.length > 0 };
+    });
 
-    const rows = targetIds.flatMap((playerId) =>
-      source.map((d) => ({
-        playerId,
-        drillId: d.drillId,
-        tab: d.tab,
-        category: d.category,
-        name: d.name,
-        date: d.date,
-        time: d.time,
-        duration: d.duration,
-        notes: d.notes,
-        /* Carry the coach's drag-reorder so a copied day reads exactly like
-           the one it came from. */
-        order: d.order,
-        sectionOrder: d.sectionOrder,
-        block: d.block,
-        environment: d.environment,
-      })),
+    const rows = plans.flatMap(({ playerId, moves }) =>
+      [...moves.keys()].flatMap((key) => {
+        const [fromD, toD] = key.split('|');
+        return (sourceByDate.get(fromD) ?? []).map((d) => ({
+          playerId,
+          drillId: d.drillId,
+          tab: d.tab,
+          category: d.category,
+          name: d.name,
+          date: toD,
+          time: d.time,
+          duration: d.duration,
+          notes: d.notes,
+          /* Carry the coach's drag-reorder so a copied day reads exactly like
+             the one it came from. */
+          order: d.order,
+          sectionOrder: d.sectionOrder,
+          block: d.block,
+          environment: d.environment,
+        }));
+      }),
     );
+    if (rows.length === 0) {
+      throw new BadRequestException(ticked.length
+        ? 'None of the selected athletes have a matching program day for those workouts'
+        : 'Nothing to copy');
+    }
 
     /* Snapshot what is about to be destroyed BEFORE destroying it — this is
        the only record of the targets' previous plans, and undo restores from
        it verbatim. */
     const replaceWhere = {
-      playerId: { in: targetIds },
-      date: { in: dates },
+      OR: plans
+        .filter((pl) => pl.moves.size > 0)
+        .map((pl) => ({ playerId: pl.playerId, date: { in: [...new Set(pl.moves.values())] } })),
       ...(tabFilter ? { tab: { in: tabFilter } } : {}),
     };
     const removed = await this.prisma.scheduledDrill.findMany({ where: replaceWhere });
@@ -570,12 +648,20 @@ export class TrainingService {
       this.prisma.scheduledDrill.createMany({ data: withIds }),
     ]);
 
+    const written = new Set(rows.map((r) => r.playerId));
     const tabNote = tabFilter
       ? ` (${tabFilter.map((t) => (t === 'strength' ? 'S&C' : t.charAt(0).toUpperCase() + t.slice(1))).join(', ')} only)`
       : '';
+    const what = scope === 'day' ? 'day' : scope === 'week' ? 'week' : scope === 'month' ? 'month' : 'calendar';
+    const programNote = plans.some((pl) => pl.mapped)
+      ? `, matched to each athlete's ${ticked.map((p) => p.label).join(' / ')} days`
+      : '';
+    const missingNote = missingDays > 0
+      ? ` ${missingDays} program day${missingDays === 1 ? ' was' : 's were'} skipped where an athlete has fewer days a week.`
+      : '';
     const summary =
-      `Applied ${sourceName}'s calendar${tabNote} — ${source.length} drill${source.length === 1 ? '' : 's'} ` +
-      `across ${dates.length} day${dates.length === 1 ? '' : 's'} to ${targetIds.length} athlete${targetIds.length === 1 ? '' : 's'}.`;
+      `Applied ${sourceName}'s ${what}${tabNote} — ${rows.length} drill${rows.length === 1 ? '' : 's'} ` +
+      `to ${written.size} athlete${written.size === 1 ? '' : 's'}${programNote}.${missingNote}`;
 
     const log = await this.prisma.calendarChangeLog.create({
       data: {
@@ -588,10 +674,10 @@ export class TrainingService {
       select: { id: true },
     });
 
-    void this.notifyScheduledPlayers(targetIds);
+    void this.notifyScheduledPlayers([...written]);
 
     return {
-      players: targetIds.length,
+      players: written.size,
       dates: dates.length,
       drillsPerPlayer: source.length,
       drillsWritten: rows.length,

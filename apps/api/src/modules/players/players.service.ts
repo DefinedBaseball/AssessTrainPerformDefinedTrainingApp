@@ -12,13 +12,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 import { BunnyService } from '../videos/bunny.service';
 import { parsePhotoDataUrl, isPhotoId } from '../../common/photo.util';
+import { FacilityProgramsService, LESSON_KEY } from '../facility-programs/facility-programs.service';
 
-/* Workout types a facility time slot can be (not the athlete-type season
-   tags). Mirrors SCHEDULE_PROGRAMS in the web app's lib/facility-schedule.ts
-   -- keep the two in step. */
-const FACILITY_PROGRAMS = new Set([
-  'HITTING_PROGRAM', 'PITCHING_PROGRAM', 'LIFTING_PROGRAM', 'CATCHING_PROGRAM', 'LESSON',
-]);
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -45,6 +40,7 @@ export class PlayersService {
     private notifications: NotificationsService,
     private leaderboards: LeaderboardsService,
     private bunny: BunnyService,
+    private facilityPrograms: FacilityProgramsService,
   ) {}
 
   /** Tell coaches an athlete changed their own profile or Season Stats
@@ -544,16 +540,20 @@ export class PlayersService {
 
   /**
    * Replace an athlete's weekly facility schedule (Edit Profile / Upcoming
-   * Drills). Each entry is one program's days + start times, running from
-   * startDate to endDate. Anything malformed is refused rather than dropped,
-   * so the coach isn't told "saved" over a schedule that silently lost a day.
+   * Workouts). Each entry is one program's days + start times. A program
+   * entry runs on the program's own dates (Settings → Programs); a Lesson
+   * keeps its own start / end dates. Anything malformed is refused rather
+   * than dropped, so the coach isn't told "saved" over a schedule that
+   * silently lost a day.
    */
   async setFacilitySchedule(playerId: string, raw: unknown) {
     if (!Array.isArray(raw)) throw new BadRequestException('"schedule" must be a list');
     if (raw.length > 12) throw new BadRequestException('Too many schedules');
+    const programKeys = new Set((await this.facilityPrograms.list()).map((p) => p.key));
     const clean = raw.map((e: any) => {
       if (!e || typeof e !== 'object') throw new BadRequestException('Bad schedule entry');
-      if (!FACILITY_PROGRAMS.has(e.program)) throw new BadRequestException('Pick a program for every schedule');
+      const isLesson = e.program === LESSON_KEY;
+      if (!isLesson && !programKeys.has(e.program)) throw new BadRequestException('Pick a program for every schedule');
       const days: Record<string, string> = {};
       for (const k of WEEKDAY_KEYS) {
         const t = e.days?.[k];
@@ -562,7 +562,8 @@ export class PlayersService {
         days[k] = t;
       }
       if (Object.keys(days).length === 0) throw new BadRequestException('Pick at least one day for every schedule');
-      if (typeof e.endDate !== 'string' || !ISO_DAY.test(e.endDate)) throw new BadRequestException('Every schedule needs an end date');
+      if (!isLesson) return { program: e.program as string, days, startDate: null, endDate: null };
+      if (typeof e.endDate !== 'string' || !ISO_DAY.test(e.endDate)) throw new BadRequestException('A lesson schedule needs an end date');
       const startDate = typeof e.startDate === 'string' && ISO_DAY.test(e.startDate) ? e.startDate : null;
       if (startDate && startDate > e.endDate) throw new BadRequestException('The end date is before the start date');
       return { program: e.program as string, days, startDate, endDate: e.endDate as string };

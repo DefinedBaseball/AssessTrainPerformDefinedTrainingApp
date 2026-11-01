@@ -1,13 +1,18 @@
 'use client';
 
-/* Facility schedule picker -- the days of the week an athlete trains in the
- * building, a start time for each, and the dates the schedule runs. One card
- * per workout type (Hitting Program, Lesson, ...), each in its colour.
+/* Facility schedule picker -- which program(s) an athlete is in, the days of
+ * the week they come in for each, and the start time for each day. One card
+ * per program (Hitting Program, Lesson, ...), each in its colour.
+ *
+ * A program card offers only the days that program runs and, for each, only
+ * the start times set for it in Settings → Programs; its dates are the
+ * program's. A Lesson card (not a program) keeps free times and its own
+ * start / end dates.
  *
  * Two ways in, both coach-only:
  *   - FacilityScheduleEditor sits in the Edit Profile form and saves with it;
- *   - FacilityScheduleButton is the clock on Upcoming Drills, which opens the
- *     same editor in a dialog that saves on its own.
+ *   - FacilityScheduleButton is the clock on Upcoming Workouts, which opens
+ *     the same editor in a dialog that saves on its own.
  *
  * Data shape and colours: lib/facility-schedule.ts.
  */
@@ -19,9 +24,11 @@ import { useAuth } from '@/lib/auth-context';
 import { rem } from '@/lib/rem';
 import rs from '@/components/assessment/report-form.module.css';
 import {
-  type FacilitySlot, type WeekdayKey, WEEKDAYS, SCHEDULE_PROGRAMS,
-  programColor, programLabel, parseFacilitySchedule, facilityScheduleProblem, defaultProgramFor,
+  type FacilitySlot, type WeekdayKey, WEEKDAYS, LESSON_KEY,
+  scheduleChoices, getProgram, programColor, parseFacilitySchedule, facilityScheduleProblem,
+  defaultProgramFor, formatTime12, formatDay,
 } from '@/lib/facility-schedule';
+import { useFacilityPrograms } from '@/lib/use-facility-programs';
 
 function todayIso(): string {
   const d = new Date();
@@ -29,7 +36,9 @@ function todayIso(): string {
 }
 
 export function newFacilitySlot(program: string): FacilitySlot {
-  return { program, days: {}, startDate: todayIso(), endDate: '' };
+  return program === LESSON_KEY
+    ? { program, days: {}, startDate: todayIso(), endDate: '' }
+    : { program, days: {}, startDate: null, endDate: null };
 }
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -38,7 +47,7 @@ const QUARTERS = ['00', '15', '30', '45'];
 /** Hour / minute / AM-PM drop-downs writing a 24h "HH:MM". Minutes come in
  *  15-minute steps; a stored time off those steps (from before this picker)
  *  keeps its own minute as an extra option rather than being moved. */
-function TimeSelect({ value, onChange }: { value: string; onChange: (hhmm: string) => void }) {
+export function TimeSelect({ value, onChange }: { value: string; onChange: (hhmm: string) => void }) {
   const [h24, m] = value.split(':');
   const hNum = Number(h24) || 0;
   const pm = hNum >= 12;
@@ -73,12 +82,14 @@ function TimeSelect({ value, onChange }: { value: string; onChange: (hhmm: strin
   );
 }
 
-/** Colour key for the facility days -- every workout type, so it reads the
- *  same on every athlete. Sits beside the clock on Upcoming Workouts. */
+/** Colour key for the facility days -- every program plus Lesson, so it
+ *  reads the same on every athlete. Sits beside the clock on Upcoming
+ *  Workouts. */
 export function FacilityLegend() {
+  useFacilityPrograms();
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', alignItems: 'center', justifyContent: 'flex-end', minWidth: 0 }}>
-      {SCHEDULE_PROGRAMS.map((p) => (
+      {scheduleChoices().map((p) => (
         <span key={p.key} style={{
           display: 'inline-flex', alignItems: 'center', gap: 5,
           fontSize: rem(11), fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap',
@@ -91,6 +102,8 @@ export function FacilityLegend() {
   );
 }
 
+const ORDINAL = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th'];
+
 export function FacilityScheduleEditor({
   value,
   onChange,
@@ -101,20 +114,33 @@ export function FacilityScheduleEditor({
   /** Program a new card starts on -- the athlete's own program tag. */
   defaultProgram: string;
 }) {
+  useFacilityPrograms();
   const patch = (i: number, fields: Partial<FacilitySlot>) =>
     onChange(value.map((s, j) => (j === i ? { ...s, ...fields } : s)));
 
   const toggleDay = (i: number, day: WeekdayKey) => {
-    const days = { ...value[i].days };
+    const slot = value[i];
+    const days = { ...slot.days };
     if (days[day] !== undefined) {
       delete days[day];
-    } else {
+    } else if (slot.program === LESSON_KEY) {
       /* A new day starts on the time already used most recently on this
-         card, since program days usually share a start time. */
+         card, since lesson days usually share a start time. */
       const times = Object.values(days).filter(Boolean) as string[];
       days[day] = times[times.length - 1] || '16:00';
+    } else {
+      /* Programs: the same time as another picked day if this day offers
+         it, else the day's first offered time. */
+      const offered = getProgram(slot.program)?.hours[day] ?? [];
+      const used = Object.values(days).filter(Boolean) as string[];
+      days[day] = used.find((t) => offered.includes(t)) ?? offered[0] ?? '';
     }
     patch(i, { days });
+  };
+
+  /* Switching program drops days and times that belonged to the old one. */
+  const changeProgram = (i: number, program: string) => {
+    patch(i, { ...newFacilitySlot(program) });
   };
 
   return (
@@ -126,6 +152,9 @@ export function FacilityScheduleEditor({
       )}
       {value.map((slot, i) => {
         const color = programColor(slot.program);
+        const isLesson = slot.program === LESSON_KEY;
+        const program = isLesson ? undefined : getProgram(slot.program);
+        const offeredDays = WEEKDAYS.filter((d) => isLesson || (program?.hours[d.key]?.length ?? 0) > 0);
         const picked = WEEKDAYS.filter((d) => slot.days[d.key] !== undefined);
         return (
           <div
@@ -140,12 +169,12 @@ export function FacilityScheduleEditor({
               <select
                 className={rs.summarySelect}
                 value={slot.program}
-                onChange={(e) => patch(i, { program: e.target.value })}
+                onChange={(e) => changeProgram(i, e.target.value)}
                 aria-label="Program"
                 style={{ flex: '1 1 180px', minWidth: 0 }}
               >
-                {SCHEDULE_PROGRAMS.map((p) => (
-                  <option key={p.key} value={p.key}>{programLabel(p.key)}</option>
+                {scheduleChoices().map((p) => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
                 ))}
               </select>
               <button
@@ -158,63 +187,116 @@ export function FacilityScheduleEditor({
               >Remove</button>
             </div>
 
-            <div className={rs.summaryField}>
-              <label className={rs.summaryLabel}>Days of the Week</label>
-              <div className={rs.posChipRow}>
-                {WEEKDAYS.map((d) => {
-                  const on = slot.days[d.key] !== undefined;
-                  return (
-                    <button
-                      key={d.key}
-                      type="button"
-                      className={rs.posChip}
-                      aria-pressed={on}
-                      onClick={() => toggleDay(i, d.key)}
-                      style={on ? { background: color, borderColor: color, color: '#fff' } : undefined}
-                    >{d.short}</button>
-                  );
-                })}
+            {program && (
+              <div style={{ fontSize: rem(12), color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {program.startDate || program.endDate
+                  ? <>Runs {formatDay(program.startDate) || '…'} – {formatDay(program.endDate) || '…'}</>
+                  : <>No dates set for this program yet (Settings → Programs).</>}
               </div>
-            </div>
+            )}
+
+            {!isLesson && offeredDays.length === 0 ? (
+              <div style={{ fontSize: rem(12.5), color: 'var(--text-muted)' }}>
+                This program has no days or times yet. Add them in Settings → Programs.
+              </div>
+            ) : (
+              <div className={rs.summaryField}>
+                <label className={rs.summaryLabel}>Days of the Week</label>
+                <div className={rs.posChipRow}>
+                  {WEEKDAYS.map((d) => {
+                    const on = slot.days[d.key] !== undefined;
+                    const available = offeredDays.some((o) => o.key === d.key);
+                    return (
+                      <button
+                        key={d.key}
+                        type="button"
+                        className={rs.posChip}
+                        aria-pressed={on}
+                        disabled={!available && !on}
+                        title={!available && !on ? `${program?.label ?? 'This program'} doesn't run on ${d.label}` : undefined}
+                        onClick={() => toggleDay(i, d.key)}
+                        style={on
+                          ? { background: color, borderColor: color, color: '#fff' }
+                          : !available ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
+                      >{d.short}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {picked.length > 0 && (
               <div className={rs.summaryField}>
                 <label className={rs.summaryLabel}>Start Time</label>
                 <div className={rs.summaryGrid} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
-                  {picked.map((d) => (
-                    <div key={d.key} role="group" aria-label={`${d.label} start time`} style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ fontSize: rem(12), fontWeight: 700, color }}>{d.label}</span>
-                      <TimeSelect
-                        value={slot.days[d.key] || '16:00'}
-                        onChange={(t) => patch(i, { days: { ...slot.days, [d.key]: t } })}
-                      />
-                    </div>
-                  ))}
+                  {picked.map((d, k) => {
+                    const offered = program?.hours[d.key] ?? [];
+                    const current = slot.days[d.key] || '';
+                    const options = current && !offered.includes(current) ? [...offered, current].sort() : offered;
+                    return (
+                      <div key={d.key} role="group" aria-label={`${d.label} start time`} style={{ display: 'grid', gap: 4 }}>
+                        <span style={{ fontSize: rem(12), fontWeight: 700, color }}>
+                          {d.label}
+                          {/* Their Nth day of the week for this program --
+                              what Apply Calendar matches between athletes. */}
+                          {!isLesson && <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}> · Day {k + 1}</span>}
+                        </span>
+                        {isLesson ? (
+                          <TimeSelect
+                            value={current || '16:00'}
+                            onChange={(t) => patch(i, { days: { ...slot.days, [d.key]: t } })}
+                          />
+                        ) : (
+                          <select
+                            className={rs.summarySelect}
+                            aria-label={`${d.label} start time`}
+                            value={current}
+                            onChange={(e) => patch(i, { days: { ...slot.days, [d.key]: e.target.value } })}
+                            style={{ fontSize: rem(13), padding: '9px 26px 9px 10px', backgroundPosition: 'right 9px center' }}
+                          >
+                            {!current && <option value="">Pick a time</option>}
+                            {options.map((t) => (
+                              <option key={t} value={t}>
+                                {formatTime12(t)}{!offered.includes(t) ? ' (no longer offered)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                {!isLesson && picked.length > 1 && (
+                  <div style={{ fontSize: rem(11.5), color: 'var(--text-muted)' }}>
+                    {picked.map((d, k) => `${d.short} = ${ORDINAL[k]} workout`).join(' · ')} of their week.
+                  </div>
+                )}
               </div>
             )}
 
-            <div className={rs.summaryGrid} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
-              <div className={rs.summaryField}>
-                <label className={rs.summaryLabel}>Starts</label>
-                <input
-                  type="date"
-                  className={rs.summaryInput}
-                  value={slot.startDate || ''}
-                  onChange={(e) => patch(i, { startDate: e.target.value || null })}
-                />
+            {isLesson && (
+              <div className={rs.summaryGrid} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+                <div className={rs.summaryField}>
+                  <label className={rs.summaryLabel}>Starts</label>
+                  <input
+                    type="date"
+                    className={rs.summaryInput}
+                    value={slot.startDate || ''}
+                    onChange={(e) => patch(i, { startDate: e.target.value || null })}
+                  />
+                </div>
+                <div className={rs.summaryField}>
+                  <label className={rs.summaryLabel}>End Date</label>
+                  <input
+                    type="date"
+                    className={rs.summaryInput}
+                    value={slot.endDate || ''}
+                    min={slot.startDate || undefined}
+                    onChange={(e) => patch(i, { endDate: e.target.value })}
+                  />
+                </div>
               </div>
-              <div className={rs.summaryField}>
-                <label className={rs.summaryLabel}>End Date</label>
-                <input
-                  type="date"
-                  className={rs.summaryInput}
-                  value={slot.endDate}
-                  min={slot.startDate || undefined}
-                  onChange={(e) => patch(i, { endDate: e.target.value })}
-                />
-              </div>
-            </div>
+            )}
           </div>
         );
       })}
@@ -229,7 +311,7 @@ export function FacilityScheduleEditor({
   );
 }
 
-/** The clock on Upcoming Drills: opens the editor in a dialog that saves on
+/** The clock on Upcoming Workouts: opens the editor in a dialog that saves on
  *  its own. Renders nothing for anyone but a coach. */
 export function FacilityScheduleButton({
   playerId,

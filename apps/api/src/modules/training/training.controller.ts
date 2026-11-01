@@ -347,7 +347,10 @@ export class TrainingController {
   @ApiOperation({ summary: "Copy one athlete's forward calendar onto other athletes (COACH only)" })
   applyCalendar(
     @Request() req: AuthenticatedRequest,
-    @Body() dto: { sourcePlayerId: string; targetPlayerIds: string[]; fromDate: string; tabs?: string[] },
+    @Body() dto: {
+      sourcePlayerId: string; targetPlayerIds: string[]; fromDate: string; tabs?: string[];
+      scope?: string; anchorDate?: string; programs?: string[];
+    },
   ) {
     return this.trainingService.applyCalendarToPlayers(
       dto.sourcePlayerId,
@@ -355,6 +358,11 @@ export class TrainingController {
       dto.fromDate,
       req.user?.sub,
       Array.isArray(dto.tabs) ? dto.tabs.filter((t) => typeof t === 'string') : undefined,
+      {
+        scope: typeof dto.scope === 'string' ? dto.scope : undefined,
+        anchorDate: typeof dto.anchorDate === 'string' ? dto.anchorDate : undefined,
+        programs: Array.isArray(dto.programs) ? dto.programs.filter((k) => typeof k === 'string') : undefined,
+      },
     );
   }
 

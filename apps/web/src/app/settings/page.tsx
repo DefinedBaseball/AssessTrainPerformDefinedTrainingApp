@@ -12,6 +12,7 @@ import { AthleteAvatar } from '@/components/AthleteAvatar';
 import { PendingInvites, type PendingInviteRow } from '@/components/PendingInvites';
 import { AcademyTab } from './AcademyTab';
 import { DrillsTab } from './DrillsTab';
+import { ProgramsTab } from './ProgramsTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
@@ -29,7 +30,7 @@ const ReportModal = nextDynamic(
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
 import { tzOpt } from '@/lib/academy';
 
-type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'cameras' | 'myProfile' | 'staff' | 'academy';
+type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'programs' | 'cameras' | 'myProfile' | 'staff' | 'academy';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -59,6 +60,9 @@ export default function SettingsPage() {
     /* The drill library as a spreadsheet; typing in its blank bottom row
        adds a drill (view-only coaches just see the lists). */
     ...(isCoach ? ([{ key: 'drills' as TabKey, label: 'Drills' }]) : []),
+    /* Facility programs: season dates + weekday start times (view-only
+       coaches see them read-only). */
+    ...(isCoach ? ([{ key: 'programs' as TabKey, label: 'Programs' }]) : []),
     /* Admin-only "Staff" tab — create + manage coach accounts and access levels. */
     ...(isAdmin ? ([{ key: 'staff' as TabKey, label: 'Staff' }]) : []),
     /* Admin-only "Academy" tab — name, logos, contact info, email wording,
@@ -104,6 +108,7 @@ export default function SettingsPage() {
       {tab === 'data' && isEditorCoach && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isEditorCoach && <TeamsAndCollegesTab />}
       {tab === 'drills' && isCoach && <DrillsTab />}
+      {tab === 'programs' && isCoach && <ProgramsTab />}
       {tab === 'staff' && isAdmin && <StaffTab />}
       {tab === 'academy' && isAdmin && <AcademyTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}

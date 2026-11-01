@@ -21,7 +21,8 @@ import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
 import { CheckInFlow } from './CheckInFlow';
 import styles from './page.module.css';
-import { type FacilitySlot, parseFacilitySchedule, slotsOnDate, formatTime12 } from '@/lib/facility-schedule';
+import { type FacilitySlot, parseFacilitySchedule, slotsOnDate, formatTime12, weekDayLabel } from '@/lib/facility-schedule';
+import { useFacilityPrograms } from '@/lib/use-facility-programs';
 /* Coach Dashboard theme: canvas, banner and bubble surfaces. */
 import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
@@ -1143,9 +1144,12 @@ export default function TrainingPage() {
   const selectedPlayer = players.find(p => p.id === selectedPlayerId);
   /* The athlete's facility days (coach-set in Edit Profile / Upcoming
      Drills), drawn on Month and Week in their program colour. */
+  /* Program colours / dates / weeks (Settings → Programs). */
+  const facilityPrograms = useFacilityPrograms();
   const facilitySchedule = useMemo(
     () => parseFacilitySchedule(selectedPlayer ? selectedPlayer.facilitySchedule : ownScheduleRaw),
-    [selectedPlayer, ownScheduleRaw],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- programs feed slotsOnDate's lookups
+    [selectedPlayer, ownScheduleRaw, facilityPrograms],
   );
 
   /* Extra areas switched on for this athlete. Saved on the athlete; a
@@ -1777,6 +1781,8 @@ export default function TrainingPage() {
                 players={players}
                 sourcePlayer={selectedPlayer}
                 fromDate={applyFromDate}
+                anchorDate={todayDateStr}
+                view={view}
                 onApplied={(msg, logId) => {
                   setApplyBanner({ text: msg, logId });
                   /* Only the SOURCE calendar is on screen and it is never a
@@ -1994,7 +2000,7 @@ export default function TrainingPage() {
               className={styles.weekListItem}
               style={{ background: sl.color, color: '#fff' }}
             >
-              {formatTime12(sl.time)} · {sl.label}
+              {[formatTime12(sl.time), sl.label, weekDayLabel(sl)].filter(Boolean).join(' · ')}
             </span>
           ))}
         </div>
@@ -2171,7 +2177,7 @@ function MonthView({
                 key={`${sl.program}-${sl.time}`}
                 className={styles.eventPill}
                 style={{ background: sl.color, color: '#fff' }}
-                title={`${sl.label} · ${formatTime12(sl.time)}`}
+                title={[sl.label, weekDayLabel(sl), formatTime12(sl.time)].filter(Boolean).join(' · ')}
               >
                 {formatTime12(sl.time)} · {sl.label}
               </div>
@@ -2259,10 +2265,11 @@ function WeekView({
                   key={`${sl.program}-${sl.time}`}
                   className={styles.weekListItem}
                   style={{ background: sl.color, color: '#fff', whiteSpace: 'normal', lineHeight: 1.25 }}
-                  title={`${sl.label} · ${formatTime12(sl.time)}`}
+                  title={[sl.label, weekDayLabel(sl), formatTime12(sl.time)].filter(Boolean).join(' · ')}
                 >
                   <div style={{ fontWeight: 800 }}>{formatTime12(sl.time)}</div>
                   <div style={{ fontWeight: 600, opacity: 0.92 }}>{sl.label}</div>
+                  {(sl.week || sl.day) && <div style={{ fontWeight: 600, opacity: 0.85 }}>{weekDayLabel(sl)}</div>}
                 </div>
               ))}
               {isAll ? (

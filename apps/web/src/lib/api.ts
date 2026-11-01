@@ -3,7 +3,7 @@
  * Uses Next.js rewrites to proxy /api/* to the NestJS backend.
  */
 
-import type { FacilitySlot } from './facility-schedule';
+import type { FacilitySlot, FacilityProgram } from './facility-schedule';
 
 const TOKEN_KEY = 'pdapp_token';
 
@@ -830,6 +830,19 @@ export async function setPlayerCalendarTabs(playerId: string, tabs: string[]) {
   return request<{ calendarTabs: string[] }>(`/players/${playerId}/calendar-tabs`, {
     method: 'PATCH',
     body: JSON.stringify({ tabs }),
+  });
+}
+
+/** Settings → Programs: every facility program (any signed-in role reads). */
+export async function getFacilityPrograms() {
+  return request<FacilityProgram[]>('/facility-programs');
+}
+
+/** Coach: save the whole program list (Settings → Programs). */
+export async function saveFacilityPrograms(programs: Partial<FacilityProgram>[]) {
+  return request<FacilityProgram[]>('/facility-programs', {
+    method: 'PUT',
+    body: JSON.stringify({ programs }),
   });
 }
 
@@ -2119,6 +2132,12 @@ export async function applyCalendarToPlayers(data: {
   fromDate: string;
   /** Workout types (calendar tabs) to copy and replace. Omit for all. */
   tabs?: string[];
+  /** Which source dates: the anchor day / its Mon–Sun week / its month /
+   *  everything from fromDate (default). */
+  scope?: 'day' | 'week' | 'month' | 'all';
+  anchorDate?: string;
+  /** Ticked facility programs: their athletes get program-day matching. */
+  programs?: string[];
 }) {
   return request<{
     players: number; dates: number; drillsPerPlayer: number; drillsWritten: number;

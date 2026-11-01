@@ -29,7 +29,8 @@ import {
    identical grouping behavior across the app. */
 import { bundleVideos } from '@/lib/video-titles';
 import { FacilityScheduleButton, FacilityLegend } from '@/components/FacilitySchedule';
-import { parseFacilitySchedule, slotsOnDate, formatTime12 } from '@/lib/facility-schedule';
+import { parseFacilitySchedule, slotsOnDate, formatTime12, weekDayLabel } from '@/lib/facility-schedule';
+import { useFacilityPrograms } from '@/lib/use-facility-programs';
 import styles from './PlayerSummaryTab.module.css';
 import dashTheme from '@/app/dashTheme.module.css';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -280,7 +281,10 @@ function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; 
      with the start time. Held locally so the clock's save shows at once. */
   const [scheduleRaw, setScheduleRaw] = useState(player.facilitySchedule ?? null);
   useEffect(() => { setScheduleRaw(player.facilitySchedule ?? null); }, [player.id, player.facilitySchedule]);
-  const schedule = useMemo(() => parseFacilitySchedule(scheduleRaw), [scheduleRaw]);
+  /* Program colours / dates (Settings → Programs) -- re-render when they load. */
+  const programs = useFacilityPrograms();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- programs feed slotsOnDate's lookups
+  const schedule = useMemo(() => parseFacilitySchedule(scheduleRaw), [scheduleRaw, programs]);
   const [loading, setLoading] = useState(true);
 
   /* The 7-day tab strip: today + the next 6 days. Computed once on
@@ -511,7 +515,7 @@ function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; 
               {slots.map((sl) => (
                 <span
                   key={`${sl.program}-${sl.time}`}
-                  title={`${sl.label} · ${formatTime12(sl.time)}`}
+                  title={[sl.label, weekDayLabel(sl), formatTime12(sl.time)].filter(Boolean).join(' · ')}
                   style={{
                     fontSize: rem(9.5), fontWeight: 700, lineHeight: 1.1,
                     whiteSpace: 'nowrap', letterSpacing: 0,
@@ -587,7 +591,7 @@ function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; 
                   whiteSpace: 'nowrap',
                 }}
               >
-                {sl.label} · {formatTime12(sl.time)}
+                {[sl.label, weekDayLabel(sl), formatTime12(sl.time)].filter(Boolean).join(' · ')}
               </span>
             ))}
           </div>
