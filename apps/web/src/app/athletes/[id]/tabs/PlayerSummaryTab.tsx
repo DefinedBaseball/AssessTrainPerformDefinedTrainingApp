@@ -140,7 +140,9 @@ function buildTrendPoints(raw: { value: number; recordedAt: string }[] | undefin
       const [y, m, dd] = day.split('-').map(Number);
       return {
         label: new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        value: Math.round((agg.sum / agg.count) * 100) / 100,
+        /* Three places, so a 0.157 s Time to Contact isn't shown as 0.160;
+           each chart rounds for display (TrendCardSpec.decimals). */
+        value: Math.round((agg.sum / agg.count) * 1000) / 1000,
       };
     });
 }
@@ -1166,18 +1168,18 @@ const PITCHING_TREND_CARDS: TrendCardSpec[] = [
 ];
 const CATCHING_TREND_CARDS: TrendCardSpec[] = [
   { key: 'catcher_velo',  label: 'Catcher Velocity', unit: 'mph', accent: '#22C55E' },
-  { key: 'pop_time',      label: 'Pop Time',         unit: 's',   accent: '#22C55E' },
-  { key: 'exchange_time', label: 'Exchange Time',    unit: 's',   accent: '#22C55E' },
+  { key: 'pop_time',      label: 'Pop Time',         unit: 's',   accent: '#22C55E', decimals: 2 },
+  { key: 'exchange_time', label: 'Exchange Time',    unit: 's',   accent: '#22C55E', decimals: 2 },
 ];
 const INFIELD_TREND_CARDS: TrendCardSpec[] = [
   { key: 'infield_velo', label: 'Infield Velocity', unit: 'mph', accent: '#22C55E' },
-  { key: 'sprint_60',    label: '60-yard Dash',     unit: 's',   accent: '#22C55E' },
-  { key: 'sprint_10',    label: '10 Yard Sprint',   unit: 's',   accent: '#22C55E' },
+  { key: 'sprint_60',    label: '60-yard Dash',     unit: 's',   accent: '#22C55E', decimals: 2 },
+  { key: 'sprint_10',    label: '10 Yard Sprint',   unit: 's',   accent: '#22C55E', decimals: 2 },
 ];
 const OUTFIELD_TREND_CARDS: TrendCardSpec[] = [
   { key: 'outfield_velo', label: 'Outfield Velocity', unit: 'mph', accent: '#22C55E' },
-  { key: 'sprint_60',     label: '60-yard Dash',      unit: 's',   accent: '#22C55E' },
-  { key: 'sprint_10',     label: '10 Yard Sprint',    unit: 's',   accent: '#22C55E' },
+  { key: 'sprint_60',     label: '60-yard Dash',      unit: 's',   accent: '#22C55E', decimals: 2 },
+  { key: 'sprint_10',     label: '10 Yard Sprint',    unit: 's',   accent: '#22C55E', decimals: 2 },
 ];
 
 /* The charts a Player Summary section can show (its Trends group), and the

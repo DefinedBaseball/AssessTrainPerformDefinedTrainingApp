@@ -269,7 +269,12 @@ export default function AthletesPage() {
             aria-label="Filter by grad year"
           >
             <option value="ALL">All Grad Years</option>
-            {gradYears.map(y => <option key={y} value={String(y)}>Class of {y}</option>)}
+            {gradYears.map(y => (
+              <option key={y} value={String(y)}>
+                {/* College / Professional are stored as sentinel years. */}
+                {y === api.GRAD_COLLEGE || y === api.GRAD_PRO ? api.formatGradYear(y) : `Class of ${y}`}
+              </option>
+            ))}
             {(anyNoGrad || gradFilter === 'NONE') && <option value="NONE">No Grad Year</option>}
           </select>
           {/* Locked athletes live on their own page — same table as this

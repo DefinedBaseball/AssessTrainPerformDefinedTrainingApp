@@ -553,7 +553,12 @@ export class PlayersService {
     const clean = raw.map((e: any) => {
       if (!e || typeof e !== 'object') throw new BadRequestException('Bad schedule entry');
       const isLesson = e.program === LESSON_KEY;
-      if (!isLesson && !programKeys.has(e.program)) throw new BadRequestException('Pick a program for every schedule');
+      if (!isLesson && !programKeys.has(e.program)) {
+        /* A program type removed in Settings: drop it rather than refuse the
+           whole save (FacilityProgramsService.save also strips it). */
+        if (typeof e.program === 'string' && e.program.startsWith('CUSTOM_')) return null;
+        throw new BadRequestException('Pick a program for every schedule');
+      }
       const days: Record<string, string> = {};
       for (const k of WEEKDAY_KEYS) {
         const t = e.days?.[k];
@@ -567,7 +572,7 @@ export class PlayersService {
       const startDate = typeof e.startDate === 'string' && ISO_DAY.test(e.startDate) ? e.startDate : null;
       if (startDate && startDate > e.endDate) throw new BadRequestException('The end date is before the start date');
       return { program: e.program as string, days, startDate, endDate: e.endDate as string };
-    });
+    }).filter((e): e is NonNullable<typeof e> => e !== null);
     const exists = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
     if (!exists) throw new NotFoundException('Player not found');
     await this.prisma.player.update({

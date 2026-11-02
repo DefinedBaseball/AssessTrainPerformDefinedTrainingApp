@@ -151,7 +151,29 @@ export class FacilityProgramsService {
       create: { key: SETTING_KEY, value: JSON.stringify(out) },
       update: { value: JSON.stringify(out) },
     });
+    const removed = current.filter((c) => !c.builtIn && !seen.has(c.key)).map((c) => c.key);
+    if (removed.length) await this.removeFromSchedules(new Set(removed));
     return this.list();
+  }
+
+  /** Take removed program types off every athlete's facility schedule, so
+   *  nobody is left on a program that no longer exists (it has no days or
+   *  colour, and the schedule editor can't show it). */
+  private async removeFromSchedules(keys: Set<string>) {
+    const players = await this.prisma.player.findMany({
+      where: { facilitySchedule: { not: null } },
+      select: { id: true, facilitySchedule: true },
+    });
+    for (const pl of players) {
+      let entries: any[] = [];
+      try { const v = JSON.parse(pl.facilitySchedule || '[]'); if (Array.isArray(v)) entries = v; } catch { continue; }
+      const kept = entries.filter((e) => !keys.has(e?.program));
+      if (kept.length === entries.length) continue;
+      await this.prisma.player.update({
+        where: { id: pl.id },
+        data: { facilitySchedule: kept.length ? JSON.stringify(kept) : null },
+      });
+    }
   }
 }
 

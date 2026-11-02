@@ -148,7 +148,7 @@ export function ProgramsTab() {
                   type="button"
                   className={styles.btnSecondary}
                   onClick={() => { setSavedAt(0); setDraft((l) => l.filter((_, j) => j !== idx)); }}
-                  title="Remove this program type (athletes already on it keep their days until changed)"
+                  title="Remove this program type (athletes on it are taken off it when you save)"
                 >Remove</button>
               )}
             </div>
