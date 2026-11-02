@@ -13,6 +13,7 @@
 
 import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
@@ -1377,6 +1378,12 @@ export default function ProgramPage() {
 
   if (isLoading || !user || !isCoach) return null;
 
+  /* In full screen only the board is drawn (the browser's top layer), so a
+     window opened from it -- the drill video, the drill editor, the template
+     picker -- has to be drawn INSIDE the board or it opens unseen. */
+  const overBoard = (node: React.ReactNode) =>
+    isFullscreen && boardRef.current ? createPortal(node, boardRef.current) : node;
+
   /* The program's own colour drives the whole board. */
   const scheduleColor = programHex;
   const selectedPlayers: Player[] = selectedIds
@@ -1578,18 +1585,18 @@ export default function ProgramPage() {
           card. Edits Name / Time / Duration / Notes in place without
           going through the day-edit modal. Save calls
           api.updateScheduledDrill; Delete removes the slot entirely. */}
-      {editingDrill && (
+      {editingDrill && overBoard(
         <DrillEditor
           drill={editingDrill}
           onClose={closeEditor}
           onSave={saveEditor}
           onDelete={deleteEditor}
-        />
+        />,
       )}
 
       {/* Apply-Template picker — scoped to the board's active schedule so a
           Pitching board only offers Pitching templates. */}
-      {tplPlayer && (
+      {tplPlayer && overBoard(
         <TemplatePicker
           open
           tab={schedule}
@@ -1597,15 +1604,15 @@ export default function ProgramPage() {
           onClose={() => setTplPlayer(null)}
           onApply={applyTemplate}
           applying={applyingTpl}
-        />
+        />,
       )}
 
       {/* Drill video viewer — opens when a coach clicks a drill name. */}
-      {viewingDrill && (
+      {viewingDrill && overBoard(
         <DrillVideoModal
           drill={viewingDrill}
           onClose={() => setViewingDrill(null)}
-        />
+        />,
       )}
     </div>
   );

@@ -1022,10 +1022,52 @@
   cursor: pointer;
 }
 
-.athleteSwitch select:hover,
+.athleteSwitch select:hover:not(:disabled),
 .athleteSwitch select:focus-visible {
   border-color: var(--accent-bright);
   outline: none;
+}
+
+.athleteSwitch select:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The athlete list + its Program / Day / Time filters. */
+.athleteSwitchRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.athleteSwitchCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.athleteSwitchClear {
+  padding: 5px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.athleteSwitchClear:hover {
+  border-color: var(--accent-bright);
+  color: var(--text);
 }
 
 .srOnly {
