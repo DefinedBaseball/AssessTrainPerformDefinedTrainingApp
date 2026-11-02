@@ -48,7 +48,7 @@ export function toNum(v: unknown): number | null {
  *  squared-up rate of 0 is a legitimate reading. */
 const ZERO_MEANS_BLANK = new Set([
   'max_exit_velo', 'avg_exit_velo', 'max_bat_speed', 'avg_bat_speed', 'bat_speed',
-  'distance', 'smash_factor', 'fb_max_velo',
+  'distance', 'smash_factor', 'fb_max_velo', 'time_to_contact', 'rotational_accel_g',
   'infield_velo', 'outfield_velo', 'catcher_velo',
   'pop_time', 'exchange_time', 'sprint_60', 'sprint_10',
 ]);
@@ -59,6 +59,7 @@ export const TREND_METRIC_KEYS: string[] = [
   // Hitting
   'max_exit_velo', 'avg_exit_velo', 'max_bat_speed', 'avg_bat_speed', 'bat_speed',
   'squared_up_pct', 'smash_factor', 'launch_angle', 'attack_angle', 'plane_angle', 'distance',
+  'time_to_contact', 'rotational_accel_g',
   // Pitching (Trackman aggregate keys)
   'fb_max_velo', 'fb_avg_velo', 'spin_rate', 'h_break', 'v_break', 'release_height', 'extension',
   // Defense / speed
@@ -72,6 +73,7 @@ export const TREND_METRIC_KEYS: string[] = [
 export const UNIT_FOR: Record<string, string> = {
   max_exit_velo: 'mph', avg_exit_velo: 'mph', max_bat_speed: 'mph', avg_bat_speed: 'mph', bat_speed: 'mph',
   squared_up_pct: '%', smash_factor: '', launch_angle: '°', attack_angle: '°', plane_angle: '°', distance: 'ft',
+  time_to_contact: 's', rotational_accel_g: 'g',
   fb_max_velo: 'mph', fb_avg_velo: 'mph', spin_rate: 'rpm', h_break: 'in', v_break: 'in', release_height: 'ft', extension: 'ft',
   infield_velo: 'mph', outfield_velo: 'mph', catcher_velo: 'mph', pop_time: 's', exchange_time: 's',
   sprint_60: 's', sprint_10: 's',
@@ -188,6 +190,8 @@ export function extractReportMetrics(reportType: string, content: any): ReportMe
       push('avg_bat_speed', sw.avg_bat_speed, 'mph');
       push('attack_angle', sw.attack_angle, '°');
       push('plane_angle', sw.plane_angle, '°');
+      push('time_to_contact', sw.time_to_contact, 's');
+      push('rotational_accel_g', sw.rotational_accel_g, 'g');
       /* HitTrax manual entry last, so it wins over a Full Swing manual value
          for the same reading (as on the Hitting tab) -- except Max readings,
          where the higher one is kept (see the de-dupe after this switch). */

@@ -151,9 +151,11 @@ function buildTrendPoints(raw: { value: number; recordedAt: string }[] | undefin
    ═══════════════════════════════════════════ */
 
 function TrendChart({
-  data, unit, accent = '#60A5FA',
+  data, unit, accent = '#60A5FA', decimals = 1,
 }: {
   data: { label: string; value: number }[];
+  /** Decimal places the metric reads in (Time to Contact needs 3). */
+  decimals?: number;
   unit: string;
   accent?: string;
 }) {
@@ -170,9 +172,12 @@ function TrendChart({
   const values = data.map((d) => d.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const pad = (max - min) * 0.25 || 1;
-  const yMin = Math.floor(min - pad);
-  const yMax = Math.ceil(max + pad);
+  /* Axis bounds snap to whole units -- or, for a fine-grained metric, to
+     its own precision, so a 0.14-0.16 s line isn't flattened onto 0-1. */
+  const scale = 10 ** Math.max(0, decimals - 1);
+  const pad = (max - min) * 0.25 || 1 / scale;
+  const yMin = Math.floor((min - pad) * scale) / scale;
+  const yMax = Math.ceil((max + pad) * scale) / scale;
 
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -215,7 +220,7 @@ function TrendChart({
             fontSize: rem(12),
             color: tk.tooltipText,
           }}
-          formatter={(v: any) => [`${v} ${unit}`, '']}
+          formatter={(v: any) => [`${typeof v === 'number' ? +v.toFixed(decimals) : v} ${unit}`, '']}
         />
         <Area
           type="monotone"
@@ -1134,6 +1139,8 @@ interface TrendCardSpec {
   label: string;
   unit: string;
   accent: string;
+  /** Decimal places (default 1). */
+  decimals?: number;
 }
 
 /* Each trend group's charts -- the Trends tab lists them all, and a Player
@@ -1147,6 +1154,8 @@ const HITTING_TREND_CARDS: TrendCardSpec[] = [
   { key: 'squared_up_pct',     label: 'Squared Up %',      unit: '%',   accent: '#3B82F6' },
   { key: 'attack_angle',       label: 'Attack Angle',      unit: '°',   accent: '#3B82F6' },
   { key: 'plane_angle',        label: 'Plane Angle',       unit: '°',   accent: '#3B82F6' },
+  { key: 'rotational_accel_g', label: 'Rotational Acceleration', unit: 'g', accent: '#3B82F6' },
+  { key: 'time_to_contact',    label: 'Time to Contact',   unit: 's',   accent: '#3B82F6', decimals: 3 },
 ];
 const PITCHING_TREND_CARDS: TrendCardSpec[] = [
   { key: 'fb_max_velo', label: 'Fastball Max Velo', unit: 'mph', accent: '#F59E0B' },
@@ -1561,7 +1570,7 @@ function TrendMetricCard({
           whiteSpace: 'nowrap',
           flexShrink: 0,
         }}>
-          {latest ? latest.value.toFixed(1) : '—'}
+          {latest ? latest.value.toFixed(spec.decimals ?? 1) : '—'}
           {' '}
           <span style={{
             fontSize: rem(10), fontWeight: 500, color: 'var(--text-muted)',
@@ -1573,6 +1582,7 @@ function TrendMetricCard({
           data={points}
           unit={spec.unit}
           accent={spec.accent}
+          decimals={spec.decimals}
         />
       </div>
     </div>

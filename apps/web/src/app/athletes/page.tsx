@@ -25,6 +25,8 @@ const POSITIONS = ['All', 'C', 'INF', 'OF', 'P', 'UTIL'];
 /* Persist the coach's last athlete-type filter across navigation (localStorage
    so it also survives a full reload / new session). */
 const TYPE_FILTER_KEY = 'athleteHub.typeFilter';
+/* Grad-year filter: 'ALL', 'NONE' (no grad year on file) or a year. */
+const GRAD_FILTER_KEY = 'athleteHub.gradFilter';
 
 export default function AthletesPage() {
   const router = useRouter();
@@ -45,6 +47,15 @@ export default function AthletesPage() {
     try {
       const saved = localStorage.getItem(TYPE_FILTER_KEY);
       return saved && ATHLETE_TYPE_FILTERS.some(f => f.key === saved) ? saved : 'ALL';
+    } catch {
+      return 'ALL';
+    }
+  });
+  const [gradFilter, setGradFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'ALL';
+    try {
+      const saved = localStorage.getItem(GRAD_FILTER_KEY);
+      return saved && (saved === 'NONE' || /^\d{4}$/.test(saved)) ? saved : 'ALL';
     } catch {
       return 'ALL';
     }
@@ -141,8 +152,19 @@ export default function AthletesPage() {
     const matchesPos = posFilter === 'All' || p.positions.includes(posFilter);
     // Athlete-type dropdown — Membership implies Program (see lib/athlete-types).
     const matchesType = matchesAthleteTypeFilter(p.athleteTypes, typeFilter);
-    return matchesSearch && matchesPos && matchesType;
+    const matchesGrad = gradFilter === 'ALL'
+      || (gradFilter === 'NONE' ? !p.gradYear : String(p.gradYear) === gradFilter);
+    return matchesSearch && matchesPos && matchesType && matchesGrad;
   });
+
+  /* Grad years on the active roster, oldest class first. A saved year no
+     longer on the roster stays listed so the select never shows blank. */
+  const active = players.filter(p => !api.isPlayerLocked(p));
+  const gradYears = [...new Set([
+    ...active.map(p => p.gradYear).filter((y): y is number => !!y),
+    ...(/^\d{4}$/.test(gradFilter) ? [Number(gradFilter)] : []),
+  ])].sort((a, b) => a - b);
+  const anyNoGrad = active.some(p => !p.gradYear);
 
   // Alphabetical by displayed name ("First Last"); toggle flips A–Z / Z–A.
   const sorted = [...filtered].sort((a, b) => {
@@ -234,6 +256,21 @@ export default function AthletesPage() {
             {ATHLETE_TYPE_FILTERS.map(f => (
               <option key={f.key} value={f.key}>{f.label}</option>
             ))}
+          </select>
+          <select
+            value={gradFilter}
+            onChange={e => {
+              setGradFilter(e.target.value);
+              try { localStorage.setItem(GRAD_FILTER_KEY, e.target.value); } catch { /* storage unavailable */ }
+            }}
+            className={`${styles.typeFilter} ${theme.field} ${theme.firm}`}
+            style={{ whiteSpace: 'nowrap' }}
+            title="Filter by grad year"
+            aria-label="Filter by grad year"
+          >
+            <option value="ALL">All Grad Years</option>
+            {gradYears.map(y => <option key={y} value={String(y)}>Class of {y}</option>)}
+            {(anyNoGrad || gradFilter === 'NONE') && <option value="NONE">No Grad Year</option>}
           </select>
           {/* Locked athletes live on their own page — same table as this
               one, with Unlock in place of Lock. Sits left of the inquiry

@@ -27,7 +27,7 @@ export const PROGRESS_METRICS = [
   // Hitting
   'max_exit_velo', 'max_bat_speed', 'avg_exit_velo', 'avg_bat_speed',
   'bat_speed', 'smash_factor', 'launch_angle', 'attack_angle', 'distance',
-  'squared_up_pct', 'plane_angle',
+  'squared_up_pct', 'plane_angle', 'rotational_accel_g', 'time_to_contact',
   // Defense
   'infield_velo', 'outfield_velo', 'catcher_velo', 'pop_time', 'exchange_time',
   // Pitching
