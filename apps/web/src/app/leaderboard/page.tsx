@@ -28,6 +28,79 @@ const METRIC_TYPES = [
   { key: 'sprint_10', label: '10-Yard Sprint', unit: 'sec' },
 ];
 
+type MetricDef = (typeof METRIC_TYPES)[number];
+
+/* All Age Groups: the top few of each class, eight classes from this year. */
+const AGE_GROUP_COUNT = 8;
+const AGE_GROUP_TOP = 5;
+
+/** One board's rows. `compact` = the smaller per-class cards. */
+function RankTable({ entries, metric, metricKey, compact = false }: {
+  entries: LeaderboardEntry[];
+  metric: MetricDef | undefined;
+  metricKey: string;
+  compact?: boolean;
+}) {
+  return (
+    <table className={`${styles.table} ${compact ? styles.tableCompact : ''}`}>
+      <thead>
+        <tr>
+          <th className={styles.thRank}>Rank</th>
+          <th className={styles.thPlayer}>Player</th>
+          <th className={styles.thValue}>{compact ? (metric?.unit || '') : (metric?.label || metricKey)}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((e, i) => (
+          <tr key={e.id} className={styles.row}>
+            <td className={styles.tdRank}>
+              <span className={`${styles.rank} ${i < 3 ? styles[`rank${i + 1}` as keyof typeof styles] : ''}`}>
+                {e.rank}
+              </span>
+            </td>
+            <td className={styles.tdPlayer}>
+              {e.player ? (
+                <Link href={`/athletes/${e.playerId}`} className={styles.playerLink}>
+                  <span className={styles.playerAvatar}>
+                    {e.player.profilePhoto ? (
+                      <img
+                        src={e.player.profilePhoto}
+                        alt=""
+                        className={styles.avatarImg}
+                      />
+                    ) : (
+                      <>{e.player.firstName?.[0]}{e.player.lastName?.[0]}</>
+                    )}
+                  </span>
+                  <span className={styles.playerInfo}>
+                    <span className={styles.playerName}>
+                      {e.player.firstName} {e.player.lastName}
+                    </span>
+                    <span className={styles.playerMeta}>
+                      {e.player.positions || '—'}
+                      {e.player.collegeCommit && (
+                        <span className={styles.commit}> · {e.player.collegeCommit}</span>
+                      )}
+                    </span>
+                  </span>
+                </Link>
+              ) : (
+                <span className={styles.unknownPlayer}>Unknown Player</span>
+              )}
+            </td>
+            <td className={styles.tdValue}>
+              <span className={styles.value}>
+                {metric?.unit === 'sec' ? e.value.toFixed(2) : e.value.toFixed(1)}
+              </span>
+              {!compact && <span className={styles.unit}>{metric?.unit}</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export default function LeaderboardPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
@@ -41,6 +114,16 @@ export default function LeaderboardPage() {
   // Filters
   const [gradYear, setGradYear] = useState<number | null>(null);
   const [metricType, setMetricType] = useState('max_exit_velo');
+  /* All Age Groups: every class side by side (top 5 each) instead of one
+     class's full board. */
+  const [allGroups, setAllGroups] = useState(false);
+  const [groupEntries, setGroupEntries] = useState<Record<number, LeaderboardEntry[]>>({});
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  /* Always eight classes, starting with this calendar year's. */
+  const ageGroupYears = useMemo(() => {
+    const first = new Date().getFullYear();
+    return Array.from({ length: AGE_GROUP_COUNT }, (_, i) => first + i);
+  }, []);
 
   // Auth guard
   useEffect(() => {
@@ -81,6 +164,21 @@ export default function LeaderboardPage() {
 
   useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
 
+  /* Each class's top 5 for the chosen metric, fetched together. */
+  const fetchAgeGroups = useCallback(() => {
+    if (!user || !allGroups) return;
+    setGroupsLoading(true);
+    Promise.all(ageGroupYears.map(y =>
+      api.getLeaderboard(y, metricType, AGE_GROUP_TOP)
+        .then(rows => [y, rows] as const)
+        .catch(() => [y, [] as LeaderboardEntry[]] as const),
+    ))
+      .then(pairs => setGroupEntries(Object.fromEntries(pairs)))
+      .finally(() => setGroupsLoading(false));
+  }, [user, allGroups, ageGroupYears, metricType]);
+
+  useEffect(() => { fetchAgeGroups(); }, [fetchAgeGroups]);
+
   // Recompute handler (coach only)
   const handleRecompute = async () => {
     if (recomputing) return;
@@ -89,6 +187,7 @@ export default function LeaderboardPage() {
       await api.recomputeLeaderboard();
       // Re-fetch current view after recompute
       fetchLeaderboard();
+      fetchAgeGroups();
     } catch {
       // silently fail
     } finally {
@@ -110,21 +209,33 @@ export default function LeaderboardPage() {
         icon={<IconPodium />}
         eyebrow="Rankings"
         title="Leaderboards"
-        readout="Live"
-        readoutClassName={theme.firm}
-        actions={isCoach ? (
-          <button
-            className={`${styles.recomputeBtn} ${theme.field} ${theme.firm}`}
-            onClick={handleRecompute}
-            disabled={recomputing}
-          >
-            {recomputing ? (
-              <><span className={styles.recomputeSpinner} /> Recomputing...</>
-            ) : (
-              '↻ Recompute Rankings'
+        actions={
+          <div className={styles.headerActions}>
+            {/* Toggles between one class's full board and every class's
+                top 5 side by side. */}
+            <button
+              type="button"
+              className={`${styles.recomputeBtn} ${allGroups ? eduStyles.sportTabActive : theme.field} ${theme.firm}`}
+              onClick={() => setAllGroups(v => !v)}
+              aria-pressed={allGroups}
+            >
+              All Age Groups
+            </button>
+            {isCoach && (
+              <button
+                className={`${styles.recomputeBtn} ${theme.field} ${theme.firm}`}
+                onClick={handleRecompute}
+                disabled={recomputing}
+              >
+                {recomputing ? (
+                  <><span className={styles.recomputeSpinner} /> Recomputing...</>
+                ) : (
+                  '↻ Recompute Rankings'
+                )}
+              </button>
             )}
-          </button>
-        ) : undefined}
+          </div>
+        }
       />
 
       {/* ── Outer bubble wrapping all controls + table ── */}
@@ -133,7 +244,8 @@ export default function LeaderboardPage() {
         style={{ padding: 20, display: 'flex', flexDirection: 'column' }}
       >
       {/* ── Filter Selects (Grad Year + Metric) ── */}
-      <div className={styles.filterGrid}>
+      <div className={`${styles.filterGrid} ${allGroups ? styles.filterGridSingle : ''}`}>
+        {!allGroups && (
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Graduation Year</label>
           {availableGradYears.length > 0 ? (
@@ -160,6 +272,7 @@ export default function LeaderboardPage() {
             <span className={styles.noYears}>No athletes found — add players to see grad years.</span>
           )}
         </div>
+        )}
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>Metric</label>
           <select
@@ -174,7 +287,30 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* ── Leaderboard table ── */}
+      {allGroups ? (
+        /* ── All Age Groups: one card per class, top 5 each ── */
+        <div className={styles.groupGrid}>
+          {ageGroupYears.map(y => {
+            const rows = groupEntries[y] ?? [];
+            return (
+              <div key={y} className={`${styles.groupCard} ${theme.inner} ${theme.firm}`}>
+                <div className={styles.groupHead}>
+                  <span className={styles.groupTitle}>Class of {y}</span>
+                  <span className={styles.groupMetric}>{activeMetric?.label}</span>
+                </div>
+                {groupsLoading && !groupEntries[y] ? (
+                  <div className={styles.groupEmpty}>Loading…</div>
+                ) : rows.length === 0 ? (
+                  <div className={styles.groupEmpty}>No rankings yet</div>
+                ) : (
+                  <RankTable entries={rows} metric={activeMetric} metricKey={metricType} compact />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+      /* ── Leaderboard table ── */
       <div className={`${styles.tableWrap} ${theme.inner} ${theme.firm}`}>
         {loading ? (
           <div className={styles.loadingWrap}>
@@ -192,64 +328,10 @@ export default function LeaderboardPage() {
             </p>
           </div>
         ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.thRank}>Rank</th>
-                <th className={styles.thPlayer}>Player</th>
-                <th className={styles.thValue}>{activeMetric?.label || metricType}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e, i) => (
-                <tr key={e.id} className={styles.row}>
-                  <td className={styles.tdRank}>
-                    <span className={`${styles.rank} ${i < 3 ? styles[`rank${i + 1}` as keyof typeof styles] : ''}`}>
-                      {e.rank}
-                    </span>
-                  </td>
-                  <td className={styles.tdPlayer}>
-                    {e.player ? (
-                      <Link href={`/athletes/${e.playerId}`} className={styles.playerLink}>
-                        <span className={styles.playerAvatar}>
-                          {e.player.profilePhoto ? (
-                            <img
-                              src={e.player.profilePhoto}
-                              alt=""
-                              className={styles.avatarImg}
-                            />
-                          ) : (
-                            <>{e.player.firstName?.[0]}{e.player.lastName?.[0]}</>
-                          )}
-                        </span>
-                        <span className={styles.playerInfo}>
-                          <span className={styles.playerName}>
-                            {e.player.firstName} {e.player.lastName}
-                          </span>
-                          <span className={styles.playerMeta}>
-                            {e.player.positions || '—'}
-                            {e.player.collegeCommit && (
-                              <span className={styles.commit}> · {e.player.collegeCommit}</span>
-                            )}
-                          </span>
-                        </span>
-                      </Link>
-                    ) : (
-                      <span className={styles.unknownPlayer}>Unknown Player</span>
-                    )}
-                  </td>
-                  <td className={styles.tdValue}>
-                    <span className={styles.value}>
-                      {activeMetric?.unit === 'sec' ? e.value.toFixed(2) : e.value.toFixed(1)}
-                    </span>
-                    <span className={styles.unit}>{activeMetric?.unit}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RankTable entries={entries} metric={activeMetric} metricKey={metricType} />
         )}
       </div>
+      )}
       </div>{/* /bubble */}
     </div>
   );

@@ -655,3 +655,50 @@
 
 .value { color: var(--text); }
 [data-theme="light"] .commit { color: #1f7a3d; }
+
+/* ── Header actions + All Age Groups ── */
+.headerActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filterGridSingle { grid-template-columns: 1fr; }
+
+/* One card per class, top 5 each. */
+.groupGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.groupCard {
+  background: var(--card-elev), var(--card-elev-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  overflow: hidden;
+  min-width: 0;
+}
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.groupTitle { font-size: 14px; font-weight: 800; color: var(--text); }
+.groupMetric {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.groupEmpty { padding: 22px 14px; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+
+/* The per-class tables: tighter rows and a narrow value column. */
+.tableCompact th { padding: 8px 10px; }
+.tableCompact .thRank { width: 44px; }
+.tableCompact .thValue { width: 64px; }
+.tableCompact .tdRank,
+.tableCompact .tdValue { padding: 7px 10px; }
+.tableCompact .tdPlayer { padding: 6px 8px; }
+.tableCompact .playerAvatar { width: 28px; height: 28px; font-size: 11px; }
+.tableCompact .playerName { font-size: 13px; }
+.tableCompact .playerMeta { font-size: 10.5px; }
