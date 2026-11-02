@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -195,6 +195,29 @@ export default function LeaderboardPage() {
     }
   };
 
+  /* ── Full screen (coaches) ──
+     Same idea as the Program board: the rankings go edge-to-edge for the
+     facility TV, with a title in place of the drop-downs. Tracked through
+     fullscreenchange so Escape also brings the page back. */
+  const displayRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const enterFullscreen = () => {
+    const el = displayRef.current as any;
+    if (!el) return;
+    const req = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.msRequestFullscreen;
+    if (req) Promise.resolve(req.call(el)).catch(() => {});
+  };
+  const exitFullscreen = () => {
+    const d = document as any;
+    const exit = d.exitFullscreen ?? d.webkitExitFullscreen ?? d.msExitFullscreen;
+    if (exit) Promise.resolve(exit.call(d)).catch(() => {});
+  };
+
   const activeMetric = METRIC_TYPES.find(m => m.key === metricType);
   const isCoach = user?.role === 'COACH';
 
@@ -287,6 +310,25 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
+      {/* What goes full screen: a title row (full screen only) + the
+          rankings. */}
+      <div ref={displayRef} className={isFullscreen ? styles.tvBoard : undefined}>
+      {isFullscreen && (
+        <div className={styles.tvHead}>
+          <span className={styles.tvTitle}>Leaderboards</span>
+          <span className={styles.tvMetric}>{activeMetric?.label}</span>
+          <span className={styles.tvScope}>
+            {allGroups ? 'All Age Groups' : gradYear === 0 ? 'All Ages' : api.formatGradYear(gradYear)}
+          </span>
+          <button
+            type="button"
+            className={styles.tvExit}
+            onClick={exitFullscreen}
+            aria-label="Exit full screen"
+            title="Exit full screen"
+          >✕</button>
+        </div>
+      )}
       {allGroups ? (
         /* ── All Age Groups: one card per class, top 5 each ── */
         <div className={styles.groupGrid}>
@@ -332,7 +374,27 @@ export default function LeaderboardPage() {
         )}
       </div>
       )}
+      </div>{/* /full-screen display */}
       </div>{/* /bubble */}
+
+      {/* Floating Full Screen trigger -- coaches, like the Program board. */}
+      {isCoach && !isFullscreen && (
+        <button
+          type="button"
+          className={`${styles.fullscreenBtn} ${theme.field}`}
+          onClick={enterFullscreen}
+          title="Show the leaderboard in full screen"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+            strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M2 5.5V2.5h3" />
+            <path d="M14 5.5V2.5h-3" />
+            <path d="M2 10.5v3h3" />
+            <path d="M14 10.5v3h-3" />
+          </svg>
+          Full Screen
+        </button>
+      )}
     </div>
   );
 }
