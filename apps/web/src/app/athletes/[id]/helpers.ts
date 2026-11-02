@@ -812,6 +812,30 @@ export const MANUAL_BATTED_BALL_FIELDS: { key: keyof ManualBattedBall; label: st
   { key: 'max_distance',   label: 'Max Distance',   unit: 'ft',  step: 1 },
 ];
 
+/** Coach-typed HitTrax session numbers, saved at content.manualHitTrax when
+ *  the HitTrax card's Manual Entry toggle is on. Same readings the HitTrax
+ *  card shows; `ld_pct` is the card's LD % (display only). */
+export type ManualHitTrax = {
+  avg_exit_velo: number | null;
+  max_exit_velo: number | null;
+  launch_angle: number | null;
+  distance: number | null;
+  max_distance: number | null;
+  ld_pct: number | null;
+};
+export const MANUAL_HITTRAX_FIELDS: { key: keyof ManualHitTrax; label: string; unit: string; step?: number }[] = [
+  { key: 'avg_exit_velo', label: 'Avg Exit Velo', unit: 'mph', step: 0.1 },
+  { key: 'max_exit_velo', label: 'Max Exit Velo', unit: 'mph', step: 0.1 },
+  { key: 'launch_angle',  label: 'Launch Angle',  unit: '°',   step: 0.1 },
+  { key: 'distance',      label: 'Distance',      unit: 'ft',  step: 1 },
+  { key: 'max_distance',  label: 'Max Distance',  unit: 'ft',  step: 1 },
+  { key: 'ld_pct',        label: 'Line Drive %',  unit: '%',   step: 0.1 },
+];
+const EMPTY_MANUAL_HITTRAX: ManualHitTrax = {
+  avg_exit_velo: null, max_exit_velo: null, launch_angle: null,
+  distance: null, max_distance: null, ld_pct: null,
+};
+
 /* Order mirrors the in-app Hitting Snapshot Swing row:
    Max Bat → Avg Bat → Attack → Tilt → TtC → Plane → Conn → Rot. */
 export const MANUAL_SWING_METRIC_FIELDS: { key: keyof ManualSwingMetrics; label: string; unit: string; step?: number }[] = [
@@ -899,6 +923,14 @@ export function getManualBattedBall(report: ReportSummary | null): ManualBattedB
     const parsed = JSON.parse(report.content);
     return readManualNumberMap(EMPTY_MANUAL_BATTED_BALL, parsed?.manualBattedBall);
   } catch { return { ...EMPTY_MANUAL_BATTED_BALL }; }
+}
+
+export function getManualHitTrax(report: ReportSummary | null): ManualHitTrax {
+  if (!report?.content) return { ...EMPTY_MANUAL_HITTRAX };
+  try {
+    const parsed = JSON.parse(report.content);
+    return readManualNumberMap(EMPTY_MANUAL_HITTRAX, parsed?.manualHitTrax);
+  } catch { return { ...EMPTY_MANUAL_HITTRAX }; }
 }
 
 export function getManualSwingMetrics(report: ReportSummary | null): ManualSwingMetrics {

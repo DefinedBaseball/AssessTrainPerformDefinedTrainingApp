@@ -31,6 +31,7 @@ import {
   type ManualBattedBall, getManualBattedBall,
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
+  type ManualHitTrax, getManualHitTrax, MANUAL_HITTRAX_FIELDS,
   getPhysicalGrades,
   type DefenseCoachGrades,
   DEFENSE_COACH_GRADE_SECTIONS, getDefenseCoachGrades,
@@ -2897,6 +2898,11 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       early_connection: null, connection_at_impact: null,
     },
   );
+  const [manualHitTrax, setManualHitTrax] = useState<ManualHitTrax>(() =>
+    isEdit && existingReport
+      ? getManualHitTrax(existingReport)
+      : (Object.fromEntries(MANUAL_HITTRAX_FIELDS.map(f => [f.key, null])) as ManualHitTrax),
+  );
   /* Per-slot toggle — true when the coach has flipped that card into
      manual-entry mode. Default for every slot is CSV-upload mode (off).
      In edit mode we ONLY restore the toggle to ON when the saved content
@@ -2914,6 +2920,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
       const out: Record<string, boolean> = {};
       if (m && m.fullswing) out.fullswing = true;
       if (m && m.blast)     out.blast     = true;
+      if (m && m.hittrax)   out.hittrax   = true;
       return out;
     } catch { return {}; }
   });
@@ -3024,7 +3031,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
     switch (t) {
       case 'HITTING':
         return Object.values(hittingCoachGrades).some(v => v != null)
-          || manualMode.fullswing || manualMode.blast
+          || manualMode.fullswing || manualMode.blast || manualMode.hittrax
           || swingDecisionNotes.trim().length > 0 || swingDecisionVideos.length > 0;
       case 'PITCHING':
         return Object.values(pitchingCoachGrades).some(v => v != null);
@@ -3399,9 +3406,13 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                whether a manualBattedBall / manualSwingMetrics block
                represents real manual data or just leftover persisted
                values from a save before the toggle was added. */
+            manualHitTrax: manualMode.hittrax
+              ? { ...manualHitTrax }
+              : Object.fromEntries(MANUAL_HITTRAX_FIELDS.map(f => [f.key, null])),
             manualEntryModes: {
               fullswing: !!manualMode.fullswing,
               blast: !!manualMode.blast,
+              hittrax: !!manualMode.hittrax,
             },
             // Swing Decision sub-section notes — empty string clears the field.
             swingDecisionNotes: swingDecisionNotes || undefined,
@@ -3807,7 +3818,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                            (batted ball metrics) cards expose a Manual Entry
                            toggle. Everything else stays CSV-only. */
                         const supportsManual = reportType === 'HITTING'
-                          && (slot.key === 'blast' || slot.key === 'fullswing');
+                          && (slot.key === 'blast' || slot.key === 'fullswing' || slot.key === 'hittrax');
                         const isManual = supportsManual && !!manualMode[slot.key];
                         const setBb = (key: keyof ManualBattedBall, raw: string) =>
                           setManualBattedBall(prev => ({
@@ -3819,8 +3830,19 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                             ...prev,
                             [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]),
                           }));
+                        const setHt = (key: keyof ManualHitTrax, raw: string) =>
+                          setManualHitTrax(prev => ({
+                            ...prev,
+                            [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]),
+                          }));
                         const manualNode = isManual
-                          ? (slot.key === 'blast' ? (
+                          ? (slot.key === 'hittrax' ? (
+                              <ManualMetricBubbles
+                                fields={MANUAL_HITTRAX_FIELDS}
+                                values={manualHitTrax}
+                                onChange={setHt}
+                              />
+                            ) : slot.key === 'blast' ? (
                               <ManualMetricBubbles
                                 fields={MANUAL_SWING_METRIC_FIELDS}
                                 values={manualSwingMetrics}

@@ -753,6 +753,9 @@ export interface SharedHittingState {
    *  which are Full-Swing-source by definition — from ever showing. */
   activeManualBatted: Record<string, number | null>;
   manualFullSwingOn: boolean;
+  /** Same idea for the HitTrax card's Manual Entry. */
+  activeManualHitTrax: Record<string, number | null>;
+  manualHitTraxOn: boolean;
 }
 
 export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
@@ -761,6 +764,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     topMetricsWithMiss, metricGrades, reportUploadIds,
     hasActiveFullSwingData, hasActiveBlastData, hasActiveHitTraxData,
     activeManualBatted, manualFullSwingOn,
+    activeManualHitTrax, manualHitTraxOn,
   } = shared;
   /* Drives the abbreviated vendor-table labels below. */
   const isMobile = useIsMobile();
@@ -827,6 +831,15 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
   /* HitTrax-only session stats. */
   const hitTraxValues: Record<string, { value: number; unit: string }> = useMemo(() => {
     const out: Record<string, { value: number; unit: string }> = {};
+    /* Manual entry first; the CSV's own numbers below win, except that a
+       manual Max higher than the CSV's best stands. */
+    const unitFor = (k: string) =>
+      k === 'launch_angle' ? 'deg' : k === 'distance' || k === 'max_distance' ? 'ft' : 'mph';
+    if (manualHitTraxOn) {
+      for (const [k, v] of Object.entries(activeManualHitTrax)) {
+        if (k !== 'ld_pct' && typeof v === 'number' && Number.isFinite(v)) out[k] = { value: v, unit: unitFor(k) };
+      }
+    }
     if (hittraxVelos.length > 0) {
       out.avg_exit_velo = { value: round(mean(hittraxVelos)), unit: 'mph' };
       out.max_exit_velo = { value: round(Math.max(...hittraxVelos)), unit: 'mph' };
@@ -842,8 +855,9 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
       out.distance = { value: round(mean(hittraxDists)), unit: 'ft' };
       out.max_distance = { value: round(Math.max(...hittraxDists)), unit: 'ft' };
     }
+    if (manualHitTraxOn) applyManualMax(out, activeManualHitTrax, unitFor);
     return out;
-  }, [hittraxVelos, hittraxLAs, hittraxDists]);
+  }, [hittraxVelos, hittraxLAs, hittraxDists, activeManualHitTrax, manualHitTraxOn]);
 
   /* Line Drive % — share of balls in play struck between 5 and 30 degrees
      of launch angle, per coach spec.
@@ -883,7 +897,9 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     if (inPlay.length === 0) return null;
     return round((inPlay.filter(la => la >= 5 && la <= 30).length / inPlay.length) * 100);
   };
-  const hittraxLdPct   = useMemo(() => ldPctFrom(hittraxLAs),   [hittraxLAs]);   // eslint-disable-line react-hooks/exhaustive-deps
+  /* The uploads' LD %, or the coach's typed one when there are none. */
+  const manualHtLd = manualHitTraxOn ? activeManualHitTrax.ld_pct ?? null : null;
+  const hittraxLdPct   = useMemo(() => ldPctFrom(hittraxLAs) ?? manualHtLd, [hittraxLAs, manualHtLd]);   // eslint-disable-line react-hooks/exhaustive-deps
   const fullswingLdPct = useMemo(() => ldPctFrom(fullswingLAs), [fullswingLAs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Full Swing-only session stats — used to OVERRIDE topMetricsWithMiss

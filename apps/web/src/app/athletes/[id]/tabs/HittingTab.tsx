@@ -20,7 +20,7 @@ import { usePdfExport } from '@/components/PdfExportDialog';
 import {
   TabProps,
   getLatestReport, getReportUploadIds, getReportUploadIdsForKeys,
-  getManualSwingMetrics, getManualBattedBall,
+  getManualSwingMetrics, getManualBattedBall, getManualHitTrax,
   getReportVideoIds, getReportContentVideos,
   metricToGrade, aggregateReportMetrics, applyManualMax,
   type ReportSummary,
@@ -509,15 +509,16 @@ export function HittingTab(props: TabProps) {
      visibility. The coach only needs to re-save the report once for the
      marker to land. */
   const activeManualModes = useMemo(() => {
-    if (!activeHittingReport?.content) return { fullswing: false, blast: false };
+    if (!activeHittingReport?.content) return { fullswing: false, blast: false, hittrax: false };
     try {
       const parsed = JSON.parse(activeHittingReport.content);
       const m = parsed?.manualEntryModes;
       return {
         fullswing: !!(m && m.fullswing),
         blast: !!(m && m.blast),
+        hittrax: !!(m && m.hittrax),
       };
-    } catch { return { fullswing: false, blast: false }; }
+    } catch { return { fullswing: false, blast: false, hittrax: false }; }
   }, [activeHittingReport]);
   const activeManualBatted = useMemo(
     () => getManualBattedBall(activeHittingReport),
@@ -525,6 +526,10 @@ export function HittingTab(props: TabProps) {
   );
   const activeManualSwing = useMemo(
     () => getManualSwingMetrics(activeHittingReport),
+    [activeHittingReport],
+  );
+  const activeManualHitTrax = useMemo(
+    () => getManualHitTrax(activeHittingReport),
     [activeHittingReport],
   );
   /* Visibility = truth-based:
@@ -541,7 +546,8 @@ export function HittingTab(props: TabProps) {
     || (activeManualModes.fullswing && Object.values(activeManualBatted).some(v => v != null));
   const hasActiveBlastData = hasBlastCsv
     || (activeManualModes.blast && Object.values(activeManualSwing).some(v => v != null));
-  const hasActiveHitTraxData = hasHitTraxCsv;
+  const hasActiveHitTraxData = hasHitTraxCsv
+    || (activeManualModes.hittrax && Object.values(activeManualHitTrax).some(v => v != null));
 
   /** Active-report-only metrics: each Snapshot section (Full Swing, Blast,
    *  HitTrax, Coach Grades) populates ONLY from data attached to the active
@@ -621,6 +627,17 @@ export function HittingTab(props: TabProps) {
           return '%';
         });
       }
+      /* HitTrax manual entry: the same batted-ball readings. Merged after
+         Full Swing's (HitTrax is the dedicated batted-ball system); its LD %
+         is the card's own figure, not a shared metric. */
+      if (activeManualModes.hittrax) {
+        const { ld_pct: _ld, ...ht } = activeManualHitTrax;
+        merge(ht as unknown as Record<string, number | null>, (k) => {
+          if (k === 'distance' || k === 'max_distance') return 'ft';
+          if (k === 'launch_angle') return 'deg';
+          return 'mph';
+        });
+      }
 
       // CSV-derived metrics for THIS report only.
       const m = perReportMetrics.get(activeHittingReport.id);
@@ -634,6 +651,7 @@ export function HittingTab(props: TabProps) {
       const stamp = { recordedAt: activeHittingReport.createdAt };
       if (activeManualModes.blast) applyManualMax(base, activeManualSwing as unknown as Record<string, number | null>, maxUnit, stamp);
       if (activeManualModes.fullswing) applyManualMax(base, activeManualBatted as unknown as Record<string, number | null>, maxUnit, stamp);
+      if (activeManualModes.hittrax) applyManualMax(base, activeManualHitTrax as unknown as Record<string, number | null>, maxUnit, stamp);
     }
 
     if (fullSwingMissPct !== null) {
@@ -644,7 +662,7 @@ export function HittingTab(props: TabProps) {
     return base;
   }, [
     activeHittingReport, perReportMetrics, fullSwingMissPct, atBatMetrics, liveAtBatMetrics,
-    activeManualBatted, activeManualSwing, activeManualModes,
+    activeManualBatted, activeManualSwing, activeManualHitTrax, activeManualModes,
   ]);
 
   const metricGrades: Record<string, number | null> = useMemo(() => {
@@ -695,6 +713,8 @@ export function HittingTab(props: TabProps) {
        `activeManualBatted` in SharedHittingState. */
     activeManualBatted: activeManualBatted as unknown as Record<string, number | null>,
     manualFullSwingOn: !!activeManualModes.fullswing,
+    activeManualHitTrax: activeManualHitTrax as unknown as Record<string, number | null>,
+    manualHitTraxOn: !!activeManualModes.hittrax,
   };
 
   // Sub-tab nav rendered INSIDE the shared bubble at the top — pill-style buttons

@@ -24,7 +24,7 @@ import type { ReportSummary } from '@/app/athletes/[id]/helpers';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
   gradeIfKnown,
-  getManualSwingMetrics, getManualBattedBall,
+  getManualSwingMetrics, getManualBattedBall, getManualHitTrax,
   getDefenseCoachGrades, aggregateReportMetrics,
   applyManualMax, manualPitchMaxOf, withManualPitchMax,
 } from '@/app/athletes/[id]/helpers';
@@ -129,13 +129,14 @@ async function collectHittingPdfData(
   }
 
   /* Manual-entry flags: a stale manual block only counts when its toggle is on. */
-  let manualModes = { fullswing: false, blast: false };
+  let manualModes = { fullswing: false, blast: false, hittrax: false };
   if (hittingReport?.content) {
     try {
       const m = JSON.parse(hittingReport.content)?.manualEntryModes;
-      manualModes = { fullswing: !!m?.fullswing, blast: !!m?.blast };
+      manualModes = { fullswing: !!m?.fullswing, blast: !!m?.blast, hittrax: !!m?.hittrax };
     } catch { /* ignore */ }
   }
+  const manualHitTrax = getManualHitTrax(hittingReport) as unknown as Record<string, number | null>;
   const manualBatted = getManualBattedBall(hittingReport) as unknown as Record<string, number | null>;
   const manualSwing = getManualSwingMetrics(hittingReport) as unknown as Record<string, number | null>;
   const hasManual = (o: Record<string, number | null>) => Object.values(o).some(v => v != null);
@@ -207,10 +208,16 @@ async function collectHittingPdfData(
     if (cells.length) vendors.push({ key: 'blast', title: 'Blast Motion', cells });
   }
 
-  /* HitTrax -- this report's HitTrax uploads only. */
-  if (sawHt) {
-    const vals = sessionValues(ht);
-    const ld = lineDrivePct(ht.la);
+  /* HitTrax -- this report's HitTrax uploads, plus the card's manual entry
+     (CSV values win; a higher manual Max stands). */
+  if (sawHt || (manualModes.hittrax && hasManual(manualHitTrax))) {
+    const vals: Record<string, { value: number }> = {};
+    if (manualModes.hittrax) {
+      for (const [k, v] of Object.entries(manualHitTrax)) if (k !== 'ld_pct' && typeof v === 'number') vals[k] = { value: v };
+    }
+    Object.assign(vals, sessionValues(ht));
+    if (manualModes.hittrax) applyManualMax(vals as Record<string, { value: number; unit: string }>, manualHitTrax, () => '');
+    const ld = lineDrivePct(ht.la) ?? (manualModes.hittrax ? manualHitTrax.ld_pct ?? null : null);
     vendors.push({
       key: 'hittrax', title: 'HitTrax',
       cells: [

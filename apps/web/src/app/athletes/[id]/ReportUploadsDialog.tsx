@@ -29,6 +29,7 @@ import {
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
   MANUAL_PITCH_TYPES, type ManualPitchMax, getManualPitchMax,
+  type ManualHitTrax, getManualHitTrax, MANUAL_HITTRAX_FIELDS,
 } from './helpers';
 import { tzOpt } from '@/lib/academy';
 
@@ -48,6 +49,8 @@ const EMPTY_SWING: ManualSwingMetrics = {
 };
 /* Pitching's manual Max Velo boxes, one per pitch type. */
 const PITCH_MAX_FIELDS = MANUAL_PITCH_TYPES.map(t => ({ key: t.key, label: `${t.label} Max`, unit: 'mph' }));
+const emptyHitTrax = (): ManualHitTrax =>
+  Object.fromEntries(MANUAL_HITTRAX_FIELDS.map(f => [f.key, null])) as ManualHitTrax;
 const emptyBattedBall = (): ManualBattedBall =>
   Object.fromEntries(MANUAL_BATTED_BALL_FIELDS.map(f => [f.key, null])) as ManualBattedBall;
 
@@ -97,6 +100,7 @@ export function ReportUploadsDialog({
   const [manualSwing, setManualSwing] = useState<ManualSwingMetrics>(EMPTY_SWING);
   const [manualBb, setManualBb] = useState<ManualBattedBall>(emptyBattedBall);
   const [manualPitch, setManualPitch] = useState<ManualPitchMax>(() => getManualPitchMax(null));
+  const [manualHt, setManualHt] = useState<ManualHitTrax>(emptyHitTrax);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -113,7 +117,12 @@ export function ReportUploadsDialog({
     setInitialExisting(uploads);
     if (isHitting) {
       const m = c?.manualEntryModes || {};
-      setManualMode({ ...(m.fullswing ? { fullswing: true } : {}), ...(m.blast ? { blast: true } : {}) });
+      setManualMode({
+        ...(m.fullswing ? { fullswing: true } : {}),
+        ...(m.blast ? { blast: true } : {}),
+        ...(m.hittrax ? { hittrax: true } : {}),
+      });
+      setManualHt(getManualHitTrax(fresh as any));
       setManualSwing(getManualSwingMetrics(fresh as any));
       setManualBb(getManualBattedBall(fresh as any));
     }
@@ -259,7 +268,8 @@ export function ReportUploadsDialog({
 
       set.manualBattedBall = manualMode.fullswing ? { ...manualBb } : emptyBattedBall();
       set.manualSwingMetrics = manualMode.blast ? { ...manualSwing } : { ...EMPTY_SWING };
-      set.manualEntryModes = { fullswing: !!manualMode.fullswing, blast: !!manualMode.blast };
+      set.manualHitTrax = manualMode.hittrax ? { ...manualHt } : emptyHitTrax();
+      set.manualEntryModes = { fullswing: !!manualMode.fullswing, blast: !!manualMode.blast, hittrax: !!manualMode.hittrax };
     }
     if (isPitching) {
       const typed = Object.fromEntries(Object.entries(manualPitch).filter(([, v]) => v != null && v > 0));
@@ -313,9 +323,9 @@ export function ReportUploadsDialog({
               </div>
               <div className={rs.csvGrid}>
                 {slots.map(slot => {
-                  /* Only Hitting's Blast and Full Swing cards offer Manual
-                     Entry -- unchanged from the modal. */
-                  const supportsManual = isHitting && (slot.key === 'blast' || slot.key === 'fullswing');
+                  /* Hitting's Blast, Full Swing and HitTrax cards offer
+                     Manual Entry. */
+                  const supportsManual = isHitting && (slot.key === 'blast' || slot.key === 'fullswing' || slot.key === 'hittrax');
                   const isManual = supportsManual && !!manualMode[slot.key];
                   const setSw = (key: keyof ManualSwingMetrics, raw: string) => {
                     setTouched(true);
@@ -325,10 +335,16 @@ export function ReportUploadsDialog({
                     setTouched(true);
                     setManualBb(prev => ({ ...prev, [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]) }));
                   };
+                  const setHt = (key: keyof ManualHitTrax, raw: string) => {
+                    setTouched(true);
+                    setManualHt(prev => ({ ...prev, [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]) }));
+                  };
                   const manualNode = isManual
                     ? (slot.key === 'blast'
                         ? <ManualMetricBubbles fields={MANUAL_SWING_METRIC_FIELDS} values={manualSwing} onChange={setSw} />
-                        : <ManualMetricBubbles fields={MANUAL_BATTED_BALL_FIELDS} values={manualBb} onChange={setBb} />)
+                        : slot.key === 'hittrax'
+                          ? <ManualMetricBubbles fields={MANUAL_HITTRAX_FIELDS} values={manualHt} onChange={setHt} />
+                          : <ManualMetricBubbles fields={MANUAL_BATTED_BALL_FIELDS} values={manualBb} onChange={setBb} />)
                     : undefined;
                   return (
                     <CsvUploadCard

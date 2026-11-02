@@ -38,10 +38,11 @@ export function toNum(v: unknown): number | null {
 /** Metrics where 0 is physically impossible, so a stored 0 means "the coach
  *  left it blank", not "the reading was zero".
  *
- *  This matters because a manual field WINS over the CSV aggregate below: a
- *  report carrying `avg_exit_velo: 0` would pin the trend to 0 and suppress
- *  the real value from the upload. Older reports do carry those zeros — the
- *  modal writes null for an untouched field now, but it has not always.
+ *  This matters because a manual field stands wherever the report has no CSV
+ *  reading for it (and a manual Max can beat the CSV's): a stored
+ *  `max_exit_velo: 0` would otherwise be plotted as a real reading. Older
+ *  reports do carry those zeros — the modal writes null for an untouched
+ *  field now, but it has not always.
  *
  *  Angles and rates are deliberately NOT in here: a launch angle or a
  *  squared-up rate of 0 is a legitimate reading. */
@@ -99,8 +100,9 @@ export function aggRuleFor(key: string): 'max' | 'min' | 'avg' {
 
 /** "Best reading" metrics a coach can also type in by hand (a radar gun,
  *  a ball the tracker missed). For these the report keeps the HIGHER of the
- *  manual number and the CSV max -- a manual entry below the CSV max never
- *  hides the real best. Every other manual field still simply wins. */
+ *  manual number and the CSV max. Every other manual field only counts when
+ *  the report's CSVs have no reading for it -- the CSV always wins. Same
+ *  rule as the profile (web helpers.ts applyManualMax). */
 export const MANUAL_MAX_KEYS = new Set(['max_exit_velo', 'max_bat_speed', 'fb_max_velo']);
 
 /** Pitch types the Pitching report's manual Max Velo boxes cover, and the
@@ -186,6 +188,14 @@ export function extractReportMetrics(reportType: string, content: any): ReportMe
       push('avg_bat_speed', sw.avg_bat_speed, 'mph');
       push('attack_angle', sw.attack_angle, '°');
       push('plane_angle', sw.plane_angle, '°');
+      /* HitTrax manual entry last, so it wins over a Full Swing manual value
+         for the same reading (as on the Hitting tab) -- except Max readings,
+         where the higher one is kept (see the de-dupe after this switch). */
+      const ht = c.manualHitTrax ?? {};
+      push('avg_exit_velo', ht.avg_exit_velo, 'mph');
+      push('max_exit_velo', ht.max_exit_velo, 'mph');
+      push('launch_angle', ht.launch_angle, '°');
+      push('distance', ht.distance, 'ft');
       break;
     }
     case 'PITCHING': {
@@ -202,7 +212,15 @@ export function extractReportMetrics(reportType: string, content: any): ReportMe
       break;
   }
 
-  return out;
+  /* One value per metric: the last one pushed wins, except a Max reading
+     keeps the highest manual value (HitTrax vs Full Swing entry). */
+  const byKey = new Map<string, ReportMetric>();
+  for (const m of out) {
+    const prev = byKey.get(m.metricType);
+    if (prev && MANUAL_MAX_KEYS.has(m.metricType) && prev.value >= m.value) continue;
+    byKey.set(m.metricType, m);
+  }
+  return [...byKey.values()];
 }
 
 /**
@@ -226,17 +244,14 @@ export async function syncReportMetricsFor(
     content = {};
   }
 
-  // 1) Manual fields take precedence.
+  // 1) Manual fields: the fallback where the CSVs have no reading.
   const byKey = new Map<string, { value: number; unit: string }>();
   for (const m of extractReportMetrics(report.reportType, content)) {
     byKey.set(m.metricType, { value: m.value, unit: m.unit });
   }
-  /* Which keys the coach supplied by hand. Needed below to tell a manual
-     value apart from a CSV-derived one — the avg-exit-velo derivation may
-     override the latter but must never override the former. */
-  const manualKeys = new Set(byKey.keys());
 
-  // 2) CSV uploads → one aggregated value per trend metric (manual wins).
+  /* 2) CSV uploads → one aggregated value per trend metric, which replaces
+        the manual value -- except a manual Max that beats the CSV's best. */
   const uploadIds = collectUploadIds(content);
   if (uploadIds.length > 0) {
     const grouped = await prisma.metric.groupBy({
@@ -251,12 +266,8 @@ export async function syncReportMetricsFor(
       const v = rule === 'max' ? g._max?.value : rule === 'min' ? g._min?.value : g._avg?.value;
       if (v === null || v === undefined || !Number.isFinite(v)) continue;
       const manual = byKey.get(g.metricType);
-      if (manual) {
-        /* A manual Max only stands when it beats the CSV's best. */
-        if (MANUAL_MAX_KEYS.has(g.metricType) && v > manual.value) byKey.set(g.metricType, { ...manual, value: v });
-        continue;
-      }
-      byKey.set(g.metricType, { value: v, unit: UNIT_FOR[g.metricType] ?? '' });
+      if (manual && MANUAL_MAX_KEYS.has(g.metricType) && manual.value > v) continue;
+      byKey.set(g.metricType, { value: v, unit: manual?.unit ?? UNIT_FOR[g.metricType] ?? '' });
     }
 
     /* Avg Exit Velocity has no row of its own to aggregate.
@@ -274,13 +285,11 @@ export async function syncReportMetricsFor(
        rows, and averaging those averages is not the mean of the swings — it
        gave one athlete a trend of 87.5 against a panel reading 91.4. The
        trend has to agree with the number on the page, and the page averages
-       the swings. A value the coach typed in by hand still wins. */
-    if (!manualKeys.has('avg_exit_velo')) {
-      const swings = grouped.find((g: any) => g.metricType === 'max_exit_velo');
-      const mean = swings?._avg?.value;
-      if (mean !== null && mean !== undefined && Number.isFinite(mean)) {
-        byKey.set('avg_exit_velo', { value: mean, unit: UNIT_FOR.avg_exit_velo });
-      }
+       the swings. Like any CSV reading it replaces a typed Avg Exit Velo. */
+    const swings = grouped.find((g: any) => g.metricType === 'max_exit_velo');
+    const mean = swings?._avg?.value;
+    if (mean !== null && mean !== undefined && Number.isFinite(mean)) {
+      byKey.set('avg_exit_velo', { value: mean, unit: UNIT_FOR.avg_exit_velo });
     }
   }
 
