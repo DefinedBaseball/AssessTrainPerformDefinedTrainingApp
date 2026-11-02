@@ -239,8 +239,9 @@ export default function WorkoutsPage() {
   }, [isLoading, user, isCoach, loadAthletes]);
 
   /* The day's facility sessions: one group per start time + program,
-     earliest first, programs in the legend order within a time. Lessons are
-     left out -- they're one-on-one, not a group in the building. */
+     bundled by program (Settings order: all the Hitting sessions, then
+     Pitching, ...), earliest first within each. Lessons are left out --
+     they're one-on-one, not a group in the building. */
   const facilityGroups = useMemo<FacilityGroup[]>(() => {
     if (!athletes) return [];
     const order = FACILITY_GROUPS.map((g) => g.key);
@@ -265,7 +266,7 @@ export default function WorkoutsPage() {
     for (const g of groups) {
       g.athletes.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '') || (a.lastName || '').localeCompare(b.lastName || ''));
     }
-    return groups.sort((a, b) => a.time.localeCompare(b.time) || order.indexOf(a.program) - order.indexOf(b.program));
+    return groups.sort((a, b) => order.indexOf(a.program) - order.indexOf(b.program) || a.time.localeCompare(b.time));
   }, [athletes, date, FACILITY_GROUPS]);
 
   const facilityQuery = query.trim().toLowerCase();
