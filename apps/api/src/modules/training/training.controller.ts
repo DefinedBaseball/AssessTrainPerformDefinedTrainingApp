@@ -259,10 +259,12 @@ export class TrainingController {
   @ApiOperation({ summary: 'Record a check-in for a training day (ownership-checked)' })
   checkIn(
     @Request() req: AuthenticatedRequest,
-    @Body() dto: { playerId: string; date: string; focus: string },
+    @Body() dto: { playerId: string; date: string; focus: string; feelRating?: number; sleepRating?: number; eatRating?: number },
   ) {
     assertPlayerOwnership(req, dto?.playerId);
-    return this.trainingService.checkIn(dto.playerId, dto.date, dto.focus);
+    return this.trainingService.checkIn(dto.playerId, dto.date, dto.focus, {
+      feelRating: dto.feelRating, sleepRating: dto.sleepRating, eatRating: dto.eatRating,
+    });
   }
 
   @Post('check-in/finish')

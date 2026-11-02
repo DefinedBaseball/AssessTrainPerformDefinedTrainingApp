@@ -1,0 +1,51 @@
+/* Check-in 1-5 ratings: picker bubbles + read-only row. */
+
+.picker { display: flex; flex-direction: column; gap: 6px; }
+.question { font-size: 14px; font-weight: 700; color: var(--text); }
+
+.bubbles { display: flex; gap: 8px; }
+.bubble {
+  flex: 1 1 0;
+  max-width: 56px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface2, rgba(255, 255, 255, 0.04));
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+.bubble:hover { border-color: var(--text-muted); }
+.bubble:active { transform: scale(0.95); }
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  max-width: calc(5 * 56px + 4 * 8px);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Filled answer, coloured by how good it is. */
+.on { color: #fff; border-color: transparent; }
+.low { background: #d55e5e; }
+.mid { background: #c9a227; }
+.high { background: #3aad64; }
+
+.readout { display: inline-flex; gap: 5px; }
+.dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+.none { color: var(--text-muted); font-size: 13px; }

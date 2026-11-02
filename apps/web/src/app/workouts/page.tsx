@@ -36,6 +36,7 @@ import {
   programColor, programLabel, programWeek, entryDates,
 } from '@/lib/facility-schedule';
 import { useFacilityPrograms } from '@/lib/use-facility-programs';
+import { CHECK_IN_RATINGS, RatingReadout } from '@/components/CheckInRatings';
 
 type AttendanceTab = 'facility' | 'workouts' | 'athletes';
 const TAB_KEY = 'attendance.tab';
@@ -599,6 +600,12 @@ export default function WorkoutsPage() {
             </span>
           </div>
 
+          {CHECK_IN_RATINGS.map((r) => (
+            <div key={r.key} className={styles.qa}>
+              <span className={styles.q}>{r.question}</span>
+              <span className={styles.a}><RatingReadout value={selected[r.key]} /></span>
+            </div>
+          ))}
           <div className={styles.qa}>
             <span className={styles.q}>What is one area of focus for today&rsquo;s session?</span>
             <span className={styles.a}>

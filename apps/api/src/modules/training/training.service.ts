@@ -124,18 +124,36 @@ export class TrainingService {
   }
 
   /** Record the check-in. Idempotent: re-checking in the same day updates
-   *  the focus rather than erroring, so a double-tap cannot 500. */
-  async checkIn(playerId: string, date: string, focus: string) {
+   *  the focus rather than erroring, so a double-tap cannot 500. The three
+   *  1-5 ratings (feel / sleep / eat) are optional here so an older client
+   *  can still check in; anything outside 1-5 is refused. */
+  async checkIn(
+    playerId: string,
+    date: string,
+    focus: string,
+    ratings: { feelRating?: unknown; sleepRating?: unknown; eatRating?: unknown } = {},
+  ) {
     if (!date) throw new BadRequestException('date is required');
     const text = (focus || '').trim();
     if (!text) throw new BadRequestException('An area of focus is required');
+    const rating = (v: unknown, label: string): number | null => {
+      if (v === undefined || v === null || v === '') return null;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1 || n > 5) throw new BadRequestException(`${label} must be 1 to 5`);
+      return n;
+    };
+    const scores = {
+      feelRating: rating(ratings.feelRating, 'How you feel'),
+      sleepRating: rating(ratings.sleepRating, 'How you slept'),
+      eatRating: rating(ratings.eatRating, 'How you ate'),
+    };
     if (!(await this.hasScheduledOn(playerId, date))) {
       throw new BadRequestException('Nothing is scheduled for that day');
     }
     return this.prisma.drillCheckIn.upsert({
       where: { playerId_date: { playerId, date } },
-      create: { playerId, date, focus: text },
-      update: { focus: text },
+      create: { playerId, date, focus: text, ...scores },
+      update: { focus: text, ...scores },
     });
   }
 
@@ -182,6 +200,9 @@ export class TrainingService {
         checkedIn: !!c,
         finished: !!c?.finishedAt,
         focus: c?.focus ?? null,
+        feelRating: c?.feelRating ?? null,
+        sleepRating: c?.sleepRating ?? null,
+        eatRating: c?.eatRating ?? null,
         executedGoal: c?.executedGoal ?? null,
         learned: c?.learned ?? null,
         checkedInAt: c?.checkedInAt ?? null,
@@ -228,6 +249,9 @@ export class TrainingService {
           checkedIn: !!c,
           finished: !!c?.finishedAt,
           focus: c?.focus ?? null,
+          feelRating: c?.feelRating ?? null,
+          sleepRating: c?.sleepRating ?? null,
+          eatRating: c?.eatRating ?? null,
           executedGoal: c?.executedGoal ?? null,
           learned: c?.learned ?? null,
           checkedInAt: c?.checkedInAt ?? null,
@@ -292,6 +316,9 @@ export class TrainingService {
           checkedIn: !!c,
           finished: !!c?.finishedAt,
           focus: c?.focus ?? null,
+          feelRating: c?.feelRating ?? null,
+          sleepRating: c?.sleepRating ?? null,
+          eatRating: c?.eatRating ?? null,
           executedGoal: c?.executedGoal ?? null,
           learned: c?.learned ?? null,
           checkedInAt: c?.checkedInAt ?? null,

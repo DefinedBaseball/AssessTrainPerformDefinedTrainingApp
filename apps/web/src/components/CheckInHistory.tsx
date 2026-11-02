@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import * as api from '@/lib/api';
 import styles from './CheckInHistory.module.css';
+import { CHECK_IN_RATINGS, RatingReadout } from './CheckInRatings';
 
 function dayLabel(date: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
@@ -112,6 +113,12 @@ export function CheckInHistory({ playerId }: { playerId: string }) {
           </div>
         ) : (
         <>
+        {CHECK_IN_RATINGS.map((r) => (
+          <div key={r.key} className={styles.qa}>
+            <span className={styles.q}>{r.question}</span>
+            <span className={styles.a}><RatingReadout value={selected[r.key]} /></span>
+          </div>
+        ))}
         <div className={styles.qa}>
           <span className={styles.q}>What is one area of focus for today&rsquo;s session?</span>
           <span className={styles.a}>{selected.focus || <em className={styles.none}>Not answered</em>}</span>

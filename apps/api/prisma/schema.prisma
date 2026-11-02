@@ -725,6 +725,11 @@ model DrillCheckIn {
 
   /// "What is one area of focus for today's session?"
   focus       String
+  /// 1-5 ratings asked at check-in: "How do you feel?" / "How did you
+  /// sleep?" / "How did you eat?". Null on check-ins from before they existed.
+  feelRating  Int?
+  sleepRating Int?
+  eatRating   Int?
   checkedInAt DateTime @default(now())
 
   /// Reflection — captured on Finish, so null until the session is closed out.

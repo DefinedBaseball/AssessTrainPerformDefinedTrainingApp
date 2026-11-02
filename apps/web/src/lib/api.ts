@@ -1942,6 +1942,10 @@ export interface CheckInRecord {
   playerId: string;
   date: string;
   focus: string;
+  /** 1-5 check-in ratings; null on check-ins from before they were asked. */
+  feelRating: number | null;
+  sleepRating: number | null;
+  eatRating: number | null;
   checkedInAt: string;
   executedGoal: string | null;
   learned: string | null;
@@ -1955,6 +1959,9 @@ export interface CheckInDay {
   checkedIn: boolean;
   finished: boolean;
   focus: string | null;
+  feelRating: number | null;
+  sleepRating: number | null;
+  eatRating: number | null;
   executedGoal: string | null;
   learned: string | null;
   checkedInAt: string | null;
@@ -1987,7 +1994,14 @@ export async function getCheckInStatus(playerId: string, date: string) {
   );
 }
 
-export async function checkIn(data: { playerId: string; date: string; focus: string }) {
+export async function checkIn(data: {
+  playerId: string;
+  date: string;
+  focus: string;
+  feelRating: number;
+  sleepRating: number;
+  eatRating: number;
+}) {
   return request<CheckInRecord>('/training/check-in', {
     method: 'POST',
     body: JSON.stringify(data),

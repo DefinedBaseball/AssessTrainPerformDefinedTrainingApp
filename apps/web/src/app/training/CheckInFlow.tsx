@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '@/lib/api';
 import styles from './CheckInFlow.module.css';
+import { CHECK_IN_RATINGS, RatingPicker, type CheckInRatingKey } from '@/components/CheckInRatings';
 
 /** Local YYYY-MM-DD. Never UTC — see the note above. */
 function todayStr(): string {
@@ -55,6 +56,11 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
      status fetch lands, so starting false cannot flash the modal. */
   const [dismissed, setDismissed] = useState(false);
   const [focus, setFocus] = useState('');
+  /* How do you feel / sleep / eat, 1-5 -- all three required to check in. */
+  const [ratings, setRatings] = useState<Record<CheckInRatingKey, number | null>>({
+    feelRating: null, sleepRating: null, eatRating: null,
+  });
+  const ratingsDone = CHECK_IN_RATINGS.every((r) => ratings[r.key] != null);
   const [executedGoal, setExecutedGoal] = useState('');
   const [learned, setLearned] = useState('');
   const [finishing, setFinishing] = useState(false);
@@ -76,12 +82,16 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
   const showFinishBar = viewingToday && status.checkedIn && !status.finished;
 
   const submitCheckIn = async () => {
-    if (!focus.trim()) return;
+    if (!focus.trim() || !ratingsDone) return;
     setBusy(true);
     setError('');
     try {
-      await api.checkIn({ playerId, date, focus });
+      await api.checkIn({
+        playerId, date, focus,
+        feelRating: ratings.feelRating!, sleepRating: ratings.sleepRating!, eatRating: ratings.eatRating!,
+      });
       setFocus('');
+      setRatings({ feelRating: null, sleepRating: null, eatRating: null });
       load();
       onChanged?.();
     } catch (e) {
@@ -131,6 +141,15 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
               <div className={styles.sub}>
                 {status.drillCount} drill{status.drillCount === 1 ? '' : 's'} scheduled today.
               </div>
+              {CHECK_IN_RATINGS.map((r) => (
+                <RatingPicker
+                  key={r.key}
+                  id={`checkin-${r.key}`}
+                  label={r.question}
+                  value={ratings[r.key]}
+                  onChange={(n) => setRatings((prev) => ({ ...prev, [r.key]: n }))}
+                />
+              ))}
               <label className={styles.question} htmlFor="checkin-focus">
                 What is one area of focus for today&rsquo;s session?
               </label>
@@ -141,7 +160,6 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
                 onChange={(e) => setFocus(e.target.value)}
                 placeholder="e.g. staying through the ball on outside pitches"
                 rows={3}
-                autoFocus
               />
               {error && <div className={styles.error}>{error}</div>}
             </div>
@@ -150,7 +168,7 @@ export function CheckInFlow({ playerId, viewDate, onChanged }: {
                 type="button"
                 className={styles.primary}
                 onClick={submitCheckIn}
-                disabled={busy || !focus.trim()}
+                disabled={busy || !focus.trim() || !ratingsDone}
               >
                 {busy ? 'Checking In…' : 'Check In'}
               </button>
