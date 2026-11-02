@@ -21,7 +21,7 @@ import {
   TabProps, METRIC_LABELS,
   computeHittingComposites,
   averageGrades,
-  metricToGrade, scoreColor,
+  metricToGrade, scoreColor, applyManualMax,
 } from '../helpers';
 import * as api from '@/lib/api';
 
@@ -927,6 +927,10 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
     if (fullswingDists.length > 0) {
       out.distance = { value: round(mean(fullswingDists)), unit: 'ft' };
       out.max_distance = { value: round(Math.max(...fullswingDists)), unit: 'ft' };
+    }
+    /* Max readings: the CSV's best stands unless the manual Max is higher. */
+    if (manualFullSwingOn) {
+      applyManualMax(out, activeManualBatted as unknown as Record<string, number | null>, (k) => (k === 'max_distance' ? 'ft' : 'mph'));
     }
     return out;
   }, [fullswingVelos, fullswingLAs, fullswingDists, activeManualBatted, manualFullSwingOn]);

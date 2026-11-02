@@ -28,6 +28,7 @@ import {
   type ManualBattedBall, getManualBattedBall,
   type ManualSwingMetrics, getManualSwingMetrics,
   MANUAL_BATTED_BALL_FIELDS, MANUAL_SWING_METRIC_FIELDS,
+  MANUAL_PITCH_TYPES, type ManualPitchMax, getManualPitchMax,
 } from './helpers';
 import { tzOpt } from '@/lib/academy';
 
@@ -45,6 +46,8 @@ const EMPTY_SWING: ManualSwingMetrics = {
   plane_score: null, connection_score: null, rotation_score: null,
   early_connection: null, connection_at_impact: null,
 };
+/* Pitching's manual Max Velo boxes, one per pitch type. */
+const PITCH_MAX_FIELDS = MANUAL_PITCH_TYPES.map(t => ({ key: t.key, label: `${t.label} Max`, unit: 'mph' }));
 const emptyBattedBall = (): ManualBattedBall =>
   Object.fromEntries(MANUAL_BATTED_BALL_FIELDS.map(f => [f.key, null])) as ManualBattedBall;
 
@@ -69,6 +72,7 @@ export function ReportUploadsDialog({
 }) {
   const reportType = report.reportType;
   const isHitting = reportType === 'HITTING';
+  const isPitching = reportType === 'PITCHING';
   const slots: CsvSlot[] = REPORT_CSV_SLOTS[reportType] || [];
 
   /* The page's copy of the report can be minutes old; the upload window
@@ -92,6 +96,7 @@ export function ReportUploadsDialog({
   const [manualMode, setManualMode] = useState<Record<string, boolean>>({});
   const [manualSwing, setManualSwing] = useState<ManualSwingMetrics>(EMPTY_SWING);
   const [manualBb, setManualBb] = useState<ManualBattedBall>(emptyBattedBall);
+  const [manualPitch, setManualPitch] = useState<ManualPitchMax>(() => getManualPitchMax(null));
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -112,7 +117,8 @@ export function ReportUploadsDialog({
       setManualSwing(getManualSwingMetrics(fresh as any));
       setManualBb(getManualBattedBall(fresh as any));
     }
-  }, [fresh, isHitting]);
+    if (isPitching) setManualPitch(getManualPitchMax(fresh as any));
+  }, [fresh, isHitting, isPitching]);
 
   const stagedCount = useMemo(
     () => Object.values(csvFiles).reduce((n, arr) => n + (arr?.length || 0), 0),
@@ -255,6 +261,10 @@ export function ReportUploadsDialog({
       set.manualSwingMetrics = manualMode.blast ? { ...manualSwing } : { ...EMPTY_SWING };
       set.manualEntryModes = { fullswing: !!manualMode.fullswing, blast: !!manualMode.blast };
     }
+    if (isPitching) {
+      const typed = Object.fromEntries(Object.entries(manualPitch).filter(([, v]) => v != null && v > 0));
+      set.manualPitchMax = Object.keys(typed).length ? typed : null;
+    }
 
     try {
       await api.mergeReportContent(report.id, { set });
@@ -339,6 +349,28 @@ export function ReportUploadsDialog({
                   );
                 })}
               </div>
+              {/* Manual Max Velo: kept alongside the TrackMan files, not
+                  instead of them. Each pitch type shows the higher of this
+                  and the file's best (Arsenal, PDF, Max FB Velo trend and
+                  leaderboard). */}
+              {isPitching && (
+                <div style={{ marginTop: 14 }}>
+                  <div className={rs.sectionHeader} style={{ marginBottom: 6 }}>
+                    <span className={rs.sectionTitle}>Manual Max Velo</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+                    Optional. A number here is used when it&rsquo;s higher than the uploaded file&rsquo;s best for that pitch.
+                  </div>
+                  <ManualMetricBubbles
+                    fields={PITCH_MAX_FIELDS}
+                    values={manualPitch}
+                    onChange={(key, raw) => {
+                      setTouched(true);
+                      setManualPitch(prev => ({ ...prev, [key]: raw === '' ? null : (Number.isFinite(Number(raw)) ? Number(raw) : prev[key]) }));
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
 

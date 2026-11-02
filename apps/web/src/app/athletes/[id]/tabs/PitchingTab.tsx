@@ -12,6 +12,7 @@ import styles from '../page.module.css';
 import hud from './PitchingTab.module.css';
 import {
   TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport,
+  manualPitchMaxOf, withManualPitchMax,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -1251,7 +1252,14 @@ export function PitchingTab({
   // Pitches rebuilt from a Trackman PDF report are table-driven (not tracked
   // per pitch), so the plots render non-interactive — no click-to-inspect.
   const pdfOrigin = hasPitchData && pitches.every(p => p.pdfSource);
-  const arsenal = hasPitchData ? computeArsenal(pitches) : [];
+  /* Max Velo per pitch type: the CSV's best, unless a manual Max Velo typed
+     on the report (any report in an aggregated window) is higher. */
+  const arsenal = hasPitchData
+    ? withManualPitchMax(
+        computeArsenal(pitches),
+        manualPitchMaxOf(aggregating && aggInfo ? aggInfo.reports : [activePitchingReport]),
+      )
+    : [];
 
   // Ensure we always show all 4 main pitch types in arsenal cards
   const mainTypes = ['Fastball', 'Curveball', 'Slider', 'ChangeUp'];

@@ -47,7 +47,7 @@ export function toNum(v: unknown): number | null {
  *  squared-up rate of 0 is a legitimate reading. */
 const ZERO_MEANS_BLANK = new Set([
   'max_exit_velo', 'avg_exit_velo', 'max_bat_speed', 'avg_bat_speed', 'bat_speed',
-  'distance', 'smash_factor',
+  'distance', 'smash_factor', 'fb_max_velo',
   'infield_velo', 'outfield_velo', 'catcher_velo',
   'pop_time', 'exchange_time', 'sprint_60', 'sprint_10',
 ]);
@@ -96,6 +96,18 @@ export function aggRuleFor(key: string): 'max' | 'min' | 'avg' {
   ) return 'max';
   return 'avg';
 }
+
+/** "Best reading" metrics a coach can also type in by hand (a radar gun,
+ *  a ball the tracker missed). For these the report keeps the HIGHER of the
+ *  manual number and the CSV max -- a manual entry below the CSV max never
+ *  hides the real best. Every other manual field still simply wins. */
+export const MANUAL_MAX_KEYS = new Set(['max_exit_velo', 'max_bat_speed', 'fb_max_velo']);
+
+/** Pitch types the Pitching report's manual Max Velo boxes cover, and the
+ *  ones that count as fastballs (same set the Trackman parser uses for
+ *  `fb_max_velo`). Mirrored in the web's MANUAL_PITCH_TYPES. */
+export const MANUAL_PITCH_TYPES = ['Fastball', 'Sinker', 'Cutter', 'Slider', 'Curveball', 'ChangeUp', 'Splitter'];
+const FASTBALL_TYPES = ['Fastball', 'Sinker', 'Cutter'];
 
 /** Upload IDs referenced by a report's `content.csvUploads`. */
 function collectUploadIds(content: any): string[] {
@@ -165,6 +177,7 @@ export function extractReportMetrics(reportType: string, content: any): ReportMe
       const bb = c.manualBattedBall ?? {};
       const sw = c.manualSwingMetrics ?? {};
       push('avg_exit_velo', bb.avg_exit_velo, 'mph');
+      push('max_exit_velo', bb.max_exit_velo, 'mph');
       push('squared_up_pct', bb.squared_up_pct, '%');
       push('smash_factor', bb.smash_factor, '');
       push('launch_angle', bb.launch_angle, '°');
@@ -175,8 +188,16 @@ export function extractReportMetrics(reportType: string, content: any): ReportMe
       push('plane_angle', sw.plane_angle, '°');
       break;
     }
-    // PITCHING manual fields are mechanical 20-80 grades, not trend metrics;
-    // its velo/spin/break trend points come from the Trackman CSV aggregation.
+    case 'PITCHING': {
+      /* The mechanical 20-80 grades aren't trend metrics; velo/spin/break
+         come from the Trackman aggregation. The one manual input is the
+         per-pitch-type Max Velo -- its fastball-family best is the report's
+         manual Max FB Velo. */
+      const pm = c.manualPitchMax ?? {};
+      const fb = FASTBALL_TYPES.map((t) => toNum(pm[t])).filter((v): v is number => v !== null && v > 0);
+      if (fb.length) push('fb_max_velo', Math.max(...fb), 'mph');
+      break;
+    }
     default:
       break;
   }
@@ -226,12 +247,16 @@ export async function syncReportMetricsFor(
       _avg: { value: true },
     });
     for (const g of grouped) {
-      if (byKey.has(g.metricType)) continue;
       const rule = aggRuleFor(g.metricType);
       const v = rule === 'max' ? g._max?.value : rule === 'min' ? g._min?.value : g._avg?.value;
-      if (v !== null && v !== undefined && Number.isFinite(v)) {
-        byKey.set(g.metricType, { value: v, unit: UNIT_FOR[g.metricType] ?? '' });
+      if (v === null || v === undefined || !Number.isFinite(v)) continue;
+      const manual = byKey.get(g.metricType);
+      if (manual) {
+        /* A manual Max only stands when it beats the CSV's best. */
+        if (MANUAL_MAX_KEYS.has(g.metricType) && v > manual.value) byKey.set(g.metricType, { ...manual, value: v });
+        continue;
       }
+      byKey.set(g.metricType, { value: v, unit: UNIT_FOR[g.metricType] ?? '' });
     }
 
     /* Avg Exit Velocity has no row of its own to aggregate.

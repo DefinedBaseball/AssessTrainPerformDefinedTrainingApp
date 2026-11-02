@@ -22,7 +22,7 @@ import {
   getLatestReport, getReportUploadIds, getReportUploadIdsForKeys,
   getManualSwingMetrics, getManualBattedBall,
   getReportVideoIds, getReportContentVideos,
-  metricToGrade, aggregateReportMetrics,
+  metricToGrade, aggregateReportMetrics, applyManualMax,
   type ReportSummary,
 } from '../helpers';
 import * as api from '@/lib/api';
@@ -627,6 +627,13 @@ export function HittingTab(props: TabProps) {
       if (m) {
         for (const [k, v] of Object.entries(m)) base[k] = v;
       }
+
+      /* Max readings (exit velo, bat speed, distance): the CSV wins above,
+         except that a manual Max HIGHER than the CSV's best stands. */
+      const maxUnit = (k: string) => (k === 'max_distance' ? 'ft' : 'mph');
+      const stamp = { recordedAt: activeHittingReport.createdAt };
+      if (activeManualModes.blast) applyManualMax(base, activeManualSwing as unknown as Record<string, number | null>, maxUnit, stamp);
+      if (activeManualModes.fullswing) applyManualMax(base, activeManualBatted as unknown as Record<string, number | null>, maxUnit, stamp);
     }
 
     if (fullSwingMissPct !== null) {

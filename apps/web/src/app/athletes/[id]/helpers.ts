@@ -770,6 +770,7 @@ export type ManualBattedBall = {
   smash_factor: number | null;
   launch_angle: number | null;
   distance: number | null;
+  max_distance: number | null;
 };
 
 /** Coach-entered Blast Motion swing numbers. Saved at
@@ -808,6 +809,7 @@ export const MANUAL_BATTED_BALL_FIELDS: { key: keyof ManualBattedBall; label: st
   { key: 'smash_factor',   label: 'Smash Factor',   unit: '',    step: 0.01 },
   { key: 'launch_angle',   label: 'Launch Angle',   unit: '°',   step: 0.1 },
   { key: 'distance',       label: 'Distance',       unit: 'ft',  step: 1 },
+  { key: 'max_distance',   label: 'Max Distance',   unit: 'ft',  step: 1 },
 ];
 
 /* Order mirrors the in-app Hitting Snapshot Swing row:
@@ -847,7 +849,7 @@ export const MANUAL_SWING_METRIC_FIELDS: { key: keyof ManualSwingMetrics; label:
 
 const EMPTY_MANUAL_BATTED_BALL: ManualBattedBall = {
   avg_exit_velo: null, max_exit_velo: null, squared_up_pct: null, smash_factor: null,
-  launch_angle: null, distance: null,
+  launch_angle: null, distance: null, max_distance: null,
 };
 const EMPTY_MANUAL_SWING: ManualSwingMetrics = {
   max_bat_speed: null, avg_bat_speed: null,
@@ -905,6 +907,79 @@ export function getManualSwingMetrics(report: ReportSummary | null): ManualSwing
     const parsed = JSON.parse(report.content);
     return readManualNumberMap(EMPTY_MANUAL_SWING, parsed?.manualSwingMetrics);
   } catch { return { ...EMPTY_MANUAL_SWING }; }
+}
+
+/* ── Manual Max numbers ──
+   For "best reading" metrics a coach can type a number by hand AND upload a
+   CSV on the same report. The report shows the HIGHER of the two: a manual
+   Max below the CSV's best never hides it. Same rule as the API's
+   report-metrics sync (MANUAL_MAX_KEYS there), which feeds trends and the
+   leaderboards. */
+export const MANUAL_MAX_KEYS = ['max_exit_velo', 'max_bat_speed', 'max_distance'] as const;
+
+/** Raise `target`'s max readings to any manual value that beats them. */
+export function applyManualMax(
+  target: Record<string, { value: number; unit: string }>,
+  manual: Record<string, number | null | undefined>,
+  unitFor: (key: string) => string,
+  /** Extra fields a new entry needs (e.g. recordedAt). */
+  extra: Record<string, unknown> = {},
+): void {
+  for (const k of MANUAL_MAX_KEYS) {
+    const v = manual[k];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) continue;
+    const cur = target[k];
+    if (!cur || v > cur.value) target[k] = { ...extra, ...(cur ?? {}), value: v, unit: cur?.unit ?? unitFor(k) };
+  }
+}
+
+/** Pitch types the Pitching report's manual Max Velo boxes cover (Trackman
+ *  names). Mirrors MANUAL_PITCH_TYPES in the API. */
+export const MANUAL_PITCH_TYPES: { key: string; label: string }[] = [
+  { key: 'Fastball', label: 'Fastball' },
+  { key: 'Sinker', label: 'Sinker' },
+  { key: 'Cutter', label: 'Cutter' },
+  { key: 'Slider', label: 'Slider' },
+  { key: 'Curveball', label: 'Curveball' },
+  { key: 'ChangeUp', label: 'Changeup' },
+  { key: 'Splitter', label: 'Splitter' },
+];
+export type ManualPitchMax = Record<string, number | null>;
+
+/** A Pitching report's manual Max Velo per pitch type (content.manualPitchMax). */
+export function getManualPitchMax(report: ReportSummary | null | undefined): ManualPitchMax {
+  const out: ManualPitchMax = Object.fromEntries(MANUAL_PITCH_TYPES.map((t) => [t.key, null]));
+  if (!report?.content) return out;
+  try {
+    const raw = JSON.parse(report.content)?.manualPitchMax;
+    if (raw && typeof raw === 'object') {
+      for (const t of MANUAL_PITCH_TYPES) {
+        const v = Number(raw[t.key]);
+        if (raw[t.key] != null && Number.isFinite(v) && v > 0) out[t.key] = v;
+      }
+    }
+  } catch { /* none */ }
+  return out;
+}
+
+/** The best manual Max Velo per pitch type across several reports (an
+ *  aggregated window), so a combined view keeps the highest typed reading. */
+export function manualPitchMaxOf(reports: (ReportSummary | null | undefined)[]): ManualPitchMax {
+  const out: ManualPitchMax = Object.fromEntries(MANUAL_PITCH_TYPES.map((t) => [t.key, null]));
+  for (const r of reports) {
+    for (const [k, v] of Object.entries(getManualPitchMax(r))) {
+      if (v != null && (out[k] == null || v > out[k]!)) out[k] = v;
+    }
+  }
+  return out;
+}
+
+/** Arsenal rows with each pitch type's Max Velo raised to a higher manual one. */
+export function withManualPitchMax<R extends { pitchType: string; maxVelo: number }>(rows: R[], manual: ManualPitchMax): R[] {
+  return rows.map((r) => {
+    const m = manual[r.pitchType];
+    return m != null && m > r.maxVelo ? { ...r, maxVelo: m } : r;
+  });
 }
 
 /** Average a sparse set of 20-80 grades, ignoring nulls. */

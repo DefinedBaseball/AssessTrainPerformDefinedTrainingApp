@@ -26,6 +26,7 @@ import {
   gradeIfKnown,
   getManualSwingMetrics, getManualBattedBall,
   getDefenseCoachGrades, aggregateReportMetrics,
+  applyManualMax, manualPitchMaxOf, withManualPitchMax,
 } from '@/app/athletes/[id]/helpers';
 
 /* ── Helpers ── */
@@ -170,6 +171,10 @@ async function collectHittingPdfData(
       }
     } catch { /* leave empty */ }
   }
+  /* Max readings: a manual Max beats the uploads only when it's higher. */
+  const maxUnit = (k: string) => (k === 'max_distance' ? 'ft' : 'mph');
+  if (manualModes.blast) applyManualMax(topMetrics, manualSwing, maxUnit, { recordedAt: '' });
+  if (manualModes.fullswing) applyManualMax(topMetrics, manualBatted, maxUnit, { recordedAt: '' });
   // A 0 mph reading is an empty at-bat, not a ball.
   ht.v = ht.v.filter(v => v !== 0);
   fs.v = fs.v.filter(v => v !== 0);
@@ -224,6 +229,7 @@ async function collectHittingPdfData(
       for (const [k, v] of Object.entries(manualBatted)) if (typeof v === 'number') override[k] = { value: v };
     }
     Object.assign(override, sessionValues(fs));
+    if (manualModes.fullswing) applyManualMax(override as Record<string, { value: number; unit: string }>, manualBatted, () => '');
     const SHARED = new Set(['avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance', 'max_distance']);
     const resolve = (k: string) => override[k] ?? (SHARED.has(k) ? undefined : topMetrics[k]);
     const ld = lineDrivePct(fs.la);
@@ -380,7 +386,8 @@ export async function generatePitchingPdf(
   const opts = uploadIds.length > 0 ? { uploadIds } : undefined;
 
   const pitches = await api.getTrackmanPitches(player.id, opts).catch(() => []);
-  const arsenal = buildArsenalFromPitches(pitches);
+  /* A manual Max Velo higher than the CSV's best stands. */
+  const arsenal = withManualPitchMax(buildArsenalFromPitches(pitches), manualPitchMaxOf([pitchingReport]));
   const totalPitches = pitches.length;
 
   // Fill percentages
@@ -637,7 +644,7 @@ async function collectPitchingPdfData(
 ): Promise<PitchingPdfData> {
   const uploadIds = getReportUploadIds(pitchingReport);
   const pitches = await api.getTrackmanPitches(player.id, uploadIds.length > 0 ? { uploadIds } : undefined).catch(() => []);
-  const arsenal = buildArsenalFromPitches(pitches);
+  const arsenal = withManualPitchMax(buildArsenalFromPitches(pitches), manualPitchMaxOf([pitchingReport]));
   arsenal.forEach(r => { r.pct = pitches.length > 0 ? (r.count / pitches.length) * 100 : 0; });
 
   let pitchNotes: string | null = null;
