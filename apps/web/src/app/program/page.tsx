@@ -23,8 +23,9 @@ import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconClipboard } from '../education/EduHeader';
-import { TAB_CAT_COLORS, DEFAULT_CAT_COLOR } from '@/lib/training-colors';
 import { TemplatePicker } from '@/components/TemplatePicker';
+import { parseFacilitySchedule, slotsOnDate, formatTime12, programColor, programWeek } from '@/lib/facility-schedule';
+import { useFacilityPrograms, facilityProgramsLoaded } from '@/lib/use-facility-programs';
 import {
   DndContext,
   DragOverlay,
@@ -79,17 +80,42 @@ const reorderCollision: CollisionDetection = (args) => {
   return closestCenter({ ...args, droppableContainers: byType('section', 'column') });
 };
 
-/* ── Position groups (mirrors the Training calendar's helper) ── */
-const HITTER_POSITIONS  = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'OF', 'INF', 'UTIL'];
-const INFIELD_POSITIONS = ['1B', '2B', '3B', 'SS', 'INF'];
-const OUTFIELD_POSITIONS = ['LF', 'CF', 'RF', 'OF'];
-
-function parsePositions(p: Player | null | undefined): string[] {
-  return (p?.positions || '').split(',').map(s => s.trim()).filter(Boolean);
-}
-
 /* ── Schedule categories ── */
 type ScheduleKey = 'hitting' | 'pitching' | 'catching' | 'infield' | 'outfield' | 'strength';
+
+/** The board most coaches can run at once (two rows of 8 on the TV). */
+const MAX_BOARD = 16;
+
+/** Which training-calendar tab a facility program's workouts live on:
+ *  the four built-ins directly, a custom type by name ("Infield Program"
+ *  → infield). Null = no board for it. Same rule as Apply Calendar. */
+function scheduleKeyFor(programKey: string): ScheduleKey | null {
+  const builtIn: Record<string, ScheduleKey> = {
+    HITTING_PROGRAM: 'hitting', PITCHING_PROGRAM: 'pitching',
+    CATCHING_PROGRAM: 'catching', LIFTING_PROGRAM: 'strength',
+  };
+  if (builtIn[programKey]) return builtIn[programKey];
+  const k = (['infield', 'outfield', 'hitting', 'pitching', 'catching', 'strength'] as ScheduleKey[])
+    .find(s => programKey.includes(s.toUpperCase()));
+  return k ?? null;
+}
+
+/** The Mon–Sun week holding `iso`, as seven local YYYY-MM-DD dates. */
+function weekOf(iso: string): string[] {
+  const [y, m, d] = iso.split('-').map(Number);
+  const mon = new Date(y, m - 1, d);
+  mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(mon);
+    x.setDate(mon.getDate() + i);
+    return formatLocalDate(x);
+  });
+}
+
+function shiftIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return formatLocalDate(new Date(y, m - 1, d + days));
+}
 
 const SCHEDULE_OPTIONS: { key: ScheduleKey; label: string; color: string }[] = [
   { key: 'hitting',  label: 'Hitting',  color: '#3B82F6' },
@@ -136,7 +162,8 @@ function parseDevelopmentNotes(raw: string | null | undefined): Record<string, s
    "persist as long as the webpage is open". SSR-safe (returns the
    fallback on the server; writes are no-ops there). */
 const PROGRAM_STORE = {
-  schedule: 'program.schedule',
+  program: 'program.facilityProgram',
+  sessionTime: 'program.sessionTime',
   selectedIds: 'program.selectedIds',
   sessionDate: 'program.sessionDate',
 } as const;
@@ -154,57 +181,18 @@ function saveStored(key: string, value: unknown): void {
   try { window.sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* quota / private mode */ }
 }
 
-/** Decide whether a player carries the position(s) the chosen schedule
- *  category requires. S&C is open to every athlete; everything else
- *  filters by the player's `positions` string. */
-function playerMatchesSchedule(player: Player, schedule: ScheduleKey): boolean {
-  const positions = parsePositions(player);
-  if (positions.length === 0) return false;
-  switch (schedule) {
-    case 'hitting':  return positions.some(p => HITTER_POSITIONS.includes(p));
-    case 'pitching': return positions.includes('P');
-    case 'catching': return positions.includes('C');
-    case 'infield':  return positions.some(p => INFIELD_POSITIONS.includes(p));
-    case 'outfield': return positions.some(p => OUTFIELD_POSITIONS.includes(p));
-    case 'strength': return true;
-  }
-}
-
 /* ── Small helpers ── */
 
-/* Per-tab, per-category color matrix + fallback: the shared ones in
-   training-colors (sections plus library-only categories like Hitting's
-   "Drills"). Unknown categories fall back via getTabCatStyle below. */
-
-/* Per-sport label anchor — the single shade EVERY category-card label
-   in a column resolves to, regardless of which category that card is
-   for. Replaces the prior "per-category light → dark gradient" treatment
-   on the bubble head text, where a Movement Prep card label was pale
-   blue and a Live card label was dark navy. Coach-spec called for all
-   labels in a Hitting column to read in Batting Practice blue, all
-   Pitching labels in Bullpen orange, and so on — picks the "core
-   activity" shade per sport so every label sits at a consistent depth
-   regardless of its position in the per-tab gradient. Applied
-   universally (both themes) — the chosen shades are mid-saturation
-   values that read against both the dark-mode surface and the light-
-   mode `--panel-bg-light` surface. */
-const TAB_LABEL_ANCHOR: Record<string, string> = {
-  hitting:  '#4A90D9',  // Batting Practice
-  pitching: '#F59E0B',  // Bullpen
-  catching: '#14B8A6',  // Machine
-  infield:  '#38A850',  // Machine
-  outfield: '#88B838',  // Machine
-  strength: '#EF4444',  // Exercises
-};
-
-function getTabCatStyle(tab: string, category: string) {
-  const c = TAB_CAT_COLORS[tab]?.[category] || DEFAULT_CAT_COLOR;
-  return {
-    dotStyle: { background: c.dot },
-    bgStyle: { background: c.bg, borderLeft: `3px solid ${c.dot}` },
-    textStyle: { color: c.text },
-    color: c.dot,
-  };
+/* Board colours come from the facility program (Settings → Programs), so a
+   Pitching board is the Pitching Program red, Lifting its orange, and so on.
+   Sections step from a lighter to a darker shade of that colour top to
+   bottom; every section label uses the colour itself. */
+function sectionStyle(color: string, index: number, count: number) {
+  const t = count <= 1 ? 0.5 : index / (count - 1);
+  const shade = t < 0.5
+    ? `color-mix(in srgb, ${color}, white ${Math.round((0.5 - t) * 2 * 45)}%)`
+    : `color-mix(in srgb, ${color}, black ${Math.round((t - 0.5) * 2 * 40)}%)`;
+  return { background: `color-mix(in srgb, ${shade} 13%, transparent)`, borderLeft: `3px solid ${shade}` };
 }
 
 
@@ -489,8 +477,11 @@ function AthleteColumn({
   onClickDrill,
   onPlayDrill,
   onOpenTemplates,
+  programBadge,
 }: {
   player: Player;
+  /** "Day 1 · 4:00 PM" -- where this athlete is in the program's week. */
+  programBadge?: { label: string; color: string } | null;
   drills: ScheduledDrill[];
   /** The active schedule key (hitting / pitching / catching / ...) —
    *  drives per-category color lookups so this column's bubbles
@@ -554,6 +545,9 @@ function AthleteColumn({
           {player.firstName} <span className={styles.athleteLast}>{player.lastName}</span>
         </div>
         <div className={styles.athletePositions}>{player.positions || '—'}</div>
+        {programBadge && (
+          <div className={styles.programBadge} style={{ background: programBadge.color }}>{programBadge.label}</div>
+        )}
         {/* Apply a saved schedule template to this athlete for the session
             date — top-right chip so it doesn't disturb the centered name. */}
         {isCoach && (
@@ -602,13 +596,8 @@ function AthleteColumn({
             items={grouped.map((g) => `sec:${player.id}:${g.category}`)}
             strategy={verticalListSortingStrategy}
           >
-          {grouped.map(({ category, items }) => {
-            const catStyle = getTabCatStyle(schedule, category);
-            /* Per-sport label anchor — every category label in this column
-               flips to the SAME TAB_LABEL_ANCHOR[schedule] shade; the card
-               background still graduates per-category via catStyle.bgStyle. */
-            const labelAnchor = TAB_LABEL_ANCHOR[schedule];
-            const headStyle = { color: 'var(--tab-ink)', '--tab-c': labelAnchor ?? catStyle.textStyle.color } as React.CSSProperties;
+          {grouped.map(({ category, items }, i) => {
+            const headStyle = { color: 'var(--tab-ink)', '--tab-c': scheduleColor } as React.CSSProperties;
             return (
               <SortableSection
                 key={category}
@@ -616,7 +605,7 @@ function AthleteColumn({
                 playerId={player.id}
                 category={category}
                 count={items.length}
-                bgStyle={catStyle.bgStyle}
+                bgStyle={sectionStyle(scheduleColor, i, grouped.length)}
                 headStyle={headStyle}
                 isCoach={isCoach}
               >
@@ -940,7 +929,8 @@ export default function ProgramPage() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { href: string } | undefined;
       if (detail?.href === '/program') {
-        setSchedule('hitting');
+        setProgramKey('HITTING_PROGRAM');
+        setSessionTime('');
         setSelectedIds([]);
         setSessionDate(todayIso());
       }
@@ -961,41 +951,118 @@ export default function ProgramPage() {
   }, [user, isCoach]);
 
   /* Top-row state — restored from sessionStorage so the coach's selection
-     survives navigating away and back while the tab is open. */
-  const [schedule, setSchedule] = useState<ScheduleKey>(() => loadStored(PROGRAM_STORE.schedule, 'hitting' as ScheduleKey));
+     survives navigating away and back while the tab is open.
+     The board runs off a facility program (Settings → Programs): its tab
+     picks the program, then a day of the week and one of that day's start
+     times fill the board with the athletes due then. "Athletes" adds or
+     removes anyone by hand on top. */
+  const programs = useFacilityPrograms();
+  const programTabs = useMemo(() => programs.filter(p => scheduleKeyFor(p.key)), [programs]);
+  const [programKey, setProgramKey] = useState<string>(() => loadStored(PROGRAM_STORE.program, 'HITTING_PROGRAM'));
+  /** '' = no time picked, 'all' = every session that day. */
+  const [sessionTime, setSessionTime] = useState<string>(() => loadStored(PROGRAM_STORE.sessionTime, ''));
   const [selectedIds, setSelectedIds] = useState<string[]>(() => loadStored(PROGRAM_STORE.selectedIds, [] as string[]));
   const [sessionDate, setSessionDate] = useState<string>(() => loadStored(PROGRAM_STORE.sessionDate, todayIso()));
+  /** The training-calendar tab the board reads drills from. */
+  const schedule: ScheduleKey = scheduleKeyFor(programKey) ?? 'hitting';
 
   /* Mirror each selection back to sessionStorage on change. The sidebar
      "reset" hook above sets these back to their defaults, which this
      persists too — so an explicit reset truly clears the saved state. */
-  useEffect(() => { saveStored(PROGRAM_STORE.schedule, schedule); }, [schedule]);
+  useEffect(() => { saveStored(PROGRAM_STORE.program, programKey); }, [programKey]);
+  useEffect(() => { saveStored(PROGRAM_STORE.sessionTime, sessionTime); }, [sessionTime]);
   useEffect(() => { saveStored(PROGRAM_STORE.selectedIds, selectedIds); }, [selectedIds]);
   useEffect(() => { saveStored(PROGRAM_STORE.sessionDate, sessionDate); }, [sessionDate]);
 
-  /* Reset selected athletes whenever the schedule changes — the new
-     category may filter some of them out.
-     IMPORTANT: skip while the roster is still loading (`players` === []).
-     This effect also runs on first mount, and a sessionStorage-restored
-     selection would otherwise be wiped instantly because every restored id
-     fails the `players.find` lookup against the empty list — which then
-     persists the now-empty list back, defeating the whole feature. Once
-     the roster loads the effect re-runs and filters against real data. */
-  useEffect(() => {
-    if (players.length === 0) return;
-    setSelectedIds(prev =>
-      prev.filter(id => {
-        const p = players.find(x => x.id === id);
-        return p ? playerMatchesSchedule(p, schedule) : false;
-      }),
-    );
-  }, [schedule, players]);
-
-  /* Eligible-athlete list for the picker (filtered by schedule). */
-  const eligible = useMemo(
-    () => players.filter(p => playerMatchesSchedule(p, schedule)),
-    [players, schedule],
+  /* Everyone the coach can put on the board (no coaches, no paused). */
+  const roster = useMemo(
+    () => players.filter(p => p.positions !== 'COACH' && !api.isPlayerLocked(p)),
+    [players],
   );
+
+  /* The program's sessions on a date: each start time with the athletes due
+     then (and which of their program days it is). Times the program offers
+     that day are listed even when nobody is booked into them yet. */
+  const sessionsFor = (key: string, date: string) => {
+    const byTime = new Map<string, { id: string; day: number | null }[]>();
+    const weekday = (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const)[new Date(`${date}T12:00:00`).getDay()];
+    for (const t of programs.find(p => p.key === key)?.hours[weekday] ?? []) byTime.set(t, []);
+    for (const p of roster) {
+      for (const sl of slotsOnDate(parseFacilitySchedule(p.facilitySchedule), date)) {
+        if (sl.program !== key) continue;
+        byTime.set(sl.time, [...(byTime.get(sl.time) ?? []), { id: p.id, day: sl.day }]);
+      }
+    }
+    return [...byTime.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([time, athletes]) => ({ time, athletes }));
+  };
+  const daySessions = sessionsFor(programKey, sessionDate);
+  const week = programWeek(programKey, sessionDate);
+  const program = programs.find(p => p.key === programKey);
+  const programHex = programColor(programKey);
+
+  /* Fill the board from a session. Without a time, the day's first session
+     with anyone in it (or the first time on offer). */
+  const fillBoard = (key: string, date: string, time?: string) => {
+    const sessions = sessionsFor(key, date);
+    const t = time ?? (sessions.find(s => s.athletes.length)?.time ?? sessions[0]?.time ?? '');
+    const ids = t === 'all'
+      ? [...new Set(sessions.flatMap(s => s.athletes.map(a => a.id)))]
+      : sessions.find(s => s.time === t)?.athletes.map(a => a.id) ?? [];
+    setSessionTime(t);
+    setSelectedIds(ids.slice(0, MAX_BOARD));
+  };
+  /** The first date from `from` (up to two weeks on) the program has
+   *  athletes due, or null. */
+  const nextSessionDate = (key: string, from: string): string | null => {
+    for (let i = 0; i < 14; i++) {
+      const d = shiftIso(from, i);
+      if (sessionsFor(key, d).some(s => s.athletes.length)) return d;
+    }
+    return null;
+  };
+  /* Switching program keeps the day when that program runs then, otherwise
+     moves on to its next session day. */
+  const pickProgram = (key: string) => {
+    setProgramKey(key);
+    const date = sessionsFor(key, sessionDate).some(s => s.athletes.length)
+      ? sessionDate
+      : nextSessionDate(key, sessionDate) ?? sessionDate;
+    setSessionDate(date);
+    fillBoard(key, date);
+  };
+
+  /* Opening the page with an empty board: go to today's session, or the next
+     day the program has one, and fill it. Waits for the roster and the saved
+     programs; a board restored from earlier in the visit is left alone. */
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || playersLoading || !facilityProgramsLoaded()) return;
+    autoOpened.current = true;
+    if (selectedIds.length) return;
+    const date = nextSessionDate(programKey, todayIso());
+    if (!date) return;
+    setSessionDate(date);
+    fillBoard(programKey, date);
+    // Runs once, when both lists are in; the helpers read the latest state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programs, playersLoading]);
+  const pickDay = (date: string) => { setSessionDate(date); fillBoard(programKey, date); };
+  const shiftWeek = (dir: 1 | -1) => {
+    const date = shiftIso(sessionDate, dir * 7);
+    setSessionDate(date);
+    /* Same weekday, same time where it still runs. */
+    const keep = sessionTime === 'all' || sessionsFor(programKey, date).some(s => s.time === sessionTime);
+    fillBoard(programKey, date, sessionTime && keep ? sessionTime : undefined);
+  };
+
+  /* Where each athlete on the board is in the program today. */
+  const badgeFor = (p: Player) => {
+    const sl = slotsOnDate(parseFacilitySchedule(p.facilitySchedule), sessionDate).find(s => s.program === programKey);
+    if (!sl) return null;
+    return { label: [sl.day ? `Day ${sl.day}` : '', formatTime12(sl.time)].filter(Boolean).join(' · '), color: programHex };
+  };
 
   /* Fetch each selected athlete's scheduled drills for the chosen date
      and category. Keeps a per-player loading flag so newly-added cards
@@ -1235,69 +1302,6 @@ export default function ProgramPage() {
     return () => { cancelled = true; };
   }, [selectedIds, sessionDate, schedule]);
 
-  /* Jump-to-next-session: probe each selected athlete's full schedule for
-     the chosen category and snap sessionDate to the soonest date that
-     has at least one drill across any of them. */
-  const [jumping, setJumping] = useState(false);
-  const jumpToNextSession = async () => {
-    if (selectedIds.length === 0) return;
-    setJumping(true);
-    try {
-      const today = todayIso();
-      // Use the local-date helpers so the "next year" / "last year" window
-      // doesn't wobble across a UTC date boundary.
-      const oneYear = new Date();
-      oneYear.setFullYear(oneYear.getFullYear() + 1);
-      const endDate = formatLocalDate(oneYear);
-      const all = await Promise.all(selectedIds.map(id =>
-        api.getScheduledDrills(id, { startDate: today, endDate, tab: schedule })
-          .catch(() => [] as ScheduledDrill[]),
-      ));
-      const dates = all.flat().map(d => d.date).filter(Boolean).sort();
-      if (dates.length === 0) {
-        // Fall back to the past year — maybe everything they have is older.
-        const aYearAgo = new Date();
-        aYearAgo.setFullYear(aYearAgo.getFullYear() - 1);
-        const startBack = formatLocalDate(aYearAgo);
-        const back = await Promise.all(selectedIds.map(id =>
-          api.getScheduledDrills(id, { startDate: startBack, endDate: today, tab: schedule })
-            .catch(() => [] as ScheduledDrill[]),
-        ));
-        const backDates = back.flat().map(d => d.date).filter(Boolean).sort().reverse();
-        if (backDates.length > 0) setSessionDate(backDates[0]);
-      } else {
-        setSessionDate(dates[0]);
-      }
-    } finally {
-      setJumping(false);
-    }
-  };
-
-  /* Auto-jump once whenever the (athletes, schedule) combination first
-     resolves to "no drills for the current sessionDate". Avoids being
-     annoying after the user has manually picked a date — only fires when
-     all selected columns are empty AND not loading. */
-  const [didAutoJump, setDidAutoJump] = useState(false);
-  useEffect(() => {
-    setDidAutoJump(false);
-  }, [selectedIds.join(','), schedule]);
-  useEffect(() => {
-    if (didAutoJump) return;
-    if (selectedIds.length < 1) return;
-    /* Wait for all columns to finish their initial load before deciding. */
-    const allLoaded = selectedIds.every(id => loadingByPlayer[id] === false);
-    if (!allLoaded) return;
-    const totalDrills = selectedIds.reduce((n, id) => n + (drillsByPlayer[id]?.length ?? 0), 0);
-    if (totalDrills === 0) {
-      setDidAutoJump(true);
-      jumpToNextSession();
-    } else {
-      setDidAutoJump(true);
-    }
-    // jumpToNextSession captured via closure; safe.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, schedule, sessionDate, loadingByPlayer, drillsByPlayer, didAutoJump]);
-
   /* ── Fullscreen presentation mode ──
      Board can pop into the browser's native fullscreen so the in-facility
      display (TV / projector / iPad) can show the workouts edge-to-edge
@@ -1373,11 +1377,20 @@ export default function ProgramPage() {
 
   if (isLoading || !user || !isCoach) return null;
 
-  const scheduleColor = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.color ?? '#3B82F6';
+  /* The program's own colour drives the whole board. */
+  const scheduleColor = programHex;
   const selectedPlayers: Player[] = selectedIds
     .map(id => players.find(p => p.id === id))
     .filter((p): p is Player => !!p);
   const canFullscreen = selectedPlayers.length >= 1;
+  /* A stale saved time (no longer offered that day) reads as unpicked. */
+  const timeValue = sessionTime === 'all' || daySessions.some(s => s.time === sessionTime) ? sessionTime : '';
+  /* Past 8 athletes the board wraps onto a second row. */
+  const boardCols = selectedPlayers.length <= 8 ? selectedPlayers.length : Math.ceil(selectedPlayers.length / 2);
+  const sessionDay = (() => {
+    const [y, m, d] = sessionDate.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  })();
 
   return (
     <div className={`${eduStyles.page} ${dashStyles.coachDash}`}>
@@ -1390,57 +1403,81 @@ export default function ProgramPage() {
         accent="Schedule"
       />
 
-      {/* ── Filter row: schedule type + athlete picker + session date ── */}
+      {/* ── Program tabs (Settings → Programs) ── */}
+      <div className={`${eduStyles.sportTabs} ${theme.inner} ${theme.firm}`} role="tablist" aria-label="Program">
+        {programTabs.map(p => (
+          <button
+            key={p.key}
+            type="button" role="tab" aria-selected={p.key === programKey}
+            className={`${eduStyles.sportTab} ${p.key === programKey ? eduStyles.sportTabActive : ''}`}
+            onClick={() => pickProgram(p.key)}
+          >
+            <span className={styles.tabDot} style={{ background: p.color }} aria-hidden />
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Filter row: day of the week + start time + athletes ── */}
       <div className={`${styles.filterBar} ${theme.bubble}`}>
         <div className={styles.filterField}>
-          <label className={styles.filterLabel}>Schedule</label>
+          <label className={styles.filterLabel}>
+            Day {week && <span className={styles.filterHint}>· Week {week}</span>}
+          </label>
+          <div className={styles.dateRow}>
+            <button type="button" className={`${styles.weekBtn} ${theme.field}`} onClick={() => shiftWeek(-1)} aria-label="Previous week" title="Previous week">‹</button>
+            <select
+              className={`${styles.scheduleSelect} ${theme.field}`}
+              value={sessionDate}
+              onChange={e => pickDay(e.target.value)}
+            >
+              {weekOf(sessionDate).map(d => {
+                const [y, m, dd] = d.split('-').map(Number);
+                const dt = new Date(y, m - 1, dd);
+                const runs = sessionsFor(programKey, d).length > 0;
+                return (
+                  <option key={d} value={d}>
+                    {dt.toLocaleDateString(undefined, { weekday: 'long' })} · {dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    {d === todayIso() ? ' (today)' : ''}{runs ? '' : ' — no sessions'}
+                  </option>
+                );
+              })}
+            </select>
+            <button type="button" className={`${styles.weekBtn} ${theme.field}`} onClick={() => shiftWeek(1)} aria-label="Next week" title="Next week">›</button>
+          </div>
+        </div>
+        <div className={styles.filterField}>
+          <label className={styles.filterLabel}>Time</label>
           <select
             className={`${styles.scheduleSelect} ${theme.field}`}
-            value={schedule}
-            onChange={e => setSchedule(e.target.value as ScheduleKey)}
-            style={{ borderColor: scheduleColor, color: scheduleColor }}
+            value={timeValue}
+            onChange={e => fillBoard(programKey, sessionDate, e.target.value)}
+            disabled={daySessions.length === 0}
           >
-            {SCHEDULE_OPTIONS.map(o => (
-              <option key={o.key} value={o.key}>{o.label}</option>
+            {daySessions.length === 0 && <option value="">No {program?.label ?? 'program'} sessions this day</option>}
+            {daySessions.length > 0 && timeValue === '' && <option value="">Pick a time…</option>}
+            {daySessions.map(s => (
+              <option key={s.time} value={s.time}>
+                {formatTime12(s.time)} ({s.athletes.length} athlete{s.athletes.length === 1 ? '' : 's'})
+              </option>
             ))}
+            {daySessions.length > 1 && <option value="all">All times</option>}
           </select>
         </div>
         <div className={styles.filterField}>
           <label className={styles.filterLabel}>
-            Athletes <span className={styles.filterHint}>(1–8)</span>
+            Athletes <span className={styles.filterHint}>(add or remove)</span>
           </label>
           {playersLoading ? (
             <div className={styles.pickerLoading}>Loading roster…</div>
           ) : (
             <AthletePicker
-              candidates={eligible}
+              candidates={roster}
               selected={selectedIds}
               onChange={setSelectedIds}
+              maxSelectable={MAX_BOARD}
             />
           )}
-          <div className={styles.eligibleCount}>
-            {eligible.length} eligible athlete{eligible.length !== 1 ? 's' : ''}
-          </div>
-        </div>
-        <div className={styles.filterField}>
-          <label className={styles.filterLabel}>Session Date</label>
-          <div className={styles.dateRow}>
-            <input
-              type="date"
-              className={`${styles.dateInput} ${theme.field}`}
-              value={sessionDate}
-              onChange={e => setSessionDate(e.target.value)}
-            />
-            <button
-              type="button"
-              className={`${styles.jumpBtn} ${theme.field}`}
-              onClick={jumpToNextSession}
-              disabled={selectedIds.length === 0 || jumping}
-              title="Snap to the soonest date any selected athlete has drills"
-            >
-              {jumping ? 'Searching…' : 'Jump to next session →'}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -1448,11 +1485,12 @@ export default function ProgramPage() {
       {selectedIds.length === 0 ? (
         <div className={`${styles.boardEmpty} ${theme.bubble}`}>
           <span className={styles.boardEmptyIcon}>📋</span>
-          <p className={styles.boardEmptyTitle}>Pick athletes to start the board</p>
+          <p className={styles.boardEmptyTitle}>
+            {daySessions.length ? 'Pick a time to start the board' : 'Nobody is scheduled for this day'}
+          </p>
           <p className={styles.boardEmptyHint}>
-            Choose 1 to 8 athletes from the dropdown above. Each athlete&apos;s
-            scheduled {SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label} workout
-            for the session date will appear side-by-side here.
+            Pick a program, a day and a start time above and everyone due then appears here
+            side by side with their {program?.label ?? ''} workout. Use Athletes to add anyone else.
           </p>
         </div>
       ) : (
@@ -1466,8 +1504,19 @@ export default function ProgramPage() {
         <div
           ref={boardRef}
           className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : theme.bubble} ${selectedPlayers.length === 1 && !isFullscreen ? styles.boardSingle : ''}`}
-          style={{ '--board-cols': selectedPlayers.length } as React.CSSProperties}
+          style={{ '--board-cols': boardCols } as React.CSSProperties}
+          data-has-head=""
         >
+          {/* Session header: program · Week N · day · time. Spans the board
+              so it shows on the TV in full screen too. */}
+          <div className={styles.sessionHead} style={{ '--prog': programHex } as React.CSSProperties}>
+            <span className={styles.sessionProgram}>{program?.label ?? 'Program'}</span>
+            {week && <span className={styles.sessionWeek}>Week {week}</span>}
+            <span className={styles.sessionWhen}>
+              {sessionDay}
+              {timeValue && timeValue !== 'all' ? ` · ${formatTime12(timeValue)}` : ''}
+            </span>
+          </div>
           {/* Exit-fullscreen X — only visible while in native fullscreen */}
           {isFullscreen && (
             <button
@@ -1484,6 +1533,7 @@ export default function ProgramPage() {
             <AthleteColumn
               key={p.id}
               player={p}
+              programBadge={badgeFor(p)}
               drills={drillsByPlayer[p.id] ?? []}
               loading={loadingByPlayer[p.id] ?? false}
               schedule={schedule}

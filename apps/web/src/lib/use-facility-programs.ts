@@ -28,6 +28,12 @@ export function reloadFacilityPrograms(): Promise<FacilityProgram[]> {
   return inflight;
 }
 
+/** True once the saved list has arrived (before that the registry holds the
+ *  built-in defaults, with no dates or times). */
+export function facilityProgramsLoaded(): boolean {
+  return loaded;
+}
+
 /** Push a freshly saved list without another round trip. */
 export function publishFacilityPrograms(list: FacilityProgram[]) {
   publish(list);

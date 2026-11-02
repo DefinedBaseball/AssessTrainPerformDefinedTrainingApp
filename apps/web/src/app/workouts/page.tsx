@@ -13,10 +13,11 @@
 
    Selecting a row opens that athlete's three answers for the day.
 
-   Two tabs share the day bar: Facility Check In (who is due in the building
-   that day, from each athlete's facility schedule, grouped by start time and
-   program in the program colours) and Workout Attendance (the check-in /
-   finished roster described above).
+   Three tabs: Facility Schedule (who is due in the building that day, from
+   each athlete's facility schedule, grouped by program and start time in the
+   program colours), Check-In (the check-in / finished roster described
+   above) -- both on the day bar -- and Athlete Schedule (every athlete with
+   each program they're in and its days and times; not tied to a day).
    ───────────────────────────────────────────────────────────────────────── */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,10 +31,13 @@ import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconAttendance } from '../education/EduHeader';
-import { parseFacilitySchedule, slotsOnDate, formatTime12, programColor, programWeek } from '@/lib/facility-schedule';
+import {
+  type FacilitySlot, WEEKDAYS, LESSON_KEY, parseFacilitySchedule, slotsOnDate, formatTime12, formatDay,
+  programColor, programLabel, programWeek, entryDates,
+} from '@/lib/facility-schedule';
 import { useFacilityPrograms } from '@/lib/use-facility-programs';
 
-type AttendanceTab = 'facility' | 'workouts';
+type AttendanceTab = 'facility' | 'workouts' | 'athletes';
 const TAB_KEY = 'attendance.tab';
 
 /** One start time + program on the chosen day, with everyone due for it. */
@@ -190,7 +194,10 @@ export default function WorkoutsPage() {
   const [searching, setSearching] = useState(false);
   /* Remembered per browser so a coach who lives on one tab lands on it. */
   const [tab, setTabState] = useState<AttendanceTab>(() => {
-    try { return localStorage.getItem(TAB_KEY) === 'workouts' ? 'workouts' : 'facility'; } catch { return 'facility'; }
+    try {
+      const t = localStorage.getItem(TAB_KEY);
+      return t === 'workouts' || t === 'athletes' ? t : 'facility';
+    } catch { return 'facility'; }
   });
   const setTab = (t: AttendanceTab) => {
     setTabState(t);
@@ -277,6 +284,33 @@ export default function WorkoutsPage() {
     : facilityGroups;
   const facilityAthleteCount = new Set(facilityGroups.flatMap((g) => g.athletes.map((a) => a.id))).size;
 
+  /* Athlete Schedule: every athlete and the programs they're in (Settings
+     order, Lesson last), each with its days and times. Entries that have
+     ended are left out; athletes with nothing current sort to the bottom. */
+  const [schedProgram, setSchedProgram] = useState('');
+  const athleteSchedules = useMemo(() => {
+    if (!athletes) return [];
+    const today = toDateStr(new Date());
+    const order = [...programs.map((p) => p.key), LESSON_KEY];
+    return athletes
+      .map((p) => ({
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        entries: parseFacilitySchedule(p.facilitySchedule)
+          .filter((s) => order.includes(s.program) && Object.values(s.days).some(Boolean))
+          .filter((s) => { const { end } = entryDates(s); return !end || end >= today; })
+          .sort((a, b) => order.indexOf(a.program) - order.indexOf(b.program)),
+      }))
+      .sort((a, b) => (Number(!a.entries.length) - Number(!b.entries.length))
+        || (a.firstName || '').localeCompare(b.firstName || '')
+        || (a.lastName || '').localeCompare(b.lastName || ''));
+  }, [athletes, programs]);
+  const shownSchedules = athleteSchedules.filter((a) =>
+    (!facilityQuery || `${a.firstName} ${a.lastName}`.toLowerCase().includes(facilityQuery))
+    && (!schedProgram || a.entries.some((s) => s.program === schedProgram)));
+  const scheduledCount = athleteSchedules.filter((a) => a.entries.length).length;
+
   /* Changing the day drops any open athlete: their answers belong to the
      date that was showing when the row was clicked. */
   const shiftDay = (delta: number) => {
@@ -291,7 +325,7 @@ export default function WorkoutsPage() {
   /* Debounced so typing a name doesn't fire a request per keystroke. */
   useEffect(() => {
     const q = query.trim();
-    /* Facility Check In filters its own list locally. */
+    /* Facility Schedule and Athlete Schedule filter their own lists locally. */
     if (!q || tab !== 'workouts') { setResults(null); setSearching(false); return; }
     setSearching(true);
     const t = setTimeout(() => {
@@ -323,11 +357,13 @@ export default function WorkoutsPage() {
         chipInline
         icon={<IconAttendance />}
         eyebrow="Attendance"
-        title={tab === 'facility' ? 'Facility' : 'Athlete'}
-        accent={tab === 'facility' ? 'Check In' : 'Workouts'}
+        title={tab === 'facility' ? 'Facility' : tab === 'athletes' ? 'Athlete' : 'Workout'}
+        accent={tab === 'workouts' ? 'Check-In' : 'Schedule'}
         subtitle={tab === 'facility'
-          ? 'Who is due in the facility, by start time and program.'
-          : 'Who is scheduled today, who checked in, and who finished.'}
+          ? 'Who is due in the facility, by program and start time.'
+          : tab === 'athletes'
+            ? 'Every athlete, the programs they’re in, and their days and times.'
+            : 'Who is scheduled today, who checked in, and who finished.'}
         actions={
           <Link href="/training" className={`btn btn-outline ${theme.field}`} style={{ whiteSpace: 'nowrap' }}>
             Training Calendar →
@@ -342,16 +378,23 @@ export default function WorkoutsPage() {
           type="button" role="tab" aria-selected={tab === 'facility'}
           className={`${eduStyles.sportTab} ${tab === 'facility' ? eduStyles.sportTabActive : ''}`}
           onClick={() => setTab('facility')}
-        >Facility Check In</button>
+        >Facility Schedule</button>
         <button
           type="button" role="tab" aria-selected={tab === 'workouts'}
           className={`${eduStyles.sportTab} ${tab === 'workouts' ? eduStyles.sportTabActive : ''}`}
           onClick={() => setTab('workouts')}
-        >Workout Attendance</button>
+        >Check-In</button>
+        <button
+          type="button" role="tab" aria-selected={tab === 'athletes'}
+          className={`${eduStyles.sportTab} ${tab === 'athletes' ? eduStyles.sportTabActive : ''}`}
+          onClick={() => setTab('athletes')}
+        >Athlete Schedule</button>
       </div>
 
       {/* ── Day bar ── the page is a window onto the calendar, so it moves
-          day by day rather than being pinned to today. */}
+          day by day rather than being pinned to today. Athlete Schedule is
+          the standing weekly schedule, so it has no day. */}
+      {tab !== 'athletes' && (
       <div className={`${styles.dayBar} ${theme.bubble}`}>
         <button type="button" className={styles.navBtn} onClick={() => shiftDay(-1)} aria-label="Previous day">‹</button>
         <div className={styles.dayText}>
@@ -392,8 +435,90 @@ export default function WorkoutsPage() {
           </button>
         )}
       </div>
+      )}
 
-      {tab === 'facility' ? (
+      {tab === 'athletes' ? (
+        <div className={`${styles.panel} ${theme.inner}`}>
+          <div className={styles.toolbar}>
+            <input
+              className={`${styles.search} ${theme.field}`}
+              placeholder="Search athletes…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <select
+              className={`${styles.search} ${styles.schedFilter} ${theme.field}`}
+              value={schedProgram}
+              onChange={(e) => setSchedProgram(e.target.value)}
+              aria-label="Filter by program"
+            >
+              <option value="">All programs</option>
+              {programs.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+              <option value={LESSON_KEY}>Lesson</option>
+            </select>
+            {athletes !== null && !athletesError && (
+              <span className={styles.schedCount}>{scheduledCount} of {athleteSchedules.length} scheduled</span>
+            )}
+            {athletesError && (
+              <button type="button" className={styles.retry} onClick={loadAthletes}>Retry</button>
+            )}
+          </div>
+          <div className={styles.facLegend}>
+            {[...FACILITY_GROUPS, { key: LESSON_KEY, label: 'Lesson' }].map((g) => (
+              <span key={g.key} className={styles.facLegendItem}>
+                <span className={styles.facDot} style={{ background: programColor(g.key) }} />
+                {g.label}
+              </span>
+            ))}
+          </div>
+          {athletes === null ? (
+            <div className={styles.state}>Loading…</div>
+          ) : athletesError ? (
+            <div className={styles.state}>Couldn&rsquo;t load the athletes.</div>
+          ) : shownSchedules.length === 0 ? (
+            <div className={styles.state}>
+              <p className={styles.emptyTitle}>No athletes found</p>
+              <p className={styles.emptyHint}>
+                {schedProgram ? 'No one matching that is in this program.' : 'No one matches that name.'}
+              </p>
+            </div>
+          ) : (
+            <div className={styles.schedList}>
+              {shownSchedules.map((a) => (
+                <div key={a.id} className={styles.schedRow}>
+                  <Link href={`/athletes/${a.id}`} className={styles.schedName}>
+                    {a.firstName} {a.lastName}
+                  </Link>
+                  <div className={styles.schedPrograms}>
+                    {a.entries.length === 0 ? (
+                      <span className={styles.schedNone}>No facility schedule</span>
+                    ) : a.entries.map((s: FacilitySlot, i) => {
+                      const { end } = entryDates(s);
+                      return (
+                        <div
+                          key={`${s.program}-${i}`}
+                          className={styles.schedProgram}
+                          style={{ '--fac': programColor(s.program) } as React.CSSProperties}
+                        >
+                          <span className={styles.schedLabel}>{programLabel(s.program)}</span>
+                          {WEEKDAYS.filter((d) => s.days[d.key]).map((d) => (
+                            <span key={d.key} className={styles.schedDay}>
+                              <b>{d.short}</b> {formatTime12(s.days[d.key]!)}
+                            </span>
+                          ))}
+                          {s.program === LESSON_KEY && end && (
+                            <span className={styles.schedUntil}>until {formatDay(end)}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : tab === 'facility' ? (
         <div className={`${styles.panel} ${theme.inner}`}>
           <div className={styles.toolbar}>
             <input
