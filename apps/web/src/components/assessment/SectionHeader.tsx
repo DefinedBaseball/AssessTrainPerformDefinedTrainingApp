@@ -18,6 +18,10 @@ interface SectionHeaderProps {
    *  branded headers (Coach Grades, Full Swing, Blast Motion, HitTrax)
    *  where the logo reads as a suffix badge, not a leading bullet. */
   iconAfter?: boolean;
+  /** A second logo drawn right AFTER the title (in the same tile style),
+   *  while `icon` keeps the leading slot -- e.g. Batted Ball Metrics:
+   *  HitTrax logo, title, Full Swing logo. */
+  trailingIcon?: ReactNode;
   /** Optional right-edge content slot — sits at the far right of the
    *  header row, opposite the title, AFTER the title-midline hairline.
    *  Used by Infield / Outfield / Catching Snapshots to host the
@@ -58,7 +62,7 @@ const ICON_CLASS: Record<IconColor, string> = {
   green: styles.iconGreen,
 };
 
-export function SectionHeader({ icon, iconColor = 'teal', title, subtitle, iconAfter = false, rightSlot, compact = false, align = 'center', noBorder = false, hairlineUnderTitle = false }: SectionHeaderProps) {
+export function SectionHeader({ icon, iconColor = 'teal', title, subtitle, iconAfter = false, trailingIcon, rightSlot, compact = false, align = 'center', noBorder = false, hairlineUnderTitle = false }: SectionHeaderProps) {
   // Compact `align='left'` opts a specific compact header out of the
   // default centered-cluster layout so it reads left-aligned like the
   // base SectionHeader (only a trailing hairline, no leading one).
@@ -130,6 +134,9 @@ export function SectionHeader({ icon, iconColor = 'teal', title, subtitle, iconA
           purpose) and the hairline runs out from there to the
           right edge. */}
       {iconAfter && iconNode}
+      {trailingIcon != null && trailingIcon !== false && (
+        <div className={`${styles.sectionIcon} ${ICON_CLASS[iconColor]}`}>{trailingIcon}</div>
+      )}
       {/* Title-midline hairline — a 1px-tall accent line that runs
           from immediately after the title block (or after the
           iconAfter badge, when present) to the bubble's right edge.

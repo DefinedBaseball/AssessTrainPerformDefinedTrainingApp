@@ -188,7 +188,9 @@ function FullSwingLogo() {
       aria-label="Full Swing"
       style={{ display: 'block' }}
     >
-      {/* Black tile background */}
+      {/* Black tile background. The lettering is fixed white -- it was
+          var(--text-bright), which goes near-black in light mode and
+          vanished into the tile. */}
       <rect x="0" y="0" width="100" height="100" rx="6" fill="#000" />
       {/* "FS" mark — bold, slightly squared */}
       <text
@@ -198,7 +200,7 @@ function FullSwingLogo() {
         fontSize="58"
         fontWeight="900"
         letterSpacing="-2"
-        fill="var(--text-bright)"
+        fill="#ffffff"
       >FS</text>
       {/* "FULL SWING" footer */}
       <text
@@ -208,7 +210,7 @@ function FullSwingLogo() {
         fontSize="11"
         fontWeight="700"
         letterSpacing="1.5"
-        fill="var(--text-bright)"
+        fill="#ffffff"
       >FULL SWING</text>
     </svg>
   );
@@ -828,128 +830,72 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
   const mean = (arr: number[]) => arr.reduce((s, n) => s + n, 0) / arr.length;
   const round = (n: number) => Math.round(n * 100) / 100;
 
-  /* HitTrax-only session stats. */
-  const hitTraxValues: Record<string, { value: number; unit: string }> = useMemo(() => {
+  /* Batted Ball — Full Swing and HitTrax in ONE set of numbers.
+
+     Every ball either system tracked is pooled: Max = the hardest / longest
+     ball from either, Avg = the mean over all of them. The Typed values
+     (both cards' Manual Entry, HitTrax on top as in the API's trend sync)
+     seed the set first and the uploads' own numbers replace them, except
+     that a typed Max higher than the uploads' best stands. */
+  const battedBall: Record<string, { value: number; unit: string }> = useMemo(() => {
     const out: Record<string, { value: number; unit: string }> = {};
-    /* Manual entry first; the CSV's own numbers below win, except that a
-       manual Max higher than the CSV's best stands. */
     const unitFor = (k: string) =>
       k === 'launch_angle' ? 'deg' : k === 'distance' || k === 'max_distance' ? 'ft' : 'mph';
-    if (manualHitTraxOn) {
-      for (const [k, v] of Object.entries(activeManualHitTrax)) {
-        if (k !== 'ld_pct' && typeof v === 'number' && Number.isFinite(v)) out[k] = { value: v, unit: unitFor(k) };
+    const typed: Record<string, number | null>[] = [
+      ...(manualFullSwingOn ? [activeManualBatted] : []),
+      ...(manualHitTraxOn ? [activeManualHitTrax] : []),
+    ];
+    for (const manual of typed) {
+      for (const k of BATTED_BALL_KEYS) {
+        const v = manual[k];
+        if (typeof v === 'number' && Number.isFinite(v)) out[k] = { value: v, unit: unitFor(k) };
       }
     }
-    if (hittraxVelos.length > 0) {
-      out.avg_exit_velo = { value: round(mean(hittraxVelos)), unit: 'mph' };
-      out.max_exit_velo = { value: round(Math.max(...hittraxVelos)), unit: 'mph' };
+    const velos = [...fullswingVelos, ...hittraxVelos];
+    const las = [...fullswingLAs, ...hittraxLAs];
+    const dists = [...fullswingDists, ...hittraxDists];
+    if (velos.length > 0) {
+      out.avg_exit_velo = { value: round(mean(velos)), unit: 'mph' };
+      out.max_exit_velo = { value: round(Math.max(...velos)), unit: 'mph' };
     }
-    if (hittraxLAs.length > 0) {
-      out.launch_angle = { value: round(mean(hittraxLAs)), unit: 'deg' };
+    if (las.length > 0) {
+      out.launch_angle = { value: round(mean(las)), unit: 'deg' };
     }
-    if (hittraxDists.length > 0) {
-      /* Both readings come off the same per-ball `distance` metric rows:
-         `distance` is the session mean, `max_distance` the single best
-         ball. `max_distance` is display-only — there is no grading scale
-         for it (unlike max_exit_velo), so it renders uncoloured. */
-      out.distance = { value: round(mean(hittraxDists)), unit: 'ft' };
-      out.max_distance = { value: round(Math.max(...hittraxDists)), unit: 'ft' };
+    if (dists.length > 0) {
+      /* `distance` is the mean, `max_distance` the single best ball.
+         `max_distance` has no grading scale, so it renders uncoloured. */
+      out.distance = { value: round(mean(dists)), unit: 'ft' };
+      out.max_distance = { value: round(Math.max(...dists)), unit: 'ft' };
     }
-    if (manualHitTraxOn) applyManualMax(out, activeManualHitTrax, unitFor);
+    for (const manual of typed) applyManualMax(out, manual, unitFor);
     return out;
-  }, [hittraxVelos, hittraxLAs, hittraxDists, activeManualHitTrax, manualHitTraxOn]);
+  }, [fullswingVelos, fullswingLAs, fullswingDists, hittraxVelos, hittraxLAs, hittraxDists,
+      activeManualBatted, manualFullSwingOn, activeManualHitTrax, manualHitTraxOn]);
+
+  /* Squared Up % — only Full Swing measures it. The shared pool already
+     ranks the upload over the typed number; the typed one fills in when
+     that pool has nothing. */
+  const squaredUp = topMetricsWithMiss.squared_up_pct
+    ?? (manualFullSwingOn && typeof activeManualBatted.squared_up_pct === 'number'
+      ? { value: activeManualBatted.squared_up_pct, unit: '%' }
+      : undefined);
 
   /* Line Drive % — share of balls in play struck between 5 and 30 degrees
-     of launch angle, per coach spec.
-
-     Deliberately NOT the existing `line_drive_pct`, which is a different
-     measurement that happens to share a name: that one counts at-bats the
-     coach TAGGED as LINE_DRIVE in the live tracker, over tagged batted-ball
-     outcomes, and still drives the Swing Decision Results row. This one is
-     computed from per-ball launch angles off the report's own uploads, so
-     the two can legitimately disagree and both be right.
-
-     Source precedence matches the rest of the batted-ball reads: HitTrax
-     first (the dedicated batted-ball system), Full Swing as fallback. The
-     two are never pooled — that would double-count the same swings when a
-     report carries both.
-
-     Null (section renders "—") when the active report has no launch-angle
-     readings at all, rather than showing a misleading 0%. */
-  /* Line Drive % helper: share of batted balls struck between 5 and 30
-     degrees of launch angle, per coach spec.
-
-     Computed PER VENDOR rather than pooled, so the HitTrax bubble reports
-     HitTrax's own line-drive rate and the Full Swing bubble reports its
-     own. Pooling them would double-count the same swings whenever a
-     report carries both uploads, and would attribute one system's
-     numbers to the other's header.
+     of launch angle, per coach spec, over every ball either system tracked.
+     Falls back to the HitTrax card's typed LD % when no ball carries a
+     launch angle, and is left blank ("—") rather than a misleading 0%.
 
      Deliberately NOT the existing `line_drive_pct`, a different
      measurement sharing the name: that one counts at-bats the coach
      TAGGED as LINE_DRIVE in the live tracker and still drives the Swing
-     Decision Results row. The two can legitimately disagree.
-
-     Null (column omitted) when the source has no launch angles at all,
-     rather than a misleading 0%. */
-  const ldPctFrom = (las: number[]): number | null => {
-    const inPlay = las.filter(la => Number.isFinite(la));
-    if (inPlay.length === 0) return null;
-    return round((inPlay.filter(la => la >= 5 && la <= 30).length / inPlay.length) * 100);
-  };
-  /* The uploads' LD %, or the coach's typed one when there are none. */
-  const manualHtLd = manualHitTraxOn ? activeManualHitTrax.ld_pct ?? null : null;
-  const hittraxLdPct   = useMemo(() => ldPctFrom(hittraxLAs) ?? manualHtLd, [hittraxLAs, manualHtLd]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const fullswingLdPct = useMemo(() => ldPctFrom(fullswingLAs), [fullswingLAs]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* Full Swing-only session stats — used to OVERRIDE topMetricsWithMiss
-     for the Full Swing card so HitTrax-source data never appears there. */
-  const fullswingOverride: Record<string, { value: number; unit: string }> = useMemo(() => {
-    const out: Record<string, { value: number; unit: string }> = {};
-
-    /* Manual entry seeds the override FIRST so CSV values below win when a
-       report has both. Typing a number into the Full Swing card's Manual
-       Entry makes it Full-Swing-source data by definition, so it belongs
-       here rather than in the shared metric pool.
-
-       This is what fixes manual Launch Angle / Distance (and now Max Exit
-       Velo) reading "—" on the Full Swing card. They were being written to
-       `topMetricsWithMiss` — which is why they showed up fine everywhere
-       else on the Hitting Report — but `fsResolve` below deliberately
-       refuses to read that pool for the four keys HitTrax also emits, to
-       stop HitTrax numbers bleeding into this section. Manual values were
-       collateral damage of that guard. */
-    if (manualFullSwingOn) {
-      const unitFor = (k: string) =>
-        k === 'launch_angle' ? 'deg'
-        : k === 'distance' ? 'ft'
-        : k.endsWith('_pct') ? '%'
-        : k === 'smash_factor' ? ''
-        : 'mph';
-      for (const [k, v] of Object.entries(activeManualBatted)) {
-        if (typeof v === 'number' && Number.isFinite(v)) {
-          out[k] = { value: v, unit: unitFor(k) };
-        }
-      }
+     Decision Results row. The two can legitimately disagree. */
+  const ldPct = useMemo(() => {
+    const inPlay = [...fullswingLAs, ...hittraxLAs].filter(la => Number.isFinite(la));
+    if (inPlay.length > 0) {
+      return round((inPlay.filter(la => la >= 5 && la <= 30).length / inPlay.length) * 100);
     }
-
-    if (fullswingVelos.length > 0) {
-      out.avg_exit_velo = { value: round(mean(fullswingVelos)), unit: 'mph' };
-      out.max_exit_velo = { value: round(Math.max(...fullswingVelos)), unit: 'mph' };
-    }
-    if (fullswingLAs.length > 0) {
-      out.launch_angle = { value: round(mean(fullswingLAs)), unit: 'deg' };
-    }
-    if (fullswingDists.length > 0) {
-      out.distance = { value: round(mean(fullswingDists)), unit: 'ft' };
-      out.max_distance = { value: round(Math.max(...fullswingDists)), unit: 'ft' };
-    }
-    /* Max readings: the CSV's best stands unless the manual Max is higher. */
-    if (manualFullSwingOn) {
-      applyManualMax(out, activeManualBatted as unknown as Record<string, number | null>, (k) => (k === 'max_distance' ? 'ft' : 'mph'));
-    }
-    return out;
-  }, [fullswingVelos, fullswingLAs, fullswingDists, activeManualBatted, manualFullSwingOn]);
+    return manualHitTraxOn ? activeManualHitTrax.ld_pct ?? null : null;
+  }, [fullswingLAs, hittraxLAs, manualHitTraxOn, activeManualHitTrax]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Per-section "has data" flags ──────────────────────────────────
      Each sub-section (Coach Grades / Full Swing / Blast Motion /
@@ -1005,65 +951,45 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
 
             The Coach Grades section that used to sit below them is gone. */}
         <HittingVendorMetrics>
-        {/* ── FULL SWING — only when QoC metrics have data */}
-        {hasFullSwing && (() => {
+        {/* ── BATTED BALL METRICS — Full Swing + HitTrax combined, shown when the
+            report carries either. Always the same seven columns, in coach
+            order; a reading the report doesn't have shows "—". */}
+        {(hasFullSwing || hasHitTrax) && (() => {
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
-          icon={<FullSwingLogo />}
-          iconColor="gold"
-          title="Full Swing"
+          icon={<HitTraxLogo />}
+          trailingIcon={<FullSwingLogo />}
+          iconColor="red"
+          title="Batted Ball Metrics"
           compact
           align="left"
         />
         {(() => {
-          /* `%` and `°` are passed as the `unit` field (not glued
-             into `display`) so they render in the muted-grey `unitStyle`
-             instead of inheriting the value cell's tone colour — same
-             treatment the `mph` / `ft` suffixes already had. */
+          /* `%` and `deg` are passed as the `unit` field (not glued into
+             `display`) so they render in the muted-grey unit style instead
+             of inheriting the value cell's tone colour. */
           const fmt = (key: string, value: number): { display: string; unit?: string } => {
             switch (key) {
               case 'avg_exit_velo':
-              case 'max_exit_velo':       return { display: value.toFixed(1), unit: 'mph' };
-              case 'squared_up_pct':
-              case 'full_swing_miss_pct':
-              case 'overall_whiff_pct':
-              case 'overall_barrel_pct':  return { display: value.toFixed(1), unit: '%' };
-              case 'launch_angle':        return { display: value.toFixed(1), unit: 'deg' };
+              case 'max_exit_velo':  return { display: value.toFixed(1), unit: 'mph' };
+              case 'squared_up_pct': return { display: value.toFixed(1), unit: '%' };
+              case 'launch_angle':   return { display: value.toFixed(1), unit: 'deg' };
               case 'distance':
-              case 'max_distance':        return { display: value.toFixed(0), unit: 'ft' };
-              default:                    return { display: value.toFixed(1) };
+              case 'max_distance':   return { display: value.toFixed(0), unit: 'ft' };
+              default:               return { display: value.toFixed(1) };
             }
           };
-          /* For metrics that BOTH HitTrax and Full Swing emit
-             (avg_exit_velo / max_exit_velo / launch_angle / distance),
-             ONLY use the Full-Swing-source-only override — never fall back
-             to topMetricsWithMiss, since that pool contains HitTrax data
-             for the same keys and would leak it into this section.
-             For everything else (squared_up_pct, smash_factor, etc., which
-             only Full Swing emits), fall through to topMetricsWithMiss. */
-          const FULLSWING_ONLY_KEYS = new Set([
-            'avg_exit_velo', 'max_exit_velo', 'launch_angle', 'distance',
-            'max_distance',
-          ]);
-          const fsResolve = (k: string): { value: number; unit: string } | undefined => {
-            if (fullswingOverride[k] !== undefined) return fullswingOverride[k];
-            // Shared keys: never bleed in HitTrax data via topMetrics.
-            if (FULLSWING_ONLY_KEYS.has(k)) return undefined;
-            return topMetricsWithMiss[k];
-          };
+          const resolve = (k: string) => (k === 'squared_up_pct' ? squaredUp : battedBall[k]);
           return (
             <VendorMetricTable
-              items={[...FULLSWING_KEYS.map(k => {
-                const m = fsResolve(k);
-                /* Prefer SHORT_LABELS so the Full Swing column
-                   headers read with the SAME label text the
-                   Quality-of-Contact GradeRow uses on the Hitting
-                   Snapshot (and so the two-line balanced splitter
-                   produces the same line breaks across both views). */
+              items={[...BATTED_BALL_COLUMNS.map(k => {
+                const m = resolve(k);
                 const label = (isMobile ? PHONE_TABLE_LABELS[k] : undefined)
                   || VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
                 if (!m) return { label, display: '—' };
+                /* Synthetic single-entry topMetrics so metricToGrade sees
+                   the same value the table displays. */
                 const grade = metricToGrade(
                   { [k]: { value: m.value, unit: m.unit, recordedAt: '' } } as any,
                   k,
@@ -1075,21 +1001,25 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   unit: f.unit,
                   color: grade !== null ? scoreColor(grade) : undefined,
                 };
-              }), ...(fullswingLdPct !== null ? [{ label: isMobile ? 'LD%' : 'LD %', display: fullswingLdPct.toFixed(1), unit: '%' }] : [])]}
+              }), {
+                label: isMobile ? 'LD%' : 'Line Drive %',
+                display: ldPct !== null ? ldPct.toFixed(1) : '—',
+                unit: ldPct !== null ? '%' : undefined,
+              }]}
             />
           );
         })()}
         </div>
         ); })()}
 
-        {/* ── BLAST MOTION — only when at least one swing metric grade is set */}
+        {/* ── SWING METRICS (Blast Motion) — only when at least one swing metric grade is set */}
         {hasBlast && (() => {
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
         <SectionHeader
           icon={<BlastLogo />}
           iconColor="teal"
-          title="Blast Motion"
+          title="Swing Metrics"
           compact
           align="left"
         />
@@ -1144,68 +1074,6 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         })()}
         </div>
         ); })()}
-
-        {/* ── HITTRAX — only when at least one HitTrax metric has data */}
-        {hasHitTrax && (() => {
-          return (
-        <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
-        <SectionHeader
-          icon={<HitTraxLogo />}
-          iconColor="red"
-          title="HitTrax"
-          compact
-          align="left"
-        />
-
-        {(() => {
-          /* Same number formatting as the Full Swing card so values read
-             consistently across both sections. `°` passed as `unit`
-             (not glued onto `display`) so it renders in the muted-grey
-             unit style instead of the tone-coloured value style. */
-          const fmt = (key: string, value: number): { display: string; unit?: string } => {
-            switch (key) {
-              case 'avg_exit_velo':
-              case 'max_exit_velo':  return { display: value.toFixed(1), unit: 'mph' };
-              case 'launch_angle':   return { display: value.toFixed(1), unit: 'deg' };
-              case 'distance':
-              case 'max_distance':   return { display: value.toFixed(0), unit: 'ft' };
-              default:               return { display: value.toFixed(1) };
-            }
-          };
-          return (
-            <VendorMetricTable
-              items={[...HITTRAX_KEYS.map(k => {
-                const m = hitTraxValues[k];
-                /* Pull labels from SHORT_LABELS so the HitTrax column
-                   headers read with the SAME label text the
-                   Quality-of-Contact GradeRow uses on the Hitting
-                   Snapshot. Previous behaviour glued "AVG " prefixes
-                   onto Launch Angle / Distance to signal that HitTrax
-                   shows session means, but the user spec now wants
-                   the Inputs sections to share label text + line
-                   breaks with the Snapshot row above. */
-                const label = (isMobile ? PHONE_TABLE_LABELS[k] : undefined)
-                  || VENDOR_TABLE_LABELS[k] || SHORT_LABELS[k] || METRIC_LABELS[k] || k;
-                if (!m) return { label, display: '—' };
-                /* Synthetic single-entry topMetrics so metricToGrade
-                   sees the same averaged value the table displays. */
-                const grade = metricToGrade(
-                  { [k]: { value: m.value, unit: m.unit, recordedAt: '' } } as any,
-                  k,
-                );
-                const f = fmt(k, m.value);
-                return {
-                  label,
-                  display: f.display,
-                  unit: f.unit,
-                  color: grade !== null ? scoreColor(grade) : undefined,
-                };
-              }), ...(hittraxLdPct !== null ? [{ label: isMobile ? 'LD%' : 'LD %', display: hittraxLdPct.toFixed(1), unit: '%' }] : [])]}
-            />
-          );
-        })()}
-        </div>
-        ); })()}
         </HittingVendorMetrics>
 
     </>
@@ -1226,22 +1094,18 @@ const QOC_KEYS = [
   'launch_angle', 'distance',
 ] as const;
 
-/* HitTrax-driven KPIs — single session-level summary metrics emitted by
-   the HitTrax CSV parser (and shared with whatever Full Swing happens
-   to populate). Rendered in their own section under Blast Motion. */
-const HITTRAX_KEYS = [
-  'max_exit_velo', 'avg_exit_velo', 'max_distance', 'distance', 'launch_angle',
-] as const;
-
-/* Full Swing shows the same batted-ball readings as HitTrax plus Squared
-   Up %, which only Full Swing emits.
+/* The Batted Ball bubble's columns, in coach order (Line Drive % follows
+   them, computed separately). `distance` / `launch_angle` are session
+   means, labelled "Avg ..." through VENDOR_TABLE_LABELS. The readings both
+   systems give are BATTED_BALL_KEYS; Squared Up % is Full Swing's alone.
 
    Deliberately NOT QOC_KEYS: that list still drives the Quality of
    Contact chip strip on the Hitting Snapshot (and its grading), so
    trimming it here would have silently reshaped the Snapshot too. */
-const FULLSWING_KEYS = [
-  ...HITTRAX_KEYS, 'squared_up_pct',
+const BATTED_BALL_KEYS = [
+  'max_exit_velo', 'avg_exit_velo', 'max_distance', 'distance', 'launch_angle',
 ] as const;
+const BATTED_BALL_COLUMNS = [...BATTED_BALL_KEYS, 'squared_up_pct'] as const;
 
 /* Column labels for the two vendor Inputs tables only.
    `launch_angle` and `distance` are session MEANS here, so they read
