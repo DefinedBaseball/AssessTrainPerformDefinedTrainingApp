@@ -52,6 +52,9 @@ interface ReportSelectorProps {
    *  dropdown is untouched, just right-aligned under the chip. Purely
    *  additive — every existing caller renders exactly as before. */
   compact?: boolean;
+  /** Compact chip only: show the picked report's date as 6/14/26 instead
+   *  of Jun 14, 2026 (phone report headers, where every pixel counts). */
+  shortDate?: boolean;
   /** Optional priority list of report types used by the auto-select
    *  logic. When provided, the selector picks the latest report whose
    *  `reportType` appears first in this list, falling through to the
@@ -94,6 +97,7 @@ export function ReportSelector({
   rangeOnly = false,
   lockLabel = false,
   compact = false,
+  shortDate = false,
   preferredTypes,
   onRangeChange,
 }: ReportSelectorProps) {
@@ -368,7 +372,11 @@ export function ReportSelector({
     ? (label || 'Reports')
     : onRangeChange && aggregateMode !== 'single'
       ? `${activeRangeLabel} · ${matchingReports.length}`
-      : (selected ? formatDate(selected.createdAt) : (label || 'No reports'));
+      : (selected
+          ? (shortDate
+              ? new Date(selected.createdAt).toLocaleDateString('en-US', { ...tzOpt(), month: 'numeric', day: 'numeric', year: '2-digit' })
+              : formatDate(selected.createdAt))
+          : (label || 'No reports'));
 
   return (
     <div

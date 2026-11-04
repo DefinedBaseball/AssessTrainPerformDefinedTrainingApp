@@ -2,6 +2,7 @@ import { VendorParser, ParseResult } from './base-parser';
 import { BlastMotionParser } from './blast-motion-parser';
 import { FullSwingParser } from './full-swing-parser';
 import { HitTraxParser } from './hittrax-parser';
+import { HitTraxPoiParser } from './hittrax-poi-parser';
 import { TrackmanParser } from './trackman-parser';
 import { ValdParser } from './vald-parser';
 
@@ -21,6 +22,9 @@ const PARSERS: VendorParser[] = [
   new BlastMotionParser(),
   new FullSwingParser(),
   new HitTraxParser(),
+  /* Never auto-detected (confidence 0) — only when the HitTrax POI card
+     names it, since its headers are the regular HitTrax export's. */
+  new HitTraxPoiParser(),
   new TrackmanParser(),
   new ValdParser(),
 ];

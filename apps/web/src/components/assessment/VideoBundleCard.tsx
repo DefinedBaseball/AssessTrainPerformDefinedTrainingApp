@@ -80,6 +80,10 @@ interface VideoBundleCardProps {
    *  bubble (grey in light theme, charcoal in dark) with a header row, a
    *  framed preview and a footer, instead of bars laid over the video. */
   themed?: boolean;
+  /** Themed only: a shorter tile (smaller preview, tighter padding, the
+   *  date shown once) for tight spots like the Hitting Coach Reviews
+   *  bubble, so a row of clips fits without scrolling. */
+  compact?: boolean;
 }
 
 export function VideoBundleCard({
@@ -94,6 +98,7 @@ export function VideoBundleCard({
   hideLabel = false,
   onDeleted,
   themed = false,
+  compact = false,
 }: VideoBundleCardProps) {
   const [open, setOpen] = useState(false);
   const { isCoach } = useAuth();
@@ -306,7 +311,7 @@ export function VideoBundleCard({
           {/* Top half — the video, full bleed, with the round play button. A
               thin rule in the category colour marks the type. */}
           <div style={{
-            position: 'relative', height: 130, background: '#000', flexShrink: 0,
+            position: 'relative', height: compact ? 88 : 130, background: '#000', flexShrink: 0,
             borderBottom: `2px solid ${colors.border}`,
           }}>
             {first.originalUrl ? (
@@ -320,7 +325,7 @@ export function VideoBundleCard({
             ) : null}
             <div aria-hidden="true" style={{
               position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-              width: 46, height: 46, borderRadius: '50%',
+              width: compact ? 34 : 46, height: compact ? 34 : 46, borderRadius: '50%',
               background: 'var(--accent, #ecebe6)', color: 'var(--on-accent, #0b0c0e)', opacity: 0.92,
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: rem(16),
               boxShadow: '0 8px 22px rgba(0,0,0,0.45)', pointerEvents: 'none',
@@ -330,7 +335,7 @@ export function VideoBundleCard({
           </div>
 
           {/* Bottom half — title, player · date, then actions + clip count. */}
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <div style={{ padding: compact ? '7px 10px 8px' : '12px 14px', display: 'flex', flexDirection: 'column', gap: compact ? 3 : 4, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: colors.border, flexShrink: 0 }} />
               <span style={{
@@ -340,10 +345,14 @@ export function VideoBundleCard({
                 {hideLabel ? (subtitle || dateStr) : displayLabel}
               </span>
             </div>
-            <div style={{ fontSize: rem(11), color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {subtitle && !hideLabel ? `${subtitle} · ` : ''}{dateStr}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+            {/* Second line: player · date. Skipped in compact mode when the
+                title line above is already showing the date. */}
+            {!(compact && hideLabel && !subtitle) && (
+              <div style={{ fontSize: rem(11), color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {subtitle && !hideLabel ? `${subtitle} · ` : ''}{dateStr}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: compact ? 3 : 6 }}>
               {first.originalUrl && !isMobile && (
                 <button type="button" onClick={handleDownload} onKeyDown={(e) => e.stopPropagation()}
                   title="Download video" aria-label="Download video" style={iconBtn}>
@@ -361,13 +370,17 @@ export function VideoBundleCard({
                   ✕
                 </button>
               )}
-              <span style={{
-                marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: rem(9.5), letterSpacing: '0.1em',
-                textTransform: 'uppercase', padding: '2px 7px', borderRadius: 999,
-                border: '1px solid var(--border-light)', color: 'var(--text-muted)',
-              }}>
-                {count} {count === 1 ? 'clip' : 'clips'}
-              </span>
+              {/* Clip count — left off the compact tile (Coach Reviews
+                  bubble): only download + delete on that row. */}
+              {!compact && (
+                <span style={{
+                  marginLeft: 'auto', flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: rem(9.5), letterSpacing: '0.1em',
+                  textTransform: 'uppercase', padding: '2px 7px', borderRadius: 999,
+                  border: '1px solid var(--border-light)', color: 'var(--text-muted)',
+                }}>
+                  {count} {count === 1 ? 'clip' : 'clips'}
+                </span>
+              )}
             </div>
           </div>
 

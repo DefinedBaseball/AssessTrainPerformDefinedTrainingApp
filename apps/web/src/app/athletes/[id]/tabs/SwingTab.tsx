@@ -122,7 +122,7 @@ const hittingVendorBubbleStyle: React.CSSProperties = {
    Sized to fit the SectionHeader's 36×36 .sectionIcon slot; both render on a
    white tile to match each brand's standard treatment.
    ───────────────────────────────────────────────────────────────────────── */
-function HitTraxLogo() {
+export function HitTraxLogo() {
   /* Charcoal rounded tile, "HT" wordmark in white with a red diagonal
      swoosh through it, framed by chevrons (◀ ▶) on the sides and red
      arrow points (▲ ▼) top + bottom — matches the HitTrax app icon. */
@@ -178,7 +178,7 @@ function HitTraxLogo() {
   );
 }
 
-function FullSwingLogo() {
+export function FullSwingLogo() {
   return (
     <svg
       viewBox="0 0 100 100"
@@ -216,7 +216,7 @@ function FullSwingLogo() {
   );
 }
 
-function BlastLogo() {
+export function BlastLogo() {
   // Black circle outline + 4-node sensor pattern: a top dot, a hub
   // mid-circle with a horizontal cross-arm, and two dots fanning out
   // diagonally below the hub. Mirrors the Blast Motion brand mark.
@@ -957,10 +957,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {(hasFullSwing || hasHitTrax) && (() => {
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
+        {/* Vendor logos moved up beside the Hitting Report title. */}
         <SectionHeader
-          icon={<HitTraxLogo />}
-          trailingIcon={<FullSwingLogo />}
-          iconColor="red"
           title="Batted Ball Metrics"
           compact
           align="left"
@@ -1016,9 +1014,8 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
         {hasBlast && (() => {
           return (
         <div className={aStyles.vendorMetricBubble} style={hittingVendorBubbleStyle}>
+        {/* Vendor logo moved up beside the Hitting Report title. */}
         <SectionHeader
-          icon={<BlastLogo />}
-          iconColor="teal"
           title="Swing Metrics"
           compact
           align="left"

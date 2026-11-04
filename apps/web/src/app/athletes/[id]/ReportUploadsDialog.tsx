@@ -34,7 +34,7 @@ import {
 import { tzOpt } from '@/lib/academy';
 
 const SOURCE_BY_VENDOR: Record<string, string> = {
-  'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'HitTrax': 'HITTRAX',
+  'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'HitTrax': 'HITTRAX', 'HitTrax POI': 'HITTRAX_POI',
   'TrackMan': 'TRACKMAN', 'VALD': 'VALD', 'Vizual Edge': 'VIZUAL_EDGE',
   'Custom': 'AUTO_DETECT',
 };

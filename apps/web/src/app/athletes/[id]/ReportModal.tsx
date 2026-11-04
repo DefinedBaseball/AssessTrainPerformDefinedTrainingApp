@@ -3181,7 +3181,7 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
               continue;
             }
             const sourceMap: Record<string, string> = {
-              'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'HitTrax': 'HITTRAX',
+              'Blast Motion': 'BLAST_MOTION', 'Full Swing': 'FULL_SWING', 'HitTrax': 'HITTRAX', 'HitTrax POI': 'HITTRAX_POI',
               'TrackMan': 'TRACKMAN', 'VALD': 'VALD', 'Vizual Edge': 'VIZUAL_EDGE',
               'Custom': 'AUTO_DETECT',
             };

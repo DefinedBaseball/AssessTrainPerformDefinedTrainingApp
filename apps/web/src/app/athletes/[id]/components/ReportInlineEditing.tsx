@@ -72,17 +72,19 @@ function UploadTrayIcon() {
 }
 
 /** Opens the CSV / PDF / XLSX upload window for the active report. */
-export function ReportFilesButton({ onClick, title }: { onClick: () => void; title?: string }) {
+export function ReportFilesButton({ onClick, title, iconOnly = false }: { onClick: () => void; title?: string; iconOnly?: boolean }) {
+  /* `iconOnly`: just the tray icon (phone report headers, so Upload, Live
+     Results and the date fit on one line with the title). */
   return (
     <button
       type="button"
       onClick={onClick}
-      style={headerChipStyle}
+      style={iconOnly ? { ...headerChipStyle, padding: '3px 7px' } : headerChipStyle}
       title={title ?? 'Upload data files to this report'}
       aria-label={title ?? 'Upload data files to this report'}
     >
       <UploadTrayIcon />
-      Upload
+      {!iconOnly && 'Upload'}
     </button>
   );
 }

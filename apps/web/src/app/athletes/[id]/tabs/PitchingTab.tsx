@@ -1024,6 +1024,8 @@ export function PitchingTab({
   const pdfExport = usePdfExport({ player, reports, isCoach });
   const { theme } = useTheme();
   const isLight = theme === 'light';
+  /* Phone: the report header squeezes onto one line (see .hudHead row). */
+  const isMobile = useIsMobile();
   const [pitches, setPitches] = useState<TrackmanPitch[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPitch, setSelectedPitch] = useState<TrackmanPitch | null>(null);
@@ -1502,8 +1504,12 @@ export function PitchingTab({
               the title's vertical mid-line instead of the row's
               bottom (which is where the main accent border-bottom
               lives). */}
-          <div className={hud.hudHead}>
-            {/* Trackman brand mark — moved up here from the section header
+          {/* Phone: items centred on the row, so the title's middle lines
+              up with the TrackMan logo's middle (desktop keeps baselines). */}
+          <div className={hud.hudHead} style={{ flexWrap: 'wrap', gap: isMobile ? 6 : undefined, alignItems: isMobile ? 'center' : undefined }}>
+            Pitching Report
+            {/* Trackman brand mark — right of the title (matching the Hitting
+                Report's vendor logos). Moved up here from the section header
                 that used to sit above the Break & Spin / Release tables.
                 Those tables now live inside this console, so the logo marks
                 the whole report's data provenance instead of labelling a
@@ -1521,67 +1527,15 @@ export function PitchingTab({
                 height: 21,
                 flex: '0 0 auto',
                 display: 'inline-block',
-                alignSelf: 'flex-end',
-                marginBottom: 1,
+                alignSelf: isMobile ? 'center' : 'flex-end',
+                marginBottom: isMobile ? 0 : 1,
+                /* Phone: lift to the middle of the all-caps letters (they sit
+                   ~1.5px above the title box's centre). */
+                transform: isMobile ? 'translateY(-1.5px)' : undefined,
               }}
             >
               <TrackmanLogo />
             </span>
-            Pitching Report
-            {/* Live Results toggle — sits IMMEDIATELY next to the
-                "Pitch Report" title per coach-spec (mirrors the
-                Hitting Snapshot's Live Results button). Click →
-                flips `pitchingSubTab` between 'report' and 'live'.
-                When active (`pitchingSubTab === 'live'`) the button
-                highlights blue and the hudConsole content swaps to
-                the LiveAtBatsList view. `alignSelf: flex-end` +
-                `marginBottom: 0` baseline-aligns the button bottom
-                with the "Pitch Report" title bottom — since both
-                have ~22 px box heights, sharing a baseline puts
-                their centers on the same horizontal axis. */}
-            <button
-              type="button"
-              onClick={() => setPitchingSubTab(pitchingSubTab === 'live' ? 'report' : 'live')}
-              style={{
-                alignSelf: 'flex-end',
-                marginBottom: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '3px 12px',
-                borderRadius: 6,
-                /* Resting state matches the Arsenal cards below it
-                   (`--bubble-chrome-bg` + `--border-light`) and the
-                   Assessment chip at the far right of this same header —
-                   see the twin button in HittingTab. Active stays blue. */
-                border: `1px solid ${pitchingSubTab === 'live' ? 'rgba(126,182,255,0.65)' : 'var(--border-light)'}`,
-                background: pitchingSubTab === 'live' ? 'rgba(126,182,255,0.20)' : 'var(--bubble-chrome-bg)',
-                /* Active text: pale blue reads on the dark theme, but vanishes on
-                   the light-theme pale-blue chip — use dark grey there to offset. */
-                color: pitchingSubTab === 'live'
-                  ? (isLight ? '#374151' : '#cfe0ff')
-                  : 'var(--text-muted)',
-                /* `fontFamily: var(--font-body)` (Satoshi) — pinned
-                   explicitly so this button doesn't inherit the
-                   `var(--font-display)` (Syne, italic) face the
-                   parent `.hudHead` sets on its descendants. With
-                   the explicit override, the button reads in the
-                   same Satoshi-uppercase voice as the Hitting tab's
-                   Live Results button. */
-                fontFamily: 'var(--font-body)',
-                fontStyle: 'normal',
-                fontSize: rem(8.5),
-                fontWeight: 700,
-                letterSpacing: '0.10em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
-                whiteSpace: 'nowrap',
-                marginLeft: 12,
-              }}
-              title="Toggle between Pitch Report view and Live Results view"
-            >
-              Live Results
-            </button>
             {/* Line segment A — short stub after the title (was
                 `flex: 1`, which split the remaining row 50/50 with
                 segment B and parked the "X pitches" chip at the
@@ -1589,6 +1543,9 @@ export function PitchingTab({
                 line is a fixed 32 px stub and the chip sits close
                 to "Pitch Report" instead of floating mid-row. */}
             <div style={{
+              /* Phone: the stub, pitch count and long rule are dropped so
+                 title, logo, Upload, Live Results and the date share one line. */
+              display: isMobile ? 'none' : undefined,
               flex: '0 0 32px',
               height: 1,
               background: 'var(--border)',
@@ -1613,10 +1570,12 @@ export function PitchingTab({
               fontWeight: 500,
               fontSize: '0.43em',
               alignSelf: 'center',
+              display: isMobile ? 'none' : undefined,
             }}>
               {pitches.length} pitches
             </span>
             <div style={{
+              display: isMobile ? 'none' : undefined,
               flex: 1,
               height: 1,
               background: 'var(--border)',
@@ -1636,26 +1595,84 @@ export function PitchingTab({
                 so nothing was lost moving it out of the tab-bar actions. */}
             {/* Upload -- TrackMan CSV or session-report PDF for the report
                 shown here, left of the report date. */}
-            {canEdit && activePitchingReport && (
-              <div style={{ alignSelf: 'flex-end', marginBottom: 0, marginRight: 8 }}>
-                <ReportFilesButton onClick={() => setUploadsOpen(true)} />
+            {/* Controls group: Upload (coaches) · Live Results · report date,
+                pushed right; wraps under the title together on a phone. */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', marginLeft: 'auto', alignSelf: 'flex-end' }}>
+              {canEdit && activePitchingReport && (
+                <div style={{ alignSelf: 'flex-end', marginBottom: 0, marginRight: isMobile ? 5 : 8 }}>
+                  <ReportFilesButton onClick={() => setUploadsOpen(true)} iconOnly={isMobile} />
+                </div>
+              )}
+              {/* Live Results toggle — beside the report date dropdown, Upload
+                  (coaches) to its left, same as the Hitting Report. Click →
+                  flips `pitchingSubTab` between 'report' and 'live'.
+                  When active (`pitchingSubTab === 'live'`) the button
+                  highlights blue and the hudConsole content swaps to
+                  the LiveAtBatsList view. `alignSelf: flex-end` +
+                  `marginBottom: 0` baseline-aligns the button bottom
+                  with the "Pitch Report" title bottom — since both
+                  have ~22 px box heights, sharing a baseline puts
+                  their centers on the same horizontal axis. */}
+              <button
+                type="button"
+                onClick={() => setPitchingSubTab(pitchingSubTab === 'live' ? 'report' : 'live')}
+                style={{
+                  alignSelf: 'flex-end',
+                  marginBottom: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: isMobile ? '3px 7px' : '3px 12px',
+                  borderRadius: 6,
+                  /* Resting state matches the Arsenal cards below it
+                     (`--bubble-chrome-bg` + `--border-light`) and the
+                     Assessment chip at the far right of this same header —
+                     see the twin button in HittingTab. Active stays blue. */
+                  border: `1px solid ${pitchingSubTab === 'live' ? 'rgba(126,182,255,0.65)' : 'var(--border-light)'}`,
+                  background: pitchingSubTab === 'live' ? 'rgba(126,182,255,0.20)' : 'var(--bubble-chrome-bg)',
+                  /* Active text: pale blue reads on the dark theme, but vanishes on
+                     the light-theme pale-blue chip — use dark grey there to offset. */
+                  color: pitchingSubTab === 'live'
+                    ? (isLight ? '#374151' : '#cfe0ff')
+                    : 'var(--text-muted)',
+                  /* `fontFamily: var(--font-body)` (Satoshi) — pinned
+                     explicitly so this button doesn't inherit the
+                     `var(--font-display)` (Syne, italic) face the
+                     parent `.hudHead` sets on its descendants. With
+                     the explicit override, the button reads in the
+                     same Satoshi-uppercase voice as the Hitting tab's
+                     Live Results button. */
+                  fontFamily: 'var(--font-body)',
+                  fontStyle: 'normal',
+                  fontSize: rem(8.5),
+                  fontWeight: 700,
+                  letterSpacing: isMobile ? '0.05em' : '0.10em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  marginRight: isMobile ? 5 : 8,
+                }}
+                title="Toggle between Pitch Report view and Live Results view"
+              >
+                Live Results
+              </button>
+              <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
+                <ReportSelector
+                  compact
+                  reports={reports}
+                  reportTypes={['PITCHING']}
+                  label="Pitching"
+                  shortDate={isMobile}
+                  isCoach={isCoach}
+                  selectedId={selectedReport?.id ?? null}
+                  onSelect={setSelectedReport}
+                  onDeleted={onRefresh}
+                  onNewReport={onNewReport}
+                  onEdit={onEditReport}
+                  onDownload={(r) => pdfExport.open([r])}
+                  onRangeChange={handleRangeChange}
+                />
               </div>
-            )}
-            <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
-              <ReportSelector
-                compact
-                reports={reports}
-                reportTypes={['PITCHING']}
-                label="Pitching"
-                isCoach={isCoach}
-                selectedId={selectedReport?.id ?? null}
-                onSelect={setSelectedReport}
-                onDeleted={onRefresh}
-                onNewReport={onNewReport}
-                onEdit={onEditReport}
-                onDownload={(r) => pdfExport.open([r])}
-                onRangeChange={handleRangeChange}
-              />
             </div>
           </div>
 

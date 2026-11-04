@@ -778,6 +778,32 @@
    Quality of Contact / Mechanical grade bubbles UNDER the spray chart. */
 .snapshotSplit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+/* Hitting Swing row with all three charts: Spray Chart · Strike Zone ·
+   Point of Impact. Wide screens: three across. Mid widths (iPad): Spray +
+   Strike Zone side by side with POI on its own row under them (under the
+   Strike Zone alone stretched the spray chart into a tall, half-empty
+   column). Phones: everything stacks. The
+   area classes only take effect inside this grid. */
+.snapshotSplit3 {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.85fr);
+  grid-template-areas: "spray zone poi";
+}
+.snapshotSplit3 > .areaSpray { grid-area: spray; }
+.snapshotSplit3 > .areaZone { grid-area: zone; }
+.snapshotSplit3 > .areaPoi { grid-area: poi; }
+@media (max-width: 1199px) {
+  .snapshotSplit3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "spray zone" "poi poi";
+  }
+}
+@media (max-width: 768px) {
+  .snapshotSplit3 {
+    grid-template-columns: 1fr;
+    grid-template-areas: "spray" "zone" "poi";
+  }
+}
+
 /* Pitching "Mechanical Grades" summary — the 7 delivery-mechanics sections
    render one-cell-per-section on desktop (count supplied inline via the
    `--pmg-cols` CSS var). The phone rule below drops it to 4 per line so the

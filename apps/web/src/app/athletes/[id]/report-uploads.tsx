@@ -29,6 +29,10 @@ export const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
     { key: 'blast',     label: 'Swing Metrics',         subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing', multi: true },
     { key: 'fullswing', label: 'Batted Ball Metrics',   subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing', multi: true },
     { key: 'hittrax',   label: 'Batted Ball — HitTrax', subtitle: 'HitTrax CSV',              vendor: 'HitTrax',      group: 'swing', multi: true },
+    /* Same HitTrax export, read only for where each ball was hit (POI X/Y/Z)
+       -- drives the Point of Impact chart, never the batted-ball numbers,
+       so the same file can go in both cards. */
+    { key: 'hittrax_poi', label: 'HitTrax POI',         subtitle: 'Point of Impact CSV',      vendor: 'HitTrax POI',  group: 'swing', multi: true },
     { key: 'atbat',     label: 'At-Bat Assessment',     subtitle: 'At-Bat Assessment XLSX',   vendor: 'AtBat',        group: 'decision' },
     /* `atbat_fullswing` + `atbat_hittrax` CSV slots retired in
        Phase 6 — at-bat batted-ball data is now captured live via

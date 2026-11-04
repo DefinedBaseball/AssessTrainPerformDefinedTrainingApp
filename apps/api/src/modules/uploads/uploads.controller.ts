@@ -229,7 +229,7 @@ export class UploadsController {
   @ApiOperation({ summary: 'Get list of supported CSV vendor sources' })
   getSources() {
     return {
-      sources: ['BLAST_MOTION', 'FULL_SWING', 'HITTRAX', 'TRACKMAN', 'VALD'],
+      sources: ['BLAST_MOTION', 'FULL_SWING', 'HITTRAX', 'HITTRAX_POI', 'TRACKMAN', 'VALD'],
       note: 'You can upload without specifying a source — the system auto-detects from column headers.',
     };
   }

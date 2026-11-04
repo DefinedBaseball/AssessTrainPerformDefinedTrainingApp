@@ -3,7 +3,7 @@
 import { rem } from '@/lib/rem';
 import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { SwingTab, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, HITTING_VENDOR_METRICS_ID, SWING_METRIC_KEYS, type SharedHittingState } from './SwingTab';
+import { SwingTab, NoteBlock, SwingDecisionResultsRow, movementPlotBubbleStyle, HITTING_VENDOR_METRICS_ID, SWING_METRIC_KEYS, type SharedHittingState, HitTraxLogo, FullSwingLogo, BlastLogo } from './SwingTab';
 import { TabBarActions, Section, SectionHeader, ReportSelector, DownloadPdfButton, VideoPlaceholder, VideoBundleCard } from '@/components/assessment';
 import {
   ReportFilesButton, ReportVideoUploadButton, SaveBar, CoachNotesInline,
@@ -15,6 +15,7 @@ import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import { SprayChartView } from '../components/SprayChartView';
 import { StrikeZoneDamageView } from '../components/StrikeZoneDamageView';
+import { PointOfImpactView } from '../components/PointOfImpactView';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
 import { usePdfExport } from '@/components/PdfExportDialog';
 import {
@@ -122,12 +123,28 @@ function computeLiveAtBatSwingMetrics(
   return out;
 }
 
+/** True at phone width (<= 768px). Starts false so the server and first
+ *  client render agree, then corrects in the effect. */
+function useIsPhone(breakpoint = 768): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [breakpoint]);
+  return phone;
+}
+
 export function HittingTab(props: TabProps) {
   const uploadQueue = useUploadQueue();
   const { player, reports, isCoach, onRefresh, refreshKey, videos: playerVideos } = props;
   const { user } = useAuth();
   const pdfExport = usePdfExport({ player, reports, isCoach });
   const isLight = useTheme().theme === 'light';
+  /* Phone: the report header squeezes onto one line (see the header row). */
+  const isPhone = useIsPhone();
   const [subTab, setSubTab] = useState<SubTabKey>('swing');
 
   // Spray-chart data-date-range label — lifted out of SprayChartView
@@ -244,6 +261,18 @@ export function HittingTab(props: TabProps) {
      the Swing sub-tab, with zone data present. Governs BOTH the column count
      and the column's visibility so the two can never disagree. */
   const showStrikeZone = subTab === 'swing' && !zoneEmpty;
+  /* Point of Impact — the report's HitTrax POI uploads (every window
+     report's when the range selector is combining / averaging). */
+  const poiUploadIds = useMemo(() => {
+    if (!aggregating || !aggInfo) return getReportUploadIdsForKeys(activeHittingReport, ['hittrax_poi']);
+    const set = new Set<string>();
+    for (const r of aggInfo.reports) {
+      for (const id of getReportUploadIdsForKeys(r, ['hittrax_poi'])) set.add(id);
+    }
+    return [...set];
+  }, [aggregating, aggInfo, activeHittingReport]);
+  const [poiEmpty, setPoiEmpty] = useState(false);
+  const showPoi = subTab === 'swing' && poiUploadIds.length > 0 && !poiEmpty;
   const effectiveSwingUploadIds = useMemo(() => {
     if (!aggregating || !aggInfo) return swingUploadIds;
     const set = new Set<string>();
@@ -795,7 +824,10 @@ export function HittingTab(props: TabProps) {
              1px accent line, then 0.85rem of breathing room before
              the first inner row (Spray Chart + Grade Stack). */
           alignItems: 'flex-end',
-          gap: 12,
+          flexWrap: 'wrap',
+          /* Phone: tighter gaps so title, logos, Upload, Live Results and
+             the date all fit on ONE line. */
+          gap: isPhone ? 6 : 12,
           paddingBottom: '0.7rem',
           marginBottom: '0.85rem',
           borderBottom: '1px solid var(--border)',
@@ -821,78 +853,32 @@ export function HittingTab(props: TabProps) {
                 setSubTab('swing');
               }
             }}
-            style={{ cursor: 'pointer' }}
+            /* Phone: centred on the row so its middle lines up with the
+               middle of the logos beside it (desktop keeps the baseline). */
+            style={{ cursor: 'pointer', alignSelf: isPhone ? 'center' : undefined }}
             title="Show Swing view"
           >
             <span className={aStyles.sectionTitleFirst}>Hitting</span>
             {' '}
             <span className={aStyles.sectionTitleAccent}>Report</span>
           </div>
-          {/* Live Results toggle — relocated to sit IMMEDIATELY next
-              to the "Hitting Snapshot" title per coach-spec. Click →
-              flips `subTab` between 'swing' and 'decision'. When
-              active (`subTab === 'decision'`) the button highlights
-              blue; otherwise it reads as a muted chip. The matching
-              "Swing" affordance lives on the snapshot's title text
-              itself (the title's `onClick` above), so the two click
-              targets sit side-by-side on the left of the header
-              row. `alignSelf: flex-end` + `marginBottom: 8`
-              baseline-aligns the button with the title's lower
-              edge so they read as paired elements. */}
-          <button
-            type="button"
-            onClick={() => setSubTab(subTab === 'decision' ? 'swing' : 'decision')}
-            style={{
-              /* Vertically center on the "Hitting Snapshot" title +
-                 the white hairline that runs through the title's
-                 mid-line. `alignSelf: flex-end` (inherited from
-                 the row's `alignItems: flex-end`) anchors the
-                 button's BOTTOM to the same baseline as the title.
-                 Since the button's box height and the title's
-                 line-box height are both ~22 px, sharing a baseline
-                 puts their centers on the same horizontal axis.
-                 The hairline runs ~1.5 px above the title's center,
-                 so the button center reads as visually aligned with
-                 BOTH simultaneously.
-
-                 Don't use `alignSelf: center` — the row contains
-                 other children with `marginBottom: 8` (date chip)
-                 and `marginBottom: 12` (hairline) that push the
-                 row's content-area center above the title's actual
-                 center, so `alignSelf: center` would float the
-                 button too high. */
-              alignSelf: 'flex-end',
-              marginBottom: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '3px 12px',
-              borderRadius: 6,
-              /* Resting state wears the Pitch Arsenal card surface
-                 (`--bubble-chrome-bg` + `--border-light`) — the same chrome
-                 the "4-Seam Fastball" card and the Assessment chip beside
-                 this button carry — so the whole header row reads as one
-                 material. The ACTIVE state keeps its blue tint: it's the
-                 only signal that Live Results is the current view. */
-              border: `1px solid ${subTab === 'decision' ? 'rgba(126,182,255,0.65)' : 'var(--border-light)'}`,
-              background: subTab === 'decision' ? 'rgba(126,182,255,0.20)' : 'var(--bubble-chrome-bg)',
-              /* Active text: pale blue reads on dark theme but vanishes on the
-                 light-theme pale-blue chip — dark grey there to offset. */
-              color: subTab === 'decision'
-                ? (isLight ? '#374151' : '#cfe0ff')
-                : 'var(--text-muted)',
-              fontFamily: 'inherit',
-              fontSize: rem(10),
-              fontWeight: 700,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
-              whiteSpace: 'nowrap',
-            }}
-            title="Toggle between Swing view and Live Results view"
-          >
-            Live Results
-          </button>
+          {/* Data providers -- HitTrax, Full Swing and Blast Motion marks
+              right of the title, the way the TrackMan mark labels the
+              Pitching Report. (Moved up from the Batted Ball / Swing
+              Metrics bubble headers.) */}
+          <span aria-hidden="true" style={{ display: 'inline-flex', gap: isPhone ? 3 : 5, alignSelf: isPhone ? 'center' : 'flex-end', marginBottom: isPhone ? 0 : 1, flexShrink: 0,
+            /* Phone: the all-caps title's letters sit ~1.5px above its box's
+               centre, so lift the logos to meet the letters' middle. */
+            transform: isPhone ? 'translateY(-1.5px)' : undefined }}>
+            {[<HitTraxLogo key="ht" />, <FullSwingLogo key="fs" />, <BlastLogo key="bl" />].map((logo) => (
+              <span key={logo.key} style={{
+                /* Exactly the TrackMan mark's box on the Pitching Report:
+                   21x21, no border, so the logo artwork itself is 21px
+                   (a 1px border had been shrinking it to 19px). */
+                width: 21, height: 21, flex: '0 0 auto', display: 'inline-block',
+              }}>{logo}</span>
+            ))}
+          </span>
           {/* Title-midline hairline — runs from immediately after
               the Live Results chip to the right edge of the bubble,
               vertically centered on the 20.7 px title via
@@ -902,6 +888,8 @@ export function HittingTab(props: TabProps) {
           <div
             aria-hidden="true"
             style={{
+              /* Hidden on a phone -- the room goes to the controls. */
+              display: isPhone ? 'none' : undefined,
               flex: 1,
               height: 1,
               background: 'var(--border)',
@@ -923,26 +911,98 @@ export function HittingTab(props: TabProps) {
           {/* Upload -- opens the data-file window for the report shown
               here (Blast / Full Swing / HitTrax / At-Bat), left of the
               report date. */}
-          {canEdit && activeHittingReport && (
-            <div style={{ alignSelf: 'flex-end', marginBottom: 0, marginRight: 8 }}>
-              <ReportFilesButton onClick={() => setUploadsOpen(true)} />
+          {/* Controls group: Upload (coaches) · Live Results · report date.
+              Kept together and pushed right; on a narrow phone the whole
+              group wraps under the title instead of running off the edge. */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', marginLeft: 'auto', alignSelf: 'flex-end' }}>
+            {canEdit && activeHittingReport && (
+              <div style={{ alignSelf: 'flex-end', marginBottom: 0, marginRight: isPhone ? 5 : 8 }}>
+                <ReportFilesButton onClick={() => setUploadsOpen(true)} iconOnly={isPhone} />
+              </div>
+            )}
+            {/* Live Results toggle — now sits right beside the report date
+                dropdown (Upload, when shown, to its left). Click →
+                flips `subTab` between 'swing' and 'decision'. When
+                active (`subTab === 'decision'`) the button highlights
+                blue; otherwise it reads as a muted chip. The matching
+                "Swing" affordance lives on the snapshot's title text
+                itself (the title's `onClick` above), so the two click
+                targets sit side-by-side on the left of the header
+                row. `alignSelf: flex-end` + `marginBottom: 8`
+                baseline-aligns the button with the title's lower
+                edge so they read as paired elements. */}
+            <button
+              type="button"
+              onClick={() => setSubTab(subTab === 'decision' ? 'swing' : 'decision')}
+              style={{
+                /* Vertically center on the "Hitting Snapshot" title +
+                   the white hairline that runs through the title's
+                   mid-line. `alignSelf: flex-end` (inherited from
+                   the row's `alignItems: flex-end`) anchors the
+                   button's BOTTOM to the same baseline as the title.
+                   Since the button's box height and the title's
+                   line-box height are both ~22 px, sharing a baseline
+                   puts their centers on the same horizontal axis.
+                   The hairline runs ~1.5 px above the title's center,
+                   so the button center reads as visually aligned with
+                   BOTH simultaneously.
+
+                   Don't use `alignSelf: center` — the row contains
+                   other children with `marginBottom: 8` (date chip)
+                   and `marginBottom: 12` (hairline) that push the
+                   row's content-area center above the title's actual
+                   center, so `alignSelf: center` would float the
+                   button too high. */
+                alignSelf: 'flex-end',
+                marginBottom: 0,
+                marginRight: isPhone ? 5 : 8,
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: isPhone ? '3px 7px' : '3px 12px',
+                borderRadius: 6,
+                /* Resting state wears the Pitch Arsenal card surface
+                   (`--bubble-chrome-bg` + `--border-light`) — the same chrome
+                   the "4-Seam Fastball" card and the Assessment chip beside
+                   this button carry — so the whole header row reads as one
+                   material. The ACTIVE state keeps its blue tint: it's the
+                   only signal that Live Results is the current view. */
+                border: `1px solid ${subTab === 'decision' ? 'rgba(126,182,255,0.65)' : 'var(--border-light)'}`,
+                background: subTab === 'decision' ? 'rgba(126,182,255,0.20)' : 'var(--bubble-chrome-bg)',
+                /* Active text: pale blue reads on dark theme but vanishes on the
+                   light-theme pale-blue chip — dark grey there to offset. */
+                color: subTab === 'decision'
+                  ? (isLight ? '#374151' : '#cfe0ff')
+                  : 'var(--text-muted)',
+                fontFamily: 'inherit',
+                fontSize: rem(10),
+                fontWeight: 700,
+                letterSpacing: isPhone ? '0.05em' : '0.10em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+              title="Toggle between Swing view and Live Results view"
+            >
+              Live Results
+            </button>
+            <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
+              <ReportSelector
+                compact
+                reports={reports}
+                reportTypes={['HITTING']}
+                label="Hitting"
+                shortDate={isPhone}
+                isCoach={isCoach}
+                selectedId={activeHittingReport?.id ?? null}
+                onSelect={setSelectedHittingReport}
+                onDeleted={onRefresh}
+                onNewReport={props.onNewReport}
+                onEdit={props.onEditReport}
+                onDownload={(r) => pdfExport.open([r])}
+                onRangeChange={handleRangeChange}
+              />
             </div>
-          )}
-          <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>
-            <ReportSelector
-              compact
-              reports={reports}
-              reportTypes={['HITTING']}
-              label="Hitting"
-              isCoach={isCoach}
-              selectedId={activeHittingReport?.id ?? null}
-              onSelect={setSelectedHittingReport}
-              onDeleted={onRefresh}
-              onNewReport={props.onNewReport}
-              onEdit={props.onEditReport}
-              onDownload={(r) => pdfExport.open([r])}
-              onRangeChange={handleRangeChange}
-            />
           </div>
           {/* Standalone Swing toggle retired per coach-spec — the
               "switch to Swing view" affordance now lives on the
@@ -983,10 +1043,13 @@ export function HittingTab(props: TabProps) {
              `repeat(2, 1fr)`, so leaving it on while the right column is
              absent would strand the spray chart at half width with a hole
              beside it. Dropping the class lets the inline `1fr` win. */
-          className={showStrikeZone ? styles.snapshotSplit : undefined}
+          /* Spray · Strike Zone · Point of Impact: three across on wide
+             screens, POI under the Strike Zone on mid widths, all stacked
+             on phones (see .snapshotSplit3). */
+          className={showStrikeZone && showPoi ? styles.snapshotSplit3 : (showStrikeZone || showPoi) ? styles.snapshotSplit : undefined}
           style={{
           display: 'grid',
-          gridTemplateColumns: showStrikeZone ? undefined : '1fr',
+          gridTemplateColumns: showStrikeZone || showPoi ? undefined : '1fr',
           /* Two-column split on desktop: Spray Chart (left) + Grade
              Stack / Coach Reviews (right). `alignItems: stretch`
              forces both columns to the same height (= max natural);
@@ -1013,7 +1076,7 @@ export function HittingTab(props: TabProps) {
               (Blast + HitTrax + Full Swing); Swing Decision uses
               the new at-bat live-data Full Swing CSV + the live
               tracker's per-AB sprayX/sprayY points. */}
-          <div style={{
+          <div className={styles.areaSpray} style={{
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
@@ -1115,7 +1178,7 @@ export function HittingTab(props: TabProps) {
               ball went. `snapshotSplit` collapses to one column under
               768px, so on phones the map simply stacks under the chart. */}
           {subTab === 'swing' && (
-          <div style={{
+          <div className={styles.areaZone} style={{
             minWidth: 0,
             /* Hidden, NOT unmounted: the view has to stay mounted to keep
                re-reporting `zoneEmpty` when the coach switches reports.
@@ -1152,6 +1215,39 @@ export function HittingTab(props: TabProps) {
             </div>
           </div>
           )}
+          {/* Point of Impact — where each ball was hit relative to the
+              plate (HitTrax POI upload). Hidden, not unmounted, for the
+              same reason as the Strike Zone column. */}
+          {subTab === 'swing' && (
+          <div className={styles.areaPoi} style={{
+            minWidth: 0,
+            display: showPoi ? 'flex' : 'none',
+            flexDirection: 'column',
+          }}>
+            <div
+              data-head-card=""
+              style={{
+              minWidth: 0,
+              ...movementPlotBubbleStyle,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              padding: 11,
+              ['--hc-pt' as string]: '11px',
+              ['--hc-px' as string]: '11px',
+              flex: 1,
+              minHeight: 0,
+            }}>
+              <SectionHeader title="Point of Impact" compact align="left" />
+              <PointOfImpactView
+                playerId={player.id}
+                refreshKey={refreshKey}
+                uploadIds={poiUploadIds}
+                onEmptyChange={setPoiEmpty}
+              />
+            </div>
+          </div>
+          )}
         </div>
 
         {/* Coach Reviews — moved OUT of the snapshot's right column and
@@ -1163,82 +1259,27 @@ export function HittingTab(props: TabProps) {
             const attachedVideos = playerVideos.filter((v) => attachedReviewIds.includes(v.id));
             if (attachedVideos.length === 0) return null;
             return (
-              /* Video clips can't print: left out of the Summary PDF. */
-              <div data-pdf-hide="" style={{
+              /* Video clips can't print: left out of the Summary PDF.
+                 Header card like the Spray Chart / Strike Zone / Point of
+                 Impact bubbles: a darker title bar on top, the lighter body
+                 holding the clips (see [data-head-card] in page.module.css). */
+              <div data-pdf-hide="" data-head-card="" style={{
                 minWidth: 0,
                 ...movementPlotBubbleStyle,
                 display: 'flex',
                 flexDirection: 'column',
-                /* `gap: 10` keeps the white "Coach Reviews" header
-                   (matching Coach Diagnosis above) visually attached
-                   to the video grid underneath without crowding. */
                 gap: 10,
                 padding: 11,
-                /* Stretch to fill the remaining vertical space in
-                   the right column — this is what locks the
-                   bubble's bottom edge onto the spray chart's
-                   bottom edge via the parent grid's stretch. */
+                ['--hc-pt' as string]: '11px',
+                ['--hc-px' as string]: '11px',
                 flex: 1,
                 minHeight: 0,
                 overflow: 'hidden',
+                /* Same 18px gap above (to the spray chart row) as the
+                   Hitting Notes wrapper leaves below it. */
+                marginTop: 18,
               }}>
-                {/* Title row — mirrors the GradeRow header pattern
-                    from HittingGradeStack (Swing / Quality of
-                    Contact / Coach Diagnosis) so this bubble
-                    reads as a fourth sibling row.
-                    Layout: label on the LEFT + inline accent
-                    hairline flex-growing to the right edge (sits
-                    at the label's mid-line via alignSelf flex-end
-                    + marginBottom 12, matching GradeRow exactly).
-                    The grade number that GradeRow renders to the
-                    right of the hairline is omitted here — this
-                    bubble has no composite score — so the hairline
-                    simply runs from the label all the way to the
-                    bubble's right edge. */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 10,
-                  flexShrink: 0,
-                }}>
-                  <span style={{
-                    /* Same font as the GradeRow label (Coach
-                       Diagnosis / Swing / Quality of Contact). */
-                    fontFamily: 'inherit',
-                    fontSize: rem(17.6), fontWeight: 600, fontStyle: 'normal',
-                    letterSpacing: '-0.025em', textTransform: 'uppercase',
-                    color: 'var(--text-bright)', lineHeight: 1.05,
-                  }}>
-                    Coach Reviews
-                  </span>
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      flex: 1,
-                      height: 1,
-                      background: 'var(--border)',
-                      alignSelf: 'flex-end',
-                      marginBottom: 12,
-                    }}
-                  />
-                </div>
-
-                {/* Second accent hairline — sits BELOW the title
-                    row, spanning the bubble's full inner width.
-                    Mirrors line 3 of GradeRow's six-line spec
-                    (the white rule between the progress bar and
-                    the chip labels). Visually separates the
-                    "Coach Reviews" title block from the video
-                    grid below, finishing the GradeRow-style frame
-                    around the panel's header. */}
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 1,
-                    background: 'var(--border)',
-                    flexShrink: 0,
-                  }}
-                />
+                <SectionHeader title="Coach Reviews" compact align="left" />
 
                 {/* Inner video grid — no surface of its own now
                     that the outer Swing-bubble supplies the
@@ -1261,8 +1302,9 @@ export function HittingTab(props: TabProps) {
                     bubble. */}
                 <div style={{
                   flexShrink: 0,
-                  maxHeight: 200,
-                  overflowY: 'auto',
+                  /* No height cap / inner scroll: the bubble is full width
+                     now and the tiles are compact, so it simply grows to
+                     show every clip (a phone wraps them onto more rows). */
                   display: 'grid',
                   /* Column minimum nudged 110 → 107 (~ 3 % tighter)
                      so the tiles inside also shrink ~ 3 % when
@@ -1276,6 +1318,7 @@ export function HittingTab(props: TabProps) {
                   {bundleVideos(attachedVideos).map((b) => (
                     <VideoBundleCard
                       themed
+                      compact
                       key={b.key}
                       videos={b.videos}
                       size="sm"
