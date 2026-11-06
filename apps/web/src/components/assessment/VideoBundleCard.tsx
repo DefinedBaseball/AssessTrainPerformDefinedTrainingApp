@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import { tzOpt } from '@/lib/academy';
 import dashTheme from '@/app/dashTheme.module.css';
+import { VideoPreviewFrame } from '@/components/VideoPreviewFrame';
 
 /* SSR-safe mobile flag (same pattern as the profile tabs). On phones the
  * per-thumbnail download button is hidden — download lives inside the open
@@ -51,6 +52,9 @@ export interface BundleVideo {
   category: string;
   createdAt: string;
   originalUrl?: string | null;
+  /** Stored still image (Bunny uploads); the tile shows it instead of
+   *  loading part of the video. */
+  thumbnailUrl?: string | null;
 }
 
 interface VideoBundleCardProps {
@@ -315,12 +319,11 @@ export function VideoBundleCard({
             borderBottom: `2px solid ${colors.border}`,
           }}>
             {first.originalUrl ? (
-              <video
+              /* A still image when one is known -- not a slice of the clip. */
+              <VideoPreviewFrame
                 src={first.originalUrl}
-                preload="metadata"
-                muted
-                playsInline
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                thumbnailUrl={first.thumbnailUrl}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
               />
             ) : null}
             <div aria-hidden="true" style={{
@@ -416,12 +419,11 @@ export function VideoBundleCard({
       >
         {/* Video preview — fills the entire bubble. */}
         {first.originalUrl ? (
-          <video
+          /* A still image when one is known -- not a slice of the clip. */
+          <VideoPreviewFrame
             src={first.originalUrl}
-            preload="metadata"
-            muted
-            playsInline
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+            thumbnailUrl={first.thumbnailUrl}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
           />
         ) : null}
 

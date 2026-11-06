@@ -17,6 +17,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
 import { AcademyService } from '../academy/academy.service';
 import { parsePhotoDataUrl, isPhotoId } from '../../common/photo.util';
+import { SendLimiter } from './send-limiter';
 
 /** Full payload from the public /register form: profile + credentials. */
 export interface SignupPlayerPayload {
@@ -175,7 +176,8 @@ export class AuthService {
   async signupPlayer(payload: SignupPlayerPayload) {
     /* Closed to new athletes (Settings → Academy) unless the link a coach
        emailed carries a live invite code. */
-    if (!(await this.isLiveRegistrationInvite(payload.inviteCode))) {
+    const liveInvite = await this.findLiveRegistrationInvite(payload.inviteCode);
+    if (!liveInvite) {
       try {
         await this.academy.assertAccepting(payload.inviteCode);
       } catch (err) {
@@ -201,6 +203,13 @@ export class AuthService {
 
     const hashed = await this.hashPassword(payload.password);
 
+    /* A coach invited this athlete -- the sign-up link was emailed to this
+       exact address -- so the coach has already vouched for them: the
+       account is active at once and they go straight in. Anyone else (the
+       public form, or a link used with a different address) waits for an
+       admin to approve, as before. */
+    const invited = !!liveInvite && liveInvite.email.trim().toLowerCase() === email;
+
     /* Blank optional text arrives as '' from the form; store null so an
        untouched field reads as "not provided" rather than an empty string
        that the Client Directory would render as a real, empty value. */
@@ -214,7 +223,9 @@ export class AuthService {
         email,
         password: hashed,
         role: 'PLAYER',
-        status: 'PENDING',
+        status: invited ? 'ACTIVE' : 'PENDING',
+        /* An invited athlete is signed in by this response (below). */
+        lastLoginAt: invited ? new Date() : null,
         phone: str(payload.phone),
         player: {
           create: {
@@ -246,21 +257,40 @@ export class AuthService {
       include: { player: true },
     });
 
-    /* They signed up: off the athletes' Pending Invites list. */
+    /* They signed up: off the athletes' Pending Invites list. Matched by
+       ADDRESS only -- a link used with a different email no longer uses up
+       the invite, so the person it was sent to can still sign up with it. */
     await this.prisma.registrationInvite.updateMany({
-      where: { acceptedAt: null, OR: [{ email }, ...(typeof payload.inviteCode === 'string' ? [{ id: payload.inviteCode }] : [])] },
+      where: { acceptedAt: null, email },
       data: { acceptedAt: new Date() },
     });
 
     const fullName = `${user.player!.firstName} ${user.player!.lastName}`.trim();
-    // Only admins can approve/decline, so only admins are notified.
-    await this.notifications.notifyAdmins({
-      type: 'ACCOUNT_REQUEST',
-      title: 'New player account request',
-      body: `${fullName} requested an account and is awaiting approval.`,
-      entityId: user.id,
-      linkUrl: '/',
-    });
+    if (invited) {
+      /* No approval needed -- just let the coach who sent the invite know
+         (admins, if it isn't known who did). */
+      const joined = {
+        type: 'INVITE_ACCEPTED' as const,
+        title: 'Invite accepted',
+        body: `${fullName} accepted your invite and set up their account.`,
+        entityId: user.player!.id,
+        linkUrl: `/athletes/${user.player!.id}`,
+      };
+      const inviter = liveInvite!.invitedById
+        ? await this.prisma.user.findUnique({ where: { id: liveInvite!.invitedById }, select: { id: true, role: true, status: true } })
+        : null;
+      if (inviter && inviter.role === 'COACH' && inviter.status === 'ACTIVE') await this.notifications.create(inviter.id, joined);
+      else await this.notifications.notifyAdmins(joined);
+    } else {
+      // Only admins can approve/decline, so only admins are notified.
+      await this.notifications.notifyAdmins({
+        type: 'ACCOUNT_REQUEST',
+        title: 'New player account request',
+        body: `${fullName} requested an account and is awaiting approval.`,
+        entityId: user.id,
+        linkUrl: '/',
+      });
+    }
 
     const token = signJwt({
       sub: user.id,
@@ -371,6 +401,9 @@ export class AuthService {
   async requestPasswordReset(rawEmail: string): Promise<{ ok: true }> {
     const email = rawEmail?.trim().toLowerCase();
     if (!email) return { ok: true };
+    /* At most one reset email a minute, and five a day, to any address --
+       see SendLimiter. Same { ok: true } either way. */
+    if (!this.resetMailLimiter.allow(email)) return { ok: true };
     try {
       const user = await this.prisma.user.findUnique({ where: { email } });
       /* A parent email signs in to the athlete's account too (see
@@ -396,6 +429,9 @@ export class AuthService {
     }
     return { ok: true };
   }
+
+  /** Caps "Forgot password?" emails per address (1 a minute, 5 a day). */
+  private readonly resetMailLimiter = new SendLimiter(60 * 1000, 5);
 
   /** How long a coach-issued invite link stays valid. Far longer than the
    *  1-hour forgot-password window: an invite is onboarding mail that may sit
@@ -556,7 +592,10 @@ export class AuthService {
       throw new BadRequestException('This reset link is invalid or has expired.');
     const hash = await this.hashPassword(newPassword);
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: row.userId }, data: { password: hash, invitedAt: null } }),
+      /* sessionsValidAfter: every device already signed in is signed out (the
+         guard refuses tokens issued before it), so resetting a password that
+         someone else knew actually locks them out. */
+      this.prisma.user.update({ where: { id: row.userId }, data: { password: hash, invitedAt: null, sessionsValidAfter: new Date() } }),
       // Burn all of this user's tokens (the one just used + any stragglers).
       this.prisma.passwordResetToken.deleteMany({ where: { userId: row.userId } }),
     ]);
@@ -613,11 +652,11 @@ export class AuthService {
     return new Date(Date.now() - AuthService.INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
   }
 
-  /** An emailed sign-up link that is unused and under 7 days old. */
-  private async isLiveRegistrationInvite(code: unknown): Promise<boolean> {
-    if (typeof code !== 'string' || !/^[0-9a-f]{32}$/.test(code)) return false;
+  /** An emailed sign-up link that is unused and under 7 days old (or null). */
+  private async findLiveRegistrationInvite(code: unknown) {
+    if (typeof code !== 'string' || !/^[0-9a-f]{32}$/.test(code)) return null;
     const inv = await this.prisma.registrationInvite.findUnique({ where: { id: code } });
-    return !!inv && !inv.acceptedAt && inv.sentAt >= AuthService.inviteCutoff();
+    return inv && !inv.acceptedAt && inv.sentAt >= AuthService.inviteCutoff() ? inv : null;
   }
 
   /** Sign-up links sent to people who haven't registered yet (Athletes →
@@ -829,12 +868,20 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    const attemptKey = (email || '').trim().toLowerCase();
+    const attemptKey = (typeof email === 'string' ? email : '').trim().toLowerCase();
     this.assertNotLockedOut(attemptKey);
-    const direct = await this.prisma.user.findUnique({
-      where: { email },
-      include: { player: true },
-    });
+    /* Accounts are stored lowercase, but phones capitalise the first letter
+       and keyboards add a space after an autocomplete pick -- either used to
+       fail a correct password as "Invalid credentials". Look up the
+       normalised address; the exact typed form is only a fallback for any
+       old account saved with capitals. */
+    const typed = typeof email === 'string' ? email.trim() : '';
+    let direct = attemptKey
+      ? await this.prisma.user.findUnique({ where: { email: attemptKey }, include: { player: true } })
+      : null;
+    if (!direct && typed && typed !== attemptKey) {
+      direct = await this.prisma.user.findUnique({ where: { email: typed }, include: { player: true } });
+    }
     let user = direct && (await this.verifyPassword(password, direct.password)) ? direct : null;
 
     /* Parent-email sign-in: an athlete's parent email + the athlete's

@@ -7,9 +7,12 @@ import * as api from '@/lib/api';
 /* ─────────────────────────────────────────────────────────────────────────────
    POINT OF IMPACT
 
-   A top-down view of home plate showing where each ball was hit, from the
-   "HitTrax POI" upload. Rebuilt from HitTrax's own Point of Impact screen;
-   every number below matched HitTrax on two real sessions:
+   A top-down view of home plate showing where each ball was hit. Read from
+   the report's HitTrax uploads (since 2026-11 the HitTrax card saves POI
+   X/Y/Z too) AND its older "HitTrax POI" card uploads; the two were copies
+   of the same export, so a swing found in both is shown once. Rebuilt from
+   HitTrax's own Point of Impact screen; every number below matched HitTrax
+   on two real sessions:
 
      depth (in front of the plate) = POI Z - 17   (stored as poi_depth)
      side to side                  = POI X        (rawData.x)
@@ -70,6 +73,12 @@ function resultKind(res: string | null): ResultKind {
 
 function toSwings(rows: any[]): Swing[] {
   const out: Swing[] = [];
+  /* The same export uploaded to both cards gives identical readings (the
+     server reads a swing the same way for both), so a swing whose contact
+     point AND exit velo match one already seen is the same ball -- skip it.
+     Two genuinely different swings agreeing to 0.01" on X, Y and Z and
+     0.01 mph doesn't happen. */
+  const seen = new Set<string>();
   for (const r of rows) {
     if (r.metricType !== 'poi_depth') continue;
     let raw: any = {};
@@ -77,6 +86,9 @@ function toSwings(rows: any[]): Swing[] {
     const x = Number(raw.x);
     const velo = Number(raw.velo);
     if (!Number.isFinite(r.value) || !Number.isFinite(x)) continue;
+    const key = `${raw.x}|${raw.y}|${raw.z}|${raw.velo}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push({
       depth: r.value,
       x,
@@ -102,40 +114,45 @@ const RIGHT = GUTTER;           // Avg EV readouts live in here
 const PAD_Y = 8;
 
 export function PointOfImpactView({
-  playerId, refreshKey, uploadIds, onEmptyChange,
+  playerId, refreshKey, hittraxUploadIds, poiUploadIds, onEmptyChange,
 }: {
   playerId: string;
   refreshKey?: number;
-  /** The report's HitTrax POI upload ids. Empty = nothing to show. */
-  uploadIds: string[];
-  /** `true` once we know there is nothing to plot, so the host can hide
-   *  its bubble instead of framing an empty chart. */
+  /** The report's HitTrax (Batted Ball) upload ids -- POI saved since 2026-11. */
+  hittraxUploadIds: string[];
+  /** The report's older "HitTrax POI" card upload ids. */
+  poiUploadIds: string[];
+  /** `true` while loading or when there is nothing to plot, so the host
+   *  can keep its bubble hidden until there is a chart to frame (no flash
+   *  of an empty column on reports without POI). */
   onEmptyChange?: (empty: boolean) => void;
 }) {
   const [swings, setSwings] = useState<Swing[]>([]);
   const [loading, setLoading] = useState(true);
-  const idsKey = uploadIds.join(',');
+  const htKey = hittraxUploadIds.join(',');
+  const poiKey = poiUploadIds.join(',');
 
   useEffect(() => {
     if (!playerId) return;
     let cancelled = false;
-    if (!idsKey) {
+    if (!htKey && !poiKey) {
       setSwings([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    api.getSessionData(playerId, 'HITTRAX_POI', ['poi_depth'], { uploadIds: idsKey.split(',') })
-      .catch(() => [] as any[])
-      .then((rows: any[]) => {
-        if (cancelled) return;
-        setSwings(toSwings(rows));
-        setLoading(false);
-      });
+    const read = (source: string, key: string) => (key
+      ? api.getSessionData(playerId, source, ['poi_depth'], { uploadIds: key.split(',') }).catch(() => [] as any[])
+      : Promise.resolve([] as any[]));
+    Promise.all([read('HITTRAX', htKey), read('HITTRAX_POI', poiKey)]).then(([fromHitTrax, fromPoiCard]) => {
+      if (cancelled) return;
+      setSwings(toSwings([...fromHitTrax, ...fromPoiCard]));
+      setLoading(false);
+    });
     return () => { cancelled = true; };
-  }, [playerId, refreshKey, idsKey]);
+  }, [playerId, refreshKey, htKey, poiKey]);
 
-  const isEmpty = !loading && swings.length === 0;
+  const isEmpty = loading || swings.length === 0;
   useEffect(() => { onEmptyChange?.(isEmpty); }, [isEmpty, onEmptyChange]);
 
   const fair = useMemo(() => swings.filter(s => s.kind !== 'foul'), [swings]);
@@ -165,13 +182,6 @@ export function PointOfImpactView({
     return out;
   }, [swings, lo, hi]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: '18px 0', textAlign: 'center', fontSize: rem(11), color: 'var(--text-muted)' }}>
-        Loading point of impact…
-      </div>
-    );
-  }
   if (isEmpty) return null;
 
   const plotW = HALF_W_IN * 2 * PX;

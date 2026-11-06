@@ -261,18 +261,23 @@ export function HittingTab(props: TabProps) {
      the Swing sub-tab, with zone data present. Governs BOTH the column count
      and the column's visibility so the two can never disagree. */
   const showStrikeZone = subTab === 'swing' && !zoneEmpty;
-  /* Point of Impact — the report's HitTrax POI uploads (every window
-     report's when the range selector is combining / averaging). */
-  const poiUploadIds = useMemo(() => {
-    if (!aggregating || !aggInfo) return getReportUploadIdsForKeys(activeHittingReport, ['hittrax_poi']);
+  /* Point of Impact reads the report's HitTrax uploads (which save POI
+     since 2026-11) plus any older "HitTrax POI" card uploads -- every window
+     report's when the range selector is combining / averaging. */
+  const poiIdsFor = useCallback((slot: 'hittrax' | 'hittrax_poi') => {
+    if (!aggregating || !aggInfo) return getReportUploadIdsForKeys(activeHittingReport, [slot]);
     const set = new Set<string>();
     for (const r of aggInfo.reports) {
-      for (const id of getReportUploadIdsForKeys(r, ['hittrax_poi'])) set.add(id);
+      for (const id of getReportUploadIdsForKeys(r, [slot])) set.add(id);
     }
     return [...set];
   }, [aggregating, aggInfo, activeHittingReport]);
-  const [poiEmpty, setPoiEmpty] = useState(false);
-  const showPoi = subTab === 'swing' && poiUploadIds.length > 0 && !poiEmpty;
+  const poiFromHitTraxIds = useMemo(() => poiIdsFor('hittrax'), [poiIdsFor]);
+  const poiFromPoiCardIds = useMemo(() => poiIdsFor('hittrax_poi'), [poiIdsFor]);
+  /* Starts "empty": the column only appears once there is a chart to show,
+     so a report whose HitTrax file predates POI never flashes an empty one. */
+  const [poiEmpty, setPoiEmpty] = useState(true);
+  const showPoi = subTab === 'swing' && (poiFromHitTraxIds.length + poiFromPoiCardIds.length) > 0 && !poiEmpty;
   const effectiveSwingUploadIds = useMemo(() => {
     if (!aggregating || !aggInfo) return swingUploadIds;
     const set = new Set<string>();
@@ -1242,7 +1247,8 @@ export function HittingTab(props: TabProps) {
               <PointOfImpactView
                 playerId={player.id}
                 refreshKey={refreshKey}
-                uploadIds={poiUploadIds}
+                hittraxUploadIds={poiFromHitTraxIds}
+                poiUploadIds={poiFromPoiCardIds}
                 onEmptyChange={setPoiEmpty}
               />
             </div>

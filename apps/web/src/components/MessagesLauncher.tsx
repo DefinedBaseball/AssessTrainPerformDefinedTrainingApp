@@ -73,6 +73,7 @@ const NOTIF_GLYPH: Record<api.NotificationType, string> = {
   PROFILE_UPDATE: '✏️',
   ACCOUNT_DELETION: '🗑️',
   PARENT_LINK_REQUEST: '👪',
+  INVITE_ACCEPTED: '✅',
 };
 
 /* Requests that sit in the bell until an admin decides (Accept / Decline,

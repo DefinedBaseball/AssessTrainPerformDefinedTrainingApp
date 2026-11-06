@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { videoThumbnail } from '@/lib/video-thumb';
 
 type Props = {
   /** If provided, rendered as <img>. */
@@ -33,6 +34,11 @@ export default function VideoThumbnail({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
+  /* No stored thumbnail? A Bunny link still has one in its folder. If the
+     image fails (not generated yet), fall back to the first frame. */
+  const thumb = videoThumbnail(thumbnailUrl, src);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => setImgFailed(false), [thumb]);
 
   // Explicit seek as a fallback for engines that don't honor the URL fragment.
   useEffect(() => {
@@ -49,12 +55,16 @@ export default function VideoThumbnail({
     return () => el.removeEventListener('loadedmetadata', onLoadedMeta);
   }, [src]);
 
-  if (thumbnailUrl) {
+  if (thumb && !imgFailed) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={thumbnailUrl}
+        src={thumb}
         alt={alt}
         className={className}
+        loading="lazy"
+        decoding="async"
+        onError={() => setImgFailed(true)}
         style={{ objectFit: fit, width: '100%', height: '100%', display: 'block' }}
       />
     );

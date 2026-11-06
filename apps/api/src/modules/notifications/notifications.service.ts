@@ -28,7 +28,9 @@ export type NotificationType =
   | 'MESSAGE'
   | 'PROFILE_UPDATE'
   | 'ACCOUNT_DELETION'
-  | 'PARENT_LINK_REQUEST';
+  | 'PARENT_LINK_REQUEST'
+  /** An invited athlete finished signing up (told to the coach who invited them). */
+  | 'INVITE_ACCEPTED';
 
 export interface NotificationPayload {
   type: NotificationType;

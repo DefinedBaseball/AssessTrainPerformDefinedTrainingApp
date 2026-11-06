@@ -1,4 +1,5 @@
 import { VendorParser, ParseResult, ParsedMetric } from './base-parser';
+import { poiFromRow } from './hittrax-poi-parser';
 
 /**
  * HitTrax CSV Parser
@@ -95,6 +96,10 @@ export class HitTraxParser implements VendorParser {
          10-13 = the four out-of-zone quadrants. Drives the Strike Zone
          damage map, which averages EV / LA per zone. */
       zone: number | null;
+      /* Point of Impact (POI X/Y/Z) when the export has those columns --
+         the same reading the POI card makes, so one HitTrax upload fills
+         the Point of Impact chart too. */
+      poi: ReturnType<typeof poiFromRow>;
       date: Date;                   // shared by every metric this row emits
     };
     const perRow: PerRow[] = [];
@@ -169,6 +174,7 @@ export class HitTraxParser implements VendorParser {
         sprayDist: hasPolar ? dist      : null,
         type: ballTypeCode(typeRaw),
         zone,
+        poi: poiFromRow(row),
         date: stamp,
       });
     }
@@ -287,6 +293,19 @@ export class HitTraxParser implements VendorParser {
           unit: '',
           recordedAt: r.date,
           rawData: { type: 'strike_zone' },
+        });
+      }
+      /* poi_depth: inches in front of the plate (POI Z - 17), with the
+         contact point + result in rawData. Not a trend / leaderboard metric
+         (neither list includes it), so it only reaches the POI chart. */
+      if (r.poi) {
+        success.push({
+          playerName: lastPlayerName,
+          metricType: 'poi_depth',
+          value: r.poi.depth,
+          unit: 'in',
+          recordedAt: r.date,
+          rawData: r.poi.rawData,
         });
       }
     }

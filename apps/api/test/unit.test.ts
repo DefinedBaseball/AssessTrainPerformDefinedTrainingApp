@@ -13,6 +13,8 @@ import { detectParser, getParserBySource, getRegisteredSources } from '../src/mo
 import { BlastMotionParser } from '../src/modules/uploads/parsers/blast-motion-parser';
 import { TrackmanParser } from '../src/modules/uploads/parsers/trackman-parser';
 import { HitTraxParser } from '../src/modules/uploads/parsers/hittrax-parser';
+import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-parser';
+import { SendLimiter } from '../src/modules/auth/send-limiter';
 
 interface TestResult {
   name: string;
@@ -101,14 +103,21 @@ async function jwtTests() {
 // ─── Parser Registry Tests ──────────────────────────────────────────────
 
 async function parserRegistryTests() {
-  await test('getRegisteredSources returns all 5 parsers', () => {
+  await test('getRegisteredSources returns all 6 parsers', () => {
     const sources = getRegisteredSources();
-    assertEqual(sources.length, 5, '5 parsers');
+    assertEqual(sources.length, 6, '6 parsers');
     assert(sources.includes('BLAST_MOTION'), 'has BLAST_MOTION');
     assert(sources.includes('TRACKMAN'), 'has TRACKMAN');
     assert(sources.includes('HITTRAX'), 'has HITTRAX');
+    assert(sources.includes('HITTRAX_POI'), 'has HITTRAX_POI');
     assert(sources.includes('VALD'), 'has VALD');
     assert(sources.includes('FULL_SWING'), 'has FULL_SWING');
+  });
+
+  await test('HitTrax POI parser is never auto-detected (same headers as HitTrax)', () => {
+    const headers = ['#', 'AB', 'Date', 'Velo', 'LA', 'Dist', 'Res', 'Type', 'Horiz. Angle', 'POI X', 'POI Y', 'POI Z'];
+    const detected = detectParser(headers);
+    assert(detected?.parser.source === 'HITTRAX', `detected ${detected?.parser.source}`);
   });
 
   await test('getParserBySource is case-insensitive', () => {
@@ -229,11 +238,61 @@ async function trackmanParserTests() {
 
 // ─── HitTrax Parser Tests ───────────────────────────────────────────────
 
+/* Two rows from a real HitTrax export (Cole Miller, 2026-11-03): a single
+   (Strike Zone 8) and a take (Velo 0, no contact). */
+const HITTRAX_ROWS: Record<string, string>[] = [
+  { '#': '2', 'Date': '11/3/2026 19:33:21.413', 'Strike Zone': '8', 'Velo': '92.4', 'LA': '2.3', 'Dist': '72', 'Res': '1B-8', 'Type': 'GB',
+    'Horiz. Angle': '10', 'POI X': '0.54', 'POI Y': '24.14', 'POI Z': '26.06', 'Spray Chart X': '12.4', 'Spray Chart Z': '73.6', 'Batting': 'Right' },
+  { '#': '3', 'Date': '11/3/2026 19:33:29.024', 'Strike Zone': '7', 'Velo': '0', 'LA': '0', 'Dist': '0', 'Res': '', 'Type': '',
+    'Horiz. Angle': '0', 'POI X': '0', 'POI Y': '0', 'POI Z': '0', 'Spray Chart X': '0', 'Spray Chart Z': '0', 'Batting': 'Right' },
+];
+
 async function hittraxParserTests() {
   await test('HitTrax parser is registered', () => {
     const p = getParserBySource('HITTRAX');
     assert(p !== null, 'HitTrax registered');
     assert(p instanceof HitTraxParser, 'correct class');
+  });
+
+  await test('HitTrax upload also saves Point of Impact (POI Z - 17)', () => {
+    const out = new HitTraxParser().parse(HITTRAX_ROWS, new Date('2026-11-03'));
+    const poi = out.success.filter((m) => m.metricType === 'poi_depth');
+    assertEqual(poi.length, 1, 'one contact -> one POI point (the take is skipped)');
+    assertEqual(poi[0].value, 9.06, 'depth in front of the plate');
+    assertEqual(poi[0].rawData.x, 0.54, 'side to side');
+    assertEqual(poi[0].rawData.res, '1B-8', 'result kept for the chart');
+    const ev = out.success.find((m) => m.metricType === 'max_exit_velo');
+    assertEqual(ev?.recordedAt.getTime(), poi[0].recordedAt.getTime(), 'shares the swing stamp');
+  });
+
+  await test('HitTrax POI card and HitTrax card read a swing identically', () => {
+    const a = new HitTraxParser().parse(HITTRAX_ROWS, new Date('2026-11-03')).success.find((m) => m.metricType === 'poi_depth')!;
+    const b = new HitTraxPoiParser().parse(HITTRAX_ROWS, new Date('2026-11-03')).success[0];
+    assertEqual(JSON.stringify([a.value, a.rawData, a.recordedAt.getTime()]), JSON.stringify([b.value, b.rawData, b.recordedAt.getTime()]), 'same reading');
+  });
+
+  await test('HitTrax export without POI columns still parses (no POI points)', () => {
+    const rows = HITTRAX_ROWS.map(({ ['POI X']: _x, ['POI Y']: _y, ['POI Z']: _z, ...rest }) => rest);
+    const out = new HitTraxParser().parse(rows, new Date('2026-11-03'));
+    assert(out.success.some((m) => m.metricType === 'max_exit_velo'), 'batted ball kept');
+    assert(!out.success.some((m) => m.metricType === 'poi_depth'), 'no POI');
+  });
+}
+
+async function sendLimiterTests() {
+  await test('reset emails: one a minute per address', () => {
+    const lim = new SendLimiter(60_000, 5);
+    assert(lim.allow('a@x.com', 0), 'first send');
+    assert(!lim.allow('a@x.com', 30_000), 'blocked inside the minute');
+    assert(lim.allow('b@x.com', 30_000), 'other addresses unaffected');
+    assert(lim.allow('a@x.com', 61_000), 'allowed after a minute');
+  });
+
+  await test('reset emails: five a day per address', () => {
+    const lim = new SendLimiter(60_000, 5);
+    for (let i = 0; i < 5; i++) assert(lim.allow('a@x.com', i * 120_000), `send ${i + 1}`);
+    assert(!lim.allow('a@x.com', 6 * 120_000), 'sixth refused');
+    assert(lim.allow('a@x.com', 24 * 60 * 60 * 1000 + 1), 'allowed again a day after the first');
   });
 }
 
@@ -306,6 +365,7 @@ async function run() {
   await blastParserTests();
   await trackmanParserTests();
   await hittraxParserTests();
+  await sendLimiterTests();
   await ownershipTests();
 
   console.log('\n' + '='.repeat(60));

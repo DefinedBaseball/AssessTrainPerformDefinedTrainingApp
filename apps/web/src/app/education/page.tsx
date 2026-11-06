@@ -12,6 +12,7 @@ import theme from '../dashTheme.module.css';
 import DrillVideoRecorder from './DrillVideoRecorder';
 import { InformationView } from './InformationView';
 import { DRILL_LIBRARY } from '@/lib/drill-taxonomy.generated';
+import { VideoPreviewFrame } from '@/components/VideoPreviewFrame';
 
 /* Unified app-wide section identity palette:
      Hitting  → Blue, Pitching → Orange,
@@ -1347,12 +1348,10 @@ function MlbView({ players, setPlayers, pos, setPos, bats, setBats, throws_, set
                     : { cursor: 'pointer' }}
                 >
                   {fallbackVideoUrl && (
-                    <video
-                      src={`${fallbackVideoUrl}#t=0.1`}
-                      preload="metadata"
-                      muted
-                      playsInline
-                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                    /* Still image when one is known, not a slice of the clip. */
+                    <VideoPreviewFrame
+                      src={fallbackVideoUrl}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
                     />
                   )}
                   <span className={styles.playerPosBadge}>{mainPos}</span>
@@ -1665,12 +1664,9 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
           onClick={isCoach ? handleAvatarClick : undefined}
         >
           {fallbackVideoUrl && (
-            <video
-              src={`${fallbackVideoUrl}#t=0.1`}
-              preload="metadata"
-              muted
-              playsInline
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', pointerEvents: 'none' }}
+            <VideoPreviewFrame
+              src={fallbackVideoUrl}
+              style={{ width: '100%', height: '100%', borderRadius: '50%' }}
             />
           )}
         </div>
@@ -1718,12 +1714,9 @@ function PlayerDetailView({ player, setPlayer, filter, setFilter, isCoach, showM
             >
               <div className={styles.videoThumb}>
                 {v.url && (
-                  <video
-                    src={`${v.url}#t=0.1`}
-                    preload="metadata"
-                    muted
-                    playsInline
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  <VideoPreviewFrame
+                    src={v.url}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
                   />
                 )}
                 <div className={styles.playBtn}>▶</div>

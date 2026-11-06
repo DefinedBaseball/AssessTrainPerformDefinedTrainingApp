@@ -3801,9 +3801,12 @@ export function ReportModal({ player, userId, onClose, onSaved, existingReport, 
                   Swing (Blast / Full Swing) and Swing Decision (At-Bat).
                   Other report types render a single Data Imports group. */}
               {(() => {
+                /* Retired cards (HitTrax POI) only where the report already has
+                   one of their files. */
+                const shownSlots = csvSlots.filter(s => !s.legacy || existingFilesOf(existingCsvUploads[s.key] || null).some(f => f.uploadId));
                 const swingGroup = reportType === 'HITTING'
-                  ? csvSlots.filter(s => s.group !== 'decision')
-                  : csvSlots;
+                  ? shownSlots.filter(s => s.group !== 'decision')
+                  : shownSlots;
                 if (swingGroup.length === 0) return null;
                 return (
                   <div className={rs.section}>

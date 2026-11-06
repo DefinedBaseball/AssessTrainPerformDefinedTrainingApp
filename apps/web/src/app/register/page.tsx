@@ -22,9 +22,17 @@
      • One-Off Logo is absent. It is a coach-supplied asset for the PDF
        cover, not something an athlete provides about themselves.
 
-   On submit we create a single PENDING account via /auth/signup, sign
-   them in, and route to `/`, where the holding screen shows "Waiting for
-   coach approval" until a coach accepts them from their notifications.
+   On submit /auth/signup creates the player account:
+
+     • Invited by a coach (the emailed ?invite= link, same address) — the
+       account is active at once and the response IS the session, so they
+       land straight in the app.
+     • Anyone else — the account waits for a coach to approve it. Sign-in
+       refuses it until then, so we don't try: the page shows a "you're
+       all set" confirmation instead. (Trying used to leave the form showing
+       an error, and pressing Create again then said "Email already
+       registered" for the account that had just been made.)
+
    Coaches are NOT created here — this page only makes player accounts.
    ───────────────────────────────────────────────────────────────────── */
 
@@ -74,7 +82,7 @@ function heightToInches(h: string): number | undefined {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { user, isLoading, login } = useAuth();
+  const { user, isLoading, adoptSession } = useAuth();
   const { academy, appLogoUrl } = useAcademy();
   /* ?invite= from a coach-sent registration email -- opens the form even
      while new athletes are switched off. Read on the client (no Suspense
@@ -113,6 +121,10 @@ export default function RegisterPage() {
   const [collegeCommit, setCollegeCommit] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  /* Created and waiting for a coach's approval -> confirmation screen. */
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
+  /* The address already has an account -> point them to sign in / reset. */
+  const [emailTaken, setEmailTaken] = useState(false);
 
   // Already signed in → no need to register.
   useEffect(() => {
@@ -139,9 +151,10 @@ export default function RegisterPage() {
     if (password !== confirm) return setError('Passwords do not match');
 
     setError('');
+    setEmailTaken(false);
     setSubmitting(true);
     try {
-      await api.signupPlayer({
+      const res = await api.signupPlayer({
         email: email.trim(),
         password,
         firstName: firstName.trim(),
@@ -172,17 +185,47 @@ export default function RegisterPage() {
         inviteCode: inviteCode || undefined,
       });
 
-      // Establish the session (pending login is allowed) → holding screen.
-      await login(email.trim(), password);
-      router.push('/');
+      /* Invited: active now, and this response is their session. */
+      if (res.status === 'ACTIVE' && res.token) {
+        adoptSession(res);
+        router.push('/');
+        return;
+      }
+      /* Otherwise a coach approves first -- no sign-in attempt (it would be
+         refused); show the confirmation. */
+      setAwaitingApproval(true);
+      window.scrollTo({ top: 0 });
     } catch (err: any) {
-      setError(err?.message || 'Could not create your account. Please try again.');
+      if ((err as { status?: number })?.status === 409) setEmailTaken(true);
+      else setError(err?.message || 'Could not create your account. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   if (!isLoading && user) return null;
+
+  /* Created -- waiting for a coach to approve it. */
+  if (awaitingApproval) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.card}>
+          <div className={styles.brandRow}>
+            <img src={appLogoUrl} alt="" width={34} height={34} />
+          </div>
+          <h1 className={styles.title}>You&apos;re all set{firstName.trim() ? `, ${firstName.trim()}` : ''}!</h1>
+          <p className={styles.subtitle}>
+            Your account has been created. A coach will review it shortly, and we&apos;ll email{' '}
+            <strong>{email.trim()}</strong> as soon as you&apos;re approved. Then sign in with the password you just chose.
+          </p>
+          <p className={styles.footerLink}>
+            <Link href="/login">Go to sign in</Link>
+          </p>
+          <AcademyContactLine />
+        </div>
+      </div>
+    );
+  }
 
   /* Switched off in Settings → Academy, and not a coach-sent link. */
   if (!academy.acceptingAthletes && !inviteCode) {
@@ -427,6 +470,12 @@ export default function RegisterPage() {
               on purpose — it is a coach-supplied PDF cover asset. */}
 
           {error && <div className={styles.error}>{error}</div>}
+          {emailTaken && (
+            <div className={styles.error} role="alert">
+              An account with this email already exists.{' '}
+              <Link href="/login">Sign in</Link> or <Link href="/forgot-password">reset your password</Link>.
+            </div>
+          )}
 
           <button type="submit" className={styles.submit} disabled={submitting}>
             {submitting ? 'Creating account…' : 'Create Account'}

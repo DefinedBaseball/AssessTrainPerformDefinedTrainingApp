@@ -35,6 +35,9 @@ interface AuthContextType {
   isParent: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Start a session from a response that already carries one (an invited
+   *  athlete's sign-up), without a second sign-in. */
+  adoptSession: (result: api.AuthResponse) => void;
   logout: () => void;
   /** Re-fetch /auth/me and update the session (e.g. to detect approval). */
   refresh: () => Promise<void>;
@@ -49,6 +52,7 @@ const AuthContext = createContext<AuthContextType>({
   isParent: false,
   isLoading: true,
   login: async () => {},
+  adoptSession: () => {},
   logout: () => {},
   refresh: async () => {},
 });
@@ -104,8 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [refresh]);
 
-  const login = async (email: string, password: string) => {
-    const result = await api.login(email, password);
+  const adoptSession = (result: api.AuthResponse) => {
     setAuthToken(result.token);
     const authUser: AuthUser = {
       id: result.id,
@@ -120,6 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth_user', JSON.stringify(authUser));
     /* The sign-in response has no photo; fill it (and the rest) from /auth/me. */
     void refresh();
+  };
+
+  const login = async (email: string, password: string) => {
+    adoptSession(await api.login(email, password));
   };
 
   const logout = () => {
@@ -142,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isParent: user?.role === 'PARENT',
         isLoading,
         login,
+        adoptSession,
         logout,
         refresh,
       }}

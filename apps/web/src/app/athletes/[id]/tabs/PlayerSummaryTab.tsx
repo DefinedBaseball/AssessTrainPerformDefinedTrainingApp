@@ -1109,6 +1109,8 @@ function PlayerVideosPanel({ playerId, reports }: { playerId: string; reports?: 
                         category: v.category,
                         createdAt: v.createdAt,
                         originalUrl: v.hlsUrl || v.originalUrl,
+                        /* Still image for the tile (no slice of the video). */
+                        thumbnailUrl: v.thumbnailUrl,
                       }));
                       return (
                         <VideoBundleCard

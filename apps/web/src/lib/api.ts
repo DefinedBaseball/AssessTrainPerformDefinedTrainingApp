@@ -697,7 +697,8 @@ export type NotificationType =
   | 'MESSAGE'
   | 'PROFILE_UPDATE'
   | 'ACCOUNT_DELETION'
-  | 'PARENT_LINK_REQUEST';
+  | 'PARENT_LINK_REQUEST'
+  | 'INVITE_ACCEPTED';
 
 export interface AppNotification {
   id: string;

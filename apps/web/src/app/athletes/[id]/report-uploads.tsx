@@ -20,7 +20,13 @@ const manualBubbleStyle: React.CSSProperties = {
   boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
 };
 
-export interface CsvSlot { key: string; label: string; subtitle: string; vendor: string; group?: 'swing' | 'decision'; kind?: 'csv' | 'pdf'; multi?: boolean; }
+export interface CsvSlot {
+  key: string; label: string; subtitle: string; vendor: string;
+  group?: 'swing' | 'decision'; kind?: 'csv' | 'pdf'; multi?: boolean;
+  /** Retired card: shown only on reports that already carry one of its files
+   *  (so they can still be removed), never offered for new uploads. */
+  legacy?: boolean;
+}
 
 export const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   // The HITTING report now bundles both swing and swing-decision data. The
@@ -28,11 +34,13 @@ export const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
   HITTING: [
     { key: 'blast',     label: 'Swing Metrics',         subtitle: 'Blast Motion CSV',         vendor: 'Blast Motion', group: 'swing', multi: true },
     { key: 'fullswing', label: 'Batted Ball Metrics',   subtitle: 'Full Swing CSV',           vendor: 'Full Swing',   group: 'swing', multi: true },
-    { key: 'hittrax',   label: 'Batted Ball — HitTrax', subtitle: 'HitTrax CSV',              vendor: 'HitTrax',      group: 'swing', multi: true },
-    /* Same HitTrax export, read only for where each ball was hit (POI X/Y/Z)
-       -- drives the Point of Impact chart, never the batted-ball numbers,
-       so the same file can go in both cards. */
-    { key: 'hittrax_poi', label: 'HitTrax POI',         subtitle: 'Point of Impact CSV',      vendor: 'HitTrax POI',  group: 'swing', multi: true },
+    /* One HitTrax export fills the Spray Chart, Strike Zone AND Point of
+       Impact (POI X/Y/Z are saved from it since 2026-11). */
+    { key: 'hittrax',   label: 'Batted Ball — HitTrax', subtitle: 'HitTrax CSV · incl. Point of Impact', vendor: 'HitTrax', group: 'swing', multi: true },
+    /* Retired: the separate Point of Impact card (a copy of the HitTrax
+       export). Kept for reports that already have one of its files -- the
+       chart still reads them, and a swing in both cards shows once. */
+    { key: 'hittrax_poi', label: 'HitTrax POI',         subtitle: 'Point of Impact CSV (older upload)', vendor: 'HitTrax POI', group: 'swing', multi: true, legacy: true },
     { key: 'atbat',     label: 'At-Bat Assessment',     subtitle: 'At-Bat Assessment XLSX',   vendor: 'AtBat',        group: 'decision' },
     /* `atbat_fullswing` + `atbat_hittrax` CSV slots retired in
        Phase 6 — at-bat batted-ball data is now captured live via
@@ -64,6 +72,12 @@ export const REPORT_CSV_SLOTS: Record<string, CsvSlot[]> = {
     { key: 'vizual', label: 'Cognition Testing', subtitle: 'Vizual Edge CSV', vendor: 'Vizual Edge' },
   ],
 };
+
+/** The cards to show: every current card, plus a retired one only where the
+ *  report already holds one of its files. */
+export function visibleSlots(slots: CsvSlot[], existing: Record<string, ExistingUpload | undefined>): CsvSlot[] {
+  return slots.filter((s) => !s.legacy || existingFilesOf(existing[s.key] || null).some((f) => f.uploadId));
+}
 
 /* ── Sub-components ── */
 

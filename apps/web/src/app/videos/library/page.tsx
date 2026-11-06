@@ -633,6 +633,8 @@ export default function VideosPage() {
               category: v.category,
               createdAt: v.createdAt,
               originalUrl: v.hlsUrl || v.originalUrl,
+              /* Still image for the tile (no slice of the video). */
+              thumbnailUrl: v.thumbnailUrl,
             }));
             /* No `label` prop — fall back to the default
                `formatBubbleLabel` inside VideoBundleCard, which

@@ -22,7 +22,7 @@ import rs from '@/components/assessment/report-form.module.css';
 import styles from './page.module.css';
 import {
   type CsvSlot, REPORT_CSV_SLOTS, type UploadResult, type ExistingFile, type ExistingUpload,
-  dedupeFiles, existingFilesOf, CsvUploadCard, ManualMetricBubbles,
+  dedupeFiles, existingFilesOf, CsvUploadCard, ManualMetricBubbles, visibleSlots,
 } from './report-uploads';
 import {
   type ManualBattedBall, getManualBattedBall,
@@ -312,17 +312,21 @@ export function ReportUploadsDialog({
             <div role="alert" style={{ color: 'var(--text)' }}>{loadError}</div>
           ) : !fresh ? (
             <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
-          ) : slots.length === 0 ? (
+          ) : visibleSlots(slots, initialExisting).length === 0 ? (
             <div style={{ color: 'var(--text-muted)' }}>This report type has no data files to upload.</div>
           ) : (
             <div className={rs.section}>
               <div className={rs.sectionHeader}>
                 <span className={rs.sectionIcon}>📊</span>
                 <span className={rs.sectionTitle}>Data Imports</span>
-                <span className={rs.sectionCount}>{slots.length} {slots.length === 1 ? 'source' : 'sources'}</span>
+                <span className={rs.sectionCount}>{visibleSlots(slots, initialExisting).length} {visibleSlots(slots, initialExisting).length === 1 ? 'source' : 'sources'}</span>
               </div>
               <div className={rs.csvGrid}>
-                {slots.map(slot => {
+                {/* Retired cards (HitTrax POI) only where the report already
+                    has one of their files -- judged from what was attached
+                    when the window opened, so removing the last file keeps
+                    the card on screen until Save. */}
+                {visibleSlots(slots, initialExisting).map(slot => {
                   /* Hitting's Blast, Full Swing and HitTrax cards offer
                      Manual Entry. */
                   const supportsManual = isHitting && (slot.key === 'blast' || slot.key === 'fullswing' || slot.key === 'hittrax');

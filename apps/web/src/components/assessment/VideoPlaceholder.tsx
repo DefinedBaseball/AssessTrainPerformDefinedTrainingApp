@@ -5,6 +5,7 @@ import { useState } from 'react';
 import styles from './assessment.module.css';
 import { VideoPlayerModal } from './VideoPlayerModal';
 import { normalizeVideoTitle as sharedNormalize } from '@/lib/video-titles';
+import { VideoPreviewFrame } from '@/components/VideoPreviewFrame';
 
 interface VideoPlaceholderProps {
   tag: string;
@@ -12,6 +13,9 @@ interface VideoPlaceholderProps {
   subtitle?: string;
   size?: 'sm' | 'md' | 'lg';
   videoUrl?: string | null;
+  /** Stored still image for the clip (Bunny uploads). Optional: a Bunny link
+   *  finds its thumbnail on its own (see lib/video-thumb). */
+  thumbnailUrl?: string | null;
   onClick?: () => void;
   /** When set, the opened VideoPlayerModal enables its Record
    *  button — captured narration clips auto-upload as a new Video
@@ -35,7 +39,7 @@ const SIZE_CLASS = {
    read the same canonical title shape. */
 const normalizeVideoTitle = sharedNormalize;
 
-export function VideoPlaceholder({ tag, title, subtitle, size = 'md', videoUrl, onClick, playerId, recordingCategory }: VideoPlaceholderProps) {
+export function VideoPlaceholder({ tag, title, subtitle, size = 'md', videoUrl, thumbnailUrl, onClick, playerId, recordingCategory }: VideoPlaceholderProps) {
   const [playing, setPlaying] = useState(false);
   const hasVideo = !!videoUrl;
   /* Normalize the title up front so every downstream branch (coach-
@@ -99,18 +103,10 @@ export function VideoPlaceholder({ tag, title, subtitle, size = 'md', videoUrl, 
             an empty box. Click anywhere on the card still opens the
             full VideoPlayerModal via `handleClick` above. */}
         {hasVideo && (
-          <video
-            className={styles.vpPreview}
-            src={videoUrl ?? undefined}
-            preload="metadata"
-            muted
-            playsInline
-            // Don't play the preview — we want a still frame poster so
-            // the grid isn't a sea of moving thumbnails. Click-to-play
-            // happens in the modal.
-            // eslint-disable-next-line react/no-unknown-property
-            disablePictureInPicture
-          />
+          /* A still image when one is known (the clip's thumbnail), else the
+             paused first frame -- never a playing preview; click-to-play
+             happens in the modal. */
+          <VideoPreviewFrame className={styles.vpPreview} src={videoUrl} thumbnailUrl={thumbnailUrl} />
         )}
         {/* Tag chip pinned top-right — sits on top of the preview.
            Coach-review clips override the default chip with a green

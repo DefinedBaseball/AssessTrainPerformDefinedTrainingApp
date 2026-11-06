@@ -1259,6 +1259,7 @@ const NOTIF_SUBJECTS_PLAYER = [
 const NOTIF_SUBJECTS_COACH: { key: string; label: string; adminOnly?: boolean }[] = [
   { key: 'ANNOUNCEMENT', label: 'Dashboard Posts' },
   { key: 'ACCOUNT_REQUEST', label: 'Account Creation Requests', adminOnly: true },
+  { key: 'INVITE_ACCEPTED', label: 'Invites Accepted' },
   { key: 'ACCOUNT_DELETION', label: 'Account Deletion Requests', adminOnly: true },
   { key: 'VIDEO', label: 'Athlete Video Uploads' },
   { key: 'INQUIRY', label: 'New Inquiries' },
