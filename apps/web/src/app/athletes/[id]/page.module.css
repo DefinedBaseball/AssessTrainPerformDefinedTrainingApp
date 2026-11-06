@@ -778,6 +778,22 @@
    Quality of Contact / Mechanical grade bubbles UNDER the spray chart. */
 .snapshotSplit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+/* Defensive snapshot pane rows (DefenseTab SnapshotBubble).
+   snapRow3 = Catching: Receiving Heat Map · Coaches Grade · Throwing &
+   Blocking. snapRow2 = Infield / Outfield: two panes. */
+.snapRow3 { grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.7fr) minmax(0, 1fr); }
+.snapRow2 { grid-template-columns: minmax(280px, 1fr) minmax(0, 1fr); }
+@media (max-width: 1023px) {
+  /* Tablet: heat map + grades side by side, field full width below. */
+  .snapRow3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .snapRow3 > :last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 768px) {
+  /* Phone: every pane stacks, full width. */
+  .snapRow3,
+  .snapRow2 { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Hitting Swing row with all three charts: Spray Chart · Strike Zone ·
    Point of Impact. Wide screens: three across. Mid widths (iPad): Spray +
    Strike Zone side by side with POI on its own row under them (under the
@@ -1738,6 +1754,33 @@
 /* An athlete with no commitment has an empty right-hand cluster; on a phone
    it still wrapped to its own line and pushed the info line off-centre. */
 .commandDeckBar .nameRow > div:empty { display: none !important; } /* beats its inline display:flex */
+/* College commitment inside the fixed-height name bubble. The full badge
+   (72px logo, 30px top inset, caption underneath = ~128px) was taller than
+   the bubble, and the name -- centred against it -- was pushed down until
+   its bottom half was cut off (committed athletes only). Here it is a
+   compact row instead: logo beside the school name, about one name-line
+   tall, and the row never wraps. Inline styles on these nodes set column /
+   gap, hence !important. */
+.commandDeckBar .nameRow { flex-wrap: nowrap !important; }
+.commandDeckBar .nameRow > .nameWithPhoto { min-width: 0; }
+.commandDeckBar .commitCol {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0;
+}
+.commandDeckBar .commitCircle { width: 40px; height: 40px; padding: 4px; }
+.commandDeckBar .commitCircleLogo { padding: 0; }
+.commandDeckBar .commitGlyph { width: 24px; height: 24px; }
+@media (max-width: 768px) {
+  /* Phone: logo only (the school name has no room beside the name), sized
+     to sit on the name's line rather than wrapping under it. */
+  .commandDeckBar .commitCol { padding: 0; }
+  .commandDeckBar .commitCircle { width: 30px; height: 30px; padding: 3px; }
+  .commandDeckBar .commitCircleLogo { padding: 0; }
+  .commandDeckBar .commitGlyph { width: 18px; height: 18px; }
+  .commandDeckBar .commitCol > span:last-child { display: none; }
+}
 /* WT readout = a button opening the weight history: looks like the other
    readouts (inherits the strip's type), with a hover underline cue. */
 .wtTrigger {

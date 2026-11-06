@@ -811,7 +811,7 @@ export default function PlayerProfilePage() {
                   {/* Shown only once the athlete has committed -- no
                       "Uncommitted" placeholder. */}
                   {committed && (
-                  <div className={styles.commitCol} style={{
+                  <div className={styles.commitCol} title={player.collegeCommit || undefined} style={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',

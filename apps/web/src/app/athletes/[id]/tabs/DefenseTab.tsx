@@ -1641,11 +1641,11 @@ function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, coachGra
             maxWidths to match at every viewport was unreliable
             because the heat map's effective width depends on the
             inner 2-col grid share. */}
-        <div style={{
+        {/* Column template lives in page.module.css (.snapRow3 / .snapRow2)
+            so it can collapse: the fixed minimums (220 + 160 + field) ran
+            wider than a phone and pushed Throwing & Blocking off-screen. */}
+        <div className={middle ? styles.snapRow3 : styles.snapRow2} style={{
           display: 'grid',
-          gridTemplateColumns: middle
-            ? 'minmax(220px, 1fr) minmax(160px, 0.7fr) minmax(0, 1fr)'
-            : 'minmax(280px, 1fr) minmax(0, 1fr)',
           gap: middle ? 14 : 28,
           alignItems: 'stretch',
         }}>
