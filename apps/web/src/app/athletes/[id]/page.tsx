@@ -414,7 +414,29 @@ export default function PlayerProfilePage() {
     };
     fit();
     window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
+    /* Re-fit once the display font has loaded (the first fit can run on the
+       narrower fallback font, leaving the real name too wide -- it then ran
+       under the position beside it) and whenever the name row's width
+       changes (positions / commitment arriving, bubble resizing). The
+       observer watches the ROW, whose width the fit never changes. */
+    let alive = true;
+    document.fonts?.ready.then(() => { if (alive) fit(); }).catch(() => {});
+    const row = el.parentElement?.parentElement;
+    let lastW = row?.getBoundingClientRect().width ?? 0;
+    const ro = row && typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          const w = row.getBoundingClientRect().width;
+          if (Math.abs(w - lastW) < 0.5) return;
+          lastW = w;
+          fit();
+        })
+      : null;
+    if (ro && row) ro.observe(row);
+    return () => {
+      alive = false;
+      window.removeEventListener('resize', fit);
+      ro?.disconnect();
+    };
   }, [player?.firstName, player?.lastName, player?.profilePhoto]);
 
   /* WT in the name bubble follows weigh-ins added anywhere (no reload). */

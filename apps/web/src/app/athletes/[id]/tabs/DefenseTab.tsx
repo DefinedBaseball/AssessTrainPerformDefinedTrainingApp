@@ -176,9 +176,12 @@ function DefenseCoachGradesPanel({
                 }}
               >
                 <div style={{
-                  fontSize: rem(10), fontWeight: 600, letterSpacing: '0.04em',
+                  /* One line per label (Lead Leg / Sequence / Arm Decel were
+                     shortened so all seven fit); the size eases down with the
+                     screen so the row still fits on a phone. */
+                  fontSize: `min(${rem(10)}, 2.05vw)`, fontWeight: 600, letterSpacing: '0.02em',
                   textTransform: 'uppercase', color: 'var(--text-bright)',
-                  textAlign: 'center', lineHeight: 1.1,
+                  textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap',
                 }}>
                   {row.title}
                 </div>
@@ -2048,9 +2051,9 @@ export function CatchingSubTab({
                   { title: 'Transfer',             score: catchingAssessment?.throwing?.transfer?.grade   ?? null },
                   { title: 'Accuracy',             score: catchingAssessment?.throwing?.accuracy?.grade   ?? null },
                   { title: 'Arm Path',             score: catchingAssessment?.throwing?.armPath?.grade    ?? null },
-                  { title: 'Foot Strike Position', score: catchingAssessment?.throwing?.footStrike?.grade ?? null },
-                  { title: 'Rotation Sequence',    score: catchingAssessment?.throwing?.rotationSeq?.grade?? null },
-                  { title: 'Arm Deceleration',     score: catchingAssessment?.throwing?.decel?.grade      ?? null },
+                  { title: 'Lead Leg',             score: catchingAssessment?.throwing?.footStrike?.grade ?? null },
+                  { title: 'Sequence',             score: catchingAssessment?.throwing?.rotationSeq?.grade?? null },
+                  { title: 'Arm Decel',            score: catchingAssessment?.throwing?.decel?.grade      ?? null },
                 ]}
               />
             }

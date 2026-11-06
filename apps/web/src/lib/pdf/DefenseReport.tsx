@@ -470,9 +470,9 @@ function CatchingPage({ data, notesSize }: { data: DefensePdfData; notesSize: nu
     { title: 'Transfer',             score: num(t.transfer?.grade) },
     { title: 'Accuracy',             score: num(t.accuracy?.grade) },
     { title: 'Arm Path',             score: num(t.armPath?.grade) },
-    { title: 'Foot Strike Position', score: num(t.footStrike?.grade) },
-    { title: 'Rotation Sequence',    score: num(t.rotationSeq?.grade) },
-    { title: 'Arm Deceleration',     score: num(t.decel?.grade) },
+    { title: 'Lead Leg',             score: num(t.footStrike?.grade) },
+    { title: 'Sequence',             score: num(t.rotationSeq?.grade) },
+    { title: 'Arm Decel',            score: num(t.decel?.grade) },
   ];
   const receivingGrades = [
     { title: 'Path',         score: num(rcv.path?.grade) },

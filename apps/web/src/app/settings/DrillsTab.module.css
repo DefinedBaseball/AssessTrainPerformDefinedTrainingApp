@@ -181,3 +181,20 @@
   cursor: pointer;
 }
 .removeBtn:hover { background: rgba(221, 105, 116, 0.18); color: #dd6974; }
+
+/* Rename / delete a drill. */
+.colActions { width: 4.4em; text-align: center; white-space: nowrap; }
+.editBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.editBtn:hover { background: rgba(29, 111, 66, 0.16); color: #2c9c5f; }
+.editBtn:disabled,
+.removeBtn:disabled { opacity: 0.4; cursor: default; }

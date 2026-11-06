@@ -1885,9 +1885,9 @@ export function CatchingForm({ data, setData }: { data: CatchingFormData; setDat
             { key: 'transfer',    label: 'Transfer' },
             { key: 'accuracy',    label: 'Accuracy' },
             { key: 'armPath',     label: 'Arm Path' },
-            { key: 'footStrike',  label: 'Foot Strike Position' },
-            { key: 'rotationSeq', label: 'Rotation Sequence' },
-            { key: 'decel',       label: 'Arm Deceleration' },
+            { key: 'footStrike',  label: 'Lead Leg' },
+            { key: 'rotationSeq', label: 'Sequence' },
+            { key: 'decel',       label: 'Arm Decel' },
           ] as { key: 'footwork' | 'transfer' | 'accuracy' | 'armPath' | 'footStrike' | 'rotationSeq' | 'decel'; label: string }[]).map(row => {
             const rowData = data.throwing[row.key] as GradeRow;
             return (

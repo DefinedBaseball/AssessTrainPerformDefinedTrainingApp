@@ -281,6 +281,27 @@ const UPCOMING_DRILL_TABS: readonly { key: string; label: string }[] = [
   { key: 'strength', label: TAB_LABELS.strength },
 ];
 
+/* A Modular day's drills as its Sets, in the coach's order -- same rule as
+   the Training calendar's groupBlocks: rows by block number, ordered by
+   `order` then time; rows with no block (pasted in beside a Modular day)
+   trail as extra sets of up to 8 so nothing is hidden. */
+function modularSets(rows: api.ScheduledDrill[]): api.ScheduledDrill[][] {
+  const byBlock = new Map<number, api.ScheduledDrill[]>();
+  const loose: api.ScheduledDrill[] = [];
+  for (const r of rows) {
+    if (r.block == null) { loose.push(r); continue; }
+    const arr = byBlock.get(r.block) || [];
+    arr.push(r);
+    byBlock.set(r.block, arr);
+  }
+  const byPos = (a: api.ScheduledDrill, b: api.ScheduledDrill) =>
+    (a.order ?? 0) - (b.order ?? 0) || a.time.localeCompare(b.time);
+  const out = [...byBlock.entries()].sort((a, b) => a[0] - b[0]).map(([, arr]) => arr.sort(byPos));
+  loose.sort((a, b) => (a.sectionOrder ?? 0) - (b.sectionOrder ?? 0) || byPos(a, b));
+  for (let i = 0; i < loose.length; i += 8) out.push(loose.slice(i, i + 8));
+  return out;
+}
+
 function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; onScheduleSaved?: () => void }) {
   const playerId = player.id;
   const [items, setItems] = useState<api.ScheduledDrill[]>([]);
@@ -642,6 +663,21 @@ function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; 
                 return ai - bi;
               });
 
+              /* Modular (super-set) workouts list by Set, the way the
+                 Training calendar shows them; Structured ones by category. */
+              const isModular = tabDrills.some(d => d.block != null);
+              const cards = isModular
+                ? modularSets(tabDrills).map((arr, i) => ({
+                    key: `set-${i}`,
+                    title: `Set ${i + 1}`,
+                    items: arr,
+                    style: { dot: tabColor.text, bg: tabColor.bg },
+                  }))
+                : orderedGroups.map(([category, groupItems]) => {
+                    const cs = getTabCatStyle(tabKey, category);
+                    return { key: category, title: category, items: groupItems, style: { dot: cs.dot, bg: cs.bg } };
+                  });
+
               return (
                 <div
                   key={tabKey}
@@ -713,8 +749,7 @@ function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; 
                       chrome the Training page uses). No empty-state
                       branch needed since `populatedTabs` already
                       guarantees this column has at least one drill. */}
-                  {orderedGroups.map(([category, groupItems]) => {
-                    const catStyle = getTabCatStyle(tabKey, category);
+                  {cards.map(({ key: cardKey, title: category, items: groupItems, style: catStyle }) => {
                     /* Per-tab anchor shades used to color every category
                        title in this column. Light theme uses the deeper
                        "core activity" shade (Hitting → Machine, Pitching
@@ -729,7 +764,7 @@ function UpcomingDrillsPanel({ player, onScheduleSaved }: { player: api.Player; 
                     const tabAnchorDark = TAB_ANCHOR_COLORS_DARK[tabKey] || catStyle.dot;
                     return (
                       <div
-                        key={category}
+                        key={cardKey}
                         /* Surface the category dot color via a CSS
                            custom property so the theme-aware drill
                            card rule in PlayerSummaryTab.module.css

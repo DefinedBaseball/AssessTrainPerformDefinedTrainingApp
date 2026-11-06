@@ -13,7 +13,11 @@
    Tool / Intensity-Goal) -- the same sheet, adding an option to the list
    the Modular set pickers offer. Drills filed outside a position's
    categories (Hitting's "Not on List" from the 2026-10 reshape) get a
-   read-only tab last. */
+   tab last (rename / delete only, no adding).
+
+   Any drill can be renamed in place (pencil or double-click, Enter to save,
+   Esc to cancel -- calendar slots still showing the old name follow it) or
+   deleted (calendars that already use it keep their slot). */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '@/lib/api';
@@ -54,6 +58,10 @@ export function DrillsTab() {
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  /* Renaming a drill in place. */
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLTableRowElement>(null);
 
@@ -98,6 +106,7 @@ export function DrillsTab() {
     setDraft('');
     setError('');
     setAddedIds([]);
+    setEditId(null);
   };
 
   const refocus = () => requestAnimationFrame(() => {
@@ -129,6 +138,51 @@ export function DrillsTab() {
     } finally {
       setSaving(false);
       refocus();
+    }
+  };
+
+  const startRename = (r: Row) => {
+    if (!canEdit || field || busyId) return;
+    setEditId(r.id);
+    setEditDraft(r.name);
+    setError('');
+  };
+
+  /* Save the in-place rename (Enter or leaving the cell). Unchanged = just close. */
+  const saveRename = async (r: Row) => {
+    if (editId !== r.id || busyId) return; // busy: Enter already saving (blur would double-send)
+    const name = editDraft.trim().replace(/\s+/g, ' ');
+    if (!name || name === r.name) { setEditId(null); return; }
+    if (rows.some((o) => o.id !== r.id && keyOf(o.name) === keyOf(name))) {
+      setError(`"${name}" is already on this list.`);
+      return;
+    }
+    setBusyId(r.id);
+    setError('');
+    try {
+      const updated = await api.updateDrill(r.id, { name });
+      setDrills((prev) => (prev || []).map((d) => (d.id === r.id ? { ...d, ...updated } : d)));
+      setEditId(null);
+    } catch (e: any) {
+      setError(e?.message || 'Could not rename that drill.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeDrill = async (r: Row) => {
+    if (!window.confirm(`Delete "${r.name}" from the drill library? Calendars that already use it keep their slot.`)) return;
+    setBusyId(r.id);
+    setError('');
+    try {
+      await api.deleteDrill(r.id);
+      setDrills((prev) => (prev || []).filter((d) => d.id !== r.id));
+      setAddedIds((prev) => prev.filter((id) => id !== r.id));
+      if (editId === r.id) setEditId(null);
+    } catch (e: any) {
+      setError(e?.message || 'Could not delete that drill.');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -224,13 +278,39 @@ export function DrillsTab() {
                 {field
                   ? (canEdit && <th className={`${styles.colHead} ${styles.colVideo}`} aria-label="Remove" />)
                   : <th className={`${styles.colHead} ${styles.colVideo}`}>Video</th>}
+                {!field && canEdit && <th className={`${styles.colHead} ${styles.colActions}`} aria-label="Edit or delete" />}
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr key={r.id} className={addedIds.includes(r.id) ? styles.rowNew : undefined}>
                   <th className={styles.rowNum} scope="row">{i + 1}</th>
-                  <td className={styles.cell}>{r.name}{field?.suffix && <span className={styles.muted}>{field.suffix}</span>}</td>
+                  {editId === r.id ? (
+                    <td className={`${styles.cell} ${styles.inputCell}`}>
+                      <input
+                        autoFocus
+                        className={styles.cellInput}
+                        value={editDraft}
+                        onChange={(e) => { setEditDraft(e.target.value); if (error) setError(''); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); void saveRename(r); }
+                          if (e.key === 'Escape') { e.preventDefault(); setEditId(null); setError(''); }
+                        }}
+                        onBlur={() => { void saveRename(r); }}
+                        readOnly={busyId === r.id}
+                        maxLength={120}
+                        aria-label={`Rename ${r.name}`}
+                      />
+                    </td>
+                  ) : (
+                    <td
+                      className={styles.cell}
+                      onDoubleClick={!field ? () => startRename(r) : undefined}
+                      title={!field && canEdit ? 'Double-click to rename' : undefined}
+                    >
+                      {r.name}{field?.suffix && <span className={styles.muted}>{field.suffix}</span>}
+                    </td>
+                  )}
                   {isOther && <td className={`${styles.cell} ${styles.muted}`}>{r.old}</td>}
                   {field
                     ? (canEdit && (
@@ -239,6 +319,14 @@ export function DrillsTab() {
                       </td>
                     ))
                     : <td className={`${styles.cell} ${styles.colVideo}`}>{r.video ? '✓' : ''}</td>}
+                  {!field && canEdit && (
+                    <td className={`${styles.cell} ${styles.colActions}`}>
+                      <button type="button" className={styles.editBtn} onClick={() => startRename(r)}
+                        disabled={!!busyId} aria-label={`Rename ${r.name}`} title="Rename">✎</button>
+                      <button type="button" className={styles.removeBtn} onClick={() => void removeDrill(r)}
+                        disabled={!!busyId} aria-label={`Delete ${r.name}`} title="Delete">×</button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {canAdd && (
@@ -264,10 +352,11 @@ export function DrillsTab() {
                     />
                   </td>
                   <td className={`${styles.cell} ${styles.colVideo}`} />
+                  {!field && canEdit && <td className={`${styles.cell} ${styles.colActions}`} />}
                 </tr>
               )}
               {!canAdd && rows.length === 0 && (
-                <tr><td className={`${styles.cell} ${styles.muted}`} colSpan={4}>Nothing here yet.</td></tr>
+                <tr><td className={`${styles.cell} ${styles.muted}`} colSpan={5}>Nothing here yet.</td></tr>
               )}
             </tbody>
           </table>

@@ -386,6 +386,23 @@ export class TrainingService {
         await this.cleanupDrillVideoFile(prev.videoUrl);
       }
     }
+    /* Renaming (Settings → Drills): calendar slots copy the drill's name when
+       scheduled, so carry the new name onto the slots linked to this drill
+       that still show the OLD name. Slots whose name was changed by hand
+       are left alone. */
+    const newName = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : undefined;
+    if (newName !== undefined) {
+      if (!newName) throw new BadRequestException('A drill needs a name.');
+      data = { ...data, name: newName };
+      const prev = await this.prisma.drill.findUnique({ where: { id }, select: { name: true } });
+      if (prev && prev.name !== newName) {
+        const [updated] = await this.prisma.$transaction([
+          this.prisma.drill.update({ where: { id }, data }),
+          this.prisma.scheduledDrill.updateMany({ where: { drillId: id, name: prev.name }, data: { name: newName } }),
+        ]);
+        return updated;
+      }
+    }
     return this.prisma.drill.update({ where: { id }, data });
   }
 
