@@ -9,6 +9,11 @@ import {
 } from '../facility-programs/facility-programs.service';
 
 const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Workout type as coaches read it in a summary: "hitting" → "Hitting", strength → "S&C". */
+const tabWord = (t: string) => (t === 'strength' ? 'S&C' : t.charAt(0).toUpperCase() + t.slice(1));
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2026-11-09" → "Nov 9" (read straight from the string -- no time zone). */
+const shortDay = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -541,7 +546,15 @@ export class TrainingService {
     fromDate: string,
     actorUserId?: string,
     tabs?: string[],
-    opts: { scope?: string; anchorDate?: string; programs?: string[] } = {},
+    opts: {
+      scope?: string; anchorDate?: string; programs?: string[];
+      /** Also remove the applied workout types from every target from the
+       *  start of the copied range onward -- not only on the days they
+       *  receive -- so an old, longer plan cannot outlive the new one. */
+      replaceForward?: boolean;
+      /** Work everything out and report the counts without writing. */
+      dryRun?: boolean;
+    } = {},
   ) {
     if (!sourcePlayerId) throw new BadRequestException('sourcePlayerId is required');
     if (!ISO_DAY_RE.test(fromDate || '')) {
@@ -687,13 +700,37 @@ export class TrainingService {
     /* Snapshot what is about to be destroyed BEFORE destroying it — this is
        the only record of the targets' previous plans, and undo restores from
        it verbatim. */
+    /* Replace forward: the types being applied (the ticked ones, else every
+       type the source has in range) come off every target from the range's
+       first day on. Undo restores them from the same snapshot below. */
+    const wipeFrom = range.gte;
+    const wipeTabs = tabFilter ?? [...new Set(source.map((d) => d.tab))];
     const replaceWhere = {
-      OR: [...replace.values()].map((r) => ({
-        playerId: r.playerId,
-        date: r.date,
-        ...(r.whole ? {} : { tab: { in: [...r.tabs] } }),
-      })),
+      OR: [
+        ...[...replace.values()].map((r) => ({
+          playerId: r.playerId,
+          date: r.date,
+          ...(r.whole ? {} : { tab: { in: [...r.tabs] } }),
+        })),
+        ...(opts.replaceForward
+          ? [{ playerId: { in: targets.map((t) => t.id) }, date: { gte: wipeFrom }, tab: { in: wipeTabs } }]
+          : []),
+      ],
     };
+
+    if (opts.dryRun) {
+      const gone = await this.prisma.scheduledDrill.findMany({ where: replaceWhere, select: { playerId: true } });
+      return {
+        dryRun: true as const,
+        players: new Set(rows.map((r) => r.playerId)).size,
+        drillsWritten: rows.length,
+        drillsRemoved: gone.length,
+        playersLosingDrills: new Set(gone.map((g) => g.playerId)).size,
+        skippedLocked,
+        missingDays: missing.size,
+      };
+    }
+
     const removed = await this.prisma.scheduledDrill.findMany({ where: replaceWhere });
 
     /* Ids are generated up front so the log can name exactly what this run
@@ -709,9 +746,7 @@ export class TrainingService {
     ]);
 
     const written = new Set(rows.map((r) => r.playerId));
-    const tabNote = tabFilter
-      ? ` (${tabFilter.map((t) => (t === 'strength' ? 'S&C' : t.charAt(0).toUpperCase() + t.slice(1))).join(', ')} only)`
-      : '';
+    const tabNote = tabFilter ? ` (${tabFilter.map(tabWord).join(', ')} only)` : '';
     const what = scope === 'day' ? 'day' : scope === 'week' ? 'week' : scope === 'month' ? 'month' : 'calendar';
     const programNote = usedPrograms.size
       ? `, matched to each athlete's ${allPrograms.filter((pr) => usedPrograms.has(pr.key)).map((pr) => pr.label).join(' / ')} days`
@@ -719,9 +754,12 @@ export class TrainingService {
     const missingNote = missingDays > 0
       ? ` ${missingDays} program day${missingDays === 1 ? ' was' : 's were'} skipped where an athlete has fewer days a week.`
       : '';
+    const forwardNote = opts.replaceForward
+      ? ` Replaced their ${wipeTabs.map(tabWord).join(' / ')} from ${shortDay(wipeFrom)} on (${removed.length} earlier drill${removed.length === 1 ? '' : 's'} removed).`
+      : '';
     const summary =
       `Applied ${sourceName}'s ${what}${tabNote} — ${rows.length} drill${rows.length === 1 ? '' : 's'} ` +
-      `to ${written.size} athlete${written.size === 1 ? '' : 's'}${programNote}.${missingNote}`;
+      `to ${written.size} athlete${written.size === 1 ? '' : 's'}${programNote}.${missingNote}${forwardNote}`;
 
     const log = await this.prisma.calendarChangeLog.create({
       data: {
@@ -741,10 +779,67 @@ export class TrainingService {
       dates: dates.length,
       drillsPerPlayer: source.length,
       drillsWritten: rows.length,
+      drillsRemoved: removed.length,
       skippedLocked,
       summary,
       logId: log.id,
     };
+  }
+
+  /**
+   * Clear chosen workout types from a group of athletes over a date range --
+   * "take the old hitting plan off everyone in the Hitting Program from
+   * Monday on". `tabs` is required (never an accidental wipe of every type);
+   * no endDate = everything from startDate forward. Logged like the
+   * single-athlete clear, so the banner's Undo restores every row.
+   * `dryRun` reports what would go without deleting.
+   */
+  async clearScheduleGroup(
+    dto: { playerIds: string[]; tabs: string[]; startDate: string; endDate?: string; dryRun?: boolean },
+    actorUserId?: string,
+  ) {
+    const ids = [...new Set((dto.playerIds ?? []).filter((id) => typeof id === 'string' && id))];
+    const tabs = [...new Set((dto.tabs ?? []).filter((t) => typeof t === 'string' && t))];
+    if (ids.length === 0) throw new BadRequestException('Pick at least one athlete');
+    if (ids.length > 2000) throw new BadRequestException('Too many athletes in one clear');
+    if (tabs.length === 0) throw new BadRequestException('Pick at least one workout type');
+    if (!ISO_DAY_RE.test(dto.startDate || '')) throw new BadRequestException('startDate must be YYYY-MM-DD');
+    if (dto.endDate && !ISO_DAY_RE.test(dto.endDate)) throw new BadRequestException('endDate must be YYYY-MM-DD');
+    if (dto.endDate && dto.endDate < dto.startDate) throw new BadRequestException('The end date is before the start date');
+
+    const where = {
+      playerId: { in: ids },
+      tab: { in: tabs },
+      date: dto.endDate ? { gte: dto.startDate, lte: dto.endDate } : { gte: dto.startDate },
+    };
+    const removed = await this.prisma.scheduledDrill.findMany({ where });
+    const players = new Set(removed.map((r) => r.playerId)).size;
+    const byTab: Record<string, number> = {};
+    for (const r of removed) byTab[r.tab] = (byTab[r.tab] || 0) + 1;
+
+    if (dto.dryRun) return { dryRun: true as const, drills: removed.length, players, byTab };
+    if (removed.length === 0) throw new BadRequestException('Nothing of those workout types is scheduled in that range');
+
+    await this.prisma.scheduledDrill.deleteMany({ where: { id: { in: removed.map((r) => r.id) } } });
+
+    const range = dto.endDate
+      ? (dto.endDate === dto.startDate ? `on ${shortDay(dto.startDate)}` : `${shortDay(dto.startDate)} – ${shortDay(dto.endDate)}`)
+      : `from ${shortDay(dto.startDate)} on`;
+    const summary =
+      `Cleared ${tabs.map(tabWord).join(' / ')} ${range} for ${players} athlete${players === 1 ? '' : 's'} — ` +
+      `${removed.length} drill${removed.length === 1 ? '' : 's'}.`;
+
+    const log = await this.prisma.calendarChangeLog.create({
+      data: {
+        kind: 'CLEAR',
+        actorId: actorUserId ?? null,
+        summary,
+        removedRows: JSON.stringify(removed),
+        createdRowIds: JSON.stringify([]),
+      },
+      select: { id: true },
+    });
+    return { drills: removed.length, players, byTab, summary, logId: log.id };
   }
 
   /**

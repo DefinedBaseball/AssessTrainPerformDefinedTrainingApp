@@ -34,6 +34,7 @@ export function ClearScheduleMenu({
   weekStart,
   weekEnd,
   onCleared,
+  onOpenGroup,
 }: {
   open: boolean;
   onClose: () => void;
@@ -44,6 +45,8 @@ export function ClearScheduleMenu({
   weekStart: string;
   weekEnd: string;
   onCleared: (summary: string, logId: string) => void;
+  /** Open Clear for a Group (several athletes, chosen workout types). */
+  onOpenGroup?: () => void;
 }) {
   const [counts, setCounts] = useState<Record<ClearScope, number> | null>(null);
   const [armed, setArmed] = useState<ClearScope | null>(null);
@@ -169,6 +172,23 @@ export function ClearScheduleMenu({
             );
           })}
         </div>
+
+        {onOpenGroup && (
+          <div className={`${styles.clearOption} ${styles.clearGroupRow}`}>
+            <div className={styles.clearOptionText}>
+              <span className={styles.clearOptionLabel}>Clear for a Group</span>
+              <span className={styles.clearOptionSub}>Pick workout types, dates and athletes or a program</span>
+            </div>
+            <button
+              type="button"
+              className={styles.clearBtn}
+              disabled={busy}
+              onClick={() => { onClose(); onOpenGroup(); }}
+            >
+              Choose…
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2845,3 +2845,51 @@
   font-family: inherit;
   cursor: pointer;
 }
+
+/* Apply Calendar pop-up: "Replace from <date> on" + the dry-run impact line. */
+.replaceForward { align-items: flex-start; margin-bottom: 10px; }
+.replaceForward .applyCheckbox { margin-top: 2px; }
+.replaceForwardText { display: grid; gap: 3px; font-size: 12.5px; color: var(--text); line-height: 1.4; }
+.replaceForwardText span { font-size: 11.5px; color: var(--text-muted); }
+.applyImpact {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface2, rgba(127, 127, 127, 0.08));
+  margin-bottom: 12px;
+}
+.applyImpact strong { color: var(--text); }
+.applyImpact .applyImpactRemove { color: #e5484d; }
+
+/* Clear for a Group. */
+.clearGroupRow { border-top: 1px solid var(--border); margin-top: 4px; }
+.clearGroupPop { width: min(440px, 100%); }
+.clearGroupTypes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+.clearGroupTypes .applyPopItem { padding: 7px 10px; }
+.clearGroupDates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.clearGroupDates label { display: grid; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.clearGroupDates em { font-style: normal; font-weight: 500; }
+.clearGroupDates input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2, transparent);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12pt;
+}
+@media (max-width: 480px) {
+  .clearGroupDates { grid-template-columns: 1fr; }
+}
+.clearGroupList {
+  max-height: 34vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin: 4px 0 12px;
+}

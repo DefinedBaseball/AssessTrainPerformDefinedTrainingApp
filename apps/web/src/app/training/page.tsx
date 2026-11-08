@@ -19,6 +19,7 @@ const ScheduleDownloadModal = nextDynamic(
 import { SaveTemplateModal, TemplatePreviewModal } from '@/components/TemplatePicker';
 import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
+import { ClearGroupModal } from './ClearGroupModal';
 import { CheckInFlow } from './CheckInFlow';
 import styles from './page.module.css';
 import { type FacilitySlot, parseFacilitySchedule, slotsOnDate, formatTime12, weekDayLabel } from '@/lib/facility-schedule';
@@ -1274,6 +1275,7 @@ export default function TrainingPage() {
      to read it after the fact. */
   const [showApply, setShowApply] = useState(false);
   const [showClear, setShowClear] = useState(false);
+  const [showClearGroup, setShowClearGroup] = useState(false);
   /* The banner carries the log id for the change it describes, which is what
      makes Undo possible — the server kept a snapshot of everything the change
      removed. `undoing` disables the button so a slow request cannot double
@@ -1813,6 +1815,17 @@ export default function TrainingPage() {
                 dayDate={toDateStr(currentDate)}
                 weekStart={viewWeek.start}
                 weekEnd={viewWeek.end}
+                onCleared={(msg, logId) => {
+                  setApplyBanner({ text: msg, logId });
+                  refreshEvents();
+                }}
+                onOpenGroup={() => setShowClearGroup(true)}
+              />
+              <ClearGroupModal
+                open={showClearGroup}
+                onClose={() => setShowClearGroup(false)}
+                players={players}
+                defaultStart={todayDateStr}
                 onCleared={(msg, logId) => {
                   setApplyBanner({ text: msg, logId });
                   refreshEvents();

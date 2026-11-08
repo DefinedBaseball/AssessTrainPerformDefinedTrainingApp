@@ -2153,13 +2153,42 @@ export async function applyCalendarToPlayers(data: {
   anchorDate?: string;
   /** Ticked facility programs: their athletes get program-day matching. */
   programs?: string[];
+  /** Also remove the applied workout types from every target from the start
+   *  of the copied range onward (an old, longer plan can't outlive the new). */
+  replaceForward?: boolean;
 }) {
   return request<{
     players: number; dates: number; drillsPerPlayer: number; drillsWritten: number;
-    skippedLocked: number; summary: string;
+    drillsRemoved: number; skippedLocked: number; summary: string;
     /** Pass to `undoCalendarChange` to roll this apply back. */
     logId: string;
   }>('/training/schedule/apply-calendar', { method: 'POST', body: JSON.stringify(data) });
+}
+
+/** What an Apply Calendar would do, without writing anything. */
+export async function previewApplyCalendar(data: Parameters<typeof applyCalendarToPlayers>[0]) {
+  return request<{
+    dryRun: true; players: number; drillsWritten: number; drillsRemoved: number;
+    playersLosingDrills: number; skippedLocked: number; missingDays: number;
+  }>('/training/schedule/apply-calendar', { method: 'POST', body: JSON.stringify({ ...data, dryRun: true }) });
+}
+
+/**
+ * Clear chosen workout types from several athletes over a date range (no
+ * endDate = from startDate forward). `dryRun` returns the counts only.
+ * Logged, so `undoCalendarChange(logId)` restores everything it removed.
+ */
+export async function clearScheduleGroup(data: {
+  playerIds: string[];
+  tabs: string[];
+  startDate: string;
+  endDate?: string;
+  dryRun?: boolean;
+}) {
+  return request<{
+    drills: number; players: number; byTab: Record<string, number>;
+    dryRun?: true; summary?: string; logId?: string;
+  }>('/training/schedule/clear-group', { method: 'POST', body: JSON.stringify(data) });
 }
 
 /**

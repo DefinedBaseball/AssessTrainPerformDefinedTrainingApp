@@ -352,6 +352,7 @@ export class TrainingController {
     @Body() dto: {
       sourcePlayerId: string; targetPlayerIds: string[]; fromDate: string; tabs?: string[];
       scope?: string; anchorDate?: string; programs?: string[];
+      replaceForward?: boolean; dryRun?: boolean;
     },
   ) {
     return this.trainingService.applyCalendarToPlayers(
@@ -364,7 +365,28 @@ export class TrainingController {
         scope: typeof dto.scope === 'string' ? dto.scope : undefined,
         anchorDate: typeof dto.anchorDate === 'string' ? dto.anchorDate : undefined,
         programs: Array.isArray(dto.programs) ? dto.programs.filter((k) => typeof k === 'string') : undefined,
+        replaceForward: dto.replaceForward === true,
+        dryRun: dto.dryRun === true,
       },
+    );
+  }
+
+  @Post('schedule/clear-group')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Clear chosen workout types from several athletes over a date range (COACH only)' })
+  clearScheduleGroup(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { playerIds: string[]; tabs: string[]; startDate: string; endDate?: string; dryRun?: boolean },
+  ) {
+    return this.trainingService.clearScheduleGroup(
+      {
+        playerIds: Array.isArray(dto.playerIds) ? dto.playerIds : [],
+        tabs: Array.isArray(dto.tabs) ? dto.tabs : [],
+        startDate: dto.startDate,
+        endDate: typeof dto.endDate === 'string' && dto.endDate ? dto.endDate : undefined,
+        dryRun: dto.dryRun === true,
+      },
+      req.user?.sub,
     );
   }
 
