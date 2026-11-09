@@ -44,6 +44,7 @@ import {
   SortableContext,
   useSortable,
   horizontalListSortingStrategy,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -638,7 +639,10 @@ function AthleteColumn({
                   headStyle={headStyle}
                   isCoach={isCoach}
                 >
-                  <SortableContext items={items.map((d) => d.id)} strategy={horizontalListSortingStrategy}>
+                  {/* Two rows, filled column by column: drill 1 top, 2 under
+                      it, 3 top of the next column ... -- a grid, so drag
+                      reorder uses the grid-aware strategy. */}
+                  <SortableContext items={items.map((d) => d.id)} strategy={rectSortingStrategy}>
                     <div className={styles.drillGroupCards}>
                       {items.map((d) => (
                         <SortableDrill

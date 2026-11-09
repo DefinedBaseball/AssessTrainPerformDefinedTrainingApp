@@ -433,9 +433,13 @@
   letter-spacing: 0.06em;
 }
 
+/* Two rows of cards per section, filled COLUMN by column so the order
+   still reads left to right: 1 / 2 in the first column, 3 / 4 in the next. */
 .drillGroupCards {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-columns: max-content;
   align-items: stretch;
   gap: 8px;
 }
