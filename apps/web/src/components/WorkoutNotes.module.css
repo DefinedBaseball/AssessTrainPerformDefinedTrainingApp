@@ -1,0 +1,67 @@
+/* Workout Notes — see WorkoutNotes.tsx. */
+
+.wrap { display: flex; flex-direction: column; gap: 4px; }
+
+/* Editor card: title + Report on the left of the toolbar row, B / I / U /
+   Size / mic on the right, the typing area beneath, one border around both. */
+.editorCard {
+  gap: 0 !important;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.editorCard > :first-child {
+  padding: 5px 8px 5px 10px;
+  background: var(--surface2, rgba(127, 127, 127, 0.08));
+  border-bottom: 1px solid var(--border);
+}
+
+.headRow { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+
+.title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.reportBtn {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.reportBtn:hover:not(:disabled) { background: rgba(127, 127, 127, 0.12); }
+.reportBtn:disabled { opacity: 0.6; cursor: default; }
+
+.status { font-size: 10.5px; color: var(--text-muted); padding: 0 2px; }
+.statusError { color: #e5484d; }
+
+/* Read-only (athlete / parent / TV). */
+.card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.head {
+  padding: 6px 10px;
+  background: var(--surface2, rgba(127, 127, 127, 0.08));
+  border-bottom: 1px solid var(--border);
+}
+.body {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+}

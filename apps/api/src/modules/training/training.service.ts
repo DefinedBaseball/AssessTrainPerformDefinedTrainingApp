@@ -12,6 +12,15 @@ const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** Workout type as coaches read it in a summary: "hitting" → "Hitting", strength → "S&C". */
 const tabWord = (t: string) => (t === 'strength' ? 'S&C' : t.charAt(0).toUpperCase() + t.slice(1));
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Workout types a note can belong to (the calendar's areas). */
+const WORKOUT_NOTE_TABS = ['hitting', 'pitching', 'catching', 'infield', 'outfield', 'strength'];
+/** Workout type -> the report type whose notes the "Report" button pulls in. */
+const TAB_TO_REPORT_TYPE: Record<string, string> = {
+  hitting: 'HITTING', pitching: 'PITCHING', catching: 'CATCHING', infield: 'INFIELD', outfield: 'OUTFIELD',
+};
+/** True when rich-text HTML has no visible text ("<br>", "<p></p>", &nbsp;). */
+const isBlankHtml = (html: string) =>
+  html.replace(/<[^>]*>/g, '').replace(/&nbsp;|&#160;|\u00a0/gi, ' ').trim().length === 0;
 /** "2026-11-09" → "Nov 9" (read straight from the string -- no time zone). */
 const shortDay = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 import * as fs from 'fs';
@@ -1027,6 +1036,83 @@ export class TrainingService {
       if (!l.undone) laterStanding = true;
       return row;
     });
+  }
+
+  // ─── Workout notes (one per athlete / day / workout type) ───────────
+
+  /** An athlete's workout notes over a date range (calendar view). */
+  async getWorkoutNotes(playerId: string, startDate?: string, endDate?: string) {
+    if (!playerId) throw new BadRequestException('playerId is required');
+    const date: any = {};
+    if (startDate) { if (!ISO_DAY_RE.test(startDate)) throw new BadRequestException('startDate must be YYYY-MM-DD'); date.gte = startDate; }
+    if (endDate) { if (!ISO_DAY_RE.test(endDate)) throw new BadRequestException('endDate must be YYYY-MM-DD'); date.lte = endDate; }
+    return this.prisma.workoutNote.findMany({
+      where: { playerId, ...(Object.keys(date).length ? { date } : {}) },
+      select: { playerId: true, date: true, tab: true, html: true, updatedAt: true },
+    });
+  }
+
+  /** Several athletes' notes for one day + workout type (Program board). */
+  async getWorkoutNotesForDay(playerIds: string[], date: string, tab: string) {
+    if (!ISO_DAY_RE.test(date || '')) throw new BadRequestException('date must be YYYY-MM-DD');
+    if (!WORKOUT_NOTE_TABS.includes(tab)) throw new BadRequestException('Unknown workout type');
+    const ids = [...new Set(playerIds.filter((id) => typeof id === 'string' && id))].slice(0, 500);
+    if (ids.length === 0) return [];
+    return this.prisma.workoutNote.findMany({
+      where: { playerId: { in: ids }, date, tab },
+      select: { playerId: true, date: true, tab: true, html: true, updatedAt: true },
+    });
+  }
+
+  /**
+   * Save (upsert) one workout note. A blank note deletes the row, so "no
+   * note" is always the absence of a row and never an empty one.
+   */
+  async saveWorkoutNote(
+    dto: { playerId: string; date: string; tab: string; html: string },
+    actorUserId?: string,
+  ) {
+    const { playerId, date, tab } = dto;
+    if (!playerId || typeof playerId !== 'string') throw new BadRequestException('playerId is required');
+    if (!ISO_DAY_RE.test(date || '')) throw new BadRequestException('date must be YYYY-MM-DD');
+    if (!WORKOUT_NOTE_TABS.includes(tab)) throw new BadRequestException('Unknown workout type');
+    const html = typeof dto.html === 'string' ? dto.html : '';
+    if (html.length > 50_000) throw new BadRequestException('That note is too long');
+
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!player) throw new NotFoundException('Player not found');
+
+    const key = { playerId_date_tab: { playerId, date, tab } };
+    if (isBlankHtml(html)) {
+      await this.prisma.workoutNote.deleteMany({ where: { playerId, date, tab } });
+      return { playerId, date, tab, html: '', updatedAt: null };
+    }
+    return this.prisma.workoutNote.upsert({
+      where: key,
+      create: { playerId, date, tab, html, updatedById: actorUserId ?? null },
+      update: { html, updatedById: actorUserId ?? null },
+      select: { playerId: true, date: true, tab: true, html: true, updatedAt: true },
+    });
+  }
+
+  /**
+   * The notes from the athlete's most recent report of the type that
+   * matches a workout (Hitting workout -> latest Hitting report with notes).
+   * S&C has no report type, so it returns null. Only the report's own
+   * Notes -- never the coach-only notes kept inside the report content.
+   */
+  async latestReportNotes(playerId: string, tab: string) {
+    if (!playerId) throw new BadRequestException('playerId is required');
+    const reportType = TAB_TO_REPORT_TYPE[tab];
+    if (!reportType) return { report: null };
+    const reports = await this.prisma.report.findMany({
+      where: { playerId, reportType, notes: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, title: true, createdAt: true, notes: true },
+    });
+    const hit = reports.find((r) => !isBlankHtml(r.notes ?? ''));
+    return { report: hit ? { reportId: hit.id, title: hit.title, createdAt: hit.createdAt, notes: hit.notes as string } : null };
   }
 
   /** Notify each given player once that new training hit their calendar. */

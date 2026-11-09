@@ -21,6 +21,7 @@ import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
 import { ClearGroupModal } from './ClearGroupModal';
 import { RecentChangesModal } from './RecentChangesModal';
+import { WorkoutNotes } from '@/components/WorkoutNotes';
 import { CheckInFlow } from './CheckInFlow';
 import styles from './page.module.css';
 import { type FacilitySlot, parseFacilitySchedule, slotsOnDate, formatTime12, weekDayLabel } from '@/lib/facility-schedule';
@@ -932,7 +933,11 @@ export default function TrainingPage() {
     }
   }, [currentDate, view]);
 
-  // Load scheduled drills
+  /* Workout notes for the dates on screen, keyed "date|tab" -- the same
+     saved notes the Program board shows under each athlete's workout. */
+  const [workoutNotes, setWorkoutNotes] = useState<Record<string, string>>({});
+
+  // Load scheduled drills (and the workout notes for the same dates)
   const refreshEvents = useCallback(() => {
     if (!selectedPlayerId) return;
     setLoadingEvents(true);
@@ -943,6 +948,13 @@ export default function TrainingPage() {
       setEvents(data);
       setLoadingEvents(false);
     }).catch(() => setLoadingEvents(false));
+    api.getWorkoutNotes(selectedPlayerId, { startDate: dateRange.startDate, endDate: dateRange.endDate })
+      .then(rows => {
+        const map: Record<string, string> = {};
+        for (const r of rows) map[`${r.date}|${r.tab}`] = r.html;
+        setWorkoutNotes(map);
+      })
+      .catch(() => setWorkoutNotes({}));
   }, [selectedPlayerId, dateRange]);
 
   useEffect(() => { refreshEvents(); }, [refreshEvents]);
@@ -2034,6 +2046,9 @@ export default function TrainingPage() {
       {selectedPlayerId && view === 'day' && (
         <DayView
           currentDate={currentDate}
+          playerId={selectedPlayerId}
+          workoutNotes={workoutNotes}
+          onNoteSaved={(tabKey, html) => setWorkoutNotes(m => ({ ...m, [`${todayDateStr}|${tabKey}`]: html }))}
           allDayEvents={allEventsByDate[todayDateStr] || []}
           isCoach={isCoach}
           onDelete={handleDelete}
@@ -2343,6 +2358,9 @@ function WeekView({
 function DayView({
   /* Not shown (the date header was removed); only resets the athlete view. */
   currentDate: _currentDate,
+  playerId,
+  workoutNotes,
+  onNoteSaved,
   allDayEvents,
   isCoach,
   onDelete,
@@ -2368,6 +2386,12 @@ function DayView({
   onDeleteTemplate,
 }: {
   currentDate: Date;
+  /** The athlete on screen -- whose workout notes these are. */
+  playerId: string;
+  /** Workout notes on screen, keyed "date|tab" (shared with the Program board). */
+  workoutNotes: Record<string, string>;
+  /** A note was saved here -- keep the page's copy in step. */
+  onNoteSaved: (tabKey: string, html: string) => void;
   allDayEvents: ScheduledDrill[];
   isCoach: boolean;
   onDelete: (id: string) => void;
@@ -2418,6 +2442,8 @@ function DayView({
    * area's plan at a comfortable size. Click "← All areas" to return.
    * Drill-click → DrillVideoModal flow is unchanged in both modes. */
   const [focusedTab, setFocusedTab] = useState<string | null>(null);
+  /* The day on screen as "YYYY-MM-DD" -- the workout notes' date. */
+  const dayStr = toDateStr(_currentDate);
   /* Athletes + parents land on the workout bubbles each time they move
      to another day, rather than inside a workout that day may not have. */
   const dayKey = _currentDate.toDateString();
@@ -2892,6 +2918,23 @@ function DayView({
             </span>
           </div>
           <div className={styles.dayFocusBody}>
+            {/* Notes for this workout, across the top -- the same saved note
+                the Program board shows under this athlete's workout. */}
+            {playerId && (
+              <WorkoutNotes
+                key={`${playerId}|${dayStr}|${focusedTabMeta.key}`}
+                playerId={playerId}
+                date={dayStr}
+                tab={focusedTabMeta.key}
+                label={focusedTabMeta.label}
+                html={workoutNotes[`${dayStr}|${focusedTabMeta.key}`] ?? ''}
+                canEdit={isCoach}
+                accent="var(--tab-ink)"
+                onSaved={(h) => onNoteSaved(focusedTabMeta.key, h)}
+                minHeight={70}
+                style={{ marginBottom: 12 }}
+              />
+            )}
             {isCoach && focusedModular ? (
               <ModularBuilder
                 tabKey={focusedTabMeta.key}
@@ -3236,6 +3279,22 @@ function DayView({
                   )}
                 </div>
                 <div className={styles.dayColBody}>
+                  {/* This workout's notes, across the top of the column. */}
+                  {playerId && (
+                    <WorkoutNotes
+                      key={`${playerId}|${dayStr}|${tab.key}`}
+                      playerId={playerId}
+                      date={dayStr}
+                      tab={tab.key}
+                      label={tab.label}
+                      html={workoutNotes[`${dayStr}|${tab.key}`] ?? ''}
+                      canEdit={isCoach}
+                      accent="var(--tab-ink)"
+                      onSaved={(h) => onNoteSaved(tab.key, h)}
+                      minHeight={48}
+                      style={{ marginBottom: 10 }}
+                    />
+                  )}
                   {/* ── In-column editor ──
                       One picker per drill category, each followed immediately
                       by the drills currently in that section. The picker's own

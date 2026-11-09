@@ -232,6 +232,7 @@ model Player {
   trainingPrograms   TrainingProgram[]
   leaderboardEntries LeaderboardEntry[]
   scheduledDrills    ScheduledDrill[]
+  workoutNotes       WorkoutNote[]
   checkIns           DrillCheckIn[]
   weightEntries      WeightEntry[]
 
@@ -822,6 +823,29 @@ model ScheduledDrill {
 /// records what it removed and what it created so it can be rolled back
 /// exactly, and doubles as the beginning of an audit trail: who did it, to
 /// whom, when.
+/// Coach notes for one athlete's workout on one day -- one per workout type.
+/// Shared by the Training calendar (top of that workout) and the Program
+/// board (under the athlete's workout): both read and write this same row,
+/// so a note typed in either place shows in the other.
+model WorkoutNote {
+  id       String @id @default(uuid())
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// "YYYY-MM-DD", the same day string as ScheduledDrill.date.
+  date     String
+  /// Workout type: hitting | pitching | catching | infield | outfield | strength.
+  tab      String
+  /// Rich text (HTML), rendered through the client sanitizer like every note.
+  html     String
+  /// The coach who last saved it (plain id, no relation: notes outlive staff).
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([playerId, date, tab])
+  @@index([date, tab])
+}
+
 model CalendarChangeLog {
   id   String @id @default(uuid())
   /// "APPLY" (copied one athlete's calendar onto others) | "CLEAR".

@@ -569,28 +569,12 @@
   font-weight: 800;
 }
 
-/* ── Coach "Next Steps" note ──
-   Read-only copy of the player's Player Summary → Tool Grades note for the
-   active section, pinned at the bottom of the column under the day's drills. */
+/* ── Workout notes ──
+   The athlete's notes for this day's workout (components/WorkoutNotes), under
+   the drills -- the same saved note as the top of their Training calendar. */
 .athleteNotes {
   padding-top: 12px;
   border-top: 1px solid var(--border);
-}
-.athleteNotesHead {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-  text-align: center;
-}
-.athleteNotesBody {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 /* ── Fullscreen presentation mode ───────────────── */

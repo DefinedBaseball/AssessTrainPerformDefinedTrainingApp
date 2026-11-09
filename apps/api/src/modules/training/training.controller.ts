@@ -303,6 +303,53 @@ export class TrainingController {
 
   // ─── Scheduled Drills (Calendar) ───────────────────────────────
 
+  // ─── Workout notes (calendar day + Program board share one row) ────
+
+  @Get('workout-notes/player/:playerId')
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed() // linked parents read (ownership-checked)
+  @ApiOperation({ summary: "An athlete's workout notes over a date range (ownership-checked)" })
+  getWorkoutNotes(
+    @Request() req: AuthenticatedRequest,
+    @Param('playerId') playerId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    assertPlayerOwnership(req, playerId);
+    return this.trainingService.getWorkoutNotes(playerId, startDate, endDate);
+  }
+
+  @Get('workout-notes/day')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Several athletes' notes for one day + workout type (COACH only)" })
+  getWorkoutNotesForDay(
+    @Query('date') date: string,
+    @Query('tab') tab: string,
+    @Query('playerIds') playerIds?: string,
+  ) {
+    return this.trainingService.getWorkoutNotesForDay((playerIds || '').split(','), date, tab);
+  }
+
+  @Get('workout-notes/report/:playerId')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Notes from the latest report matching a workout type (COACH only)' })
+  latestReportNotes(@Param('playerId') playerId: string, @Query('tab') tab: string) {
+    return this.trainingService.latestReportNotes(playerId, tab);
+  }
+
+  @Put('workout-notes')
+  @Roles('COACH')
+  @ApiOperation({ summary: "Save one athlete's note for a day's workout (COACH only)" })
+  saveWorkoutNote(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { playerId: string; date: string; tab: string; html: string },
+  ) {
+    return this.trainingService.saveWorkoutNote(
+      { playerId: dto?.playerId, date: dto?.date, tab: dto?.tab, html: dto?.html },
+      req.user?.sub,
+    );
+  }
+
   /* Declared BEFORE schedule/:playerId so "changes" is never read as a player id. */
   @Get('schedule/changes')
   @Roles('COACH')

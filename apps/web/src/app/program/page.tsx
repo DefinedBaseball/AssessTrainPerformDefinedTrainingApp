@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, ScheduledDrill } from '@/lib/api';
-import { sanitizeHtml, isBlankNoteHtml } from '@/lib/sanitize';
+import { WorkoutNotes } from '@/components/WorkoutNotes';
 import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
@@ -126,35 +126,6 @@ const SCHEDULE_OPTIONS: { key: ScheduleKey; label: string; color: string }[] = [
   { key: 'outfield', label: 'Outfield', color: '#22C55E' },
   { key: 'strength', label: 'S&C',      color: '#EF4444' },
 ];
-
-/** Maps a Program schedule key → the Player Summary "Tool Grades" notes
- *  section key (stored in `player.developmentNotes`). The defense schedules
- *  use the `defense_*` aggregate-section keys, while hitting / pitching /
- *  strength match 1:1. Keep in sync with the aggregate section keys in
- *  athletes/[id]/helpers.ts (computeAggregateScores). */
-const SCHEDULE_TO_NOTES_KEY: Record<ScheduleKey, string> = {
-  hitting:  'hitting',
-  pitching: 'pitching',
-  catching: 'defense_catching',
-  infield:  'defense_infield',
-  outfield: 'defense_outfield',
-  strength: 'strength',
-};
-
-/** Parse `player.developmentNotes` (a JSON string keyed by section) into a
- *  plain map. Mirrors the helper in PlayerSummaryTab so the Program board
- *  can surface the same per-section notes read-only. Always returns an
- *  object so callers can index without null guards. */
-function parseDevelopmentNotes(raw: string | null | undefined): Record<string, string> {
-  if (!raw) return {};
-  try {
-    const obj = JSON.parse(raw);
-    if (!obj || typeof obj !== 'object') return {};
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(obj)) if (typeof v === 'string') out[k] = v;
-    return out;
-  } catch { return {}; }
-}
 
 /* ── Session persistence ──
    The coach's Program selection (schedule + athletes + date) is mirrored
@@ -479,8 +450,20 @@ function AthleteColumn({
   onPlayDrill,
   onOpenTemplates,
   programBadge,
+  sessionDate,
+  noteHtml,
+  noteReadOnly,
+  onNoteSaved,
 }: {
   player: Player;
+  /** The board's day ("YYYY-MM-DD") -- the workout note's date. */
+  sessionDate: string;
+  /** This athlete's saved note for the day's workout ('' = none). */
+  noteHtml: string;
+  /** Full-screen TV mode: show the note without the editor. */
+  noteReadOnly: boolean;
+  /** A note was saved here -- keep the board's copy in step. */
+  onNoteSaved: (html: string) => void;
   /** "Day 1 · 4:00 PM" -- where this athlete is in the program's week. */
   programBadge?: { label: string; color: string } | null;
   drills: ScheduledDrill[];
@@ -525,18 +508,6 @@ function AthleteColumn({
     data: { type: 'column', playerId: player.id },
   });
 
-  /* Coach's "Next Steps" note for the section matching the active
-     schedule — a read-only copy of the Player Summary → Tool Grades note
-     for this player, surfaced at the bottom of the column so the day's
-     drills sit above the focus note that drives them. Empty notes render
-     nothing. */
-  const sectionNote = useMemo(() => {
-    const key = SCHEDULE_TO_NOTES_KEY[schedule];
-    /* Notes are rich text (HTML) since the Player Summary editor gained its
-       toolbar; plain-text notes saved earlier render the same either way. */
-    const note = parseDevelopmentNotes(player.developmentNotes)[key] ?? '';
-    return isBlankNoteHtml(note) ? '' : note;
-  }, [player.developmentNotes, schedule]);
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
 
   return (
@@ -633,15 +604,23 @@ function AthleteColumn({
           })}
           </SortableContext>
         )}
-          {/* Coach's Next-Steps note for the active section — a read-only
-              copy of the Player Summary → Tool Grades note, pinned under
-              the day's drills. */}
-          {sectionNote && (
-            <div className={styles.athleteNotes}>
-              <div className={styles.athleteNotesHead}>{scheduleLabel} Notes</div>
-              <div className={styles.athleteNotesBody} dangerouslySetInnerHTML={{ __html: sanitizeHtml(sectionNote) }} />
-            </div>
-          )}
+          {/* This workout's notes, under the day's drills -- the same saved
+              note shown across the top of the athlete's Training calendar
+              for this day and workout. */}
+          <div className={styles.athleteNotes}>
+            <WorkoutNotes
+              key={`${player.id}|${sessionDate}|${schedule}`}
+              playerId={player.id}
+              date={sessionDate}
+              tab={schedule}
+              label={scheduleLabel}
+              html={noteHtml}
+              canEdit={isCoach && !noteReadOnly}
+              accent={scheduleColor}
+              onSaved={onNoteSaved}
+              minHeight={56}
+            />
+          </div>
           </>
         )}
       </div>
@@ -1303,6 +1282,23 @@ export default function ProgramPage() {
     return () => { cancelled = true; };
   }, [selectedIds, sessionDate, schedule]);
 
+  /* Each selected athlete's workout note for the board's day + workout --
+     the same saved notes shown on their Training calendar. */
+  const [notesByPlayer, setNotesByPlayer] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!isCoach || selectedIds.length === 0) { setNotesByPlayer({}); return; }
+    let cancelled = false;
+    api.getWorkoutNotesForDay(selectedIds, sessionDate, schedule)
+      .then(rows => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const r of rows) map[r.playerId] = r.html;
+        setNotesByPlayer(map);
+      })
+      .catch(() => { if (!cancelled) setNotesByPlayer({}); });
+    return () => { cancelled = true; };
+  }, [isCoach, selectedIds, sessionDate, schedule]);
+
   /* ── Fullscreen presentation mode ──
      Board can pop into the browser's native fullscreen so the in-facility
      display (TV / projector / iPad) can show the workouts edge-to-edge
@@ -1549,6 +1545,10 @@ export default function ProgramPage() {
               onClickDrill={(d) => setEditingDrill(d)}
               onPlayDrill={(d) => setViewingDrill(d)}
               onOpenTemplates={() => setTplPlayer(p)}
+              sessionDate={sessionDate}
+              noteHtml={notesByPlayer[p.id] ?? ''}
+              noteReadOnly={isFullscreen}
+              onNoteSaved={(h) => setNotesByPlayer(m => ({ ...m, [p.id]: h }))}
             />
           ))}
         </div>

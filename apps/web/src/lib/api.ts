@@ -2209,6 +2209,42 @@ export async function clearSchedule(data: {
   );
 }
 
+/** Coach notes for one athlete's workout on one day (one per workout type). */
+export interface WorkoutNote {
+  playerId: string;
+  date: string;
+  tab: string;
+  html: string;
+  updatedAt: string | null;
+}
+
+/** An athlete's workout notes over a date range (Training calendar). */
+export async function getWorkoutNotes(playerId: string, range?: { startDate?: string; endDate?: string }) {
+  const qs = new URLSearchParams();
+  if (range?.startDate) qs.set('startDate', range.startDate);
+  if (range?.endDate) qs.set('endDate', range.endDate);
+  const q = qs.toString();
+  return request<WorkoutNote[]>(`/training/workout-notes/player/${playerId}${q ? `?${q}` : ''}`);
+}
+
+/** Several athletes' notes for one day + workout type (Program board). */
+export async function getWorkoutNotesForDay(playerIds: string[], date: string, tab: string) {
+  const qs = new URLSearchParams({ date, tab, playerIds: playerIds.join(',') });
+  return request<WorkoutNote[]>(`/training/workout-notes/day?${qs}`);
+}
+
+/** Save one workout note (blank removes it). */
+export async function saveWorkoutNote(data: { playerId: string; date: string; tab: string; html: string }) {
+  return request<WorkoutNote>('/training/workout-notes', { method: 'PUT', body: JSON.stringify(data) });
+}
+
+/** Notes from the athlete's latest report matching a workout type (null for S&C / none). */
+export async function getLatestReportNotes(playerId: string, tab: string) {
+  return request<{ report: { reportId: string; title: string | null; createdAt: string; notes: string } | null }>(
+    `/training/workout-notes/report/${playerId}?tab=${encodeURIComponent(tab)}`,
+  );
+}
+
 export interface CalendarChange {
   id: string;
   kind: 'APPLY' | 'CLEAR' | string;
