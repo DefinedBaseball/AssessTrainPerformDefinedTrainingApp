@@ -402,8 +402,8 @@ function drillFacts(drill: ScheduledDrill, tab: string): { label: string; value:
 
 /* One draggable DRILL card. Tap the card to watch its video; coaches get the
    grip (drag to reorder / move to another athlete) and the ✎ edit button.
-   Under the name: everything set for the drill (Feed Type, Implement,
-   Situation, Goal ...) and the drill's own note. */
+   Right of the name, side by side: everything set for the drill (Feed Type,
+   Implement, Situation, Goal ...); the drill's own note sits under its name. */
 function SortableDrill({
   drill, playerId, category, tab, isCoach, onPlay, onEdit,
 }: {
@@ -434,34 +434,27 @@ function SortableDrill({
       onClick={() => onPlay(drill)}
       title={isCoach ? 'Click to watch · drag the grip to move' : 'Click to watch'}
     >
-      <div className={styles.drillCardTop}>
-        {isCoach && (
-          <button
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
-            type="button"
-            className={styles.drillDragHandle}
-            title="Drag to reorder"
-            aria-label="Drag to reorder"
-            onClick={(e) => e.stopPropagation()}
-            style={{ flex: '0 0 auto', width: 20, touchAction: 'none', cursor: 'grab' }}
-          >
-            <GripIcon size={13} />
-          </button>
-        )}
+      {/* Laid out sideways so a card stays short: the grip, the drill name
+          with its note, then the drill's details side by side (Feed Type |
+          Implement | Situation | Goal ...), then ✎. */}
+      {isCoach && (
+        <button
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          type="button"
+          className={styles.drillDragHandle}
+          title="Drag to reorder"
+          aria-label="Drag to reorder"
+          onClick={(e) => e.stopPropagation()}
+          style={{ flex: '0 0 auto', width: 18, alignSelf: 'center', touchAction: 'none', cursor: 'grab' }}
+        >
+          <GripIcon size={13} />
+        </button>
+      )}
+      <div className={styles.drillMain}>
         <span className={styles.drillCardName}>{drill.name}</span>
-        {isCoach && (
-          <button
-            type="button"
-            className={styles.drillEditBtn}
-            onClick={(e) => { e.stopPropagation(); onEdit(drill); }}
-            title="Edit drill"
-            aria-label="Edit drill"
-          >
-            ✎
-          </button>
-        )}
+        {drill.notes && drill.notes.trim() && <div className={styles.drillNote}>{drill.notes}</div>}
       </div>
       {facts.length > 0 && (
         <dl className={styles.drillFacts}>
@@ -473,7 +466,18 @@ function SortableDrill({
           ))}
         </dl>
       )}
-      {drill.notes && drill.notes.trim() && <div className={styles.drillNote}>{drill.notes}</div>}
+      {isCoach && (
+        <button
+          type="button"
+          className={styles.drillEditBtn}
+          onClick={(e) => { e.stopPropagation(); onEdit(drill); }}
+          title="Edit drill"
+          aria-label="Edit drill"
+          style={{ alignSelf: 'flex-start' }}
+        >
+          ✎
+        </button>
+      )}
     </div>
   );
 }

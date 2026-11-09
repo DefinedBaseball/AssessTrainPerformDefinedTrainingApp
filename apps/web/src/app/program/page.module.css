@@ -441,14 +441,16 @@
   gap: 8px;
 }
 
-/* ── Drill card ── name on top, then every detail set for the drill. */
+/* ── Drill card ── laid out SIDEWAYS so it stays short: grip, the drill
+   name with its note, then the details side by side (Feed Type |
+   Implement | Situation | Goal), then ✎. Width follows the content. */
 .drillCard {
-  flex: 0 0 210px;
-  width: 210px;
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px 10px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -462,33 +464,22 @@
 }
 [data-theme="light"] .drillCard:hover { background: rgba(255, 255, 255, 0.8); }
 
-.drillCardTop {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.drillCardName {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-bright);
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
+/* The details: one small column each (label over value), side by side,
+   right of the drill name behind a hairline. */
 .drillFacts {
   margin: 0;
-  display: grid;
-  gap: 3px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(127, 127, 127, 0.3);
 }
 .drillFact {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px;
-  align-items: baseline;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 130px;
 }
 .drillFact dt {
   font-size: 9.5px;
@@ -507,15 +498,31 @@
   overflow-wrap: anywhere;
 }
 
+.drillMain {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.drillCardName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .drillNote {
   font-size: 12px;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--text-muted);
   font-style: italic;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  border-top: 1px dashed rgba(127, 127, 127, 0.35);
-  padding-top: 5px;
 }
 
 /* Phones: name + check-in on top, drills (still sideways) below, notes last. */
@@ -537,7 +544,6 @@
     text-align: left;
   }
   .athleteCardHead .checkInRow { margin-top: 0; }
-  .drillCard { flex-basis: 180px; width: 180px; }
 }
 
 /* Per-drill edit affordance — clicking the drill row plays its video
@@ -754,11 +760,11 @@
   padding: calc(6px * var(--prog-scale, 1)) 10px calc(8px * var(--prog-scale, 1));
 }
 .board:fullscreen .drillCard {
-  flex-basis: calc(230px * var(--prog-scale, 1));
-  width: calc(230px * var(--prog-scale, 1));
   padding: calc(7px * var(--prog-scale, 1)) 10px;
-  gap: calc(5px * var(--prog-scale, 1));
+  gap: calc(10px * var(--prog-scale, 1));
 }
+.board:fullscreen .drillFact { max-width: calc(160px * var(--prog-scale, 1)); }
+.board:fullscreen .drillMain { max-width: calc(240px * var(--prog-scale, 1)); }
 /* Workout notes under the row, read-only, sized with the drills. */
 .board:fullscreen .athleteNotes {
   padding: calc(6px * var(--prog-scale, 1)) 12px calc(8px * var(--prog-scale, 1));
