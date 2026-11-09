@@ -645,6 +645,7 @@ export class TrainingService {
     };
 
     const missing = new Set<string>(); // `${target}|${source date}|${program}`
+    const beforeStart = new Set<string>(); // same key: matched day fell before an Entire Calendar start
     const usedPrograms = new Set<string>();
     type Row = Omit<(typeof source)[number], 'id' | 'playerId' | 'createdAt' | 'updatedAt'> & { playerId: string };
     const rows: Row[] = [];
@@ -664,6 +665,12 @@ export class TrainingService {
             const day = to[k];
             if (!day) { missing.add(`${t.id}|${d.date}|${prog}`); continue; } // they have fewer days a week
             td = addDays(mondayOf(d.date), WEEKDAY_KEYS.indexOf(day));
+            /* "From this date on" means exactly that: in the first, partial
+               program week a matched day can fall BEFORE the start (the
+               source's Day 2 is Wed, this athlete's Day 2 is Mon). Never
+               write behind the start date -- skip it instead. Day / Week /
+               Month copies are a fixed block and keep their matching. */
+            if (scope === 'all' && td < range.gte) { beforeStart.add(`${t.id}|${d.date}|${prog}`); continue; }
             mapped = true;
             usedPrograms.add(prog);
           }
@@ -751,9 +758,11 @@ export class TrainingService {
     const programNote = usedPrograms.size
       ? `, matched to each athlete's ${allPrograms.filter((pr) => usedPrograms.has(pr.key)).map((pr) => pr.label).join(' / ')} days`
       : '';
-    const missingNote = missingDays > 0
+    const missingNote = (missingDays > 0
       ? ` ${missingDays} program day${missingDays === 1 ? ' was' : 's were'} skipped where an athlete has fewer days a week.`
-      : '';
+      : '') + (beforeStart.size > 0
+      ? ` ${beforeStart.size} program day${beforeStart.size === 1 ? ' was' : 's were'} skipped that would have landed before ${shortDay(range.gte)}.`
+      : '');
     const forwardNote = opts.replaceForward
       ? ` Replaced their ${wipeTabs.map(tabWord).join(' / ')} from ${shortDay(wipeFrom)} on (${removed.length} earlier drill${removed.length === 1 ? '' : 's'} removed).`
       : '';
@@ -927,12 +936,40 @@ export class TrainingService {
       throw new BadRequestException('That change cannot be undone — its record is unreadable');
     }
 
+    /* An older change can now be undone from Recent Changes, so the world
+       may have moved on since: an athlete deleted (skip their rows) or a
+       library drill deleted (keep the slot, drop the link -- the same thing
+       deleting a drill does to live rows). Without this the restore fails
+       on a foreign key and nothing is undone. */
+    const createdSet = new Set(createdIds);
+    const [livePlayers, liveDrills, stillThere] = await Promise.all([
+      this.prisma.player.findMany({
+        where: { id: { in: [...new Set(removed.map((r) => r.playerId))] } },
+        select: { id: true },
+      }),
+      this.prisma.drill.findMany({
+        where: { id: { in: [...new Set(removed.map((r) => r.drillId).filter(Boolean))] } },
+        select: { id: true },
+      }),
+      /* A row already back on the calendar (restored by another change's
+         undo) would collide on its id and fail the whole undo -- skip it;
+         it is already where the undo wants it. Created ids that are still
+         listed here are dropped below, so they are not skipped. */
+      this.prisma.scheduledDrill.findMany({
+        where: { id: { in: removed.map((r) => r.id).filter((id) => !createdSet.has(id)) } },
+        select: { id: true },
+      }),
+    ]);
+    const playerOk = new Set(livePlayers.map((p) => p.id));
+    const drillOk = new Set(liveDrills.map((d) => d.id));
+    const present = new Set(stillThere.map((r) => r.id));
+
     /* Drop Prisma's relation fields and normalise dates: the snapshot came
        from findMany, so it carries whatever shape the row had. */
-    const restore = removed.map((r) => ({
+    const restore = removed.filter((r) => playerOk.has(r.playerId) && !present.has(r.id)).map((r) => ({
       id: r.id,
       playerId: r.playerId,
-      drillId: r.drillId ?? null,
+      drillId: r.drillId && drillOk.has(r.drillId) ? r.drillId : null,
       tab: r.tab,
       category: r.category,
       name: r.name,
@@ -956,6 +993,40 @@ export class TrainingService {
     ]);
 
     return { restored: restore.length, discarded: createdIds.length };
+  }
+
+  /**
+   * The latest Apply Calendar / Clear changes (newest first) for the Recent
+   * Changes list, so a change can still be undone after its banner is gone.
+   * `newerActive` flags a change that has a later, still-standing change
+   * after it: undoing it then can double up workouts on days both touched,
+   * and the list warns about that before the coach confirms.
+   */
+  async listCalendarChanges(limit = 10) {
+    const take = Math.min(Math.max(Math.trunc(limit) || 10, 1), 50);
+    const logs = await this.prisma.calendarChangeLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: {
+        id: true, kind: true, summary: true, createdAt: true, undone: true, undoneAt: true,
+        actor: { select: { name: true, email: true } },
+      },
+    });
+    let laterStanding = false;
+    return logs.map((l) => {
+      const row = {
+        id: l.id,
+        kind: l.kind,
+        summary: l.summary,
+        createdAt: l.createdAt,
+        undone: l.undone,
+        undoneAt: l.undoneAt,
+        actorName: l.actor?.name || l.actor?.email || null,
+        newerActive: laterStanding,
+      };
+      if (!l.undone) laterStanding = true;
+      return row;
+    });
   }
 
   /** Notify each given player once that new training hit their calendar. */

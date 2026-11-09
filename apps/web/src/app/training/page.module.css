@@ -2893,3 +2893,37 @@
   padding: 4px;
   margin: 4px 0 12px;
 }
+
+/* Recent Changes. */
+.recentList { display: grid; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.recentEmpty { font-size: 12.5px; color: var(--text-muted); padding: 10px 2px; }
+.recentRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.recentRowUndone { opacity: 0.6; }
+.recentText { display: grid; gap: 4px; min-width: 0; }
+.recentMeta { font-size: 11px; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.recentKind {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.recentSummary { font-size: 12.5px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.recentWarn { font-size: 11.5px; line-height: 1.4; color: #c2410c; }
+.recentAction { display: flex; gap: 6px; flex: 0 0 auto; align-items: center; }
+.recentDone { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+@media (max-width: 480px) {
+  .recentRow { flex-direction: column; }
+  .recentAction { align-self: flex-end; }
+}

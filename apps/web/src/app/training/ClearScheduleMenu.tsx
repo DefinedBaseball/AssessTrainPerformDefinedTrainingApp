@@ -35,6 +35,7 @@ export function ClearScheduleMenu({
   weekEnd,
   onCleared,
   onOpenGroup,
+  onOpenRecent,
 }: {
   open: boolean;
   onClose: () => void;
@@ -47,6 +48,8 @@ export function ClearScheduleMenu({
   onCleared: (summary: string, logId: string) => void;
   /** Open Clear for a Group (several athletes, chosen workout types). */
   onOpenGroup?: () => void;
+  /** Open Recent Changes (undo any of the last 10 applies / clears). */
+  onOpenRecent?: () => void;
 }) {
   const [counts, setCounts] = useState<Record<ClearScope, number> | null>(null);
   const [armed, setArmed] = useState<ClearScope | null>(null);
@@ -186,6 +189,23 @@ export function ClearScheduleMenu({
               onClick={() => { onClose(); onOpenGroup(); }}
             >
               Choose…
+            </button>
+          </div>
+        )}
+
+        {onOpenRecent && (
+          <div className={styles.clearOption}>
+            <div className={styles.clearOptionText}>
+              <span className={styles.clearOptionLabel}>Recent Changes</span>
+              <span className={styles.clearOptionSub}>Undo any of the last 10 applies or clears</span>
+            </div>
+            <button
+              type="button"
+              className={styles.clearBtn}
+              disabled={busy}
+              onClick={() => { onClose(); onOpenRecent(); }}
+            >
+              View…
             </button>
           </div>
         )}

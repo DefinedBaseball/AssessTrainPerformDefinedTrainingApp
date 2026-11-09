@@ -2209,6 +2209,23 @@ export async function clearSchedule(data: {
   );
 }
 
+export interface CalendarChange {
+  id: string;
+  kind: 'APPLY' | 'CLEAR' | string;
+  summary: string;
+  createdAt: string;
+  undone: boolean;
+  undoneAt: string | null;
+  actorName: string | null;
+  /** A later change is still standing -- undoing this one may double up days. */
+  newerActive: boolean;
+}
+
+/** The latest Apply Calendar / Clear changes, newest first. */
+export async function listCalendarChanges(limit = 10) {
+  return request<CalendarChange[]>(`/training/schedule/changes?limit=${limit}`);
+}
+
 /** Roll back a logged Apply Calendar or Clear. */
 export async function undoCalendarChange(logId: string) {
   return request<{ restored: number; discarded: number }>(

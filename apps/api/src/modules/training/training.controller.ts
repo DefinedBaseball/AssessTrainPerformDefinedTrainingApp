@@ -303,6 +303,14 @@ export class TrainingController {
 
   // ─── Scheduled Drills (Calendar) ───────────────────────────────
 
+  /* Declared BEFORE schedule/:playerId so "changes" is never read as a player id. */
+  @Get('schedule/changes')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Recent Apply Calendar / Clear changes, newest first (COACH only)' })
+  listCalendarChanges(@Query('limit') limit?: string) {
+    return this.trainingService.listCalendarChanges(limit ? Number(limit) : 10);
+  }
+
   @Get('schedule/:playerId')
   @Roles('COACH', 'PLAYER', 'PARENT')
   @ParentAllowed() // linked parents read (ownership-checked)

@@ -32,7 +32,10 @@ const TAB_COLOR: Record<string, string> = {
   infield: '#38A850', outfield: '#88B838', strength: '#EF4444',
 };
 export const SCHEDULE_TAB_ORDER = ['hitting', 'pitching', 'catching', 'infield', 'outfield', 'strength'];
-const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // indexed by Date.getDay()
+/* Month grids run Monday–Sunday, like the Training calendar. */
+const WD_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const sinceMonday = (d: Date) => (d.getDay() + 6) % 7;
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function ymd(d: Date): string {
@@ -89,9 +92,9 @@ export function SchedulePdf({ playerName, events, selectedTabs, scope, today }: 
   const tabDays = (): Date[] => {
     if (scope === 'day') return [today];
     if (scope === 'week') return next7;
-    // month — full weeks (Sun..Sat) covering the month containing today.
+    // month — full weeks (Mon..Sun) covering the month containing today.
     const first = new Date(today.getFullYear(), today.getMonth(), 1);
-    const gridStart = addDays(first, -first.getDay());
+    const gridStart = addDays(first, -sinceMonday(first));
     const out: Date[] = [];
     for (let i = 0; i < 42; i++) out.push(addDays(gridStart, i));
     // Trim trailing empty week if it's entirely in the next month.
@@ -168,7 +171,7 @@ export function SchedulePdf({ playerName, events, selectedTabs, scope, today }: 
         {/* Weekday header (month view) */}
         {scope === 'month' && (
           <View style={{ flexDirection: 'row', gap: 3, marginBottom: 3 }}>
-            {WD.map((w) => (
+            {WD_MON_FIRST.map((w) => (
               <Text key={w} style={{ flex: 1, fontSize: 6, color: colors.textMuted, textTransform: 'uppercase', textAlign: 'center', letterSpacing: 0.5 }}>{w}</Text>
             ))}
           </View>
@@ -250,9 +253,9 @@ export function scheduleFetchRange(today: Date, scope: ScheduleScope): { startDa
   if (scope === 'day') return { startDate: ymd(today), endDate: ymd(stripEnd) };
   if (scope === 'week') return { startDate: ymd(today), endDate: ymd(stripEnd) };
   const first = new Date(today.getFullYear(), today.getMonth(), 1);
-  const gridStart = addDays(first, -first.getDay());
+  const gridStart = addDays(first, -sinceMonday(first));
   const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const gridEnd = addDays(last, 6 - last.getDay());
+  const gridEnd = addDays(last, 6 - sinceMonday(last));
   const start = gridStart < today ? gridStart : today;
   const end = gridEnd > stripEnd ? gridEnd : stripEnd;
   return { startDate: ymd(start), endDate: ymd(end) };

@@ -20,6 +20,7 @@ import { SaveTemplateModal, TemplatePreviewModal } from '@/components/TemplatePi
 import { ApplyCalendarModal } from './ApplyCalendarModal';
 import { ClearScheduleMenu } from './ClearScheduleMenu';
 import { ClearGroupModal } from './ClearGroupModal';
+import { RecentChangesModal } from './RecentChangesModal';
 import { CheckInFlow } from './CheckInFlow';
 import styles from './page.module.css';
 import { type FacilitySlot, parseFacilitySchedule, slotsOnDate, formatTime12, weekDayLabel } from '@/lib/facility-schedule';
@@ -356,7 +357,17 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // indexed by Date.getDay()
+/* Weeks are drawn Monday–Sunday everywhere on this calendar, matching the
+   Mon–Sun program weeks Apply Calendar copies (Day 1 = first program day
+   from Monday), so what is on screen is exactly what a week covers. */
+const DAYS_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** Monday of the Mon–Sun week containing `d` (local time, new Date). */
+function mondayOfWeek(d: Date): Date {
+  const s = new Date(d);
+  s.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+  return s;
+}
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /* TAB_COLORS + TAB_LABELS moved to `@/lib/training-colors`. */
@@ -912,12 +923,10 @@ export default function TrainingPage() {
       const end = new Date(y, m + 2, 10);
       return { startDate: toDateStr(start), endDate: toDateStr(end) };
     } else if (view === 'week') {
-      const dayOfWeek = currentDate.getDay();
-      const sunday = new Date(currentDate);
-      sunday.setDate(currentDate.getDate() - dayOfWeek);
-      const saturday = new Date(sunday);
-      saturday.setDate(sunday.getDate() + 6);
-      return { startDate: toDateStr(sunday), endDate: toDateStr(saturday) };
+      const monday = mondayOfWeek(currentDate);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { startDate: toDateStr(monday), endDate: toDateStr(sunday) };
     } else {
       return { startDate: toDateStr(currentDate), endDate: toDateStr(currentDate) };
     }
@@ -1071,14 +1080,10 @@ export default function TrainingPage() {
     }
   };
 
-  // Sunday (week start) for a given Date, as a YYYY-MM-DD string.
-  const weekStartOf = (d: Date) => {
-    const s = new Date(d);
-    s.setDate(s.getDate() - s.getDay());
-    return toDateStr(s);
-  };
+  // Monday (week start) for a given Date, as a YYYY-MM-DD string.
+  const weekStartOf = (d: Date) => toDateStr(mondayOfWeek(d));
 
-  // Copy the whole week (Sun–Sat) containing the current date. The Day view
+  // Copy the whole week (Mon–Sun) containing the current date. The Day view
   // only loads one day, so fetch the week's drills on demand.
   const handleCopyWeek = async () => {
     if (!selectedPlayerId) return;
@@ -1276,6 +1281,7 @@ export default function TrainingPage() {
   const [showApply, setShowApply] = useState(false);
   const [showClear, setShowClear] = useState(false);
   const [showClearGroup, setShowClearGroup] = useState(false);
+  const [showRecent, setShowRecent] = useState(false);
   /* The banner carries the log id for the change it describes, which is what
      makes Undo possible — the server kept a snapshot of everything the change
      removed. `undoing` disables the button so a slow request cannot double
@@ -1316,8 +1322,7 @@ export default function TrainingPage() {
   /* The week the coach is looking at — Clear Week uses exactly these bounds
      so it removes what is drawn on screen, nothing more. */
   const viewWeek = useMemo(() => {
-    const start = new Date(currentDate);
-    start.setDate(currentDate.getDate() - currentDate.getDay());
+    const start = mondayOfWeek(currentDate);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     return { start: toDateStr(start), end: toDateStr(end) };
@@ -1325,13 +1330,14 @@ export default function TrainingPage() {
 
   const applyFromDate = useMemo(() => {
     if (view === 'day') return toDateStr(currentDate);
-    if (view === 'week') {
-      const d = new Date(currentDate);
-      d.setDate(d.getDate() - d.getDay());
-      return toDateStr(d);
-    }
+    if (view === 'week') return toDateStr(mondayOfWeek(currentDate)); // the Monday on screen
     return toDateStr(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
   }, [view, currentDate]);
+
+  /* The date Apply Day / Week / Month copies around: the focused date. Weeks
+     are drawn Mon–Sun like program weeks, so Apply Week is always exactly
+     the week on screen. */
+  const applyAnchorDate = toDateStr(currentDate);
 
   /* Saved templates, for the per-column Template pickers. Fetched once for
      every sport and split by tab, so a column only ever offers its own. */
@@ -1703,9 +1709,7 @@ export default function TrainingPage() {
     ? `${MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear()}`
     : view === 'week'
       ? (() => {
-          const d = new Date(currentDate);
-          const dayOfWeek = d.getDay();
-          d.setDate(d.getDate() - dayOfWeek);
+          const d = mondayOfWeek(currentDate);
           const end = new Date(d);
           end.setDate(d.getDate() + 6);
           return `${MONTHS[d.getMonth()]} ${d.getDate()} – ${d.getMonth() !== end.getMonth() ? MONTHS[end.getMonth()] + ' ' : ''}${end.getDate()}, ${end.getFullYear()}`;
@@ -1783,7 +1787,7 @@ export default function TrainingPage() {
                 players={players}
                 sourcePlayer={selectedPlayer}
                 fromDate={applyFromDate}
-                anchorDate={todayDateStr}
+                anchorDate={applyAnchorDate}
                 view={view}
                 onApplied={(msg, logId) => {
                   setApplyBanner({ text: msg, logId });
@@ -1820,6 +1824,15 @@ export default function TrainingPage() {
                   refreshEvents();
                 }}
                 onOpenGroup={() => setShowClearGroup(true)}
+                onOpenRecent={() => setShowRecent(true)}
+              />
+              <RecentChangesModal
+                open={showRecent}
+                onClose={() => setShowRecent(false)}
+                onUndone={(msg) => {
+                  setApplyBanner({ text: msg, logId: null });
+                  refreshEvents();
+                }}
               />
               <ClearGroupModal
                 open={showClearGroup}
@@ -2141,7 +2154,7 @@ function MonthView({
 }) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay = (new Date(year, month, 1).getDay() + 6) % 7; // leading days before Monday-first grid
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrev = new Date(year, month, 0).getDate();
   const today = toDateStr(new Date());
@@ -2174,7 +2187,7 @@ function MonthView({
 
   return (
     <div className={`${styles.monthGrid} ${theme.inner}`}>
-      {DAYS.map(d => <div key={d} className={styles.dayHeader}>{d}</div>)}
+      {DAYS_MON_FIRST.map(d => <div key={d} className={styles.dayHeader}>{d}</div>)}
       {cells.map(cell => {
         const dayTabs = tabsByDate[cell.date] || [];
         const isToday = cell.date === today;
@@ -2231,14 +2244,12 @@ function WeekView({
   onDayClick: (date: string) => void;
   onDrillClick: (drill: Drill) => void;
 }) {
-  const dayOfWeek = currentDate.getDay();
-  const sunday = new Date(currentDate);
-  sunday.setDate(currentDate.getDate() - dayOfWeek);
+  const monday = mondayOfWeek(currentDate);
   const today = toDateStr(new Date());
   const weekDays: { date: Date; dateStr: string }[] = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(sunday);
-    d.setDate(sunday.getDate() + i);
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
     weekDays.push({ date: d, dateStr: toDateStr(d) });
   }
 
