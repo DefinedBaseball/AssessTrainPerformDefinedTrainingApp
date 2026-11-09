@@ -1355,7 +1355,10 @@ export default function ProgramPage() {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', fit);
     };
-  }, [isFullscreen, selectedIds, drillsByPlayer, schedule, sessionDate]);
+    /* notesByPlayer: the workout notes load a beat after the drills and sit
+       at the bottom of each card -- refit when they arrive so they are
+       sized in, never clipped below the card. */
+  }, [isFullscreen, selectedIds, drillsByPlayer, notesByPlayer, schedule, sessionDate]);
 
   const enterFullscreen = () => {
     if (!boardRef.current) return;

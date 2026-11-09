@@ -150,9 +150,11 @@ export function WorkoutNotes({
   if (!canEdit) {
     if (isBlankNoteHtml(value)) return null;
     return (
-      <div className={styles.card} style={style}>
-        <div className={styles.head}>{title}</div>
-        <div className={styles.body} dangerouslySetInnerHTML={{ __html: sanitizeHtml(value) }} />
+      /* data-workout-note* hooks let a host restyle the read-only card (the
+         Program board's full-screen TV mode scales it with the drills). */
+      <div className={styles.card} style={style} data-workout-note="">
+        <div className={styles.head} data-workout-note-head="">{title}</div>
+        <div className={styles.body} data-workout-note-body="" dangerouslySetInnerHTML={{ __html: sanitizeHtml(value) }} />
       </div>
     );
   }

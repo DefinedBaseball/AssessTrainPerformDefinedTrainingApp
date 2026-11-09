@@ -693,6 +693,33 @@
      fit before the scaler has to drop the font size. */
   padding: calc(5px * var(--prog-scale, 1)) 2px;
 }
+/* Workout notes on the TV board: read-only, sized with the drills so the
+   fit-to-screen scaler shrinks them together, and PINNED to the bottom of
+   the card -- if a heavy session still overflows (the scroll fallback),
+   the drills scroll under the note instead of pushing it off screen.
+   The card's own background is inherited down so the pinned note covers
+   cleanly in light, dark and custom themes alike. */
+.board:fullscreen .athleteCardBody { background: inherit; }
+.board:fullscreen .athleteNotes {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: auto;
+  background: inherit;
+  padding-top: calc(10px * var(--prog-scale, 1));
+}
+.board:fullscreen .athleteNotes [data-workout-note-head] {
+  padding: calc(5px * var(--prog-scale, 1)) 10px;
+}
+.board:fullscreen .athleteNotes [data-workout-note-head] span {
+  font-size: calc(12px * var(--prog-scale, 1));
+}
+.board:fullscreen .athleteNotes [data-workout-note-body] {
+  font-size: calc(16px * var(--prog-scale, 1));
+  line-height: 1.4;
+  padding: calc(7px * var(--prog-scale, 1)) 10px;
+}
+
 /* Last resort: a session too large to fit even at the minimum scale flips
    data-fit="scroll" so each column scrolls instead of hiding drills. */
 .board:fullscreen[data-fit="scroll"] .athleteCardBody {
