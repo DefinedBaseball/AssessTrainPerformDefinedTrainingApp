@@ -401,12 +401,13 @@ function drillFacts(drill: ScheduledDrill, tab: string): { label: string; value:
   return out;
 }
 
-/* One draggable DRILL card. Tap the card to watch its video; coaches get the
-   grip (drag to reorder / move to another athlete) and the ✎ edit button.
+/* One draggable DRILL card. Tap the card to watch its video (or, with the
+   athlete's ✎ on, to edit it); coaches get the grip (drag to reorder / move
+   to another athlete).
    Right of the name, side by side: everything set for the drill (Feed Type,
    Implement, Situation, Goal ...); the drill's own note sits under its name. */
 function SortableDrill({
-  drill, playerId, category, tab, isCoach, onPlay, onEdit,
+  drill, playerId, category, tab, isCoach, editMode, onPlay, onEdit,
 }: {
   drill: ScheduledDrill;
   playerId: string;
@@ -414,6 +415,8 @@ function SortableDrill({
   /** The board's workout type -- which drop-down labels the details use. */
   tab: string;
   isCoach: boolean;
+  /** The athlete's ✎ is on: a tap opens the drill editor instead of the video. */
+  editMode: boolean;
   onPlay: (d: ScheduledDrill) => void;
   onEdit: (d: ScheduledDrill) => void;
 }) {
@@ -432,12 +435,13 @@ function SortableDrill({
       ref={setNodeRef}
       className={styles.drillCard}
       style={style}
-      onClick={() => onPlay(drill)}
-      title={isCoach ? 'Click to watch · drag the grip to move' : 'Click to watch'}
+      onClick={() => (editMode ? onEdit(drill) : onPlay(drill))}
+      data-editing={editMode ? '' : undefined}
+      title={editMode ? 'Click to edit this drill' : isCoach ? 'Click to watch · drag the grip to move' : 'Click to watch'}
     >
       {/* Laid out sideways so a card stays short: the grip, the drill name
           with its note, then the drill's details side by side (Feed Type |
-          Implement | Situation | Goal ...), then ✎. */}
+          Implement | Situation | Goal ...). Editing is the athlete's ✎. */}
       {isCoach && (
         <button
           ref={setActivatorNodeRef}
@@ -466,18 +470,6 @@ function SortableDrill({
             </div>
           ))}
         </dl>
-      )}
-      {isCoach && (
-        <button
-          type="button"
-          className={styles.drillEditBtn}
-          onClick={(e) => { e.stopPropagation(); onEdit(drill); }}
-          title="Edit drill"
-          aria-label="Edit drill"
-          style={{ alignSelf: 'flex-start' }}
-        >
-          ✎
-        </button>
       )}
     </div>
   );
@@ -553,6 +545,12 @@ function AthleteColumn({
   });
 
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
+  /* One ✎ per athlete (by the name) instead of one per drill: while it's
+     on, tapping a drill opens its editor; off, a tap plays the video. Not
+     offered on the full-screen TV (read-only there). */
+  const [editMode, setEditMode] = useState(false);
+  const canEditDrills = isCoach && !noteReadOnly;
+  useEffect(() => { if (!canEditDrills) setEditMode(false); }, [canEditDrills]);
 
   return (
     /* One ROW per athlete, one line: name + check-in, then the sideways
@@ -562,6 +560,18 @@ function AthleteColumn({
       <div className={styles.athleteCardHead} style={{ borderLeftColor: scheduleColor }}>
         <div className={styles.athleteName}>
           {player.firstName} <span className={styles.athleteLast}>{player.lastName}</span>
+          {canEditDrills && (
+            <button
+              type="button"
+              className={`${styles.athleteEditBtn} ${editMode ? styles.athleteEditBtnOn : ''}`}
+              onClick={() => setEditMode((v) => !v)}
+              aria-pressed={editMode}
+              title={editMode ? 'Done editing -- tap a drill to watch it again' : `Edit ${player.firstName}'s drills -- then tap a drill to edit it`}
+              aria-label={editMode ? 'Done editing drills' : 'Edit drills'}
+            >
+              {editMode ? '✓' : '✎'}
+            </button>
+          )}
         </div>
         {/* Checked in for the day? Green ✓ / red ✕ -- the same check-in the
             Attendance → Check-In tab shows (the athlete's own check-in on
@@ -653,6 +663,7 @@ function AthleteColumn({
                           tab={schedule}
                           isCoach={isCoach}
                           onPlay={onPlayDrill}
+                          editMode={editMode}
                           onEdit={onClickDrill}
                         />
                       ))}

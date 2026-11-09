@@ -1050,3 +1050,38 @@
 .checkInYes { background: #16a34a; box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.35); }
 .checkInNo { background: #dc2626; box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35); }
 .checkInUnknown { background: rgba(127, 127, 127, 0.25); color: var(--text-muted); }
+
+/* The athlete's single ✎ (beside the name): toggles edit mode for the row. */
+.athleteEditBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  vertical-align: 2px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+  -webkit-text-fill-color: currentColor;
+}
+.athleteEditBtn:hover { opacity: 1; background: rgba(127, 127, 127, 0.15); }
+.athleteEditBtnOn,
+.athleteEditBtnOn:hover {
+  opacity: 1;
+  color: #fff;
+  background: var(--accent, #3d8bfd);
+  border-color: var(--accent, #3d8bfd);
+}
+/* Edit mode: cards say "tap to edit". */
+.drillCard[data-editing] {
+  outline: 1.5px dashed rgba(127, 127, 127, 0.6);
+  outline-offset: -2px;
+  cursor: pointer;
+}
