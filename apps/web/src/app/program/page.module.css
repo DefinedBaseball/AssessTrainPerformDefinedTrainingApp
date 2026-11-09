@@ -315,34 +315,25 @@
   line-height: 1.55;
 }
 
-/* ── The board (athlete columns side-by-side) ────── */
+/* ── The board: one ROW per athlete, stacked ─────── */
 
 .board {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: repeat(var(--board-cols, 2), minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
-/* Single athlete (non-fullscreen): a lone `minmax(0,1fr)` column would
-   stretch edge-to-edge and read as a banner, not a card. Cap it to a
-   readable width and center it on the board. Fullscreen is intentionally
-   excluded (the TSX only adds this class when !isFullscreen) so the
-   facility-display fullscreen keeps the full-width single column. */
-.boardSingle {
-  grid-template-columns: minmax(0, 520px);
-  justify-content: center;
-}
-
-@media (max-width: 1100px) {
-  .board { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-}
-
-/* ── Athlete column card ─────────────────────────── */
+/* ── Athlete row ──────────────────────────────────────
+   Name + check-in on the left, the day's drills to the right in their own
+   sideways scroll, the workout notes underneath both. */
 
 .athleteCard {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-areas:
+    "head body"
+    "notes notes";
   border-radius: 14px;
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
@@ -352,10 +343,18 @@
 }
 
 .athleteCardHead {
-  padding: 14px 14px 12px;
-  border-top: 4px solid var(--accent);
-  border-bottom: 1px solid var(--border-light);
+  grid-area: head;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 14px 12px;
+  border-left: 5px solid var(--accent);
+  border-right: 1px solid var(--border-light);
   background: var(--surface);
+  text-align: center;
+  min-width: 0;
 }
 
 .athleteName {
@@ -364,10 +363,9 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text-bright);
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .athleteLast {
@@ -379,82 +377,167 @@
   background-clip: text;
 }
 
+/* The drills strip: sections left to right, its OWN horizontal scroll, so
+   scrolling one athlete never moves another. */
 .athleteCardBody {
-  padding: 12px 14px 16px;
+  grid-area: body;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 220px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 14px;
+  min-height: 120px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 .athleteEmpty {
-  text-align: center;
+  align-self: center;
   font-size: 13px;
   color: var(--text-muted);
-  padding: 24px 8px;
+  padding: 12px 8px;
   font-style: italic;
 }
 
-/* ── Category bubble layout (matches training calendar's DayView) ──
- * One tinted bubble per drill category inside each athlete column.
- * Bubble bg is the schedule's color at 12% alpha; left accent border
- * is the schedule color at full strength. Inside the bubble, drill
- * names stack with hairline dividers between them — same pattern as
- * the training calendar's `.dayColCardItem` rows. */
-.athleteBubble {
-  padding: 10px 12px 12px;
-  border-radius: 8px;
+/* ── Section group (Movement Prep, Vision, Tee ...) ──
+   Tinted by the schedule colour (shade per section, set inline), with its
+   label on top and its drill cards side by side beneath. */
+.drillGroup {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  border-radius: 10px;
 }
 
-.athleteBubbleHead {
+.drillGroupHead {
   display: flex;
   align-items: center;
-  /* Center the category label + count as a group (coach-spec: centered
-     drill section labels) instead of pinning the count to the right. */
-  justify-content: center;
   gap: 8px;
+  min-height: 20px;
+  padding-left: 22px; /* room for the coach's section grip */
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  white-space: nowrap;
 }
 
-.athleteBubbleCount {
+.drillGroupCount {
   font-size: 10px;
   font-weight: 700;
   opacity: 0.7;
   letter-spacing: 0.06em;
 }
 
-.athleteBubbleList {
+.drillGroupCards {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* ── Drill card ── name on top, then every detail set for the drill. */
+.drillCard {
+  flex: 0 0 210px;
+  width: 210px;
   display: flex;
   flex-direction: column;
-  gap: 0;
-}
-
-.athleteBubbleItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 6px;
-  padding: 7px 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  transition: background 0.12s;
+  padding: 8px 10px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
 }
-.athleteBubbleItem:last-child { border-bottom: none; }
-.athleteBubbleItem:hover { background: rgba(255, 255, 255, 0.06); }
+.drillCard:hover { background: rgba(255, 255, 255, 0.1); }
+[data-theme="light"] .drillCard {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .drillCard:hover { background: rgba(255, 255, 255, 0.8); }
 
-.athleteBubbleItemName {
-  font-size: 13.5px;
-  font-weight: 600;
+.drillCardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.drillCardName {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text-bright);
   letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.drillFacts {
+  margin: 0;
+  display: grid;
+  gap: 3px;
+}
+.drillFact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+}
+.drillFact dt {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.drillFact dd {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
   line-height: 1.3;
-  flex: 1;
-  word-break: break-word;
-  /* Coach-spec: drill names centered in the column. */
-  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.drillNote {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-top: 1px dashed rgba(127, 127, 127, 0.35);
+  padding-top: 5px;
+}
+
+/* Phones: name + check-in on top, drills (still sideways) below, notes last. */
+@media (max-width: 700px) {
+  .athleteCard {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "body"
+      "notes";
+  }
+  .athleteCardHead {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-light);
+    text-align: left;
+  }
+  .athleteCardHead .checkInRow { margin-top: 0; }
+  .drillCard { flex-basis: 180px; width: 180px; }
 }
 
 /* Per-drill edit affordance — clicking the drill row plays its video
@@ -563,8 +646,10 @@
    The athlete's notes for this day's workout (components/WorkoutNotes), under
    the drills -- the same saved note as the top of their Training calendar. */
 .athleteNotes {
-  padding-top: 12px;
+  grid-area: notes;
+  padding: 10px 14px 14px;
   border-top: 1px solid var(--border);
+  min-width: 0;
 }
 
 /* ── Fullscreen presentation mode ───────────────── */
@@ -639,8 +724,8 @@
      a bit more horizontal room when 6+ athletes are on the board. */
   gap: 12px;
 }
-/* Preserve the column count via the same --board-cols variable. */
-.board:fullscreen { grid-template-columns: repeat(var(--board-cols, 2), minmax(0, 1fr)); }
+/* One athlete per row; the rows share the screen height. */
+.board:fullscreen { grid-template-columns: minmax(0, 1fr); }
 
 /* Athlete cards on the fullscreen TV board flex to fill the row
    they sit in. `min-height: 0` is required on a flex item that
@@ -648,58 +733,38 @@
    intrinsic content height would push the card past 100vh. The
    header keeps its natural height; the body takes whatever's left. */
 .board:fullscreen .athleteCard {
-  display: flex;
-  flex-direction: column;
   min-height: 0;
   height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
   border-radius: 14px;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
 }
 .board:fullscreen .athleteCardBody {
-  flex: 1;
   min-height: 0;
-  /* Hide anything that would otherwise spill below the card. The
-     fit-to-screen scaler (page.tsx) shrinks --prog-scale until content
-     fits; only if it STILL overflows at the floor does it flip the board
-     to data-fit="scroll" (rule below) so nothing is silently clipped. */
-  overflow: hidden;
-  /* Vertical padding + the inter-category gap scale with --prog-scale so
-     a heavy session (many drills) compresses to fit the fixed viewport. */
-  padding: calc(10px * var(--prog-scale, 1)) 12px calc(12px * var(--prog-scale, 1));
-  gap: calc(14px * var(--prog-scale, 1));
+  /* Sideways scroll stays; nothing may spill BELOW the row. The
+     fit-to-screen scaler (page.tsx) shrinks --prog-scale until the cards
+     fit the row's height; only if they still don't at the floor does it
+     flip data-fit="scroll" (rule below). */
+  overflow-y: hidden;
+  padding: calc(8px * var(--prog-scale, 1)) 12px;
+  gap: calc(12px * var(--prog-scale, 1));
 }
-.board:fullscreen .athleteCardHead {
-  /* Trim the header padding a touch so the body gets more of the
-     column height in fullscreen — coach reads names + roles at a
-     glance, the drills are the primary read. */
-  padding: 12px 14px 10px;
+.board:fullscreen .athleteCardHead { padding: 10px 12px; }
+.board:fullscreen .drillGroup {
+  padding: calc(6px * var(--prog-scale, 1)) 10px calc(8px * var(--prog-scale, 1));
 }
-.board:fullscreen .athleteBubble {
-  /* Compact category bubbles; vertical padding scales with the fit factor. */
-  padding: calc(8px * var(--prog-scale, 1)) 10px calc(10px * var(--prog-scale, 1));
+.board:fullscreen .drillCard {
+  flex-basis: calc(230px * var(--prog-scale, 1));
+  width: calc(230px * var(--prog-scale, 1));
+  padding: calc(7px * var(--prog-scale, 1)) 10px;
+  gap: calc(5px * var(--prog-scale, 1));
 }
-.board:fullscreen .athleteBubbleItem {
-  /* Drill-row vertical padding scales with the fit factor so more drills
-     fit before the scaler has to drop the font size. */
-  padding: calc(5px * var(--prog-scale, 1)) 2px;
-}
-/* Workout notes on the TV board: read-only, sized with the drills so the
-   fit-to-screen scaler shrinks them together, and PINNED to the bottom of
-   the card -- if a heavy session still overflows (the scroll fallback),
-   the drills scroll under the note instead of pushing it off screen.
-   The card's own background is inherited down so the pinned note covers
-   cleanly in light, dark and custom themes alike. */
-.board:fullscreen .athleteCardBody { background: inherit; }
+/* Workout notes under the row, read-only, sized with the drills. */
 .board:fullscreen .athleteNotes {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  margin-top: auto;
-  background: inherit;
-  padding-top: calc(10px * var(--prog-scale, 1));
+  padding: calc(6px * var(--prog-scale, 1)) 12px calc(8px * var(--prog-scale, 1));
 }
 .board:fullscreen .athleteNotes [data-workout-note-head] {
-  padding: calc(5px * var(--prog-scale, 1)) 10px;
+  padding: calc(4px * var(--prog-scale, 1)) 10px;
 }
 .board:fullscreen .athleteNotes [data-workout-note-head] span {
   font-size: calc(12px * var(--prog-scale, 1));
@@ -707,7 +772,7 @@
 .board:fullscreen .athleteNotes [data-workout-note-body] {
   font-size: calc(16px * var(--prog-scale, 1));
   line-height: 1.4;
-  padding: calc(7px * var(--prog-scale, 1)) 10px;
+  padding: calc(6px * var(--prog-scale, 1)) 10px;
 }
 
 /* Last resort: a session too large to fit even at the minimum scale flips
@@ -725,8 +790,11 @@
   height: calc(26px * var(--prog-scale, 1));
   font-size: calc(15px * var(--prog-scale, 1));
 }
-.board:fullscreen .athleteBubbleHead      { font-size: calc(13px * var(--prog-scale, 1)); }
-.board:fullscreen .athleteBubbleItemName  { font-size: calc(16px * var(--prog-scale, 1)); }
+.board:fullscreen .drillGroupHead { font-size: calc(13px * var(--prog-scale, 1)); }
+.board:fullscreen .drillCardName  { font-size: calc(17px * var(--prog-scale, 1)); }
+.board:fullscreen .drillFact dt   { font-size: calc(11px * var(--prog-scale, 1)); }
+.board:fullscreen .drillFact dd   { font-size: calc(14px * var(--prog-scale, 1)); }
+.board:fullscreen .drillNote      { font-size: calc(13px * var(--prog-scale, 1)); }
 
 /* Exit button — top-right of the fullscreen board. Hidden by default
    so the presentation reads clean; reveals when the cursor moves over
@@ -773,12 +841,6 @@
 }
 [data-theme="light"] .pickerItem:hover { background: rgba(0,0,0,0.05); }
 [data-theme="light"] .athleteCardHead { background: #f6f8fb; }
-/* In light mode the hairline dividers between drills need more
- * contrast than the dark-mode 14%-white setting; swap to a faint
- * black instead so rows stay visually separated against the tinted
- * bubble background. */
-[data-theme="light"] .athleteBubbleItem { border-bottom-color: rgba(0, 0, 0, 0.10); }
-[data-theme="light"] .athleteBubbleItem:hover { background: rgba(0, 0, 0, 0.04); }
 
 /* ── Responsive ─────────────────────────────────── */
 
@@ -814,13 +876,14 @@
 }
 .boardEmpty { border-style: solid; }
 
-/* Column header sits flat on the card -- just the sport-coloured top rule. */
+/* Name block sits flat on the card -- just the sport-coloured left rule. */
 .athleteCardHead,
 [data-theme="light"] .athleteCardHead {
   background: transparent;
+  border-right-color: rgba(255, 255, 255, 0.08);
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-[data-theme="light"] .athleteCardHead { border-bottom-color: rgba(0, 0, 0, 0.1); }
+[data-theme="light"] .athleteCardHead { border-right-color: rgba(0, 0, 0, 0.1); border-bottom-color: rgba(0, 0, 0, 0.1); }
 .athleteName { color: var(--text); }
 .athleteLast {
   background: none;
@@ -831,8 +894,8 @@
 
 /* Section labels: one darker shade of the sport colour in light theme,
    matching the Training calendar (--tab-c set inline per section). */
-.athleteBubbleHead { --tab-ink: var(--tab-c); }
-[data-theme="light"] .athleteBubbleHead { --tab-ink: color-mix(in srgb, var(--tab-c) 60%, #000); }
+.drillGroupHead { --tab-ink: var(--tab-c); }
+[data-theme="light"] .drillGroupHead { --tab-ink: color-mix(in srgb, var(--tab-c) 60%, #000); }
 
 /* Jump / Full Screen: solid .field surface, text in the normal ink. */
 .jumpBtn.jumpBtn.jumpBtn.jumpBtn { color: var(--text-muted); }

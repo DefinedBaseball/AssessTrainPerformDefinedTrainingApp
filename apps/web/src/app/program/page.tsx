@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth-context';
 import * as api from '@/lib/api';
 import type { Player, ScheduledDrill } from '@/lib/api';
 import { WorkoutNotes } from '@/components/WorkoutNotes';
+import { drillOptionFields } from '@/lib/drill-options';
 import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
@@ -42,7 +43,7 @@ import {
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -351,8 +352,8 @@ function SortableSection({
     zIndex: isDragging ? 6 : undefined,
   };
   return (
-    <div ref={setNodeRef} className={styles.athleteBubble} style={style}>
-      <div className={styles.athleteBubbleHead} style={headStyle}>
+    <div ref={setNodeRef} className={styles.drillGroup} style={style}>
+      <div className={styles.drillGroupHead} style={headStyle}>
         {isCoach && (
           <button
             ref={setActivatorNodeRef}
@@ -369,22 +370,48 @@ function SortableSection({
           </button>
         )}
         <span>{category}</span>
-        <span className={styles.athleteBubbleCount}>{count}</span>
+        <span className={styles.drillGroupCount}>{count}</span>
       </div>
       {children}
     </div>
   );
 }
 
-/* One draggable DRILL row. The left grip carries the dnd-kit listeners (and
-   doubles as the centering counterweight to the ✎ on the right); the row body
-   still plays the video on click. Drag disabled for non-coaches. */
+/* A drill's saved drop-down picks (Feed Type / Implement / Situation / Goal;
+   Pitching: Reps / Tool / Intensity-Goal) as labelled lines, in the order the
+   coach's drop-downs list them. Empty fields are left off. */
+function drillFacts(drill: ScheduledDrill, tab: string): { label: string; value: string }[] {
+  let env: Record<string, unknown> = {};
+  try {
+    const v = drill.environment ? JSON.parse(drill.environment) : null;
+    if (v && typeof v === 'object' && !Array.isArray(v)) env = v;
+  } catch { /* unreadable -> no details */ }
+  const list = (k: string): string[] => (Array.isArray(env[k]) ? (env[k] as unknown[]).filter((x): x is string => typeof x === 'string' && !!x) : []);
+  const fields = drillOptionFields(tab);
+  const out = fields
+    .map((f) => ({ label: f.label, value: list(f.key).map((x) => (f.suffix ? `${x}${f.suffix}` : x)).join(', ') }))
+    .filter((f) => f.value);
+  /* Picks saved under a field this position doesn't list still show. */
+  for (const k of Object.keys(env)) {
+    if (fields.some((f) => f.key === k)) continue;
+    const v = list(k).join(', ');
+    if (v) out.push({ label: k.charAt(0).toUpperCase() + k.slice(1), value: v });
+  }
+  return out;
+}
+
+/* One draggable DRILL card. Tap the card to watch its video; coaches get the
+   grip (drag to reorder / move to another athlete) and the ✎ edit button.
+   Under the name: everything set for the drill (Feed Type, Implement,
+   Situation, Goal ...) and the drill's own note. */
 function SortableDrill({
-  drill, playerId, category, isCoach, onPlay, onEdit,
+  drill, playerId, category, tab, isCoach, onPlay, onEdit,
 }: {
   drill: ScheduledDrill;
   playerId: string;
   category: string;
+  /** The board's workout type -- which drop-down labels the details use. */
+  tab: string;
   isCoach: boolean;
   onPlay: (d: ScheduledDrill) => void;
   onEdit: (d: ScheduledDrill) => void;
@@ -395,45 +422,58 @@ function SortableDrill({
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    cursor: 'pointer',
     opacity: isDragging ? 0.55 : undefined,
     zIndex: isDragging ? 6 : undefined,
   };
+  const facts = drillFacts(drill, tab);
   return (
     <div
       ref={setNodeRef}
-      className={styles.athleteBubbleItem}
+      className={styles.drillCard}
       style={style}
       onClick={() => onPlay(drill)}
-      title={isCoach ? 'Click to watch · drag the grip to reorder' : 'Click to watch'}
+      title={isCoach ? 'Click to watch · drag the grip to move' : 'Click to watch'}
     >
-      {isCoach ? (
-        <button
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          type="button"
-          className={styles.drillDragHandle}
-          title="Drag to reorder"
-          aria-label="Drag to reorder"
-          onClick={(e) => e.stopPropagation()}
-          style={{ flex: '0 0 auto', width: 22, touchAction: 'none', cursor: 'grab' }}
-        >
-          <GripIcon size={13} />
-        </button>
-      ) : null}
-      <span className={styles.athleteBubbleItemName}>{drill.name}</span>
-      {isCoach && (
-        <button
-          type="button"
-          className={styles.drillEditBtn}
-          onClick={(e) => { e.stopPropagation(); onEdit(drill); }}
-          title="Edit drill"
-          aria-label="Edit drill"
-        >
-          ✎
-        </button>
+      <div className={styles.drillCardTop}>
+        {isCoach && (
+          <button
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            type="button"
+            className={styles.drillDragHandle}
+            title="Drag to reorder"
+            aria-label="Drag to reorder"
+            onClick={(e) => e.stopPropagation()}
+            style={{ flex: '0 0 auto', width: 20, touchAction: 'none', cursor: 'grab' }}
+          >
+            <GripIcon size={13} />
+          </button>
+        )}
+        <span className={styles.drillCardName}>{drill.name}</span>
+        {isCoach && (
+          <button
+            type="button"
+            className={styles.drillEditBtn}
+            onClick={(e) => { e.stopPropagation(); onEdit(drill); }}
+            title="Edit drill"
+            aria-label="Edit drill"
+          >
+            ✎
+          </button>
+        )}
+      </div>
+      {facts.length > 0 && (
+        <dl className={styles.drillFacts}>
+          {facts.map((f) => (
+            <div key={f.label} className={styles.drillFact}>
+              <dt>{f.label}</dt>
+              <dd>{f.value}</dd>
+            </div>
+          ))}
+        </dl>
       )}
+      {drill.notes && drill.notes.trim() && <div className={styles.drillNote}>{drill.notes}</div>}
     </div>
   );
 }
@@ -510,14 +550,17 @@ function AthleteColumn({
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
 
   return (
+    /* One ROW per athlete: name + check-in on the left, the day's drills to
+       the right (their own sideways scroll -- scrolling one athlete never
+       moves another), the workout notes underneath both. */
     <div className={`${styles.athleteCard} ${theme.inner}`}>
-      <div className={styles.athleteCardHead} style={{ borderTopColor: scheduleColor, position: 'relative' }}>
+      <div className={styles.athleteCardHead} style={{ borderLeftColor: scheduleColor }}>
         <div className={styles.athleteName}>
           {player.firstName} <span className={styles.athleteLast}>{player.lastName}</span>
         </div>
         {/* Checked in for the day? Green ✓ / red ✕ -- the same check-in the
             Attendance → Check-In tab shows (the athlete's own check-in on
-            their Training page). Replaces the positions line. */}
+            their Training page). */}
         <div className={styles.checkInRow}>
           {checkedIn === null ? (
             <span className={`${styles.checkInBox} ${styles.checkInUnknown}`} aria-label="Check-in loading">·</span>
@@ -540,7 +583,7 @@ function AthleteColumn({
         ref={setColumnRef}
         className={styles.athleteCardBody}
         style={colIsOver && isCoach ? {
-          // Soft highlight when a coach drags a drill over this column.
+          // Soft highlight when a coach drags a drill over this athlete.
           outline: `2px dashed ${scheduleColor}`,
           outlineOffset: -2,
           background: 'rgba(126, 182, 255, 0.04)',
@@ -548,78 +591,69 @@ function AthleteColumn({
       >
         {loading ? (
           <div className={styles.athleteEmpty}>Loading…</div>
-        ) : (
-          <>
-          {drills.length === 0 ? (
+        ) : drills.length === 0 ? (
           <div className={styles.athleteEmpty}>
             {isCoach ? 'No drills scheduled for today. Drag drills here from another athlete.' : 'No drills scheduled for today.'}
           </div>
         ) : (
-          /* Category-bubble layout, now drag-sortable for coaches. Outer
-             SortableContext = the sections (drag a section header's grip to
-             reorder Movement Prep / Vision / Drills …); each section holds an
-             inner SortableContext = its drills (drag a row's grip to reorder
-             within the section). Click a row to watch, ✎ to edit — unchanged.
-             Players (non-coaches) get the same markup with drag disabled. */
+          /* Sections run left to right (Movement Prep, Vision, Tee ...), each a
+             labelled group of drill cards. Coaches drag a section's grip to
+             reorder sections and a card's grip to reorder / move drills. */
           <SortableContext
             items={grouped.map((g) => `sec:${player.id}:${g.category}`)}
-            strategy={verticalListSortingStrategy}
+            strategy={horizontalListSortingStrategy}
           >
-          {grouped.map(({ category, items }, i) => {
-            const headStyle = { color: 'var(--tab-ink)', '--tab-c': scheduleColor } as React.CSSProperties;
-            return (
-              <SortableSection
-                key={category}
-                id={`sec:${player.id}:${category}`}
-                playerId={player.id}
-                category={category}
-                count={items.length}
-                bgStyle={sectionStyle(scheduleColor, i, grouped.length)}
-                headStyle={headStyle}
-                isCoach={isCoach}
-              >
-                <SortableContext
-                  items={items.map((d) => d.id)}
-                  strategy={verticalListSortingStrategy}
+            {grouped.map(({ category, items }, i) => {
+              const headStyle = { color: 'var(--tab-ink)', '--tab-c': scheduleColor } as React.CSSProperties;
+              return (
+                <SortableSection
+                  key={category}
+                  id={`sec:${player.id}:${category}`}
+                  playerId={player.id}
+                  category={category}
+                  count={items.length}
+                  bgStyle={sectionStyle(scheduleColor, i, grouped.length)}
+                  headStyle={headStyle}
+                  isCoach={isCoach}
                 >
-                  <div className={styles.athleteBubbleList}>
-                    {items.map((d) => (
-                      <SortableDrill
-                        key={d.id}
-                        drill={d}
-                        playerId={player.id}
-                        category={category}
-                        isCoach={isCoach}
-                        onPlay={onPlayDrill}
-                        onEdit={onClickDrill}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </SortableSection>
-            );
-          })}
+                  <SortableContext items={items.map((d) => d.id)} strategy={horizontalListSortingStrategy}>
+                    <div className={styles.drillGroupCards}>
+                      {items.map((d) => (
+                        <SortableDrill
+                          key={d.id}
+                          drill={d}
+                          playerId={player.id}
+                          category={category}
+                          tab={schedule}
+                          isCoach={isCoach}
+                          onPlay={onPlayDrill}
+                          onEdit={onClickDrill}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </SortableSection>
+              );
+            })}
           </SortableContext>
         )}
-          {/* This workout's notes, under the day's drills -- the same saved
-              note shown across the top of the athlete's Training calendar
-              for this day and workout. */}
-          <div className={styles.athleteNotes}>
-            <WorkoutNotes
-              key={`${player.id}|${sessionDate}|${schedule}`}
-              playerId={player.id}
-              date={sessionDate}
-              tab={schedule}
-              label={scheduleLabel}
-              html={noteHtml}
-              canEdit={isCoach && !noteReadOnly}
-              accent={scheduleColor}
-              onSaved={onNoteSaved}
-              minHeight={56}
-            />
-          </div>
-          </>
-        )}
+      </div>
+      {/* This workout's notes, under the name and drills -- the same saved
+          note shown across the top of the athlete's Training calendar for
+          this day and workout. */}
+      <div className={styles.athleteNotes}>
+        <WorkoutNotes
+          key={`${player.id}|${sessionDate}|${schedule}`}
+          playerId={player.id}
+          date={sessionDate}
+          tab={schedule}
+          label={scheduleLabel}
+          html={noteHtml}
+          canEdit={isCoach && !noteReadOnly}
+          accent={scheduleColor}
+          onSaved={onNoteSaved}
+          minHeight={56}
+        />
       </div>
     </div>
   );
@@ -1372,8 +1406,6 @@ export default function ProgramPage() {
   const canFullscreen = selectedPlayers.length >= 1;
   /* A stale saved time (no longer offered that day) reads as unpicked. */
   const timeValue = sessionTime === 'all' || daySessions.some(s => s.time === sessionTime) ? sessionTime : '';
-  /* Past 8 athletes the board wraps onto a second row. */
-  const boardCols = selectedPlayers.length <= 8 ? selectedPlayers.length : Math.ceil(selectedPlayers.length / 2);
   const sessionDay = (() => {
     const [y, m, d] = sessionDate.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -1490,8 +1522,7 @@ export default function ProgramPage() {
         >
         <div
           ref={boardRef}
-          className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : theme.bubble} ${selectedPlayers.length === 1 && !isFullscreen ? styles.boardSingle : ''}`}
-          style={{ '--board-cols': boardCols } as React.CSSProperties}
+          className={`${styles.board} ${isFullscreen ? styles.boardFullscreen : theme.bubble}`}
           data-has-head=""
         >
           {/* Session header: program · Week N · day · time. Spans the board
