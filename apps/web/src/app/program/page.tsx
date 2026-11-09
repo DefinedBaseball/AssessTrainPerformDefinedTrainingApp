@@ -554,9 +554,9 @@ function AthleteColumn({
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
 
   return (
-    /* One ROW per athlete, one line: name + check-in | workout notes | the
-       day's drills (their own sideways scroll -- scrolling one athlete never
-       moves another). Phones stack them in the same order. */
+    /* One ROW per athlete, one line: name + check-in, then the sideways
+       strip -- workout notes followed by the day's drills, scrolling left /
+       right TOGETHER (each athlete's strip scrolls on its own). */
     <div className={`${styles.athleteCard} ${theme.inner}`}>
       <div className={styles.athleteCardHead} style={{ borderLeftColor: scheduleColor }}>
         <div className={styles.athleteName}>
@@ -593,6 +593,24 @@ function AthleteColumn({
           background: 'rgba(126, 182, 255, 0.04)',
         } : undefined}
       >
+        {/* This workout's notes, FIRST in the sideways strip -- so scrolling
+            the drills left / right scrolls the notes with them. The same
+            saved note shown across the top of the athlete's Training
+            calendar for this day and workout. */}
+        <div className={styles.athleteNotes}>
+          <WorkoutNotes
+            key={`${player.id}|${sessionDate}|${schedule}`}
+            playerId={player.id}
+            date={sessionDate}
+            tab={schedule}
+            label={scheduleLabel}
+            html={noteHtml}
+            canEdit={isCoach && !noteReadOnly}
+            accent={scheduleColor}
+            onSaved={onNoteSaved}
+            minHeight={56}
+          />
+        </div>
         {loading ? (
           <div className={styles.athleteEmpty}>Loading…</div>
         ) : drills.length === 0 ? (
@@ -641,24 +659,6 @@ function AthleteColumn({
             })}
           </SortableContext>
         )}
-      </div>
-      {/* This workout's notes, between the name and the drills (CSS grid
-          places it: Name | Notes | Drills) -- the same saved
-          note shown across the top of the athlete's Training calendar for
-          this day and workout. */}
-      <div className={styles.athleteNotes}>
-        <WorkoutNotes
-          key={`${player.id}|${sessionDate}|${schedule}`}
-          playerId={player.id}
-          date={sessionDate}
-          tab={schedule}
-          label={scheduleLabel}
-          html={noteHtml}
-          canEdit={isCoach && !noteReadOnly}
-          accent={scheduleColor}
-          onSaved={onNoteSaved}
-          minHeight={56}
-        />
       </div>
     </div>
   );

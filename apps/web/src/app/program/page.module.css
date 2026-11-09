@@ -330,9 +330,9 @@
 
 .athleteCard {
   display: grid;
-  /* One line: Name | Notes | Drills (drills take the rest and scroll). */
-  grid-template-columns: 190px auto minmax(0, 1fr);
-  grid-template-areas: "head notes body";
+  /* One line: Name | the strip (notes + drills, scrolling together). */
+  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-areas: "head body";
   border-radius: 14px;
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
@@ -530,14 +530,9 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "head"
-      "notes"
       "body";
   }
-  .athleteNotes {
-    width: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
+  .athleteCardBody .athleteNotes { width: 240px; }
   .athleteCardHead {
     flex-direction: row;
     flex-wrap: wrap;
@@ -655,12 +650,13 @@
 /* ── Workout notes ──
    The athlete's notes for this day's workout (components/WorkoutNotes), under
    the drills -- the same saved note as the top of their Training calendar. */
+/* First item in the sideways strip: scrolls with the drills. */
 .athleteNotes {
-  grid-area: notes;
+  flex: 0 0 auto;
   width: clamp(240px, 24vw, 440px);
-  padding: 10px 12px;
+  align-self: stretch;
+  padding-right: 12px;
   border-right: 1px solid var(--border);
-  min-width: 0;
   min-height: 0;
 }
 /* Read-only with no note (athlete view / TV): no empty column. */
@@ -752,8 +748,8 @@
 .board:fullscreen .athleteCard {
   min-height: 0;
   height: 100%;
-  grid-template-columns: 190px auto minmax(0, 1fr);
-  grid-template-areas: "head notes body";
+  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-areas: "head body";
   grid-template-rows: minmax(0, 1fr);
   border-radius: 14px;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
@@ -778,7 +774,7 @@
 }
 .board:fullscreen .drillFact { max-width: calc(160px * var(--prog-scale, 1)); }
 .board:fullscreen .drillMain { max-width: calc(240px * var(--prog-scale, 1)); }
-/* Workout notes: a column between the name and the drills, full height,
+/* Workout notes: first column of the sideways strip, full row height,
    read-only, sized with the drills. No note = no column (drills keep the
    width). Very long notes shrink with the board (the fit scaler counts
    them); past the smallest size they scroll inside their column. */
@@ -790,7 +786,7 @@
   flex-direction: column;
   border-top: none;
   border-right: 1px solid rgba(127, 127, 127, 0.25);
-  padding: calc(8px * var(--prog-scale, 1)) 12px;
+  padding: 0 12px 0 0;
 }
 .board:fullscreen .athleteNotes:empty { display: none; }
 .board:fullscreen .athleteNotes [data-workout-note] {
