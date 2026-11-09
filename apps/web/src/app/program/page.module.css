@@ -330,10 +330,9 @@
 
 .athleteCard {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  grid-template-areas:
-    "head body"
-    "notes notes";
+  /* One line: Name | Notes | Drills (drills take the rest and scroll). */
+  grid-template-columns: 190px auto minmax(0, 1fr);
+  grid-template-areas: "head notes body";
   border-radius: 14px;
   background: var(--card-elev), var(--card-elev-bg);
   border: 1px solid var(--border-light);
@@ -531,8 +530,13 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "head"
-      "body"
-      "notes";
+      "notes"
+      "body";
+  }
+  .athleteNotes {
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
   }
   .athleteCardHead {
     flex-direction: row;
@@ -653,10 +657,14 @@
    the drills -- the same saved note as the top of their Training calendar. */
 .athleteNotes {
   grid-area: notes;
-  padding: 10px 14px 14px;
-  border-top: 1px solid var(--border);
+  width: clamp(240px, 24vw, 440px);
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
   min-width: 0;
+  min-height: 0;
 }
+/* Read-only with no note (athlete view / TV): no empty column. */
+.athleteNotes:empty { display: none; }
 
 /* ── Fullscreen presentation mode ───────────────── */
 
@@ -738,10 +746,15 @@
    contains an `overflow: hidden` child — without it the body's
    intrinsic content height would push the card past 100vh. The
    header keeps its natural height; the body takes whatever's left. */
+/* On the TV the rows are short and wide: Name | Notes | Drills on one
+   line, the notes column the full row height (under the drills, a long
+   note ate the row and squeezed the drills to nothing). */
 .board:fullscreen .athleteCard {
   min-height: 0;
   height: 100%;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: 190px auto minmax(0, 1fr);
+  grid-template-areas: "head notes body";
+  grid-template-rows: minmax(0, 1fr);
   border-radius: 14px;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
 }
@@ -765,9 +778,31 @@
 }
 .board:fullscreen .drillFact { max-width: calc(160px * var(--prog-scale, 1)); }
 .board:fullscreen .drillMain { max-width: calc(240px * var(--prog-scale, 1)); }
-/* Workout notes under the row, read-only, sized with the drills. */
+/* Workout notes: a column between the name and the drills, full height,
+   read-only, sized with the drills. No note = no column (drills keep the
+   width). Very long notes shrink with the board (the fit scaler counts
+   them); past the smallest size they scroll inside their column. */
 .board:fullscreen .athleteNotes {
-  padding: calc(6px * var(--prog-scale, 1)) 12px calc(8px * var(--prog-scale, 1));
+  width: clamp(260px, 26vw, 520px);
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-top: none;
+  border-right: 1px solid rgba(127, 127, 127, 0.25);
+  padding: calc(8px * var(--prog-scale, 1)) 12px;
+}
+.board:fullscreen .athleteNotes:empty { display: none; }
+.board:fullscreen .athleteNotes [data-workout-note] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.board:fullscreen .athleteNotes [data-workout-note-body] {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .board:fullscreen .athleteNotes [data-workout-note-head] {
   padding: calc(4px * var(--prog-scale, 1)) 10px;
@@ -783,6 +818,7 @@
 
 /* Last resort: a session too large to fit even at the minimum scale flips
    data-fit="scroll" so each column scrolls instead of hiding drills. */
+.board:fullscreen[data-fit="scroll"] .athleteNotes [data-workout-note-body] { overflow-y: auto; }
 .board:fullscreen[data-fit="scroll"] .athleteCardBody {
   overflow-y: auto;
 }
@@ -896,7 +932,7 @@
   -webkit-text-fill-color: currentColor;
   color: var(--text-muted);
 }
-[data-theme="light"] .athleteNotes { border-top-color: rgba(0, 0, 0, 0.1); }
+[data-theme="light"] .athleteNotes { border-right-color: rgba(0, 0, 0, 0.1); border-bottom-color: rgba(0, 0, 0, 0.1); }
 
 /* Section labels: one darker shade of the sport colour in light theme,
    matching the Training calendar (--tab-c set inline per section). */

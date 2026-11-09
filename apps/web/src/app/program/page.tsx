@@ -554,9 +554,9 @@ function AthleteColumn({
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
 
   return (
-    /* One ROW per athlete: name + check-in on the left, the day's drills to
-       the right (their own sideways scroll -- scrolling one athlete never
-       moves another), the workout notes underneath both. */
+    /* One ROW per athlete, one line: name + check-in | workout notes | the
+       day's drills (their own sideways scroll -- scrolling one athlete never
+       moves another). Phones stack them in the same order. */
     <div className={`${styles.athleteCard} ${theme.inner}`}>
       <div className={styles.athleteCardHead} style={{ borderLeftColor: scheduleColor }}>
         <div className={styles.athleteName}>
@@ -642,7 +642,8 @@ function AthleteColumn({
           </SortableContext>
         )}
       </div>
-      {/* This workout's notes, under the name and drills -- the same saved
+      {/* This workout's notes, between the name and the drills (CSS grid
+          places it: Name | Notes | Drills) -- the same saved
           note shown across the top of the athlete's Training calendar for
           this day and workout. */}
       <div className={styles.athleteNotes}>
@@ -1354,8 +1355,10 @@ export default function ProgramPage() {
     const fit = () => {
       const el = boardRef.current;
       if (!el) return;
+      /* Drill strips AND the notes column (it sits beside the drills on the
+         TV): the board shrinks until both fit their row. */
       const bodies = () =>
-        Array.from(el.querySelectorAll<HTMLElement>('[class*="athleteCardBody"]'));
+        Array.from(el.querySelectorAll<HTMLElement>('[class*="athleteCardBody"], [class*="athleteNotes"] [data-workout-note-body]'));
       const overflowing = () => bodies().some((b) => b.scrollHeight - b.clientHeight > 1);
       let scale = 1;
       el.style.setProperty('--prog-scale', '1');
