@@ -379,16 +379,6 @@
   background-clip: text;
 }
 
-.athletePositions {
-  margin-top: 4px;
-  font-family: 'DM Mono', ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
 .athleteCardBody {
   padding: 12px 14px 16px;
   display: flex;
@@ -730,7 +720,11 @@
    the cage / bullpen while still leaving room for typical session
    loads. */
 .board:fullscreen .athleteName            { font-size: calc(26px * var(--prog-scale, 1)); }
-.board:fullscreen .athletePositions       { font-size: calc(12px * var(--prog-scale, 1)); }
+.board:fullscreen .checkInBox {
+  width: calc(26px * var(--prog-scale, 1));
+  height: calc(26px * var(--prog-scale, 1));
+  font-size: calc(15px * var(--prog-scale, 1));
+}
 .board:fullscreen .athleteBubbleHead      { font-size: calc(13px * var(--prog-scale, 1)); }
 .board:fullscreen .athleteBubbleItemName  { font-size: calc(16px * var(--prog-scale, 1)); }
 
@@ -931,3 +925,23 @@
   grid-auto-rows: minmax(0, 1fr);
 }
 .board:fullscreen .sessionHead { padding: 8px 14px; }
+
+/* ── Check-in box (name bar) ──
+   Green ✓ = the athlete checked in for the board's day, red ✕ = not yet.
+   Sits where the positions line used to be. */
+.checkInRow { margin-top: 6px; display: flex; justify-content: center; }
+.checkInBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+.checkInYes { background: #16a34a; box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.35); }
+.checkInNo { background: #dc2626; box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35); }
+.checkInUnknown { background: rgba(127, 127, 127, 0.25); color: var(--text-muted); }

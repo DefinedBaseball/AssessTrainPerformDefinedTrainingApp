@@ -8,7 +8,9 @@
      - ReportVideoUploadButton Video-section button -> OS file picker -> the
                               background upload queue
      - SaveBar                dirty / saving / saved / error + Save button
-     - CoachNotesInline       the private Coach Notes block (coach-only)
+     - CoachNotesInline       the private Coach Notes block (coach-only), with
+                              a Coach Notes | Personal Notes switch -- Personal
+                              Notes shows the athlete's journal for this area
 
    Every save here goes through api.mergeReportContent, which merges on the
    server. A whole-content write from the browser could overwrite a change
@@ -21,6 +23,9 @@ import * as api from '@/lib/api';
 import { rem } from '@/lib/rem';
 import { useAuth } from '@/lib/auth-context';
 import { useUploadQueue } from '@/lib/upload-queue';
+import { useParams } from 'next/navigation';
+import { JournalEntryList } from '@/components/journal/JournalEntryList';
+import journalStyles from '@/components/journal/Journal.module.css';
 import type { ReportSummary } from '@/components/assessment/ReportSelector';
 import { NoteBlock } from '../tabs/SwingTab';
 
@@ -291,6 +296,13 @@ export function CoachNotesInline({
 }) {
   const { isCoach } = useAuth();
   const canEdit = useCanEditReports();
+  /* Coach Notes | Personal Notes -- switching only swaps this box; the rest
+     of the tab stays where it is. Personal Notes = the athlete's journal
+     entries for this report's area (Hitting report -> Hitting Journal). */
+  const [view, setView] = useState<'coach' | 'personal'>('coach');
+  const params = useParams<{ id?: string }>();
+  const playerId = typeof params?.id === 'string' ? params.id : '';
+  const area = REPORT_TYPE_TO_AREA[report.reportType?.toUpperCase?.() ?? ''] ?? null;
   const persisted = useMemo(() => contentString(report, 'coachNotes'), [report]);
   const field = useInlineField(
     persisted,
@@ -300,12 +312,45 @@ export function CoachNotesInline({
 
   if (!isCoach) return null;
 
+  const switcher = (
+    <span className={journalStyles.switch} role="tablist" aria-label="Notes">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === 'coach'}
+        className={`${journalStyles.switchBtn} ${view === 'coach' ? journalStyles.switchActive : ''}`}
+        onClick={() => setView('coach')}
+      >
+        Coach Notes
+      </button>
+      {area && playerId && (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'personal'}
+          className={`${journalStyles.switchBtn} ${view === 'personal' ? journalStyles.switchActive : ''}`}
+          onClick={() => setView('personal')}
+        >
+          Personal Notes
+        </button>
+      )}
+    </span>
+  );
+
+  if (view === 'personal' && area && playerId) {
+    return (
+      <div data-pdf-hide="" style={{ marginTop: 14, ...style }}>
+        <PersonalNotes playerId={playerId} area={area} header={switcher} />
+      </div>
+    );
+  }
+
   return (
     /* data-pdf-hide: the Player Summary PDF screenshots this section and
        the PDF goes to athletes and parents, so these never print. */
     <div data-pdf-hide="" style={{ marginTop: 14, ...style }}>
       <NoteBlock
-        label="Coach Notes"
+        label={switcher}
         value={field.draft}
         onChange={field.setDraft}
         placeholder="Private coaching notes — strategy, reminders, things to work on. The athlete never sees this."
@@ -326,6 +371,46 @@ export function CoachNotesInline({
       ) : (
         <div style={{ marginTop: 8 }}><PrivateTag /></div>
       )}
+    </div>
+  );
+}
+
+/** Report type -> journal area (Personal Notes reads that area's journal). */
+const REPORT_TYPE_TO_AREA: Record<string, api.JournalArea> = {
+  HITTING: 'hitting', PITCHING: 'pitching', CATCHING: 'catching', INFIELD: 'infield', OUTFIELD: 'outfield',
+};
+const AREA_LABEL: Record<api.JournalArea, string> = {
+  hitting: 'Hitting', pitching: 'Pitching', catching: 'Catching', infield: 'Infield', outfield: 'Outfield',
+};
+
+/** The athlete's journal entries for one area, read-only, newest first. */
+function PersonalNotes({ playerId, area, header }: { playerId: string; area: api.JournalArea; header: React.ReactNode }) {
+  const [entries, setEntries] = useState<api.JournalEntry[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    setEntries(null);
+    setError('');
+    api.getJournalEntries(playerId, area)
+      .then((e) => { if (!cancelled) setEntries(e); })
+      .catch((e) => { if (!cancelled) { setEntries([]); setError(e?.message || 'Could not load the journal'); } });
+    return () => { cancelled = true; };
+  }, [playerId, area]);
+
+  return (
+    <div className={journalStyles.personalBox}>
+      <div className={journalStyles.personalHead}>
+        {header}
+        <span className={journalStyles.personalNote}>
+          {AREA_LABEL[area]} Journal{entries ? ` · ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : ''}
+        </span>
+      </div>
+      <div className={journalStyles.personalBody}>
+        {error && <div className={journalStyles.error}>{error}</div>}
+        {entries === null
+          ? <div className={journalStyles.empty}>Loading…</div>
+          : <JournalEntryList entries={entries} emptyText={`No ${AREA_LABEL[area]} journal entries yet.`} />}
+      </div>
     </div>
   );
 }

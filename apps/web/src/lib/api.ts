@@ -2245,6 +2245,44 @@ export async function getLatestReportNotes(playerId: string, tab: string) {
   );
 }
 
+// ─── Athlete Journal ──────────────────────────────────────────────
+export type JournalArea = 'hitting' | 'pitching' | 'catching' | 'infield' | 'outfield';
+export const JOURNAL_AREAS: JournalArea[] = ['hitting', 'pitching', 'catching', 'infield', 'outfield'];
+export interface JournalQuestion { id: string; area: JournalArea; text: string; order: number }
+export interface JournalAnswer { questionId: string | null; question: string; answer: string }
+export interface JournalEntry {
+  id: string;
+  playerId: string;
+  area: JournalArea;
+  /** The training day it is about, "YYYY-MM-DD". */
+  date: string;
+  answers: JournalAnswer[];
+  thoughts: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getJournalQuestions(area: JournalArea) {
+  return request<JournalQuestion[]>(`/journal/questions?area=${area}`);
+}
+/** Replace an area's questions (coaches, Settings -> Journal). */
+export async function saveJournalQuestions(area: JournalArea, questions: { id?: string; text: string }[]) {
+  return request<JournalQuestion[]>(`/journal/questions/${area}`, { method: 'PUT', body: JSON.stringify({ questions }) });
+}
+export async function getJournalEntries(playerId: string, area?: JournalArea) {
+  return request<JournalEntry[]>(`/journal/entries/${playerId}${area ? `?area=${area}` : ''}`);
+}
+type JournalEntryInput = { date: string; answers: { questionId: string; answer: string }[]; thoughts: string };
+export async function createJournalEntry(data: JournalEntryInput & { area: JournalArea }) {
+  return request<JournalEntry>('/journal/entries', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateJournalEntry(id: string, data: JournalEntryInput) {
+  return request<JournalEntry>(`/journal/entries/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function deleteJournalEntry(id: string) {
+  return request<{ ok: true }>(`/journal/entries/${id}`, { method: 'DELETE' });
+}
+
 export interface CalendarChange {
   id: string;
   kind: 'APPLY' | 'CLEAR' | string;

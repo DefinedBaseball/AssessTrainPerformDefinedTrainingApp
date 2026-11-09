@@ -1549,7 +1549,8 @@ function isBlankNoteValue(value: string | null | undefined): boolean {
 export function NoteBlock({
   label, value, onChange, placeholder, editable, fill = false, rows, largeLabel = false,
 }: {
-  label: string;
+  /** Usually text; can be a control (the Coach Notes | Personal Notes switch). */
+  label: React.ReactNode;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;

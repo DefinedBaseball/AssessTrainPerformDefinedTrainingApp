@@ -1106,13 +1106,28 @@ export class TrainingService {
     const reportType = TAB_TO_REPORT_TYPE[tab];
     if (!reportType) return { report: null };
     const reports = await this.prisma.report.findMany({
-      where: { playerId, reportType, notes: { not: null } },
+      where: { playerId, reportType },
       orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { id: true, title: true, createdAt: true, notes: true },
+      take: 15,
+      select: { id: true, title: true, createdAt: true, notes: true, content: true },
     });
-    const hit = reports.find((r) => !isBlankHtml(r.notes ?? ''));
-    return { report: hit ? { reportId: hit.id, title: hit.title, createdAt: hit.createdAt, notes: hit.notes as string } : null };
+    /* Each tab keeps its visible notes where IT saves them: Pitching Notes
+       live in content.pitchingNotes; Hitting Notes in the notes column,
+       falling back to the older content.diagnosisNotes; Catching / Infield /
+       Outfield in the notes column. content.coachNotes is never read. */
+    const notesOf = (r: { notes: string | null; content: string | null }): string => {
+      let c: Record<string, unknown> = {};
+      try { const v = r.content ? JSON.parse(r.content) : {}; if (v && typeof v === 'object') c = v; } catch { /* none */ }
+      const str = (v: unknown) => (typeof v === 'string' ? v : '');
+      if (reportType === 'PITCHING') return str(c.pitchingNotes) || str(r.notes);
+      if (reportType === 'HITTING') return str(r.notes) || str(c.diagnosisNotes);
+      return str(r.notes);
+    };
+    for (const r of reports) {
+      const notes = notesOf(r);
+      if (!isBlankHtml(notes)) return { report: { reportId: r.id, title: r.title, createdAt: r.createdAt, notes } };
+    }
+    return { report: null };
   }
 
   /** Notify each given player once that new training hit their calendar. */

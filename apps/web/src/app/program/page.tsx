@@ -24,7 +24,6 @@ import eduStyles from '../education/page.module.css';
 import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconClipboard } from '../education/EduHeader';
-import { TemplatePicker } from '@/components/TemplatePicker';
 import { parseFacilitySchedule, slotsOnDate, formatTime12, programColor, programWeek } from '@/lib/facility-schedule';
 import { useFacilityPrograms, facilityProgramsLoaded } from '@/lib/use-facility-programs';
 import {
@@ -47,7 +46,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { sortScheduled, moveDrillWithinSection, moveSection, shiftBlocksPast } from '@/lib/scheduleReorder';
+import { sortScheduled, moveDrillWithinSection, moveSection } from '@/lib/scheduleReorder';
 
 /* A small grip glyph used as the drag handle for coach reorder. The handle —
    not the whole row — carries the dnd-kit listeners so a tap/click on the row
@@ -448,7 +447,7 @@ function AthleteColumn({
   isCoach,
   onClickDrill,
   onPlayDrill,
-  onOpenTemplates,
+  checkedIn,
   programBadge,
   sessionDate,
   noteHtml,
@@ -466,6 +465,8 @@ function AthleteColumn({
   onNoteSaved: (html: string) => void;
   /** "Day 1 · 4:00 PM" -- where this athlete is in the program's week. */
   programBadge?: { label: string; color: string } | null;
+  /** Has the athlete checked in for the board's day? null = not known yet. */
+  checkedIn: boolean | null;
   drills: ScheduledDrill[];
   /** The active schedule key (hitting / pitching / catching / ...) —
    *  drives per-category color lookups so this column's bubbles
@@ -478,8 +479,6 @@ function AthleteColumn({
   onClickDrill: (drill: ScheduledDrill) => void;
   /** Clicked a scheduled drill name — opens its video (mirrors Training). */
   onPlayDrill: (drill: ScheduledDrill) => void;
-  /** Coach clicked "+ Template" — apply a saved day plan to this athlete. */
-  onOpenTemplates: () => void;
 }) {
   /* Group drills by category so the card reads as
        Movement Prep
@@ -516,27 +515,25 @@ function AthleteColumn({
         <div className={styles.athleteName}>
           {player.firstName} <span className={styles.athleteLast}>{player.lastName}</span>
         </div>
-        <div className={styles.athletePositions}>{player.positions || '—'}</div>
+        {/* Checked in for the day? Green ✓ / red ✕ -- the same check-in the
+            Attendance → Check-In tab shows (the athlete's own check-in on
+            their Training page). Replaces the positions line. */}
+        <div className={styles.checkInRow}>
+          {checkedIn === null ? (
+            <span className={`${styles.checkInBox} ${styles.checkInUnknown}`} aria-label="Check-in loading">·</span>
+          ) : (
+            <span
+              className={`${styles.checkInBox} ${checkedIn ? styles.checkInYes : styles.checkInNo}`}
+              role="img"
+              aria-label={checkedIn ? 'Checked in' : 'Not checked in'}
+              title={checkedIn ? 'Checked in' : 'Not checked in yet'}
+            >
+              {checkedIn ? '✓' : '✕'}
+            </span>
+          )}
+        </div>
         {programBadge && (
           <div className={styles.programBadge} style={{ background: programBadge.color }}>{programBadge.label}</div>
-        )}
-        {/* Apply a saved schedule template to this athlete for the session
-            date — top-right chip so it doesn't disturb the centered name. */}
-        {isCoach && (
-          <button
-            type="button"
-            onClick={onOpenTemplates}
-            title="Apply a schedule template to this athlete"
-            style={{
-              position: 'absolute', top: 8, right: 8,
-              border: `1px solid ${scheduleColor}`, color: scheduleColor,
-              background: 'transparent', borderRadius: 6, padding: '2px 7px',
-              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em',
-              textTransform: 'uppercase', cursor: 'pointer', opacity: 0.85,
-            }}
-          >
-            + Tmpl
-          </button>
         )}
       </div>
       <div
@@ -1183,42 +1180,6 @@ export default function ProgramPage() {
     }
   };
 
-  /* ── Apply-Template picker (per athlete) ──
-     Set when a coach clicks "+ Tmpl" on an athlete's column; applying
-     recreates the template's drills for that athlete on the session date
-     (order/sectionOrder carried), then refetches just that column. */
-  const [tplPlayer, setTplPlayer] = useState<Player | null>(null);
-  const [applyingTpl, setApplyingTpl] = useState(false);
-  const applyTemplate = async (t: api.ScheduleTemplate, items: api.ScheduleTemplateItem[]) => {
-    if (!tplPlayer || items.length === 0) return;
-    setApplyingTpl(true);
-    /* A Modular template's sets go after any sets the athlete already has. */
-    const shift = shiftBlocksPast(drillsByPlayer[tplPlayer.id] || []);
-    try {
-      await api.createScheduledDrillsBatch(items.map(it => ({
-        playerId: tplPlayer.id,
-        drillId: it.drillId ?? undefined,
-        tab: t.tab,
-        category: it.category,
-        name: it.name,
-        date: sessionDate,
-        time: it.time,
-        duration: it.duration,
-        notes: it.notes ?? undefined,
-        order: it.order,
-        sectionOrder: it.sectionOrder,
-        block: shift(t.tab, it.block),
-        environment: it.environment ?? null,
-      })));
-      await refetchAthletes([tplPlayer.id]);
-      setTplPlayer(null);
-    } catch (e) {
-      console.error('Apply template failed', e);
-      window.alert('Failed to apply template');
-    } finally {
-      setApplyingTpl(false);
-    }
-  };
 
   /* Inline-edit popover — set when coach clicks a drill, cleared on save
      / cancel / delete. Render is a small modal anchored center-screen. */
@@ -1281,6 +1242,26 @@ export default function ProgramPage() {
     });
     return () => { cancelled = true; };
   }, [selectedIds, sessionDate, schedule]);
+
+  /* Who has checked in for the board's day (Attendance → Check-In's data).
+     Re-read every 30 s and whenever the tab regains focus, so the board on
+     the facility TV turns athletes green as they check in. */
+  const [checkedInIds, setCheckedInIds] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!isCoach) { setCheckedInIds(null); return; }
+    let cancelled = false;
+    setCheckedInIds(null);
+    const load = () => {
+      api.getDayCheckIns(sessionDate)
+        .then(rows => { if (!cancelled) setCheckedInIds(new Set(rows.filter(r => r.checkedIn).map(r => r.playerId))); })
+        .catch(() => { if (!cancelled) setCheckedInIds(prev => prev ?? new Set()); });
+    };
+    load();
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 30_000);
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [isCoach, sessionDate]);
 
   /* Each selected athlete's workout note for the board's day + workout --
      the same saved notes shown on their Training calendar. */
@@ -1547,7 +1528,7 @@ export default function ProgramPage() {
               isCoach={isCoach}
               onClickDrill={(d) => setEditingDrill(d)}
               onPlayDrill={(d) => setViewingDrill(d)}
-              onOpenTemplates={() => setTplPlayer(p)}
+              checkedIn={checkedInIds ? checkedInIds.has(p.id) : null}
               sessionDate={sessionDate}
               noteHtml={notesByPlayer[p.id] ?? ''}
               noteReadOnly={isFullscreen}
@@ -1597,18 +1578,6 @@ export default function ProgramPage() {
         />,
       )}
 
-      {/* Apply-Template picker — scoped to the board's active schedule so a
-          Pitching board only offers Pitching templates. */}
-      {tplPlayer && overBoard(
-        <TemplatePicker
-          open
-          tab={schedule}
-          title={`Apply to ${tplPlayer.firstName} ${tplPlayer.lastName} — ${sessionDate}`}
-          onClose={() => setTplPlayer(null)}
-          onApply={applyTemplate}
-          applying={applyingTpl}
-        />,
-      )}
 
       {/* Drill video viewer — opens when a coach clicks a drill name. */}
       {viewingDrill && overBoard(

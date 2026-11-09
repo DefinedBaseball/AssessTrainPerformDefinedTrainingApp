@@ -233,6 +233,7 @@ model Player {
   leaderboardEntries LeaderboardEntry[]
   scheduledDrills    ScheduledDrill[]
   workoutNotes       WorkoutNote[]
+  journalEntries     JournalEntry[]
   checkIns           DrillCheckIn[]
   weightEntries      WeightEntry[]
 
@@ -844,6 +845,41 @@ model WorkoutNote {
 
   @@unique([playerId, date, tab])
   @@index([date, tab])
+}
+
+/// A coach-set journal question for one area (Settings -> Journal). Retired
+/// questions stay (active = false) so old entries keep reading correctly.
+model JournalQuestion {
+  id        String   @id @default(uuid())
+  /// hitting | pitching | catching | infield | outfield
+  area      String
+  text      String
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([area, order])
+}
+
+/// One saved athlete journal entry for an area: their answers (each stored
+/// WITH the question text it answered) plus free "other thoughts". Read by
+/// the athlete and coaches (Personal Notes on that area's tab), never parents.
+model JournalEntry {
+  id        String   @id @default(uuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// hitting | pitching | catching | infield | outfield
+  area      String
+  /// The training day it is about, "YYYY-MM-DD".
+  date      String
+  /// JSON [{ questionId, question, answer }]
+  answers   String
+  thoughts  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId, area, date])
 }
 
 model CalendarChangeLog {

@@ -15,6 +15,9 @@ import { PROFILE_EDIT_EVENT } from '@/lib/profile-edit';
 import { TabBar, TabPanel } from '@/components/assessment/TabBar';
 import type { Tab } from '@/components/assessment/TabBar';
 import { VideosIconButton } from '@/components/assessment/VideosIconButton';
+import { JournalIconButton } from '@/components/assessment/JournalIconButton';
+import { JournalPanel } from '@/components/journal/JournalPanel';
+import { JOURNAL_AREAS, type JournalArea } from '@/lib/api';
 import styles from './page.module.css';
 
 /* Tabs + modals are code-split with next/dynamic so the profile's initial
@@ -382,6 +385,14 @@ export default function PlayerProfilePage() {
     });
   }, [player, reports, hiddenTabs, capturingPdf, isCoach, isParent]);
 
+  /* The athlete looking at their OWN profile gets the Journal: Check-In
+     Answers + one journal per area they play (the report tabs they have). */
+  const isOwnAthlete = !isCoach && !isParent && !!player && user?.playerId === player.id;
+  const journalAreas = useMemo<JournalArea[]>(
+    () => visibleTabs.map((t) => t.key).filter((k): k is JournalArea => (JOURNAL_AREAS as string[]).includes(k)),
+    [visibleTabs],
+  );
+
   /* ?tab=<key> (set by the athlete switcher) opens that tab once this
      athlete's tabs are known, if they have it; otherwise the athlete
      opens as usual. Read once, then stripped from the URL. */
@@ -468,6 +479,9 @@ export default function PlayerProfilePage() {
   useEffect(() => {
     if (capturingPdf) return;
     if (activeTab === 'videos') return;
+    /* Journal: like Videos, reached from its icon button only -- valid for
+       the athlete on their own profile. */
+    if (activeTab === 'journal' && isOwnAthlete) return;
     if (!visibleTabs.some((t) => t.key === activeTab)) {
       /* Fall back to the FIRST visible tab, not hard-coded 'summary' —
          players no longer have a Summary tab, so hard-coding it would
@@ -475,7 +489,7 @@ export default function PlayerProfilePage() {
          on Summary because it's first in their list. */
       setActiveTab(visibleTabs[0]?.key ?? 'hitting');
     }
-  }, [visibleTabs, activeTab, capturingPdf]);
+  }, [visibleTabs, activeTab, capturingPdf, isOwnAthlete]);
 
   /* ── Guards ── */
   if (authLoading || !user) return null;
@@ -995,7 +1009,17 @@ export default function PlayerProfilePage() {
         tabs={visibleTabs}
         activeKey={activeTab}
         onTabChange={setActiveTab}
-        rightSlot={<VideosIconButton onClick={() => setActiveTab('videos')} />}
+        rightSlot={
+          <>
+            {/* The athlete's own Journal sits beside Videos (athletes only:
+                coaches read it as Personal Notes on each report tab, and
+                parents never see it). */}
+            {isOwnAthlete && (
+              <JournalIconButton active={activeTab === 'journal'} onClick={() => setActiveTab('journal')} />
+            )}
+            <VideosIconButton onClick={() => setActiveTab('videos')} />
+          </>
+        }
       />
 
       {/* ── Content ── */}
@@ -1037,6 +1061,11 @@ export default function PlayerProfilePage() {
         <TabPanel active={activeTab === 'videos'}>
           <VideosTab {...tabProps} />
         </TabPanel>
+        {isOwnAthlete && (
+          <TabPanel active={activeTab === 'journal'}>
+            {activeTab === 'journal' && <JournalPanel playerId={player.id} areas={journalAreas} />}
+          </TabPanel>
+        )}
       </div>
 
       {/* PDF Builder modal — opens when the Player Summary tab's

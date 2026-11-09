@@ -30,6 +30,7 @@ import { FacilityProgramsModule } from './modules/facility-programs/facility-pro
 import { DrillOptionsModule } from './modules/drill-options/drill-options.module';
 import { AcademyModule } from './modules/academy/academy.module';
 import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
+import { JournalModule } from './modules/journal/journal.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
     FacilityProgramsModule,
     DrillOptionsModule,
     CoachTasksModule,
+    JournalModule,
   ],
   providers: [
     /* Keyed on the real visitor -- see ClientIpThrottlerGuard. */
