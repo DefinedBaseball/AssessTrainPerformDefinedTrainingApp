@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
+import { parsePopTimeCsv, mergeTypedWithCsv } from '@/lib/pop-time-csv';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import { useUploadQueue, type NewUploadJob } from '@/lib/upload-queue';
 import { useGradeInputMode, GradeNumberInput } from './components/GradeNumberInput';
@@ -904,7 +905,7 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
 /* ── Catching Assessment Form ── */
 
 interface ThrowingRow {
-  attempts: string[];  // 8 string values
+  attempts: string[];  // 8 boxes by default; a pop-time CSV can add more
   notes: string;
 }
 
@@ -919,8 +920,18 @@ interface GradeRow {
  *  then left column rows 1-3, then right column rows 1-3). */
 type ZoneVal = 0 | 1 | 2;
 
+/** A pop-time CSV saved on the report, kept SEPARATE from the typed attempts
+ *  (HitTrax rule): averages come from the CSV; the best number is the better
+ *  of the CSV and the typed attempts (lowest pop / exchange, highest velo). */
+export interface CatchingCsvData {
+  fileName: string;
+  throws: { pop: number | null; exchange: number | null; velocity: number | null }[];
+}
+
 export interface CatchingFormData {
   throwing: {
+    /** Pop-time CSV upload, if any (absent on reports without one). */
+    csv?: CatchingCsvData | null;
     popTime2B: ThrowingRow;
     exchangeTime: ThrowingRow;
     velocity: ThrowingRow;
@@ -1063,10 +1074,24 @@ export function buildCatchingContent(data: CatchingFormData) {
     if (valid.length === 0) return null;
     return Math.max(20, Math.min(80, Math.round(valid.reduce((s, v) => s + v, 0) / valid.length)));
   };
+  /* CSV + typed (HitTrax rule): with a CSV, the AVG is the CSV's; the best
+     is the better of the CSV's and the typed attempts' -- a lower typed pop
+     / exchange, or a higher typed velocity, wins. Typed attempts are kept
+     as they were entered; the CSV readings ride along as csvAttempts. */
+  const csvVals = (k: 'pop' | 'exchange' | 'velocity') =>
+    (data.throwing.csv?.throws ?? []).map(t => t[k]).filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
+  const withCsv = (
+    typed: ReturnType<typeof parseAttempts>, vals: number[], higherIsBetter: boolean, digits: number,
+  ) => {
+    if (vals.length === 0) return typed;
+    const m = mergeTypedWithCsv(typed.best, typed.avg, vals, higherIsBetter, digits);
+    return { ...typed, best: m.best, avg: m.avg, csvAttempts: vals };
+  };
   const throwing = {
-    popTime2B: parseAttempts(data.throwing.popTime2B),
-    exchangeTime: parseAttempts(data.throwing.exchangeTime),
-    velocity: parseVeloAttempts(data.throwing.velocity),
+    popTime2B: withCsv(parseAttempts(data.throwing.popTime2B), csvVals('pop'), false, 2),
+    exchangeTime: withCsv(parseAttempts(data.throwing.exchangeTime), csvVals('exchange'), false, 2),
+    velocity: withCsv(parseVeloAttempts(data.throwing.velocity), csvVals('velocity'), true, 1),
+    csvFile: data.throwing.csv?.fileName ?? null,
     shuffleVelocity: parseVeloAttempts(data.throwing.shuffleVelocity),
     // Coach grades — drive the dashboard's Throwing Underlying Stats row.
     footwork: parseGrade(data.throwing.footwork),
@@ -1684,8 +1709,73 @@ function DefenseOverallSlider({
 }
 
 export function CatchingForm({ data, setData }: { data: CatchingFormData; setData: (d: CatchingFormData) => void }) {
+  /* Pop-time CSV (throw-down device export) -- saved on the report BESIDE
+     the typed attempts, never in them (HitTrax rule): Pop / Exchg / Throw
+     give the averages; the report's LOW pop / exchange and MAX velocity are
+     the better of the CSV and the typed attempts. Typing works as before. */
+  const popCsvRef = useRef<HTMLInputElement>(null);
+  const [popCsvMsg, setPopCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const loadPopTimeCsv = async (file: File) => {
+    setPopCsvMsg(null);
+    try {
+      const { throws, skipped } = parsePopTimeCsv(await file.text());
+      const prev = data.throwing.csv;
+      if (prev && typeof window !== 'undefined'
+        && !window.confirm(`Replace ${prev.fileName} (${prev.throws.length} throws) with ${file.name}?`)) return;
+      const num = (v: string) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 ? n : null; };
+      setData({
+        ...data,
+        throwing: {
+          ...data.throwing,
+          csv: {
+            fileName: file.name,
+            throws: throws.map(t => ({ pop: num(t.pop), exchange: num(t.exchange), velocity: num(t.velocity) })),
+          },
+        },
+      });
+      setPopCsvMsg({
+        ok: true,
+        text: `Loaded ${throws.length} throw${throws.length === 1 ? '' : 's'} from ${file.name}`
+          + (skipped ? ` · ${skipped} row${skipped === 1 ? '' : 's'} without a pop time skipped` : '')
+          + '. Save to keep it.',
+      });
+    } catch (e: any) {
+      setPopCsvMsg({ ok: false, text: e?.message || 'Could not read that file.' });
+    } finally {
+      if (popCsvRef.current) popCsvRef.current.value = '';
+    }
+  };
+  const removePopTimeCsv = () => {
+    setData({ ...data, throwing: { ...data.throwing, csv: null } });
+    setPopCsvMsg(null);
+  };
+  /* The CSV's numbers + what the report will show once typed attempts are
+     folded in -- previewed under the upload button. */
+  const csvSummary = (() => {
+    const csv = data.throwing.csv;
+    if (!csv || csv.throws.length === 0) return null;
+    const vals = (k: 'pop' | 'exchange' | 'velocity') => csv.throws.map(t => t[k]).filter((n): n is number => n != null);
+    const typed = (row: ThrowingRow) => row.attempts.map(a => parseFloat(a)).filter(n => Number.isFinite(n) && n > 0);
+    const line = (label: string, k: 'pop' | 'exchange' | 'velocity', row: ThrowingRow, high: boolean, unit: string, digits: number) => {
+      const v = vals(k);
+      if (v.length === 0) return null;
+      const t = typed(row);
+      const typedBest = t.length ? (high ? Math.max(...t) : Math.min(...t)) : null;
+      const m = mergeTypedWithCsv(typedBest, null, v, high, digits);
+      return { label, best: (m.best as number).toFixed(high ? 1 : 2), bestTag: high ? 'MAX' : 'LOW', typedWins: m.typedWins, avg: (m.avg as number).toFixed(digits), unit };
+    };
+    return {
+      fileName: csv.fileName,
+      count: csv.throws.length,
+      lines: [
+        line('Pop Time', 'pop', data.throwing.popTime2B, false, 's', 2),
+        line('Exchange', 'exchange', data.throwing.exchangeTime, false, 's', 2),
+        line('Velocity', 'velocity', data.throwing.velocity, true, 'mph', 1),
+      ].filter((l): l is NonNullable<typeof l> => !!l),
+    };
+  })();
   const updateThrowing = (key: keyof CatchingFormData['throwing'], field: Partial<ThrowingRow>) => {
-    if (key === 'overallGrade') return;
+    if (key === 'overallGrade' || key === 'csv') return;
     setData({
       ...data,
       throwing: {
@@ -1695,9 +1785,10 @@ export function CatchingForm({ data, setData }: { data: CatchingFormData; setDat
     });
   };
   const updateThrowingAttempt = (key: keyof CatchingFormData['throwing'], idx: number, val: string) => {
-    if (key === 'overallGrade') return;
+    if (key === 'overallGrade' || key === 'csv') return;
     const row = data.throwing[key] as ThrowingRow;
     const newAttempts = [...row.attempts];
+    while (newAttempts.length < idx) newAttempts.push('');
     newAttempts[idx] = val;
     updateThrowing(key, { attempts: newAttempts });
   };
@@ -1728,6 +1819,8 @@ export function CatchingForm({ data, setData }: { data: CatchingFormData; setDat
     { key: 'velocity', label: 'Velocity — mph', mlbAvg: '~75–80' },
     { key: 'shuffleVelocity', label: 'Shuffle Velocity — mph', mlbAvg: '—' },
   ];
+  /* Attempt columns: 8, or more when a CSV filled a longer row. */
+  const attemptCols = Math.max(8, ...throwingRows.map(r => (data.throwing[r.key] as ThrowingRow).attempts.length));
 
   // Receiving rows — six Coaches Grade sub-skills that render next to
   // the strike-zone heat map on the dashboard, plus the two legacy
@@ -1819,15 +1912,66 @@ export function CatchingForm({ data, setData }: { data: CatchingFormData; setDat
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* ── THROWING & POP TIME ── */}
       <div style={reportOuterBubbleStyle}>
-        <div style={sectionTitleStyle}>
-          Throwing &amp; Pop Time
+        <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <span>Throwing &amp; Pop Time</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <input
+              ref={popCsvRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: 'none' }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadPopTimeCsv(f); }}
+            />
+            <button
+              type="button"
+              onClick={() => popCsvRef.current?.click()}
+              title="Add a pop-time CSV (Pop / Exchg / Throw columns). Typed attempts are kept alongside it."
+              style={{
+                fontSize: rem(11), fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                padding: '5px 12px', borderRadius: 7, cursor: 'pointer',
+                border: '1px solid var(--border)', background: 'var(--surface2, transparent)', color: 'var(--text)',
+              }}
+            >
+              {data.throwing.csv ? '⬆ Replace CSV' : '⬆ Upload CSV'}
+            </button>
+          </span>
         </div>
+        {popCsvMsg && (
+          <div style={{ fontSize: rem(12), margin: '0 0 8px', color: popCsvMsg.ok ? 'var(--text-muted)' : '#e5484d' }}>
+            {popCsvMsg.text}
+          </div>
+        )}
+        {csvSummary && (
+          <div style={{
+            border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', margin: '0 0 10px',
+            fontSize: rem(12), color: 'var(--text)', display: 'grid', gap: 4,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <strong style={{ overflowWrap: 'anywhere' }}>📄 {csvSummary.fileName} · {csvSummary.count} throws</strong>
+              <button type="button" onClick={removePopTimeCsv}
+                style={{ fontSize: rem(11), border: 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline' }}>
+                Remove CSV
+              </button>
+            </div>
+            {csvSummary.lines.map(l => (
+              <div key={l.label} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', color: 'var(--text-muted)' }}>
+                <span style={{ minWidth: 70, fontWeight: 700, color: 'var(--text)' }}>{l.label}</span>
+                <span>{l.bestTag} <strong style={{ color: 'var(--text)' }}>{l.best}</strong> {l.unit}{l.typedWins ? ' (typed)' : ''}</span>
+                <span>AVG <strong style={{ color: 'var(--text)' }}>{l.avg}</strong> {l.unit}</span>
+              </div>
+            ))}
+            <div style={{ fontSize: rem(11), color: 'var(--text-muted)' }}>
+              Averages come from the CSV. Typed attempts below are kept: a lower typed pop / exchange or a higher typed
+              velocity replaces the CSV&rsquo;s LOW / MAX on the report.
+            </div>
+          </div>
+        )}
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rem(12) }}>
             <thead>
               <tr>
                 <th style={{ ...headerCellStyle, textAlign: 'left', minWidth: 140 }}>Metric</th>
-                {[1,2,3,4,5,6,7,8].map(n => (
+                {Array.from({ length: attemptCols }, (_, i) => i + 1).map(n => (
                   <th key={n} style={{ ...headerCellStyle, minWidth: 56 }}>Att {n}</th>
                 ))}
                 <th style={{ ...headerCellStyle, minWidth: 60 }}>MLB Avg</th>
@@ -1840,7 +1984,7 @@ export function CatchingForm({ data, setData }: { data: CatchingFormData; setDat
                 return (
                   <tr key={row.key}>
                     <td style={metricLabelStyle}>{row.label}</td>
-                    {rowData.attempts.map((val, i) => (
+                    {Array.from({ length: attemptCols }, (_, i) => rowData.attempts[i] ?? '').map((val, i) => (
                       <td key={i} style={{ padding: '4px 2px' }}>
                         <input
                           type="text" inputMode="decimal" style={inputStyle}

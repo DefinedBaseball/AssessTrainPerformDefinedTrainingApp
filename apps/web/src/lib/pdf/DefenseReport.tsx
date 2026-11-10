@@ -327,8 +327,26 @@ function FieldChip({ x, y, label, value, unit, color }: {
   );
 }
 
-function PdfCatchingField({ popTime, velocity, exchange, left, center, right, height }: {
+/* Throwing chip with two numbers: best (LOW / MAX) left, session AVG right. */
+function DualFieldChip({ x, y, label, best, bestLabel, avg, unit, color }: {
+  x: number; y: number; label: string; best: string; bestLabel: string; avg: string; unit: string; color: string;
+}) {
+  return (
+    <G>
+      <Rect x={x - 76} y={y - 29} width={152} height={58} rx={10} fill="#E9ECEF" stroke={colors.cardBorder} strokeWidth={1} />
+      <Text x={x} y={y - 13} textAnchor="middle" style={{ fontSize: 11, fontFamily: 'Helvetica-Bold' }} fill={colors.textMuted}>{label}</Text>
+      <Line x1={x} y1={y - 4} x2={x} y2={y + 24} stroke={colors.cardBorder} strokeWidth={1} />
+      <SvgValue x={x - 38} y={y + 10} value={best} unit={best === '—' ? undefined : unit} size={17} color={color} anchor="middle" />
+      <SvgValue x={x + 38} y={y + 10} value={avg} unit={avg === '—' ? undefined : unit} size={17} color={color} anchor="middle" />
+      <Text x={x - 38} y={y + 23} textAnchor="middle" style={{ fontSize: 8.5, fontFamily: 'Helvetica-Bold' }} fill={colors.textMuted}>{bestLabel}</Text>
+      <Text x={x + 38} y={y + 23} textAnchor="middle" style={{ fontSize: 8.5, fontFamily: 'Helvetica-Bold' }} fill={colors.textMuted}>AVG</Text>
+    </G>
+  );
+}
+
+function PdfCatchingField({ popTime, popAvg, velocity, velocityAvg, exchange, exchangeAvg, left, center, right, height }: {
   popTime: number | null; velocity: number | null; exchange: number | null;
+  popAvg: number | null; velocityAvg: number | null; exchangeAvg: number | null;
   left: number | null; center: number | null; right: number | null;
   height: number;
 }) {
@@ -363,9 +381,9 @@ function PdfCatchingField({ popTime, velocity, exchange, left, center, right, he
       <Line x1={FIELD_CX} y1={FIELD_CY - 8} x2={twobX} y2={twobY + 4} stroke={colors.textMuted} strokeWidth={1.6} strokeDasharray="7 5" />
       <Polygon points={`${twobX - 6},${twobY + 6} ${twobX + 6},${twobY + 6} ${twobX},${twobY - 2}`} fill={colors.textMuted} />
 
-      <FieldChip x={FIELD_CX} y={fieldXY(0, 120)[1]} label="POP TIME" value={popTime !== null ? popTime.toFixed(2) : '—'} unit="s" color={colors.navy} />
-      <FieldChip x={FIELD_CX} y={fieldXY(0, 60)[1] - 22} label="VELOCITY" value={velocity !== null ? velocity.toFixed(0) : '—'} unit="mph" color={colors.navy} />
-      <FieldChip x={FIELD_CX} y={378} label="EXCHANGE" value={exchange !== null ? exchange.toFixed(2) : '—'} unit="s" color={colors.navy} />
+      <DualFieldChip x={FIELD_CX} y={fieldXY(0, 120)[1]} label="POP TIME" best={popTime !== null ? popTime.toFixed(2) : '—'} bestLabel="LOW" avg={popAvg !== null ? popAvg.toFixed(2) : '—'} unit="s" color={colors.navy} />
+      <DualFieldChip x={FIELD_CX} y={fieldXY(0, 60)[1] - 22} label="VELOCITY" best={velocity !== null ? velocity.toFixed(0) : '—'} bestLabel="MAX" avg={velocityAvg !== null ? velocityAvg.toFixed(1) : '—'} unit="mph" color={colors.navy} />
+      <DualFieldChip x={FIELD_CX} y={378} label="EXCHANGE" best={exchange !== null ? exchange.toFixed(2) : '—'} bestLabel="LOW" avg={exchangeAvg !== null ? exchangeAvg.toFixed(2) : '—'} unit="s" color={colors.navy} />
 
       {/* the block fan behind the plate */}
       <Path d={`M ${FIELD_CX - 184} 456 Q ${FIELD_CX} 496 ${FIELD_CX + 184} 456`} fill="none" stroke={grid} strokeWidth={1} strokeDasharray="2 4" />
@@ -504,8 +522,11 @@ function CatchingPage({ data, notesSize }: { data: DefensePdfData; notesSize: nu
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <PdfCatchingField
               popTime={num(t.popTime2B?.best)}
+              popAvg={num(t.popTime2B?.avg)}
               velocity={num(t.velocity?.best)}
+              velocityAvg={num(t.velocity?.avg)}
               exchange={num(t.exchangeTime?.best)}
+              exchangeAvg={num(t.exchangeTime?.avg)}
               left={num(b.blockLeft?.grade) ?? num(b.gloveBodyAngle?.grade)}
               center={num(b.blockCenter?.grade) ?? num(b.accuracy?.grade)}
               right={num(b.blockRight?.grade) ?? num(b.recoverySpeed?.grade)}

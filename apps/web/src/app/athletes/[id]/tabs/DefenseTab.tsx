@@ -964,8 +964,11 @@ function SprayField({
 }
 
 /* Catching field with throwing-line stat chips + blocking annotations */
-function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGrade, rightGrade }: {
-  popTime: number | null; exchange: number | null; velocity: number | null;
+function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity, velocityAvg, leftGrade, centerGrade, rightGrade }: {
+  /* Best (lowest pop / exchange, highest velocity) + the session average. */
+  popTime: number | null; popAvg: number | null;
+  exchange: number | null; exchangeAvg: number | null;
+  velocity: number | null; velocityAvg: number | null;
   leftGrade: number | null; centerGrade: number | null; rightGrade: number | null;
 }) {
   /* Theme-aware palette for the six field chips (Pop Time / Velocity /
@@ -1021,24 +1024,40 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
     );
   };
 
-  const StatChip = ({ y, label, value, unit }: {
-    y: number; label: string; value: number | null; unit: string;
-  }) => (
-    <g transform={`translate(${FIELD_CX}, ${y})`}>
-      {/* Same bigger chip — 168 × 58 (was 144 × 46) — centered on
-          FIELD_CX so label + value both anchor to middle. */}
-      <rect x="-76" y="-29" width="152" height="58" rx="10"
-        fill="url(#catch-cmd-deck-chip)" stroke="var(--border-light)" strokeWidth="1" />
-      <text x="0" y="-7" textAnchor="middle" fontSize="12" fontFamily={CHIP_FONT} fontWeight="600"
-        fill="var(--text-muted)" letterSpacing="0.12em">{label}</text>
-      <text x="0" y="17" textAnchor="middle" fontSize="22" fontFamily={CHIP_FONT} fontWeight="700"
-        fill={chipValueColor} letterSpacing="-0.01em" style={{ fontVariantNumeric: 'tabular-nums' }}>
-        {value !== null ? (unit === 'mph' ? value.toFixed(0) : value.toFixed(2)) : '—'}
-        <tspan fontSize="13" fontFamily={CHIP_FONT} fontWeight="500"
-               fill={chipMutedColor} letterSpacing="0.04em" dx="4">{unit}</tspan>
-      </text>
-    </g>
-  );
+
+  /* Throwing chip with TWO numbers: the best (LOW pop / exchange, MAX
+     velocity) on the left, the session average on the right -- same 152 x
+     58 chip, so nothing around it moves. */
+  const DualStatChip = ({ y, label, best, bestLabel, avg, unit }: {
+    y: number; label: string; best: number | null; bestLabel: string; avg: number | null; unit: string;
+  }) => {
+    const fmt = (v: number | null, isAvg: boolean) =>
+      v === null ? '—' : unit === 'mph' ? v.toFixed(isAvg ? 1 : 0) : v.toFixed(2);
+    const half = (x: number, v: number | null, sub: string, isAvg: boolean) => (
+      <>
+        <text x={x} y="10" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
+          fill={chipValueColor} letterSpacing="-0.01em" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(v, isAvg)}
+          {v !== null && (
+            <tspan fontSize="10" fontFamily={CHIP_FONT} fontWeight="500" fill={chipMutedColor} dx="2">{unit}</tspan>
+          )}
+        </text>
+        <text x={x} y="23" textAnchor="middle" fontSize="8.5" fontFamily={CHIP_FONT} fontWeight="700"
+          fill="var(--text-muted)" letterSpacing="0.14em">{sub}</text>
+      </>
+    );
+    return (
+      <g transform={`translate(${FIELD_CX}, ${y})`}>
+        <rect x="-76" y="-29" width="152" height="58" rx="10"
+          fill="url(#catch-cmd-deck-chip)" stroke="var(--border-light)" strokeWidth="1" />
+        <text x="0" y="-13" textAnchor="middle" fontSize="11" fontFamily={CHIP_FONT} fontWeight="600"
+          fill="var(--text-muted)" letterSpacing="0.12em">{label}</text>
+        <line x1="0" y1="-4" x2="0" y2="24" stroke={chipMutedColor} strokeOpacity="0.35" strokeWidth="1" />
+        {half(-38, best, bestLabel, false)}
+        {half(38, avg, 'AVG', true)}
+      </g>
+    );
+  };
 
   return (
     <svg viewBox={`0 0 ${FIELD_W} ${VBOX_H}`} preserveAspectRatio="xMidYMid meet"
@@ -1100,13 +1119,13 @@ function CatchingFieldDiagram({ popTime, exchange, velocity, leftGrade, centerGr
             • Pop Time → 120 ft (top arc, just under 2B / Center)
             • Velocity → 60 ft (mid-throw)
             • Exchange → stays close to home plate */}
-      <StatChip y={fieldXY(0, 120, CATCH_SCALE)[1]} label="POP TIME" value={popTime} unit="s" />
+      <DualStatChip y={fieldXY(0, 120, CATCH_SCALE)[1]} label="POP TIME" best={popTime} bestLabel="LOW" avg={popAvg} unit="s" />
       {/* Velocity + Exchange nudged up another notch — total ~22px
           higher than their original positions (was -10, now -22 vs the
           field-distance baseline / fixed 400 baseline). Pop Time stays
           anchored at the 120-ft arc. */}
-      <StatChip y={fieldXY(0, 60,  CATCH_SCALE)[1] - 22} label="VELOCITY" value={velocity} unit="mph" />
-      <StatChip y={378} label="EXCHANGE" value={exchange} unit="s" />
+      <DualStatChip y={fieldXY(0, 60,  CATCH_SCALE)[1] - 22} label="VELOCITY" best={velocity} bestLabel="MAX" avg={velocityAvg} unit="mph" />
+      <DualStatChip y={378} label="EXCHANGE" best={exchange} bestLabel="LOW" avg={exchangeAvg} unit="s" />
 
       {/* Block fan beneath home plate — Left/Right pushed further out
           from ±172 → ±184 so each outer chip sits with more breathing
@@ -2032,6 +2051,9 @@ export function CatchingSubTab({
         const popBest = t.popTime2B?.best ?? null;
         const exchangeBest = t.exchangeTime?.best ?? null;
         const veloBest = t.velocity?.best ?? null;
+        const popAvg = t.popTime2B?.avg ?? null;
+        const exchangeAvg = t.exchangeTime?.avg ?? null;
+        const veloAvg = t.velocity?.avg ?? null;
         const leftG   = b.blockLeft?.grade   ?? b.gloveBodyAngle?.grade ?? null;
         const centerG = b.blockCenter?.grade ?? b.accuracy?.grade       ?? null;
         const rightG  = b.blockRight?.grade  ?? b.recoverySpeed?.grade  ?? null;
@@ -2088,8 +2110,11 @@ export function CatchingSubTab({
               node: (
                 <CatchingFieldDiagram
                   popTime={popBest}
+                  popAvg={popAvg}
                   exchange={exchangeBest}
+                  exchangeAvg={exchangeAvg}
                   velocity={veloBest}
+                  velocityAvg={veloAvg}
                   leftGrade={leftG}
                   centerGrade={centerG}
                   rightGrade={rightG}
