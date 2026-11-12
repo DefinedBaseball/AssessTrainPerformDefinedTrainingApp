@@ -14,6 +14,7 @@ import { AcademyTab } from './AcademyTab';
 import { DrillsTab } from './DrillsTab';
 import { ProgramsTab } from './ProgramsTab';
 import { JournalTab } from './JournalTab';
+import { IntegrationsTab } from './IntegrationsTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
@@ -31,7 +32,7 @@ const ReportModal = nextDynamic(
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
 import { tzOpt } from '@/lib/academy';
 
-type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'programs' | 'journal' | 'cameras' | 'myProfile' | 'staff' | 'academy';
+type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'programs' | 'journal' | 'cameras' | 'myProfile' | 'staff' | 'academy' | 'integrations';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -72,6 +73,8 @@ export default function SettingsPage() {
     /* Admin-only "Academy" tab — name, logos, contact info, email wording,
        reply-to, new-athlete switch, time zone. */
     ...(isAdmin ? ([{ key: 'academy' as TabKey, label: 'Academy' }]) : []),
+    /* Admin-only: API keys for outside companies (MOVE, ...) + what they've sent. */
+    ...(isAdmin ? ([{ key: 'integrations' as TabKey, label: 'Integrations' }]) : []),
     /* Coach "Cameras" tab — OBS-style friendly names for each attached video
        input, used by Live Training's multi-angle recording. Hidden from viewers. */
     ...(isEditorCoach ? ([{ key: 'cameras' as TabKey, label: 'Cameras' }]) : []),
@@ -116,6 +119,7 @@ export default function SettingsPage() {
       {tab === 'journal' && isCoach && <JournalTab />}
       {tab === 'staff' && isAdmin && <StaffTab />}
       {tab === 'academy' && isAdmin && <AcademyTab />}
+      {tab === 'integrations' && isAdmin && <IntegrationsTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}
       </div>
     </div>

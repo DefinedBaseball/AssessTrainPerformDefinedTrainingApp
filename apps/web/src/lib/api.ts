@@ -2283,6 +2283,39 @@ export async function deleteJournalEntry(id: string) {
   return request<{ ok: true }>(`/journal/entries/${id}`, { method: 'DELETE' });
 }
 
+// ─── Integrations (outside companies sending data in) ────────────────
+export interface IntegrationProvider { slug: string; label: string; kinds: string[] }
+export interface IntegrationKeyRow {
+  id: string; provider: string; label: string; mode: 'live' | 'test'; keyPrefix: string;
+  createdAt: string; lastUsedAt: string | null; revokedAt: string | null; deliveries: number;
+}
+export interface IntegrationDeliveryRow {
+  id: string; provider: string; mode: 'live' | 'test'; kind: string; externalId: string | null; status: string;
+  createdAt: string; keyLabel: string | null; keyPrefix: string | null; bytes: number; preview: string;
+}
+export async function getIntegrationProviders() {
+  return request<IntegrationProvider[]>('/integrations/providers');
+}
+export async function getIntegrationKeys() {
+  return request<IntegrationKeyRow[]>('/integrations/keys');
+}
+/** The plain key comes back ONCE here -- show it, then it is gone. */
+export async function createIntegrationKey(data: { provider: string; label: string; mode: 'live' | 'test' }) {
+  return request<IntegrationKeyRow & { key: string }>('/integrations/keys', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function revokeIntegrationKey(id: string) {
+  return request<{ ok: true }>(`/integrations/keys/${id}/revoke`, { method: 'POST' });
+}
+export async function getIntegrationDeliveries(provider?: string) {
+  return request<IntegrationDeliveryRow[]>(`/integrations/deliveries${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`);
+}
+export async function getIntegrationDelivery(id: string) {
+  return request<Omit<IntegrationDeliveryRow, 'bytes' | 'preview'> & { payload: unknown }>(`/integrations/deliveries/${id}`);
+}
+export async function clearTestIntegrationDeliveries() {
+  return request<{ deleted: number }>('/integrations/deliveries/test', { method: 'DELETE' });
+}
+
 export interface CalendarChange {
   id: string;
   kind: 'APPLY' | 'CLEAR' | string;

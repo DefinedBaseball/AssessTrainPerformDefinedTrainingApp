@@ -31,6 +31,7 @@ import { DrillOptionsModule } from './modules/drill-options/drill-options.module
 import { AcademyModule } from './modules/academy/academy.module';
 import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
 import { JournalModule } from './modules/journal/journal.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { JournalModule } from './modules/journal/journal.module';
     DrillOptionsModule,
     CoachTasksModule,
     JournalModule,
+    IntegrationsModule,
   ],
   providers: [
     /* Keyed on the real visitor -- see ClientIpThrottlerGuard. */

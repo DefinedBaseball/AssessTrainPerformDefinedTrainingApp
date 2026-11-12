@@ -882,6 +882,49 @@ model JournalEntry {
   @@index([playerId, area, date])
 }
 
+/// An API key for an outside company (Settings -> Integrations). Only a
+/// SHA-256 of the key is stored; the plain key is shown once at creation.
+/// A key belongs to ONE provider ("move", later "trackman", ...) and can only
+/// post to that provider's /api/integrations/<provider>/... paths.
+model IntegrationKey {
+  id          String    @id @default(uuid())
+  provider    String
+  label       String
+  /// "live" | "test" -- test deliveries are marked and can be cleared.
+  mode        String
+  keyHash     String    @unique
+  /// First characters of the key ("dbk_live_AbCd") so admins can tell keys apart.
+  keyPrefix   String
+  createdById String?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  deliveries  IntegrationDelivery[]
+
+  @@index([provider])
+}
+
+/// One delivery a partner sent, stored untouched (raw JSON text) so the
+/// mapping onto athletes / reports can be built from real data.
+model IntegrationDelivery {
+  id         String         @id @default(uuid())
+  keyId      String
+  key        IntegrationKey @relation(fields: [keyId], references: [id], onDelete: Cascade)
+  provider   String
+  mode       String
+  /// What was sent: the last path segment, e.g. "sessions".
+  kind       String
+  /// The partner's own id for it (body sessionId / id, or Idempotency-Key) -- resends are ignored.
+  externalId String?
+  payload    String
+  /// "received" now; later "processed" / "unmatched" / "error" once mapping exists.
+  status     String
+  createdAt  DateTime       @default(now())
+
+  @@index([keyId, kind, externalId])
+  @@index([provider, createdAt])
+}
+
 model CalendarChangeLog {
   id   String @id @default(uuid())
   /// "APPLY" (copied one athlete's calendar onto others) | "CLEAR".
