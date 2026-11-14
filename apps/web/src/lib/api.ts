@@ -128,6 +128,8 @@ export interface Player {
    *  Client Directory's Team column and the PDF cover both read College. */
   professionalTeam?: string | null;
   birthDate: string | null;
+  /** Coach-set secondary ID outside apps (MOVE) can send instead of the email. */
+  athleteCode?: string | null;
   /** Guardian contact. Distinct from the athlete's own login email, which
    *  lives on the linked `user` below. */
   parentEmail?: string | null;
@@ -2289,9 +2291,31 @@ export interface IntegrationKeyRow {
   id: string; provider: string; label: string; mode: 'live' | 'test'; keyPrefix: string;
   createdAt: string; lastUsedAt: string | null; revokedAt: string | null; deliveries: number;
 }
+/** What processing a delivery found (MOVE): athlete, date, catch counts, or an error. */
+export interface IntegrationDeliveryResult {
+  athlete?: string;
+  matchedBy?: 'link' | 'email' | 'athleteId';
+  date?: string;
+  catches?: number;
+  counted?: number;
+  revision?: number;
+  externalId?: string | null;
+  moveId?: string | null;
+  createdReport?: boolean;
+  wouldCreateReport?: boolean;
+  note?: string;
+  error?: string;
+}
 export interface IntegrationDeliveryRow {
-  id: string; provider: string; mode: 'live' | 'test'; kind: string; externalId: string | null; status: string;
+  id: string; provider: string; mode: 'live' | 'test'; kind: string; externalId: string | null;
+  /** received | processed | preview | unmatched | superseded | error */
+  status: string;
   createdAt: string; keyLabel: string | null; keyPrefix: string | null; bytes: number; preview: string;
+  playerId: string | null; reportId: string | null; processedAt: string | null;
+  result: IntegrationDeliveryResult | null;
+}
+export interface IntegrationAthleteLinkRow {
+  id: string; provider: string; externalRef: string; createdAt: string; playerId: string; athlete: string;
 }
 export async function getIntegrationProviders() {
   return request<IntegrationProvider[]>('/integrations/providers');
@@ -2314,6 +2338,26 @@ export async function getIntegrationDelivery(id: string) {
 }
 export async function clearTestIntegrationDeliveries() {
   return request<{ deleted: number }>('/integrations/deliveries/test', { method: 'DELETE' });
+}
+/** Process a delivery again (e.g. one received before mapping existed). */
+export async function processIntegrationDelivery(id: string) {
+  return request<IntegrationDeliveryRow>(`/integrations/deliveries/${id}/process`, { method: 'POST' });
+}
+/** "This outside athlete is that athlete" -- saved, then unmatched deliveries are retried. */
+export async function linkIntegrationDelivery(id: string, playerId: string) {
+  return request<IntegrationDeliveryRow>(`/integrations/deliveries/${id}/link`, { method: 'POST', body: JSON.stringify({ playerId }) });
+}
+export async function getIntegrationLinks() {
+  return request<IntegrationAthleteLinkRow[]>('/integrations/links');
+}
+export async function removeIntegrationLink(id: string) {
+  return request<{ ok: true }>(`/integrations/links/${id}`, { method: 'DELETE' });
+}
+/** Coach: set (or clear with '') an athlete's Athlete ID. */
+export async function setAthleteCode(playerId: string, athleteCode: string) {
+  return request<{ athleteCode: string | null; placed: number }>(`/integrations/athlete-code/${playerId}`, {
+    method: 'PATCH', body: JSON.stringify({ athleteCode }),
+  });
 }
 
 export interface CalendarChange {

@@ -198,6 +198,13 @@ model Player {
   // adult athletes have no parent contact on file.
   parentEmail      String?
   parentPhone      String?
+  /// Coach-set secondary ID ("Athlete ID"), stored upper-case. Outside apps
+  /// (MOVE Catching Sensor, ...) can identify the athlete by it when they
+  /// don't use the athlete's email. One athlete per ID -- enforced when it's
+  /// saved (integrations.service setAthleteCode), not by a DB unique rule,
+  /// because adding one to this existing table stops Render's db push.
+  athleteCode      String?
+  integrationLinks IntegrationAthleteLink[]
   pbrNational      Int?
   pbrState         Int?
   pbrPosition      Int?
@@ -249,6 +256,8 @@ model Player {
   // Parent logins linked to this athlete (see Parent / ParentLink).
   parentLinks        ParentLink[]
   parentLinkRequests ParentLinkRequest[]
+
+  @@index([athleteCode])
 }
 
 /// A parent's own profile. The login itself is a User with role "PARENT"
@@ -917,12 +926,37 @@ model IntegrationDelivery {
   /// The partner's own id for it (body sessionId / id, or Idempotency-Key) -- resends are ignored.
   externalId String?
   payload    String
-  /// "received" now; later "processed" / "unmatched" / "error" once mapping exists.
+  /// "received" (not read yet) | "processed" (on a report) | "preview" (test key:
+  /// matched, nothing written) | "unmatched" (no athlete found) | "superseded"
+  /// (a newer revision is already on the report) | "error".
   status     String
+  /// The athlete / report it went to (no FK: the log outlives deletions).
+  playerId    String?
+  reportId    String?
+  /// JSON summary of the processing, or the error message.
+  result      String?
+  processedAt DateTime?
   createdAt  DateTime       @default(now())
 
   @@index([keyId, kind, externalId])
   @@index([provider, createdAt])
+  @@index([provider, status])
+}
+
+/// A coach's "this outside account is that athlete" link, made from the
+/// Unmatched list. `externalRef` is the partner's id for the athlete,
+/// lower-cased (MOVE: player.externalId or player.moveId).
+model IntegrationAthleteLink {
+  id          String   @id @default(uuid())
+  provider    String
+  externalRef String
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@unique([provider, externalRef])
+  @@index([playerId])
 }
 
 model CalendarChangeLog {

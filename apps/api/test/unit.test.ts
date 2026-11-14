@@ -15,6 +15,7 @@ import { TrackmanParser } from '../src/modules/uploads/parsers/trackman-parser';
 import { HitTraxParser } from '../src/modules/uploads/parsers/hittrax-parser';
 import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-parser';
 import { SendLimiter } from '../src/modules/auth/send-limiter';
+import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession } from '../src/modules/integrations/move/move-session';
 
 interface TestResult {
   name: string;
@@ -355,6 +356,77 @@ async function ownershipTests() {
   });
 }
 
+
+// ─── MOVE Catching Sensor sessions ─────────────────────────────────────
+
+/* Trimmed copy of the first real test delivery (2026-11-13). */
+function moveFixture(over: Record<string, unknown> = {}) {
+  const c = (n: number, extra: Record<string, unknown> = {}) => ({
+    catchId: `c_${n}`, number: n, withdrawn: false, contactAt: `2026-11-14T02:43:1${n}.000Z`,
+    metrics: { gloveSpeedMph: 8 + n / 10, timeToStickSec: 0.2 - n / 100, junk: 'x' },
+    reach: false,
+    files: { video: { url: `https://example.test/v${n}`, contentType: 'video/quicktime', bytes: 100, expiresAt: '2026-11-21T03:08:06.630Z' } },
+    ...extra,
+  });
+  return {
+    schema: 'move.session.v1',
+    sessionId: 'move_abc_r1', baseSessionId: 'move_abc', revision: 1,
+    player: { externalId: 'DEFINED-TEST-1', moveId: 'MoveUser1' },
+    session: { moveSessionId: '20261113_204311', firstCatchAt: '2026-11-14T02:43:11.680Z', lastCatchAt: '2026-11-14T02:43:40.566Z', catchCount: 2 },
+    catches: [c(1), c(2, { withdrawn: true })],
+    ...over,
+  };
+}
+
+async function moveSessionTests() {
+  await test('MOVE: reads a session, keeps numeric metrics only', () => {
+    const s = parseMoveSession(moveFixture());
+    assertEqual(s.baseSessionId, 'move_abc', 'base id');
+    assertEqual(s.revision, 1, 'revision');
+    assertEqual(s.externalId, 'DEFINED-TEST-1', 'externalId');
+    assertEqual(s.catches.length, 2, 'catch count');
+    assertEqual(s.catches[1].withdrawn, true, 'withdrawn kept');
+    assert(!('junk' in s.catches[0].metrics), 'non-numeric metric dropped');
+    assertEqual(s.catches[0].video?.url, 'https://example.test/v1', 'video url');
+  });
+
+  await test('MOVE: rejects other schemas and missing athlete', () => {
+    expectThrows(() => parseMoveSession(moveFixture({ schema: 'other.v1' })), 'schema');
+    expectThrows(() => parseMoveSession(moveFixture({ player: {} })), 'no athlete');
+    expectThrows(() => parseMoveSession(moveFixture({ catches: 'nope' })), 'no catches');
+  });
+
+  await test('MOVE: non-https file links are ignored', () => {
+    const s = parseMoveSession(moveFixture({ catches: [{ catchId: 'x', metrics: {}, files: { video: { url: 'http://insecure.test/v' } } }] }));
+    assertEqual(s.catches[0].video, null, 'http dropped');
+  });
+
+  await test('MOVE: local date + offset come from the device session name', () => {
+    const d = sessionLocalDay(parseMoveSession(moveFixture()));
+    assertEqual(d.date, '2026-11-13', 'evening session stays on the 13th, not UTC 14th');
+    assertEqual(d.offsetMinutes, -360, 'UTC-6');
+    assertEqual(localDate(new Date('2026-11-14T05:59:00Z'), d), '2026-11-13', 'still the 13th locally');
+    assertEqual(localDate(new Date('2026-11-14T06:01:00Z'), d), '2026-11-14', 'midnight local');
+  });
+
+  await test('MOVE: without a session name the time zone decides the date', () => {
+    const d = sessionLocalDay({ moveSessionId: null, firstCatchAt: '2026-11-14T02:43:11.680Z' }, 'America/Chicago');
+    assertEqual(d.date, '2026-11-13', 'Chicago date');
+  });
+
+  await test('MOVE: a newer revision replaces, an older one is refused', () => {
+    const r1 = parseMoveSession(moveFixture());
+    const r2 = parseMoveSession(moveFixture({ sessionId: 'move_abc_r2', revision: 2 }));
+    const first = mergeMoveSession(undefined, r1, 'd1')!;
+    const second = mergeMoveSession(first, r2, 'd2')!;
+    assertEqual(second.sessions.length, 1, 'one session per base id');
+    assertEqual(second.sessions[0].revision, 2, 'r2 kept');
+    assertEqual(mergeMoveSession(second, r1, 'd3'), null, 'older revision refused');
+    const other = parseMoveSession(moveFixture({ sessionId: 'move_xyz_r1', baseSessionId: 'move_xyz' }));
+    assertEqual(mergeMoveSession(second, other, 'd4')!.sessions.length, 2, 'different sessions both kept');
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -367,6 +439,7 @@ async function run() {
   await hittraxParserTests();
   await sendLimiterTests();
   await ownershipTests();
+  await moveSessionTests();
 
   console.log('\n' + '='.repeat(60));
   for (const r of results) {

@@ -794,6 +794,143 @@
   .snapRow2 { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Catching Report body: Receiving Heat Map · Receiving (MOVE metrics +
+   Coaches Grade) · 3D Glove Path, with Throwing & Blocking under the heat
+   map and the Throwing Grades beside it. Tablet: heat map + field side by
+   side, receiving full width, then glove path + throwing grades. Phone:
+   everything stacks. */
+.catchGrid {
+  display: grid;
+  gap: 14px;
+  align-items: stretch;
+  /* Six tracks so the second line can split differently from the first:
+     line 1 = heat (1-2) · receiving (3-5) · glove (6);
+     line 2 = Throwing & Blocking (1-4, the bigger share) · Throwing Grades (5-6). */
+  grid-template-columns:
+    minmax(110px, 0.5fr) minmax(110px, 0.5fr)
+    minmax(0, 0.55fr) minmax(0, 0.55fr) minmax(0, 0.55fr)
+    minmax(200px, 0.95fr);
+  grid-template-areas:
+    "heat  heat  receiving receiving receiving glove"
+    "field field field     field     tgrades   tgrades";
+}
+@media (max-width: 1023px) {
+  .catchGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "heat      field"
+      "receiving receiving"
+      "glove     tgrades";
+  }
+}
+@media (max-width: 768px) {
+  .catchGrid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "heat" "receiving" "glove" "field" "tgrades";
+  }
+}
+/* 3D Glove Path catch picker: numbered chips above the video. */
+.catchPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.catchPick {
+  min-width: 2rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.catchPick:hover { color: var(--text-bright); }
+.catchPickOn {
+  background: var(--text-bright);
+  border-color: var(--text-bright);
+  color: var(--bg, #fff);
+}
+.catchPickOn:hover { color: var(--bg, #fff); }
+/* 3D Glove Path empty state: a framed stage until MOVE sends animations. */
+.glovePathEmpty {
+  width: 100%;
+  align-self: stretch;
+  min-height: 12rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+}
+/* Throwing Grades as tiles (Catching Report, beside Throwing & Blocking):
+   2 across in its narrow, tall cell; 4 across when it runs full width on
+   a phone, back to 2 on the narrowest phones. */
+.gradeTiles {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(4.5rem, 1fr);
+  gap: 10px;
+}
+.gradeTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+@media (max-width: 768px) {
+  .gradeTiles { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(4rem, auto); }
+}
+@media (max-width: 420px) {
+  .gradeTiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Receiving Metrics (MOVE): four across, two on phones; the last row
+   drops its bottom line. */
+.moveMetricGrid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 12px;
+}
+.moveMetricCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 3.6rem;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.moveMetricGrid > .moveMetricCell:nth-last-child(-n + 4):nth-child(4n + 1),
+.moveMetricGrid > .moveMetricCell:nth-last-child(-n + 4):nth-child(4n + 1) ~ .moveMetricCell { border-bottom: none; }
+/* Coaches Grade row under the metrics: five across, three on phones. */
+.recvGradeRow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+@media (max-width: 768px) {
+  .moveMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .moveMetricGrid > .moveMetricCell:nth-last-child(-n + 4):nth-child(4n + 1),
+  .moveMetricGrid > .moveMetricCell:nth-last-child(-n + 4):nth-child(4n + 1) ~ .moveMetricCell { border-bottom: 1px solid var(--border); }
+  .moveMetricGrid > .moveMetricCell:nth-last-child(-n + 2):nth-child(odd),
+  .moveMetricGrid > .moveMetricCell:nth-last-child(-n + 2):nth-child(odd) ~ .moveMetricCell { border-bottom: none; }
+  .recvGradeRow { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 10px; }
+}
+
 /* Hitting Swing row with all three charts: Spray Chart · Strike Zone ·
    Point of Impact. Wide screens: three across. Mid widths (iPad): Spray +
    Strike Zone side by side with POI on its own row under them (under the

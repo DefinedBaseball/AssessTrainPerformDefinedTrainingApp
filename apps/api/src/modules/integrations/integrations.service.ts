@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { INTEGRATION_PROVIDERS, providerBySlug } from './integration-providers';
+import { MOVE_PROVIDER, MoveProcessor } from './move/move.processor';
+import { parseMoveSession } from './move/move-session';
 
 /* ─────────────────────────────────────────────────────────────────────────
    Integrations: API keys for outside companies + the log of what they send.
@@ -39,7 +41,7 @@ export interface AuthedIntegrationKey {
 
 @Injectable()
 export class IntegrationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private move: MoveProcessor) {}
 
   providers() {
     return INTEGRATION_PROVIDERS;
@@ -135,7 +137,98 @@ export class IntegrationsService {
       data: { keyId: key.id, provider: key.provider, mode: key.mode, kind, externalId, payload, status: 'received' },
       select: { id: true, createdAt: true },
     });
-    return { status: 'received' as const, deliveryId: row.id, receivedAt: row.createdAt };
+    /* Place it right away. The delivery is already stored, so a processing
+       problem never fails the partner's request -- it shows in the log. */
+    const processing = await this.processIfMapped(row.id, key.provider, kind);
+    return { status: 'received' as const, deliveryId: row.id, receivedAt: row.createdAt, ...(processing ? { processing } : {}) };
+  }
+
+  /** Run the provider's mapping, if it has one. Returns the outcome status. */
+  private async processIfMapped(deliveryId: string, provider: string, kind: string): Promise<string | null> {
+    if (provider !== MOVE_PROVIDER || kind !== 'sessions') return null;
+    try {
+      return (await this.move.process(deliveryId)).status;
+    } catch {
+      return 'error';
+    }
+  }
+
+  /** Admin: process (again) one delivery -- e.g. one stored before mapping existed. */
+  async reprocess(id: string) {
+    const d = await this.prisma.integrationDelivery.findUnique({ where: { id }, select: { id: true, provider: true, kind: true } });
+    if (!d) throw new NotFoundException('Delivery not found');
+    const status = await this.processIfMapped(d.id, d.provider, d.kind);
+    if (!status) throw new BadRequestException('This kind of delivery is not mapped yet');
+    return this.getDelivery(id);
+  }
+
+  /**
+   * Admin: "this MOVE player is that athlete". Saves the link for MOVE's
+   * externalId and moveId, then places this delivery and every other
+   * unmatched one (they may be the same athlete).
+   */
+  async linkAthlete(id: string, playerId: unknown, actorUserId?: string) {
+    if (typeof playerId !== 'string' || !playerId) throw new BadRequestException('Pick an athlete');
+    const d = await this.prisma.integrationDelivery.findUnique({ where: { id }, select: { id: true, provider: true, payload: true } });
+    if (!d) throw new NotFoundException('Delivery not found');
+    if (d.provider !== MOVE_PROVIDER) throw new BadRequestException('Only MOVE deliveries can be linked');
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!player) throw new NotFoundException('Athlete not found');
+    let refs: string[];
+    try {
+      const s = parseMoveSession(JSON.parse(d.payload));
+      refs = [s.externalId, s.moveId].filter((r): r is string => !!r).map((r) => r.toLowerCase());
+    } catch (err: any) {
+      throw new BadRequestException(`Can not read this delivery: ${err?.message || err}`);
+    }
+    for (const externalRef of refs) {
+      await this.prisma.integrationAthleteLink.upsert({
+        where: { provider_externalRef: { provider: MOVE_PROVIDER, externalRef } },
+        create: { provider: MOVE_PROVIDER, externalRef, playerId, createdById: actorUserId ?? null },
+        update: { playerId, createdById: actorUserId ?? null },
+      });
+    }
+    await this.move.process(d.id);
+    await this.move.retryUnmatched();
+    return this.getDelivery(id);
+  }
+
+  /** Admin: the saved "outside account = athlete" links. */
+  async listLinks(provider = MOVE_PROVIDER) {
+    const rows = await this.prisma.integrationAthleteLink.findMany({
+      where: { provider },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, provider: true, externalRef: true, createdAt: true, player: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    return rows.map(({ player, ...r }) => ({ ...r, playerId: player.id, athlete: `${player.firstName} ${player.lastName}`.trim() }));
+  }
+
+  async removeLink(id: string) {
+    await this.prisma.integrationAthleteLink.deleteMany({ where: { id } });
+    return { ok: true };
+  }
+
+  /**
+   * Coach: set an athlete's Athlete ID (the secondary ID outside apps can
+   * send instead of the email). Upper-cased; blank clears it. Unmatched MOVE
+   * sessions are retried afterwards.
+   */
+  async setAthleteCode(playerId: string, raw: unknown) {
+    const code = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+    if (code && !/^[A-Z0-9][A-Z0-9._@-]{0,79}$/.test(code)) {
+      throw new BadRequestException('Athlete ID: letters, numbers, and . _ - @ only (80 max)');
+    }
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { id: true } });
+    if (!player) throw new NotFoundException('Athlete not found');
+    if (code) {
+      const taken = await this.prisma.player.findFirst({ where: { athleteCode: code }, select: { id: true, firstName: true, lastName: true } });
+      if (taken && taken.id !== playerId) {
+        throw new ConflictException(`${taken.firstName} ${taken.lastName} already has Athlete ID ${code}`);
+      }
+    }
+    await this.prisma.player.update({ where: { id: playerId }, data: { athleteCode: code || null } });
+    const placed = code ? await this.move.retryUnmatched() : 0;
+    return { athleteCode: code || null, placed };
   }
 
   async listDeliveries(opts: { provider?: string; limit?: number }) {
@@ -146,15 +239,17 @@ export class IntegrationsService {
       take,
       select: {
         id: true, provider: true, mode: true, kind: true, externalId: true, status: true, createdAt: true, payload: true,
+        playerId: true, reportId: true, result: true, processedAt: true,
         key: { select: { label: true, keyPrefix: true } },
       },
     });
-    return rows.map(({ payload, key, ...r }) => ({
+    return rows.map(({ payload, key, result, ...r }) => ({
       ...r,
       keyLabel: key?.label ?? null,
       keyPrefix: key?.keyPrefix ?? null,
       bytes: payload.length,
       preview: payload.slice(0, 280),
+      result: parseResult(result),
     }));
   }
 
@@ -166,8 +261,8 @@ export class IntegrationsService {
     if (!row) throw new NotFoundException('Delivery not found');
     let json: unknown = null;
     try { json = JSON.parse(row.payload); } catch { /* stored as sent */ }
-    const { payload, key, ...rest } = row;
-    return { ...rest, keyLabel: key?.label ?? null, keyPrefix: key?.keyPrefix ?? null, payload: json ?? payload };
+    const { payload, key, result, ...rest } = row;
+    return { ...rest, keyLabel: key?.label ?? null, keyPrefix: key?.keyPrefix ?? null, result: parseResult(result), payload: json ?? payload };
   }
 
   /** Clear TEST deliveries (live data is never bulk-deleted). */
@@ -177,4 +272,9 @@ export class IntegrationsService {
     });
     return { deleted: r.count };
   }
+}
+
+function parseResult(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return { note: raw }; }
 }

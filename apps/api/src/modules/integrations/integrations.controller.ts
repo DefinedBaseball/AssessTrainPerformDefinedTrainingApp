@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Headers, HttpCode, NotFoundException, Param, Post, Query, Request, UseGuards,
+  Body, Controller, Delete, Get, Headers, HttpCode, NotFoundException, Param, Patch, Post, Query, Request, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -87,6 +87,52 @@ export class IntegrationsController {
   @ApiOperation({ summary: 'Delete TEST deliveries (admin)' })
   clearTest(@Query('provider') provider?: string) {
     return this.svc.clearTestDeliveries(provider || undefined);
+  }
+
+  @Post('deliveries/:id/process')
+  @ApiBearerAuth()
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Process a delivery again (admin)' })
+  reprocess(@Param('id') id: string) {
+    return this.svc.reprocess(id);
+  }
+
+  @Post('deliveries/:id/link')
+  @ApiBearerAuth()
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: "Link an unmatched delivery's outside athlete to one of ours (admin)" })
+  link(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { playerId?: string }) {
+    return this.svc.linkAthlete(id, dto?.playerId, req.user?.sub);
+  }
+
+  @Get('links')
+  @ApiBearerAuth()
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Saved outside-account -> athlete links (admin)' })
+  links(@Query('provider') provider?: string) {
+    return this.svc.listLinks(provider || undefined);
+  }
+
+  @Delete('links/:id')
+  @ApiBearerAuth()
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Remove a saved athlete link (admin)' })
+  removeLink(@Param('id') id: string) {
+    return this.svc.removeLink(id);
+  }
+
+  /* Any coach who can write (Viewers are blocked by the global guard) --
+     it's part of the athlete's profile, edited from Edit Profile. */
+  @Patch('athlete-code/:playerId')
+  @ApiBearerAuth()
+  @Roles('COACH')
+  @ApiOperation({ summary: "Set an athlete's Athlete ID (secondary ID outside apps can send)" })
+  setAthleteCode(@Param('playerId') playerId: string, @Body() dto: { athleteCode?: string | null }) {
+    return this.svc.setAthleteCode(playerId, dto?.athleteCode ?? '');
   }
 
   // ── Partner (API key) ─────────────────────────────────────────────────

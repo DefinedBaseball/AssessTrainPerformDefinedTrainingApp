@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 import type { Player } from '@/lib/api';
 import { parseAtBatXlsx } from '@/lib/atbat-parser';
 import { parsePopTimeCsv, mergeTypedWithCsv } from '@/lib/pop-time-csv';
+import { MOVE_RECEIVING_METRICS, parseReceivingMetrics } from '@/lib/move-metrics';
 import { ATHLETE_TYPES } from '@/lib/athlete-types';
 import { useUploadQueue, type NewUploadJob } from '@/lib/upload-queue';
 import { useGradeInputMode, GradeNumberInput } from './components/GradeNumberInput';
@@ -22,6 +23,7 @@ import { ProfileReminderButton } from '@/components/ProfileReminderButton';
 import { ChangeEmailButton } from '@/components/ChangeEmailButton';
 import { SignOutEverywhereButton } from '@/components/SignOutEverywhereButton';
 import { DeleteAthleteSection } from '@/components/DeleteAthleteDialog';
+import { AthleteIdField } from '@/components/AthleteIdField';
 import { ParentLoginSection } from '@/components/ParentLoginSection';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth-context';
@@ -548,6 +550,11 @@ function SummaryForm({ data, setData, player }: { data: SummaryData; setData: (d
             </div>
           </div>
         )}
+        {/* Coach-set secondary ID that outside apps (MOVE) can send instead
+            of the email. Saves on its own button. */}
+        {canEditAthleteType && !isViewer && (
+          <AthleteIdField playerId={player.id} initial={player.athleteCode} />
+        )}
         <div className={rs.summaryGrid}>
           <div className={rs.summaryField}>
             <label className={rs.summaryLabel}>Phone</label>
@@ -977,6 +984,9 @@ export interface CatchingFormData {
     timing: GradeRow;
     overallGrade: string;
   };
+  /** Receiving Metrics (MOVE Catching Sensor), typed text keyed by
+   *  MOVE_RECEIVING_METRICS key. Optional: older saved forms predate it. */
+  receivingMetrics?: Record<string, string>;
   blocking: {
     /** Positional blocking range grades — replaces the single "range" entry
      *  with Block Left / Block Center / Block Right (mirrors the dashboard's
@@ -1025,6 +1035,7 @@ export function emptyCatchingForm(): CatchingFormData {
       timing:       { ...EMPTY_GRADE_ROW },
       overallGrade: '',
     },
+    receivingMetrics: {},
     blocking: {
       blockLeft: { ...EMPTY_GRADE_ROW },
       blockCenter: { ...EMPTY_GRADE_ROW },
@@ -1162,7 +1173,9 @@ export function buildCatchingContent(data: CatchingFormData) {
     blocking.gloveBodyAngle.grade,
     blocking.recoverySpeed.grade,
   ]);
-  return { throwing, receiving, blocking };
+  /* Receiving Metrics (MOVE) -- numbers / "H:MM" clock positions. */
+  const receivingMetrics = parseReceivingMetrics(data.receivingMetrics);
+  return { throwing, receiving, receivingMetrics, blocking };
 }
 
 const inputStyle: React.CSSProperties = {
@@ -2077,6 +2090,39 @@ export function CatchingForm({ data, setData }: { data: CatchingFormData; setDat
           onToggleInner={updateInnerZone}
           onToggleBorder={updateBorderZone}
         />
+        <div style={{ ...sectionTitleStyle, marginTop: 16 }}>
+          Receiving — Metrics (MOVE Sensor)
+        </div>
+        {/* Typed now; the MOVE API will fill the same fields later. Clock
+            positions take 2, 2:30 or 2.5. */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+          gap: 10,
+        }}>
+          {MOVE_RECEIVING_METRICS.map((def) => (
+            <label key={def.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: rem(11), fontWeight: 600, color: 'var(--text)', lineHeight: 1.2 }}>
+                {def.label}
+                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+                  {def.kind === 'clock' ? ' (clock)' : ` (${def.unit})`}
+                </span>
+              </span>
+              <input
+                type="text"
+                aria-label={def.label}
+                inputMode={def.kind === 'clock' ? 'text' : 'decimal'}
+                placeholder={def.kind === 'clock' ? 'e.g. 2:30' : '—'}
+                value={data.receivingMetrics?.[def.key] ?? ''}
+                onChange={(e) => setData({
+                  ...data,
+                  receivingMetrics: { ...(data.receivingMetrics ?? {}), [def.key]: e.target.value },
+                })}
+                style={inputStyle}
+              />
+            </label>
+          ))}
+        </div>
         <div style={{ ...sectionTitleStyle, marginTop: 16 }}>
           Receiving — Skill Grades (20–80)
         </div>

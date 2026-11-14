@@ -33,6 +33,10 @@ import {
   DEFENSE_COACH_GRADE_SECTIONS, getDefenseCoachGrades,
 } from '../helpers';
 import { CustomCharts } from '@/components/CustomCharts';
+import {
+  MOVE_RECEIVING_METRICS, clockAngle, receivingCell, summarizeMove,
+  type MoveSummary, type ReceivingMetricValues,
+} from '@/lib/move-metrics';
 import { bundleVideos } from '@/lib/video-titles';
 
 /* ═══════════════════════════════════════════
@@ -67,6 +71,7 @@ const ALL_SUB_TABS: { key: DefenseSubTab; label: string; positionCode: string }[
    ═══════════════════════════════════════════ */
 function DefenseCoachGradesPanel({
   report, position, shuffleVelocityMph = null, customGrades, embedded = false, horizontal = false,
+  tiles = false,
 }: {
   report: ReportSummary | null | undefined;
   position: DefensePosition;
@@ -90,6 +95,10 @@ function DefenseCoachGradesPanel({
    *  vertical list -- the Catching Report, where the panel runs the full
    *  width under the heat map and field diagram. */
   horizontal?: boolean;
+  /** Embedded as a grid of large tiles that fills its cell (Catching
+   *  Report: beside Throwing & Blocking). Always renders, with dashes
+   *  when nothing is graded yet, so the row keeps its shape. */
+  tiles?: boolean;
 }) {
   const defaultGrades: DefenseCoachGrades = useMemo(
     () => getDefenseCoachGrades(report ?? null, position),
@@ -101,7 +110,7 @@ function DefenseCoachGradesPanel({
   const rows = customGrades
     ?? DEFENSE_COACH_GRADE_SECTIONS.map(s => ({ title: s.title, score: defaultGrades[s.key] ?? null }));
   const hasAnyData = rows.some(r => typeof r.score === 'number');
-  if (!hasAnyData && shuffleVelocityMph == null) return null;
+  if (!hasAnyData && shuffleVelocityMph == null && !tiles) return null;
   /* Inner content — the "Coach Grades" header + the chip grid (+ the
      optional Catching shuffle-velocity readout). Shared by both the
      standalone-bubble and embedded render modes below. */
@@ -114,7 +123,29 @@ function DefenseCoachGradesPanel({
            it stacks as a tall list to the right of the metric bubbles.
          • Standalone, or embedded with `horizontal` (Catching) → one
            horizontal row of grades. */}
-      {embedded && !horizontal ? (
+      {tiles ? (
+        <div className={styles.gradeTiles}>
+          {rows.map((row, i) => {
+            const tone = row.score !== null ? scoreColor(row.score) : '#475569';
+            return (
+              <div key={`${row.title}-${i}`} className={styles.gradeTile}>
+                <span style={{
+                  fontSize: rem(10.5), fontWeight: 600, letterSpacing: '0.04em',
+                  textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.15, textAlign: 'center',
+                }}>
+                  {row.title}
+                </span>
+                <span style={{
+                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(20),
+                  color: tone, lineHeight: 1, letterSpacing: '-0.02em',
+                }}>
+                  {row.score ?? '—'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : embedded && !horizontal ? (
         <div style={{
           display: 'flex', flexDirection: 'column', gap: 0,
           /* Grow to fill the stretched bubble; each grade row below is flex:1
@@ -242,7 +273,7 @@ function DefenseCoachGradesPanel({
            inside grows + distributes to use the extra height. */
         style={isOf
           ? { ...ofInnerBubbleStyle, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14, ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }
-          : { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14, background: 'var(--bubble-chrome-bg, var(--card-elev-bg))', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}
+          : { alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 14, padding: 14, background: 'var(--bubble-chrome-bg, var(--card-elev-bg))', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px', ...(tiles ? { flex: 1 } : {}) }}
       >
         {body}
       </div>
@@ -375,6 +406,9 @@ interface ThrowingMetric {
 }
 
 interface CatchingAssessment {
+  /** Receiving Metrics (MOVE Catching Sensor) -- typed in the report form
+   *  now, filled by the MOVE API later. Absent on older reports. */
+  receivingMetrics?: ReceivingMetricValues;
   throwing: {
     popTime2B: ThrowingMetric;
     popTime3B: ThrowingMetric;
@@ -460,147 +494,6 @@ function gradeTone(g: number | null): { stroke: string; fill: string; text: stri
   if (g >= 60)    return { stroke: '#22C55E', fill: 'rgba(34,197,94,0.16)',  text: '#22C55E' }; // green
   if (g >= 40)    return { stroke: '#EAB308', fill: 'rgba(234,179,8,0.16)',  text: '#EAB308' }; // yellow
   return                  { stroke: '#EF4444', fill: 'rgba(239,68,68,0.16)', text: '#EF4444' }; // red
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   ReceivingCoachGrades — six-row sub-skill panel rendered to the right
-   of the Strike Zone heat map inside the Catching Snapshot bubble.
-   Mirrors the dark-navy chip styling used by the pop-time bubble + the
-   heat map backdrop so the whole snapshot reads as one palette.
-
-   Each row shows: LABEL · GRADE NUMBER, color-coded by the 20-80 scoring
-   bands (green ≥60, yellow 40-59, red <40, gray for missing).
-   ───────────────────────────────────────────────────────────────────── */
-function ReceivingCoachGrades({
-  receiving,
-}: {
-  receiving: CatchingAssessment['receiving'];
-}) {
-  /* Six checkpoint grades, in the order coaches scout them: setup-load
-   * → glove path → finishing accuracy → frame turn → ball presentation
-   * → timing of the whole sequence. */
-  const ROWS: { key: string; label: string; grade: number | null }[] = [
-    { key: 'path',         label: 'Path',         grade: receiving.path?.grade         ?? null },
-    { key: 'accuracy',     label: 'Accuracy',     grade: receiving.accuracy?.grade     ?? null },
-    { key: 'turn',         label: 'Turn',         grade: receiving.turn?.grade         ?? null },
-    { key: 'presentation', label: 'Presentation', grade: receiving.presentation?.grade ?? null },
-    { key: 'timing',       label: 'Timing',       grade: receiving.timing?.grade       ?? null },
-  ];
-
-  /* Each receiving sub-grade now renders as a compact chip that
-     visually matches the Coach Grade chips on the new 7-section
-     Coach Grades panel (above the snapshot) — title + score only,
-     no per-row grade bar. The whole panel sits in the same side
-     column it always did (alongside the heat map), but now reads
-     as a stack of mini Coach Grade chips instead of a tall list
-     of label/bar rows. */
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 12,
-      padding: '14px 14px',
-      /* Flat fill that matches the Player Name bubble (`.commandDeck`)
-         in both themes — `--panel-bg-light` (#dee1e5 cool slate) in
-         light theme, `rgba(10,14,20,0.38)` (the same dark-navy base
-         the Player Name bubble's radial gradient sits over) in dark.
-         The shared `ofCommandDeckChipStyle` recipe was retired here
-         because its inset shadow stack
-           inset 0 0 24px rgba(0, 0, 0, 0.35)
-         produced a heavy vignette that read as a busy gradient on
-         the Catching Snapshot's Coaches Grade chip — coach-spec
-         called for a flat surface matching the Player Name bubble
-         instead. The four Outfield metric chips and other call sites
-         still use `ofCommandDeckChipStyle` and keep their radial
-         chrome unchanged. */
-      background: 'var(--panel-bg-light, rgba(10, 14, 20, 0.38))',
-      border: '1px solid var(--border-light)',
-      borderRadius: 12,
-      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.25)',
-      position: 'relative',
-      alignSelf: 'stretch',
-      minHeight: '100%',
-      /* Header card (profile theme): --hc-* = this padding. */
-      ['--hc-pt' as string]: '14px',
-      ['--hc-px' as string]: '14px',
-    }} data-head-card="">
-      {/* Section header — kept on its own row so the 6 chips below
-          read as one Coach Grades grouping. */}
-      <div style={{
-        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-        paddingBottom: 6, borderBottom: '1px solid var(--border-light)',
-        flex: '0 0 auto',
-      }}>
-        <span style={{
-          fontFamily: 'inherit',
-          fontSize: rem(11.88), fontWeight: 600,
-          letterSpacing: '0.05em', textTransform: 'uppercase',
-          color: 'var(--text-bright)',
-          lineHeight: 1.2,
-        }}>
-          Coaches Grade
-        </span>
-        <span style={{
-          fontSize: rem(9.5), fontStyle: 'italic',
-          /* Theme-aware token (was hardcoded `rgba(255,255,255,0.55)`)
-             so the "20–80" legend stays readable on the new flat
-             cool-slate surface in light theme. */
-          color: 'var(--text-muted)',
-        }}>
-          20–80
-        </span>
-      </div>
-
-      {/* Stack of compact title+score chips — same chrome the new
-         7-section Coach Grades panel uses on each cell: centered
-         title (10 px, weight 600, 0.04em letter-spacing, white)
-         + tabular score readout (16 px, weight 700, tone-colored).
-         No grade bar — matches the Coach Grades chip exactly. */}
-      <div style={{
-        flex: '1 1 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        gap: 4,
-      }}>
-        {ROWS.map((r) => {
-          const has = r.grade !== null;
-          const tone = !has ? '#475569' : scoreColor(r.grade!);
-          return (
-            <div
-              key={r.key}
-              style={{
-                padding: '0 4px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-                alignItems: 'center',
-                paddingTop: 4,
-                paddingBottom: 4,
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
-              <div style={{
-                fontSize: rem(10), fontWeight: 600, letterSpacing: '0.04em',
-                textTransform: 'uppercase', color: 'var(--text-bright)',
-                textAlign: 'center', lineHeight: 1.1,
-              }}>
-                {r.label}
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{
-                  fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16),
-                  color: tone, lineHeight: 1, letterSpacing: '-0.02em',
-                }}>
-                  {has ? r.grade : '—'}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 /* 5×5 strike-zone heat map with bordered inner 3×3.
@@ -964,12 +857,15 @@ function SprayField({
 }
 
 /* Catching field with throwing-line stat chips + blocking annotations */
-function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity, velocityAvg, leftGrade, centerGrade, rightGrade }: {
+function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity, velocityAvg, leftGrade, centerGrade, rightGrade, maxWidth = 420 }: {
   /* Best (lowest pop / exchange, highest velocity) + the session average. */
   popTime: number | null; popAvg: number | null;
   exchange: number | null; exchangeAvg: number | null;
   velocity: number | null; velocityAvg: number | null;
   leftGrade: number | null; centerGrade: number | null; rightGrade: number | null;
+  /** Widest the field draws (px). 420 by default; the Catching Report's
+   *  second line gives Throwing & Blocking more room. */
+  maxWidth?: number;
 }) {
   /* Theme-aware palette for the six field chips (Pop Time / Velocity /
      Exchange / Block Left / Block Center / Block Right) — flips the
@@ -1070,7 +966,7 @@ function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity
               depends on viewport (the 0.61 share of the inner 2-col
               grid), but 420 lands roughly in the middle of where
               that lives at 1200–1440px viewports. */
-           maxWidth: 420, margin: '0 auto',
+           maxWidth, margin: '0 auto',
            /* Two-layer drop-shadow that mirrors the canonical
               `--bubble-shadow` token (`0 3px 8px rgba(0,0,0,0.14),
               0 12px 26px rgba(15,20,30,0.16)`) every outer bubble
@@ -1618,24 +1514,53 @@ function DefensiveSnapshot({
 
 
 /* Reusable Snapshot bubble — wraps a 2-pane grid + underlying stats rows */
-function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, coachGrades, notes, headerRightSlot }: {
+/** One titled pane inside a snapshot bubble (Receiving Heat Map, Throwing &
+ *  Blocking, Receiving Metrics...): the title row is the header bar, the
+ *  body sits under its dividing line. */
+function SnapPane({ title, hint, children, style }: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      /* Header card: the title row is the bar, the pane the lighter
+         shade (profile theme). --hc-* = this padding. `gap: 8` and the
+         title row's `paddingBottom: 8` keep the dividing line equidistant
+         from the label above and the body below. */
+      data-head-card=""
+      style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px', ...style }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontFamily: 'inherit', fontSize: '1rem', fontWeight: 600, fontStyle: 'normal', letterSpacing: '-0.025em', textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.05 }}>{title}</span>
+        {hint && <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic' }}>{hint}</span>}
+      </div>
+      {/* Body anchors to the TOP of the pane so its content sits right
+          under the dividing line instead of floating mid-pane. */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, body, coachGrades, notes, headerRightSlot }: {
   title: string;
   subtitle?: string;
-  leftPane: { title: string; hint: string; node: React.ReactNode };
-  /** Optional bubble of its own between the two panes (Catching: the
-   *  Coaches Grade card, between Receiving Heat Map and Throwing &
-   *  Blocking). When set the row is three columns. */
+  leftPane?: { title: string; hint: string; node: React.ReactNode };
+  /** Optional bubble of its own between the two panes. When set the row
+   *  is three columns. */
   middle?: React.ReactNode;
-  rightPane: { title: string; hint: string; node: React.ReactNode };
-  /** Optional grades panel rendered between the two panes and the notes.
+  rightPane?: { title: string; hint: string; node: React.ReactNode };
+  /** Replaces the pane row entirely with the caller's own layout (the
+   *  Catching Report's two-row grid). */
+  body?: React.ReactNode;
+  /** Optional grades panel rendered between the panes and the notes.
    *  Catching embeds its Throwing Grades here, mirroring Infield/Outfield. */
   coachGrades?: React.ReactNode;
-  /** Optional content rendered between the two panes and the Underlying
-   *  Stats section. Used by the Catching snapshot to host its inline
-   *  Coaching Notes editor so it sits inside the bubble, directly under
-   *  the heat map / field diagram, above the stats breakdown. Other
-   *  consumers (Infield/Outfield/Utility) leave this undefined and keep
-   *  their original two-row layout. */
+  /** Optional content under the panes (the Catching Notes editor). */
   notes?: React.ReactNode;
   /** Optional right-edge content for the SectionHeader row (e.g. the
    *  data-date-range chip used on every Snapshot/Report header). */
@@ -1645,106 +1570,249 @@ function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, coachGra
     <Section>
       <div
         className={aStyles.profilePanel}
-        /* Outer flex column gap 18 → 14 (≈0.85rem) so the
-           SectionHeader's accent line sits the same distance above
-           the two-pane body as the Tool Grades accent line sits
-           above its first inner row. */
+        /* Outer flex column gap 14 so the SectionHeader's accent line sits
+           the same distance above the body as the Tool Grades accent line
+           sits above its first inner row. */
         style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10, borderRadius: 28, boxShadow: 'var(--report-outer-shadow)' }}
       >
-        {/* Catching Snapshot header — leading 🧤 icon retired so the
-            title text reads alone, matching the other three Snapshot
-            headers (Hitting / Infielder / Outfielder). `rightSlot`
-            hosts the top-right date-range chip set by the parent tab. */}
         <SectionHeader title={title} subtitle={subtitle} rightSlot={headerRightSlot} />
-        {/* `alignItems: 'stretch'` — both panes are FORCED to the
-            same height regardless of their natural content height.
-            The taller pane drives the shared height; the shorter
-            pane stretches to match. Trying to dial individual SVG
-            maxWidths to match at every viewport was unreliable
-            because the heat map's effective width depends on the
-            inner 2-col grid share. */}
-        {/* Column template lives in page.module.css (.snapRow3 / .snapRow2)
-            so it can collapse: the fixed minimums (220 + 160 + field) ran
-            wider than a phone and pushed Throwing & Blocking off-screen. */}
-        <div className={middle ? styles.snapRow3 : styles.snapRow2} style={{
-          display: 'grid',
-          gap: middle ? 14 : 28,
-          alignItems: 'stretch',
-        }}>
-          {/* Left pane (Receiving Heat Map) — now wears the Pitch Report
-              graphite gradient (same `.hudPlotCanvas` background the
-              Movement Plot uses) so the Catching Snapshot's two inner
-              panes read in the same visual scheme as the Pitching
-              charts. The shared `.innerPanel` className was retired.
-
-              `gap: 8` between the title row and the body wrapper
-              matches the title row's own `paddingBottom: 8`, so the
-              dividing line below the "Receiving Heat Map" label sits
-              equidistant from the label above and the Border Zones +
-              Coaches Grade bubbles below. */}
-          {/* `padding-bottom: 8` matches the title-row's
-              `paddingBottom: 8` and the pane's `gap: 8`, so the
-              dividing line sits equidistant between the label above
-              it and the Border Zones + Coaches Grade bubbles below,
-              AND the bottom of the Coaches Grade bubble sits 8px above
-              the pane's bottom edge. */}
-          <div
-            /* Header card: the title row is the bar, the pane the lighter
-               shade (profile theme). --hc-* = this padding. */
-            data-head-card=""
-            style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-              gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontFamily: 'inherit', fontSize: '1rem', fontWeight: 600, fontStyle: 'normal', letterSpacing: '-0.025em', textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.05 }}>{leftPane.title}</span>
-              <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic' }}>{leftPane.hint}</span>
-            </div>
-            {/* Pane body anchors to the TOP of the available space so
-                the Border Zones + Coaches Grade bubbles sit
-                immediately under the dividing line (with only the
-                pane's 8px gap separating them), instead of floating
-                vertically centered in the pane. */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-              {leftPane.node}
-            </div>
+        {body ?? (
+          /* Column template lives in page.module.css (.snapRow3 / .snapRow2)
+             so it can collapse on narrow screens. `alignItems: stretch`
+             forces both panes to the same height. */
+          <div className={middle ? styles.snapRow3 : styles.snapRow2} style={{
+            display: 'grid',
+            gap: middle ? 14 : 28,
+            alignItems: 'stretch',
+          }}>
+            {leftPane && <SnapPane title={leftPane.title} hint={leftPane.hint}>{leftPane.node}</SnapPane>}
+            {middle}
+            {rightPane && <SnapPane title={rightPane.title} hint={rightPane.hint}>{rightPane.node}</SnapPane>}
           </div>
-          {/* Middle bubble (Catching: Coaches Grade) — its own card between
-              the two panes, stretched to the row height. */}
-          {middle}
-          {/* Right pane (Throwing & Blocking field) — matches the left
-              pane's tighter spacing exactly: `gap: 8` and `padding:
-              '14px 14px 8px'` so the dividing line is equidistant from
-              the label/field, and the Catching field's bottom sits 8px
-              above the pane bottom — same compact rhythm as the
-              Receiving Heat Map pane. */}
-          <div
-            /* Header card: the title row is the bar, the pane the lighter
-               shade (profile theme). --hc-* = this padding. */
-            data-head-card=""
-            style={{ ...ofInnerBubbleStyle, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 14px 8px', ['--hc-pt' as string]: '14px', ['--hc-px' as string]: '14px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-              gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontFamily: 'inherit', fontSize: '1rem', fontWeight: 600, fontStyle: 'normal', letterSpacing: '-0.025em', textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.05 }}>{rightPane.title}</span>
-              <span style={{ fontSize: rem(11), color: 'var(--text-muted)', fontStyle: 'italic' }}>{rightPane.hint}</span>
-            </div>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-              {rightPane.node}
-            </div>
-          </div>
-        </div>
-        {coachGrades && <div>{coachGrades}</div>}
-        {notes && (
-          /* Notes slot — sits between the two visual panes above and
-           * the Underlying Stats below. No surrounding divider here
-           * because the parent flex already provides 18px gap to its
-           * neighbors. */
-          <div>{notes}</div>
         )}
-        {/* Underlying Stats section (header + StatsRow strip) retired —
-            the snapshot now ends at the Coaching Notes block. */}
+        {coachGrades && <div>{coachGrades}</div>}
+        {notes && <div>{notes}</div>}
       </div>
     </Section>
+  );
+}
+
+/** Small clock face with one hand -- MOVE's Catch / Stick Position. */
+function ClockHand({ clock, size = 22 }: { clock: string; size?: number }) {
+  const angle = clockAngle(clock);
+  if (angle == null) return null;
+  const rad = (angle * Math.PI) / 180;
+  const x = 12 + Math.sin(rad) * 7.5;
+  const y = 12 - Math.cos(rad) * 7.5;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flex: '0 0 auto' }}>
+      <circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.5" />
+      {[0, 90, 180, 270].map((a) => {
+        const r = (a * Math.PI) / 180;
+        return <circle key={a} cx={12 + Math.sin(r) * 8.6} cy={12 - Math.cos(r) * 8.6} r="0.9" fill="currentColor" fillOpacity="0.55" />;
+      })}
+      <line x1="12" y1="12" x2={x} y2={y} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   GlovePathPanel -- home for the MOVE sensor's 3D glove-path animation on
+   the Catching Report: one video per catch (picker above), straight from
+   MOVE's links, which expire after about a week (a later step copies them
+   into Bunny). Empty state until a MOVE session lands on the report.
+   ───────────────────────────────────────────────────────────────────── */
+function GlovePathPanel({ videos }: { videos: MoveSummary['videos'] }) {
+  const [pick, setPick] = useState(0);
+  useEffect(() => { setPick(0); }, [videos.length]);
+  const v = videos[Math.min(pick, videos.length - 1)];
+  const expired = !!v?.expiresAt && Date.parse(v.expiresAt) < Date.now();
+  return (
+    <SnapPane
+      title="3D Glove Path"
+      hint={videos.length ? `${videos.length} catch${videos.length === 1 ? '' : 'es'}` : 'MOVE Sensor'}
+      style={{ flex: 1 }}
+    >
+      {!v ? (
+        <div className={styles.glovePathEmpty}>
+          {/* Wire-frame cube with a curved glove path through it. */}
+          <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true" style={{ color: 'var(--text-muted)' }}>
+            <g fill="none" stroke="currentColor" strokeOpacity="0.55" strokeWidth="1.5" strokeLinejoin="round">
+              <path d="M14 24 L36 12 L58 24 L58 50 L36 62 L14 50 Z" />
+              <path d="M14 24 L36 36 L58 24 M36 36 L36 62" />
+            </g>
+            <path d="M18 46 C 26 30, 40 26, 52 30" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="1 5" />
+            <circle cx="52" cy="30" r="3.5" fill="currentColor" />
+          </svg>
+          <div style={{ fontSize: rem(12.5), fontWeight: 600, color: 'var(--text-bright)', textAlign: 'center' }}>
+            No glove animation yet
+          </div>
+          <div style={{ fontSize: rem(11), color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, maxWidth: '22ch' }}>
+            The MOVE sensor&apos;s 3D glove path will play here.
+          </div>
+        </div>
+      ) : (
+        <div style={{ width: '100%', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {videos.length > 1 && (
+            <div className={styles.catchPicker} role="tablist" aria-label="Catch">
+              {videos.map((c, i) => (
+                <button
+                  key={`${c.url}-${i}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === pick}
+                  className={i === pick ? `${styles.catchPick} ${styles.catchPickOn}` : styles.catchPick}
+                  onClick={() => setPick(i)}
+                >
+                  {c.label.replace('Catch ', '')}
+                </button>
+              ))}
+            </div>
+          )}
+          {expired ? (
+            <div className={styles.glovePathEmpty}>
+              <div style={{ fontSize: rem(12.5), fontWeight: 600, color: 'var(--text-bright)', textAlign: 'center' }}>
+                {v.label}: video link expired
+              </div>
+              <div style={{ fontSize: rem(11), color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, maxWidth: '26ch' }}>
+                MOVE&apos;s links last about a week.
+              </div>
+            </div>
+          ) : (
+            <video
+              key={v.url}
+              src={v.url}
+              controls
+              playsInline
+              muted
+              loop
+              preload="metadata"
+              aria-label={`${v.label} glove path`}
+              style={{ width: '100%', flex: 1, minHeight: '16rem', maxHeight: '22rem', borderRadius: 10, background: '#000', objectFit: 'contain' }}
+            />
+          )}
+          <div style={{ fontSize: rem(10.5), color: 'var(--text-muted)', textAlign: 'center' }}>
+            {v.label}
+            {v.expiresAt && !expired && ` · link from MOVE until ${new Date(v.expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+          </div>
+        </div>
+      )}
+    </SnapPane>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ReceivingPanel -- one bubble beside the Receiving Heat Map on the Catching
+   Report: the MOVE Catching Sensor metrics on top, a dividing line, then the
+   coach's receiving grades (20-80) in one row. Metrics aren't colour-coded
+   yet (which direction is "good" is recorded in MOVE_RECEIVING_METRICS for
+   when that's switched on); grades keep the usual 20-80 colours.
+   ───────────────────────────────────────────────────────────────────── */
+function ReceivingPanel({ values, receiving, move }: {
+  values: ReceivingMetricValues | undefined;
+  receiving: CatchingAssessment['receiving'] | undefined;
+  /** MOVE sessions on this report, summarised (best + average per metric). */
+  move: MoveSummary | null;
+}) {
+  const GRADES: { key: string; label: string; grade: number | null }[] = [
+    { key: 'path',         label: 'Path',         grade: receiving?.path?.grade         ?? null },
+    { key: 'accuracy',     label: 'Accuracy',     grade: receiving?.accuracy?.grade     ?? null },
+    { key: 'turn',         label: 'Turn',         grade: receiving?.turn?.grade         ?? null },
+    { key: 'presentation', label: 'Presentation', grade: receiving?.presentation?.grade ?? null },
+    { key: 'timing',       label: 'Timing',       grade: receiving?.timing?.grade       ?? null },
+  ];
+  const labelStyle: React.CSSProperties = {
+    fontSize: rem(9.5), fontWeight: 600, letterSpacing: '0.04em',
+    textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15,
+  };
+  return (
+    <SnapPane
+      title="Receiving Metrics"
+      hint={move ? `MOVE · ${move.catches} catch${move.catches === 1 ? '' : 'es'}` : 'MOVE Sensor'}
+      style={{ flex: 1 }}
+    >
+      {/* Fills the pane's height (the row is as tall as the heat map); the
+          metric rows share whatever is left so the bubble has no dead space. */}
+      <div style={{ width: '100%', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className={styles.moveMetricGrid} style={{ flex: 1, gridAutoRows: 'minmax(3.6rem, 1fr)' }}>
+          {MOVE_RECEIVING_METRICS.map((def) => {
+            const cell = receivingCell(def, values?.[def.key], move?.metrics[def.key]);
+            if (cell.avg != null) {
+              /* MOVE data: best (MAX / LOW) beside the average. */
+              const fmt = (n: number) => n.toFixed(def.digits);
+              const pair: [string, number | null][] = cell.best != null
+                ? [[def.better === 'low' ? 'Low' : 'Max', cell.best], ['Avg', cell.avg]]
+                : [['Avg', cell.avg]];
+              return (
+                <div key={def.key} className={styles.moveMetricCell}>
+                  <div style={{ ...labelStyle, color: 'var(--text-muted)' }}>{def.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 12 }}>
+                    {pair.map(([cap, n]) => (
+                      <div key={cap} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(cap === 'Avg' && pair.length > 1 ? 13.5 : 16), lineHeight: 1, letterSpacing: '-0.02em', color: 'var(--text-bright)' }}>
+                          {fmt(n as number)}
+                          <span style={{ fontSize: rem(9.5), fontWeight: 600, color: 'var(--text-muted)', marginLeft: def.unit === '°' ? 0 : 2 }}>{def.unit}</span>
+                        </span>
+                        <span style={{ fontSize: rem(8.5), fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{cap}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            const shown = cell.single;
+            return (
+              <div key={def.key} className={styles.moveMetricCell}>
+                <div style={{ ...labelStyle, color: 'var(--text-muted)' }}>{def.label}</div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  color: shown ? 'var(--text-bright)' : 'var(--text-muted)',
+                }}>
+                  {def.kind === 'clock' && shown && <ClockHand clock={shown} />}
+                  <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16), lineHeight: 1, letterSpacing: '-0.02em' }}>
+                    {shown ?? '—'}
+                  </span>
+                  {shown && def.unit && (
+                    <span style={{ fontSize: rem(10.5), fontWeight: 600, color: 'var(--text-muted)', marginLeft: def.unit === '°' ? -5 : -2 }}>
+                      {def.unit}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Dividing line, then the coach's receiving grades. */}
+        <div style={{
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+          paddingTop: 10, paddingBottom: 8,
+          borderTop: '2px solid var(--border)', borderBottom: '1px solid var(--border)',
+        }}>
+          <span style={{
+            fontSize: rem(11.88), fontWeight: 600, letterSpacing: '0.05em',
+            textTransform: 'uppercase', color: 'var(--text-bright)', lineHeight: 1.2,
+          }}>
+            Coaches Grade
+          </span>
+          <span style={{ fontSize: rem(9.5), fontStyle: 'italic', color: 'var(--text-muted)' }}>20–80</span>
+        </div>
+        <div className={styles.recvGradeRow}>
+          {GRADES.map((g) => (
+            <div key={g.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: '2px 2px 6px' }}>
+              <div style={{ ...labelStyle, color: 'var(--text-bright)' }}>{g.label}</div>
+              <span style={{
+                fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: rem(16), lineHeight: 1,
+                letterSpacing: '-0.02em', color: g.grade !== null ? scoreColor(g.grade) : '#475569',
+              }}>
+                {g.grade ?? '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </SnapPane>
   );
 }
 
@@ -1861,6 +1929,13 @@ export function CatchingSubTab({
       setTimeout(() => setNotesSavedAt(null), 2200);
     }
   };
+
+  /* MOVE Catching Sensor sessions saved on this report (best / average per
+     metric + per-catch videos), or null. */
+  const moveSummary = useMemo<MoveSummary | null>(() => {
+    if (!selectedReport?.content) return null;
+    try { return summarizeMove(JSON.parse(selectedReport.content)?.moveReceiving); } catch { return null; }
+  }, [selectedReport]);
 
   const catchingAssessment = useMemo<CatchingAssessment | null>(() => {
     if (!selectedReport?.content) return null;
@@ -2025,7 +2100,7 @@ export function CatchingSubTab({
           onCancel={() => setEditing(false)}
           onSaved={() => { setEditing(false); onRefresh?.(); }}
         />
-      ) : !catchingAssessment ? (
+      ) : !catchingAssessment && !moveSummary ? (
         <Section>
           {/* Header exists purely to carry the report selector: without a
               catching assessment there is no report bubble to host it, and
@@ -2046,8 +2121,11 @@ export function CatchingSubTab({
           {selectedReport && <div style={{ marginTop: 16 }}>{catchingNotesNode}</div>}
         </Section>
       ) : (() => {
-        const t = catchingAssessment.throwing;
-        const b = catchingAssessment.blocking;
+        /* A report can hold only MOVE data (one the MOVE sensor created):
+           the coach-entered parts then read as empty. */
+        const ca = (catchingAssessment ?? { throwing: {}, receiving: {}, blocking: {} }) as CatchingAssessment;
+        const t = ca.throwing;
+        const b = ca.blocking;
         const popBest = t.popTime2B?.best ?? null;
         const exchangeBest = t.exchangeTime?.best ?? null;
         const veloBest = t.velocity?.best ?? null;
@@ -2062,31 +2140,13 @@ export function CatchingSubTab({
           <SnapshotBubble
             title="Catching Report"
             headerRightSlot={headerControls}
-            coachGrades={
-              <DefenseCoachGradesPanel
-                report={selectedReport}
-                position="catching"
-                embedded
-                horizontal
-                customGrades={[
-                  { title: 'Footwork',             score: catchingAssessment?.throwing?.footwork?.grade   ?? null },
-                  { title: 'Transfer',             score: catchingAssessment?.throwing?.transfer?.grade   ?? null },
-                  { title: 'Accuracy',             score: catchingAssessment?.throwing?.accuracy?.grade   ?? null },
-                  { title: 'Arm Path',             score: catchingAssessment?.throwing?.armPath?.grade    ?? null },
-                  { title: 'Lead Leg',             score: catchingAssessment?.throwing?.footStrike?.grade ?? null },
-                  { title: 'Sequence',             score: catchingAssessment?.throwing?.rotationSeq?.grade?? null },
-                  { title: 'Arm Decel',            score: catchingAssessment?.throwing?.decel?.grade      ?? null },
-                ]}
-              />
-            }
-            leftPane={{
-              title: 'Receiving Heat Map',
-              hint: 'Strike zone & borders',
-              node: (
-                /* The strike-zone heat map alone -- Coaches Grade is its own
-                   bubble now (the snapshot's middle column). */
-                <div style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            /* Two rows (grid areas in page.module.css .catchGrid):
+                 Receiving Heat Map · Receiving (MOVE metrics + Coaches Grade) · 3D Glove Path
+                 Throwing & Blocking (under the heat map) · Throwing Grades */
+            body={
+              <div className={styles.catchGrid}>
+                <SnapPane title="Receiving Heat Map" hint="Strike zone & borders" style={{ gridArea: 'heat' }}>
+                  <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <StrikeZoneHeatMap5x5
                       zoneColors={zoneColors as (0 | 1 | 2)[]}
                       /* The form persists border colors inside
@@ -2095,32 +2155,51 @@ export function CatchingSubTab({
                          `catchingAssessment.borderZoneColors` is kept
                          as a fallback for older reports. */
                       borderZoneColors={
-                        catchingAssessment.receiving?.borderZoneColors
-                          ?? catchingAssessment.borderZoneColors
+                        ca.receiving?.borderZoneColors
+                          ?? ca.borderZoneColors
                       }
                     />
                   </div>
+                </SnapPane>
+                <div style={{ gridArea: 'receiving', display: 'flex', flexDirection: 'column' }}>
+                  <ReceivingPanel values={ca.receivingMetrics} receiving={ca.receiving} move={moveSummary} />
                 </div>
-              ),
-            }}
-            middle={<ReceivingCoachGrades receiving={catchingAssessment.receiving} />}
-            rightPane={{
-              title: 'Throwing & Blocking',
-              hint: 'Home plate to second base',
-              node: (
-                <CatchingFieldDiagram
-                  popTime={popBest}
-                  popAvg={popAvg}
-                  exchange={exchangeBest}
-                  exchangeAvg={exchangeAvg}
-                  velocity={veloBest}
-                  velocityAvg={veloAvg}
-                  leftGrade={leftG}
-                  centerGrade={centerG}
-                  rightGrade={rightG}
-                />
-              ),
-            }}
+                <div style={{ gridArea: 'glove', display: 'flex', flexDirection: 'column' }}>
+                  <GlovePathPanel videos={moveSummary?.videos ?? []} />
+                </div>
+                <SnapPane title="Throwing & Blocking" hint="Home plate to second base" style={{ gridArea: 'field' }}>
+                  <CatchingFieldDiagram
+                    popTime={popBest}
+                    popAvg={popAvg}
+                    exchange={exchangeBest}
+                    exchangeAvg={exchangeAvg}
+                    velocity={veloBest}
+                    velocityAvg={veloAvg}
+                    leftGrade={leftG}
+                    centerGrade={centerG}
+                    rightGrade={rightG}
+                    maxWidth={540}
+                  />
+                </SnapPane>
+                <div style={{ gridArea: 'tgrades', display: 'flex', flexDirection: 'column' }}>
+                  <DefenseCoachGradesPanel
+                    report={selectedReport}
+                    position="catching"
+                    embedded
+                    tiles
+                    customGrades={[
+                      { title: 'Footwork',             score: catchingAssessment?.throwing?.footwork?.grade   ?? null },
+                      { title: 'Transfer',             score: catchingAssessment?.throwing?.transfer?.grade   ?? null },
+                      { title: 'Accuracy',             score: catchingAssessment?.throwing?.accuracy?.grade   ?? null },
+                      { title: 'Arm Path',             score: catchingAssessment?.throwing?.armPath?.grade    ?? null },
+                      { title: 'Lead Leg',             score: catchingAssessment?.throwing?.footStrike?.grade ?? null },
+                      { title: 'Sequence',             score: catchingAssessment?.throwing?.rotationSeq?.grade?? null },
+                      { title: 'Arm Decel',            score: catchingAssessment?.throwing?.decel?.grade      ?? null },
+                    ]}
+                  />
+                </div>
+              </div>
+            }
             /* Underlying Stats prop retired — the heat map + field
                diagram + Coaching Notes are the entire snapshot now. */
             notes={catchingNotesNode}
