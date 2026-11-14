@@ -205,6 +205,7 @@ model Player {
   /// because adding one to this existing table stops Render's db push.
   athleteCode      String?
   integrationLinks IntegrationAthleteLink[]
+  movePaths        MovePath[]
   pbrNational      Int?
   pbrState         Int?
   pbrPosition      Int?
@@ -1326,4 +1327,18 @@ model CoachTaskCompletion {
 
   @@id([taskId, userId])
   @@index([userId])
+}
+
+/// A MOVE catch's 3D glove path (MOVE's path3d file), copied in when the
+/// session arrives -- MOVE's own links expire after about a week. `data` is
+/// the validated JSON: { v, t[], p[][3], q[][4]?, ta, contact, stick }.
+model MovePath {
+  catchId    String   @id
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  deliveryId String
+  data       String
+  fetchedAt  DateTime @default(now())
+
+  @@index([playerId])
 }

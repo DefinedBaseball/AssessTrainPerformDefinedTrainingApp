@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AcademyService } from '../../academy/academy.service';
 import { ReportsService } from '../../reports/reports.service';
-import { localDate, mergeMoveSession, MoveSession, parseMoveSession, sessionLocalDay } from './move-session';
+import {
+  isMoveFileUrl, localDate, mergeMoveSession, MovePathData, MoveSession, parseMovePath, parseMoveSession, sessionLocalDay,
+} from './move-session';
 
 /* ─────────────────────────────────────────────────────────────────────────
    MOVE session -> athlete's Catching report.
@@ -32,7 +34,7 @@ export interface ProcessOutcome {
 }
 
 @Injectable()
-export class MoveProcessor {
+export class MoveProcessor implements OnApplicationBootstrap {
   private readonly logger = new Logger(MoveProcessor.name);
 
   constructor(
@@ -66,6 +68,9 @@ export class MoveProcessor {
         processedAt: new Date(),
       },
     });
+    /* Copy the 3D paths in the background -- the partner's request
+       doesn't wait for ~20 downloads. */
+    if (outcome.status === 'processed') void this.savePaths(d.id).catch(() => {});
     return outcome;
   }
 
@@ -90,6 +95,18 @@ export class MoveProcessor {
         select: { player: { select: { id: true, firstName: true, lastName: true } } },
       });
       if (user?.player) return pick(user.player, 'email');
+      /* Older accounts can hold a mixed-case email ("John@X.com"; new ones
+         are stored lower-case) -- compare case-insensitively. Plain SQL so
+         it runs on both SQLite (local) and Postgres (Render). */
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "User" WHERE LOWER("email") = ${ext.toLowerCase()} AND "role" = 'PLAYER' LIMIT 1`;
+      if (rows[0]) {
+        const p = await this.prisma.player.findUnique({
+          where: { userId: rows[0].id },
+          select: { id: true, firstName: true, lastName: true },
+        });
+        if (p) return pick(p, 'email');
+      }
     }
     const byCode = await this.prisma.player.findFirst({
       where: { athleteCode: ext.toUpperCase() },
@@ -187,5 +204,92 @@ export class MoveProcessor {
       if (o.status !== 'unmatched') placed++;
     }
     return placed;
+  }
+  /* ── 3D glove paths ─────────────────────────────────────────────────
+     MOVE's path3d links expire after about a week, so each catch's path is
+     copied into MovePath as soon as its session is on a report (live keys
+     only). A sweep shortly after start-up catches anything missed -- e.g.
+     sessions placed before this existed, or a deploy mid-download. */
+
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test') return;
+    const timer = setTimeout(() => { void this.sweepPaths(); }, 45_000);
+    timer.unref?.();
+  }
+
+  /** Copy the paths for every recent live session that's on a report. */
+  async sweepPaths(): Promise<void> {
+    try {
+      const rows = await this.prisma.integrationDelivery.findMany({
+        where: { provider: MOVE_PROVIDER, status: 'processed', mode: 'live', createdAt: { gte: new Date(Date.now() - 9 * 86_400_000) } },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+        take: 300,
+      });
+      for (const r of rows) await this.savePaths(r.id);
+    } catch (err: any) {
+      this.logger.warn(`MOVE path sweep failed: ${err?.message || err}`);
+    }
+  }
+
+  /** Download + store the 3D paths of one placed session. Returns counts. */
+  async savePaths(deliveryId: string): Promise<{ saved: number; skipped: number; failed: number }> {
+    const out = { saved: 0, skipped: 0, failed: 0 };
+    const d = await this.prisma.integrationDelivery.findUnique({
+      where: { id: deliveryId },
+      select: { id: true, status: true, mode: true, playerId: true, payload: true },
+    });
+    if (!d || d.status !== 'processed' || d.mode !== 'live' || !d.playerId) return out;
+    let s: MoveSession;
+    try { s = parseMoveSession(JSON.parse(d.payload)); } catch { return out; }
+
+    const wanted = s.catches.filter((c) => c.path3d && isMoveFileUrl(c.path3d.url)
+      && (!c.path3d.expiresAt || Date.parse(c.path3d.expiresAt) > Date.now()));
+    const have = new Set((await this.prisma.movePath.findMany({
+      where: { catchId: { in: wanted.map((c) => c.catchId) } },
+      select: { catchId: true, playerId: true },
+    })).filter((r) => r.playerId === d.playerId).map((r) => r.catchId));
+
+    for (const c of wanted) {
+      if (have.has(c.catchId)) { out.skipped++; continue; }
+      try {
+        const data = parseMovePath(await fetchJson(c.path3d!.url));
+        await this.prisma.movePath.upsert({
+          where: { catchId: c.catchId },
+          create: { catchId: c.catchId, playerId: d.playerId, deliveryId: d.id, data: JSON.stringify(data) },
+          update: { playerId: d.playerId, deliveryId: d.id, data: JSON.stringify(data), fetchedAt: new Date() },
+        });
+        out.saved++;
+      } catch (err: any) {
+        out.failed++;
+        this.logger.warn(`MOVE path ${c.catchId}: ${err?.message || err}`);
+      }
+    }
+    return out;
+  }
+
+  /** One stored path, with the athlete it belongs to (for the access check). */
+  async getPath(catchId: string): Promise<{ playerId: string; data: MovePathData } | null> {
+    const row = await this.prisma.movePath.findUnique({ where: { catchId }, select: { playerId: true, data: true } });
+    return row ? { playerId: row.playerId, data: JSON.parse(row.data) } : null;
+  }
+}
+
+const MAX_PATH_BYTES = 1_500_000;
+
+/** GET a MOVE file as JSON: 15 s limit, 1.5 MB cap. */
+async function fetchJson(url: string): Promise<unknown> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, redirect: 'error' });
+    if (!res.ok) throw new Error(`MOVE file answered ${res.status}`);
+    const len = Number(res.headers.get('content-length') || 0);
+    if (len > MAX_PATH_BYTES) throw new Error('MOVE file is too large');
+    const text = await res.text();
+    if (text.length > MAX_PATH_BYTES) throw new Error('MOVE file is too large');
+    return JSON.parse(text);
+  } finally {
+    clearTimeout(timer);
   }
 }

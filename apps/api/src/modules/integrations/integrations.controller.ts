@@ -3,7 +3,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AdminOnly, AuthenticatedRequest, Public, Roles } from '../auth/jwt.guard';
+import { AdminOnly, AuthenticatedRequest, ParentAllowed, Public, Roles, assertPlayerOwnership } from '../auth/jwt.guard';
+import { MoveProcessor } from './move/move.processor';
 import { IntegrationKeyGuard } from './integration-key.guard';
 import { IntegrationsService, AuthedIntegrationKey } from './integrations.service';
 import { providerBySlug } from './integration-providers';
@@ -22,7 +23,7 @@ import { providerBySlug } from './integration-providers';
 @ApiTags('integrations')
 @Controller('integrations')
 export class IntegrationsController {
-  constructor(private svc: IntegrationsService) {}
+  constructor(private svc: IntegrationsService, private move: MoveProcessor) {}
 
   // ── Admin ─────────────────────────────────────────────────────────────
 
@@ -133,6 +134,20 @@ export class IntegrationsController {
   @ApiOperation({ summary: "Set an athlete's Athlete ID (secondary ID outside apps can send)" })
   setAthleteCode(@Param('playerId') playerId: string, @Body() dto: { athleteCode?: string | null }) {
     return this.svc.setAthleteCode(playerId, dto?.athleteCode ?? '');
+  }
+
+  /* A catch's 3D glove path (copied from MOVE), for the Catching report.
+     Whoever can see the athlete's reports can see it. */
+  @Get('move/paths/:catchId')
+  @ApiBearerAuth()
+  @Roles('COACH', 'PLAYER', 'PARENT')
+  @ParentAllowed()
+  @ApiOperation({ summary: "A MOVE catch's 3D glove path (ownership-checked)" })
+  async movePath(@Request() req: AuthenticatedRequest, @Param('catchId') catchId: string) {
+    const row = await this.move.getPath(catchId);
+    if (!row) throw new NotFoundException('No 3D path for that catch');
+    assertPlayerOwnership(req, row.playerId);
+    return row.data;
   }
 
   // ── Partner (API key) ─────────────────────────────────────────────────

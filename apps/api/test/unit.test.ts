@@ -15,7 +15,7 @@ import { TrackmanParser } from '../src/modules/uploads/parsers/trackman-parser';
 import { HitTraxParser } from '../src/modules/uploads/parsers/hittrax-parser';
 import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-parser';
 import { SendLimiter } from '../src/modules/auth/send-limiter';
-import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession } from '../src/modules/integrations/move/move-session';
+import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 
 interface TestResult {
   name: string;
@@ -424,6 +424,29 @@ async function moveSessionTests() {
     assertEqual(mergeMoveSession(second, r1, 'd3'), null, 'older revision refused');
     const other = parseMoveSession(moveFixture({ sessionId: 'move_xyz_r1', baseSessionId: 'move_xyz' }));
     assertEqual(mergeMoveSession(second, other, 'd4')!.sessions.length, 2, 'different sessions both kept');
+  });
+
+  await test('MOVE: only MOVE file links are ever fetched', () => {
+    assert(isMoveFileUrl('https://us-central1-move-catching-sensor.cloudfunctions.net/orgFile/abc'), 'MOVE host ok');
+    assert(!isMoveFileUrl('http://us-central1-move-catching-sensor.cloudfunctions.net/orgFile/abc'), 'http refused');
+    assert(!isMoveFileUrl('https://evil.test/move-catching-sensor.cloudfunctions.net'), 'other host refused');
+    assert(!isMoveFileUrl('https://x.cloudfunctions.net.evil.test/a'), 'look-alike refused');
+    assert(!isMoveFileUrl('https://169.254.169.254/latest'), 'metadata IP refused');
+  });
+
+  await test('MOVE: 3D path files are checked and trimmed', () => {
+    const p = parseMovePath({ v: 6, ta: 1, contact: 2, stick: 3, t: [0, 0.1, 0.2, 0.3],
+      p: [[0, 0.765, 0.482], [0.01, 0.7, 0.5], [0.02, 0.9, 0.3], [0.123456789, 1, 0.2]],
+      q: [[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]], sm: { t: [], m: [] } });
+    assertEqual(p.contact, 2, 'contact index');
+    assertEqual(p.p[3][0], 0.1235, 'rounded to 0.1 mm');
+    assert(!('sm' in p), 'extra blocks dropped');
+    const clamped = parseMovePath({ t: [0, 1], p: [[0, 0, 0], [1, 1, 1]], ta: 9, contact: -1, stick: 'x' });
+    assertEqual(clamped.stick, 1, 'bad stick -> last sample');
+    assert(clamped.ta <= clamped.contact && clamped.contact <= clamped.stick, 'markers in order');
+    expectThrows(() => parseMovePath({ t: [0, 1], p: [[0, 0, 0]] }), 'length mismatch');
+    expectThrows(() => parseMovePath({ t: [0, 1], p: [[0, 0], [1, 1]] }), 'not 3D');
+    expectThrows(() => parseMovePath(null), 'not an object');
   });
 }
 

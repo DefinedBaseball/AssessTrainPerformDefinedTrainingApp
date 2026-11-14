@@ -2353,6 +2353,21 @@ export async function getIntegrationLinks() {
 export async function removeIntegrationLink(id: string) {
   return request<{ ok: true }>(`/integrations/links/${id}`, { method: 'DELETE' });
 }
+/** A MOVE catch's 3D glove path: positions in metres (y = up), t in
+ *  seconds; ta / contact / stick are sample indexes (approach start, ball
+ *  in the glove, end of the stick). */
+export interface MovePathData {
+  v: number;
+  t: number[];
+  p: [number, number, number][];
+  q: [number, number, number, number][] | null;
+  ta: number;
+  contact: number;
+  stick: number;
+}
+export async function getMovePath(catchId: string) {
+  return request<MovePathData>(`/integrations/move/paths/${encodeURIComponent(catchId)}`);
+}
 /** Coach: set (or clear with '') an athlete's Athlete ID. */
 export async function setAthleteCode(playerId: string, athleteCode: string) {
   return request<{ athleteCode: string | null; placed: number }>(`/integrations/athlete-code/${playerId}`, {

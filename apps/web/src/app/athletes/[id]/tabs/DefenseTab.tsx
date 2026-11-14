@@ -35,8 +35,9 @@ import {
 import { CustomCharts } from '@/components/CustomCharts';
 import {
   MOVE_RECEIVING_METRICS, clockAngle, receivingCell, summarizeMove,
-  type MoveSummary, type ReceivingMetricValues,
+  type MoveClip, type MoveSummary, type ReceivingMetricValues,
 } from '@/lib/move-metrics';
+import { GlovePath3D } from '@/components/GlovePath3D';
 import { bundleVideos } from '@/lib/video-titles';
 
 /* ═══════════════════════════════════════════
@@ -1618,23 +1619,38 @@ function ClockHand({ clock, size = 22 }: { clock: string; size?: number }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   GlovePathPanel -- home for the MOVE sensor's 3D glove-path animation on
-   the Catching Report: one video per catch (picker above), straight from
-   MOVE's links, which expire after about a week (a later step copies them
-   into Bunny). Empty state until a MOVE session lands on the report.
+   GlovePathPanel -- the MOVE sensor's catches on the Catching Report, one at
+   a time (picker above): the catch's 3D glove path (GlovePath3D, from our
+   stored copy) when MOVE sent one, else its video straight from MOVE's link
+   (those expire after about a week). A line of that catch's numbers sits
+   underneath. Empty state until a MOVE session lands on the report.
    ───────────────────────────────────────────────────────────────────── */
-function GlovePathPanel({ videos }: { videos: MoveSummary['videos'] }) {
+function GlovePathPanel({ clips }: { clips: MoveClip[] }) {
   const [pick, setPick] = useState(0);
-  useEffect(() => { setPick(0); }, [videos.length]);
-  const v = videos[Math.min(pick, videos.length - 1)];
-  const expired = !!v?.expiresAt && Date.parse(v.expiresAt) < Date.now();
+  useEffect(() => { setPick(0); }, [clips.length]);
+  const c = clips[Math.min(pick, clips.length - 1)];
+  const expired = !!c?.video?.expiresAt && Date.parse(c.video.expiresAt) < Date.now();
+  /* The catch's own numbers, under the drawing. */
+  const facts: string[] = [];
+  if (c) {
+    const m = c.metrics;
+    const f = (k: string, d: number, unit: string) => (typeof m[k] === 'number' ? `${m[k].toFixed(d)}${unit}` : null);
+    const glove = f('gloveSpeedMph', 1, ' mph');
+    const tts = f('timeToStickSec', 2, ' s');
+    const appr = f('approachAngleDeg', 0, '°');
+    const stick = f('catchToStickAngleDeg', 0, '°');
+    if (glove) facts.push(`Glove ${glove}`);
+    if (tts) facts.push(`Stick ${tts}`);
+    if (appr) facts.push(`Approach ${appr}`);
+    if (stick) facts.push(`Catch→stick ${stick}`);
+  }
   return (
     <SnapPane
       title="3D Glove Path"
-      hint={videos.length ? `${videos.length} catch${videos.length === 1 ? '' : 'es'}` : 'MOVE Sensor'}
+      hint={clips.length ? `${clips.length} catch${clips.length === 1 ? '' : 'es'}` : 'MOVE Sensor'}
       style={{ flex: 1 }}
     >
-      {!v ? (
+      {!c ? (
         <div className={styles.glovePathEmpty}>
           {/* Wire-frame cube with a curved glove path through it. */}
           <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true" style={{ color: 'var(--text-muted)' }}>
@@ -1646,55 +1662,58 @@ function GlovePathPanel({ videos }: { videos: MoveSummary['videos'] }) {
             <circle cx="52" cy="30" r="3.5" fill="currentColor" />
           </svg>
           <div style={{ fontSize: rem(12.5), fontWeight: 600, color: 'var(--text-bright)', textAlign: 'center' }}>
-            No glove animation yet
+            No glove path yet
           </div>
           <div style={{ fontSize: rem(11), color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, maxWidth: '22ch' }}>
-            The MOVE sensor&apos;s 3D glove path will play here.
+            The MOVE sensor&apos;s 3D glove path will show here.
           </div>
         </div>
       ) : (
         <div style={{ width: '100%', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {videos.length > 1 && (
+          {clips.length > 1 && (
             <div className={styles.catchPicker} role="tablist" aria-label="Catch">
-              {videos.map((c, i) => (
+              {clips.map((k, i) => (
                 <button
-                  key={`${c.url}-${i}`}
+                  key={k.catchId}
                   type="button"
                   role="tab"
                   aria-selected={i === pick}
+                  aria-label={k.label}
                   className={i === pick ? `${styles.catchPick} ${styles.catchPickOn}` : styles.catchPick}
                   onClick={() => setPick(i)}
                 >
-                  {c.label.replace('Catch ', '')}
+                  {k.label.replace('Catch ', '')}
                 </button>
               ))}
             </div>
           )}
-          {expired ? (
-            <div className={styles.glovePathEmpty}>
-              <div style={{ fontSize: rem(12.5), fontWeight: 600, color: 'var(--text-bright)', textAlign: 'center' }}>
-                {v.label}: video link expired
-              </div>
-              <div style={{ fontSize: rem(11), color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, maxWidth: '26ch' }}>
-                MOVE&apos;s links last about a week.
-              </div>
-            </div>
-          ) : (
+          {c.hasPath ? (
+            <GlovePath3D catchId={c.catchId} label={c.label} />
+          ) : c.video && !expired ? (
             <video
-              key={v.url}
-              src={v.url}
+              key={c.video.url}
+              src={c.video.url}
               controls
               playsInline
               muted
               loop
               preload="metadata"
-              aria-label={`${v.label} glove path`}
+              aria-label={`${c.label} video`}
               style={{ width: '100%', flex: 1, minHeight: '16rem', maxHeight: '22rem', borderRadius: 10, background: '#000', objectFit: 'contain' }}
             />
+          ) : (
+            <div className={styles.glovePathEmpty}>
+              <div style={{ fontSize: rem(12.5), fontWeight: 600, color: 'var(--text-bright)', textAlign: 'center' }}>
+                {c.label}: video link expired
+              </div>
+              <div style={{ fontSize: rem(11), color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, maxWidth: '26ch' }}>
+                MOVE&apos;s links last about a week.
+              </div>
+            </div>
           )}
-          <div style={{ fontSize: rem(10.5), color: 'var(--text-muted)', textAlign: 'center' }}>
-            {v.label}
-            {v.expiresAt && !expired && ` · link from MOVE until ${new Date(v.expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+          <div style={{ fontSize: rem(10.5), color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4 }}>
+            <strong style={{ color: 'var(--text-bright)' }}>{c.label}</strong>
+            {facts.length > 0 && ` · ${facts.join(' · ')}`}
           </div>
         </div>
       )}
@@ -2165,7 +2184,7 @@ export function CatchingSubTab({
                   <ReceivingPanel values={ca.receivingMetrics} receiving={ca.receiving} move={moveSummary} />
                 </div>
                 <div style={{ gridArea: 'glove', display: 'flex', flexDirection: 'column' }}>
-                  <GlovePathPanel videos={moveSummary?.videos ?? []} />
+                  <GlovePathPanel clips={moveSummary?.clips ?? []} />
                 </div>
                 <SnapPane title="Throwing & Blocking" hint="Home plate to second base" style={{ gridArea: 'field' }}>
                   <CatchingFieldDiagram

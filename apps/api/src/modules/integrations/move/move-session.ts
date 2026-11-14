@@ -28,6 +28,8 @@ export interface MoveCatch {
   metrics: Record<string, number>;
   video: MoveFile | null;
   raw: MoveFile | null;
+  /** The catch's 3D glove path (JSON), copied into MovePath on arrival. */
+  path3d: MoveFile | null;
 }
 
 export interface MoveSession {
@@ -110,6 +112,7 @@ export function parseMoveSession(body: unknown): MoveSession {
     metrics: metrics(c?.metrics),
     video: file(c?.files?.video),
     raw: file(c?.files?.raw),
+    path3d: file(c?.files?.path3d),
   }));
 
   const contactTimes = catches.map((c) => c.contactAt).filter((t): t is string => !!t).sort();
@@ -187,4 +190,63 @@ export function mergeMoveSession(existing: unknown, s: MoveSession, deliveryId: 
   const sessions = [...prev.filter((p) => p?.baseSessionId !== s.baseSessionId), { ...keep, deliveryId }]
     .sort((a, b) => String(a.firstCatchAt).localeCompare(String(b.firstCatchAt)));
   return { version: 1, sessions };
+}
+
+/* ── 3D glove paths (files.path3d) ──────────────────────────────────── */
+
+/** MOVE serves its files from its own Cloud Functions host; nothing else is
+ *  ever fetched (the URL comes from a partner payload). */
+export function isMoveFileUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && /^[a-z0-9-]+-move-catching-sensor\.cloudfunctions\.net$/.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** A glove path as stored: positions in metres, y = up (checked against
+ *  MOVE's own approach / catch-to-stick angles), t in seconds; `ta`,
+ *  `contact`, `stick` are sample indexes (approach start, ball in glove,
+ *  end of the stick). */
+export interface MovePathData {
+  v: number;
+  t: number[];
+  p: [number, number, number][];
+  q: [number, number, number, number][] | null;
+  ta: number;
+  contact: number;
+  stick: number;
+}
+
+const MAX_PATH_SAMPLES = 5000;
+const round = (n: number, d: number) => Math.round(n * 10 ** d) / 10 ** d;
+
+/** Check + trim a path3d file. Throws when it isn't a usable path. */
+export function parseMovePath(raw: unknown): MovePathData {
+  if (!raw || typeof raw !== 'object') throw new Error('Path file is not an object');
+  const r = raw as Record<string, any>;
+  const t = Array.isArray(r.t) ? r.t : null;
+  const p = Array.isArray(r.p) ? r.p : null;
+  if (!t || !p || t.length < 2 || t.length !== p.length) throw new Error('Path file needs matching t and p lists');
+  if (p.length > MAX_PATH_SAMPLES) throw new Error('Path file is too long');
+  const pts = p.map((v: unknown) => {
+    if (!Array.isArray(v) || v.length < 3 || !v.slice(0, 3).every((n) => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 100)) {
+      throw new Error('Path point is not [x, y, z]');
+    }
+    return [round(v[0], 4), round(v[1], 4), round(v[2], 4)] as [number, number, number];
+  });
+  const times = t.map((n: unknown) => {
+    if (typeof n !== 'number' || !Number.isFinite(n)) throw new Error('Path time is not a number');
+    return round(n, 4);
+  });
+  const q = Array.isArray(r.q) && r.q.length === p.length && r.q.every((v: unknown) => Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === 'number' && Number.isFinite(n)))
+    ? (r.q as number[][]).map((v) => v.map((n) => round(n, 4)) as [number, number, number, number])
+    : null;
+  const idx = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < pts.length ? v : fallback;
+  const stick = idx(r.stick, pts.length - 1);
+  const contact = Math.min(idx(r.contact, stick), stick);
+  const ta = Math.min(idx(r.ta, 0), contact);
+  return { v: typeof r.v === 'number' ? r.v : 0, t: times, p: pts, q, ta, contact, stick };
 }
