@@ -16,6 +16,7 @@ import { HitTraxParser } from '../src/modules/uploads/parsers/hittrax-parser';
 import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-parser';
 import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
+import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
 
 interface TestResult {
   name: string;
@@ -447,6 +448,34 @@ async function moveSessionTests() {
     expectThrows(() => parseMovePath({ t: [0, 1], p: [[0, 0, 0]] }), 'length mismatch');
     expectThrows(() => parseMovePath({ t: [0, 1], p: [[0, 0], [1, 1]] }), 'not 3D');
     expectThrows(() => parseMovePath(null), 'not an object');
+  });
+
+  await test('MOVE: only untouched auto-made reports count as MOVE-only', () => {
+    const base = { title: 'MOVE Session', notes: null, videoIds: null };
+    assert(isMoveOnly({ ...base, content: JSON.stringify({ moveReceiving: { sessions: [] } }) }), 'plain MOVE report');
+    assert(!isMoveOnly({ ...base, content: JSON.stringify({ moveReceiving: {}, catchingAssessment: {} }) }), 'coach data added');
+    assert(!isMoveOnly({ ...base, notes: 'note', content: JSON.stringify({ moveReceiving: {} }) }), 'notes added');
+    assert(!isMoveOnly({ ...base, videoIds: 'v1', content: JSON.stringify({ moveReceiving: {} }) }), 'video added');
+    assert(!isMoveOnly({ ...base, title: 'Nov bullpen', content: JSON.stringify({ moveReceiving: {} }) }), 'renamed by a coach');
+    assert(!isMoveOnly({ ...base, content: 'not json' }), 'unreadable content kept');
+  });
+
+  await test('MOVE: sessions join the coach report, never a MOVE-only one', () => {
+    const day = { date: '2026-11-14', offsetMinutes: -360, tz: null };
+    const r = (id: string, iso: string, moveOnly = false) => ({
+      id, createdAt: new Date(iso), title: moveOnly ? 'MOVE Session' : 'Catching', notes: null, videoIds: null,
+      content: JSON.stringify(moveOnly ? { moveReceiving: {} } : { catchingAssessment: {} }),
+    });
+    const sameDay = r('same', '2026-11-14T18:00:00Z');
+    const moveOnlySameDay = r('mo', '2026-11-14T17:00:00Z', true);
+    const older = r('older', '2026-11-01T18:00:00Z');
+    const newer = r('newer', '2026-11-20T18:00:00Z');
+    assertEqual(pickReportForDay([moveOnlySameDay, sameDay, older], day)?.id, 'same', 'coach report that day');
+    assertEqual(pickReportForDay([moveOnlySameDay, older], day)?.id, 'older', 'latest coach report before, not the MOVE-only one');
+    assertEqual(pickReportForDay([newer, older], day)?.id, 'older', 'on-or-before beats a later report');
+    assertEqual(pickReportForDay([newer], day)?.id, 'newer', 'only a later coach report: use it');
+    assertEqual(pickReportForDay([moveOnlySameDay], day)?.id, 'mo', 'no coach report: the MOVE one');
+    assertEqual(pickReportForDay([], day), null, 'nothing: caller creates one');
   });
 }
 

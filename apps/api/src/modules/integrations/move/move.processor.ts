@@ -24,6 +24,35 @@ import {
 
 export const MOVE_PROVIDER = 'move';
 
+/** Title of the report MOVE creates for an athlete with no Catching report. */
+export const MOVE_REPORT_TITLE = 'MOVE Session';
+
+const REPORT_PICK = { id: true, content: true, createdAt: true, title: true, notes: true, videoIds: true } as const;
+type PickedReport = { id: string; content: string; createdAt: Date; title: string | null; notes: string | null; videoIds: string | null };
+
+/** A report MOVE made that nobody has added anything to: titled "MOVE
+ *  Session", no notes / videos, and nothing in it but the MOVE block. */
+export function isMoveOnly(r: Pick<PickedReport, 'content' | 'title' | 'notes' | 'videoIds'>): boolean {
+  if (r.title !== MOVE_REPORT_TITLE || r.notes || r.videoIds) return false;
+  try {
+    const c = JSON.parse(r.content || '{}');
+    return !!c && typeof c === 'object' && Object.keys(c).every((k) => k === 'moveReceiving');
+  } catch {
+    return false;
+  }
+}
+
+/** Rules 2-5 of findReport. `rows` are newest first. */
+export function pickReportForDay<T extends PickedReport>(rows: T[], day: { date: string; offsetMinutes: number | null; tz: string | null }): T | null {
+  const coach = rows.filter((r) => !isMoveOnly(r));
+  const pool = coach.length ? coach : rows;
+  return pool.find((r) => localDate(r.createdAt, day) === day.date)
+    ?? pool.find((r) => localDate(r.createdAt, day) <= day.date)
+    ?? pool[0]
+    ?? null;
+}
+
+
 export type ProcessStatus = 'processed' | 'preview' | 'unmatched' | 'superseded' | 'error';
 
 export interface ProcessOutcome {
@@ -159,7 +188,7 @@ export class MoveProcessor implements OnApplicationBootstrap {
         playerId: athlete.id,
         createdById: null,
         reportType: 'CATCHING',
-        title: 'MOVE Session',
+        title: MOVE_REPORT_TITLE,
         content: JSON.stringify({ moveReceiving: merged }),
         createdAt: new Date(s.firstCatchAt),
       },
@@ -168,26 +197,76 @@ export class MoveProcessor implements OnApplicationBootstrap {
     return { status: 'processed', playerId: athlete.id, reportId: created.id, result: { ...summary, createdReport: true } };
   }
 
-  /** The Catching report this session belongs on, if one exists. */
+  /**
+   * The Catching report this session belongs on (null = the athlete has no
+   * Catching report yet). MOVE does NOT get reports of its own: a session
+   * joins the coach's report so the throwing / heat map / grades stay on
+   * screen beside it. In order:
+   *   1. the report already holding this session (a resend / new revision);
+   *   2. a coach report on the session's local day;
+   *   3. the newest coach report on or before that day;
+   *   4. the newest coach report at all;
+   *   5. only if the athlete has no coach report: their newest MOVE-only one.
+   */
   private async findReport(playerId: string, baseSessionId: string, day: { date: string; offsetMinutes: number | null; tz: string | null }) {
-    const holding = await this.prisma.report.findFirst({
-      where: { playerId, reportType: 'CATCHING', content: { contains: JSON.stringify(baseSessionId) } },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, content: true },
-    });
-    if (holding) return holding;
-    /* Same local day as the session -- a window of +/- 2 days by UTC, then
-       an exact local-date check. Newest first. */
-    const t = Date.parse(`${day.date}T12:00:00Z`);
     const rows = await this.prisma.report.findMany({
-      where: {
-        playerId, reportType: 'CATCHING',
-        createdAt: { gte: new Date(t - 2 * 86_400_000), lte: new Date(t + 2 * 86_400_000) },
-      },
+      where: { playerId, reportType: 'CATCHING' },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, content: true, createdAt: true },
+      take: 300,
+      select: REPORT_PICK,
     });
-    return rows.find((r) => localDate(r.createdAt, day) === day.date) ?? null;
+    const holding = rows.find((r) => (r.content || '').includes(JSON.stringify(baseSessionId)));
+    if (holding) return holding;
+    return pickReportForDay(rows, day);
+  }
+
+  /**
+   * One-time clean-up (safe to re-run): earlier builds gave a MOVE session
+   * its own "MOVE Session" report when the athlete had no report that day,
+   * which then opened instead of the coach's report. Move those sessions
+   * into the athlete's coach report (same rules as findReport) and delete
+   * the emptied MOVE-only report. Reports a coach has touched (notes,
+   * videos, any other content) are never removed.
+   */
+  async consolidateMoveOnlyReports(): Promise<{ moved: number; removed: number }> {
+    const out = { moved: 0, removed: 0 };
+    const tz = (await this.academy.get()).timeZone || undefined;
+    const candidates = (await this.prisma.report.findMany({
+      where: { reportType: 'CATCHING', title: MOVE_REPORT_TITLE },
+      select: { ...REPORT_PICK, playerId: true },
+    })).filter(isMoveOnly);
+    for (const mo of candidates) {
+      const rows = (await this.prisma.report.findMany({
+        where: { playerId: mo.playerId, reportType: 'CATCHING' },
+        orderBy: { createdAt: 'desc' },
+        take: 300,
+        select: REPORT_PICK,
+      })).filter((r) => !isMoveOnly(r));
+      if (!rows.length) continue; // still the athlete's only Catching report
+      let sessions: any[] = [];
+      try { sessions = JSON.parse(mo.content || '{}')?.moveReceiving?.sessions ?? []; } catch { continue; }
+
+      const movedTo = new Set<string>();
+      for (const sess of sessions) {
+        const day = sessionLocalDay({ moveSessionId: sess?.moveSessionId ?? null, firstCatchAt: sess?.firstCatchAt ?? mo.createdAt.toISOString() }, tz);
+        const target = pickReportForDay(rows, day)!;
+        const fresh = await this.prisma.report.findUnique({ where: { id: target.id }, select: { content: true } });
+        let content: Record<string, any> = {};
+        try { content = JSON.parse(fresh?.content || '{}') ?? {}; } catch { /* empty */ }
+        const merged = mergeMoveSession(content.moveReceiving, { ...sess, schema: '', externalId: null, moveId: null }, sess.deliveryId ?? '');
+        if (merged) await this.reports.mergeContent(target.id, { set: { moveReceiving: merged } });
+        movedTo.add(target.id);
+        out.moved++;
+      }
+      /* The log should point at where the sessions are now. */
+      if (movedTo.size === 1) {
+        await this.prisma.integrationDelivery.updateMany({ where: { reportId: mo.id }, data: { reportId: [...movedTo][0] } });
+      }
+      await this.prisma.report.delete({ where: { id: mo.id } });
+      out.removed++;
+    }
+    if (out.removed) this.logger.log(`MOVE: moved ${out.moved} session(s) out of ${out.removed} MOVE-only report(s) into coach reports`);
+    return out;
   }
 
   /** Re-run every unmatched MOVE delivery (after a coach links an athlete). */
@@ -213,7 +292,12 @@ export class MoveProcessor implements OnApplicationBootstrap {
 
   onApplicationBootstrap() {
     if (process.env.NODE_ENV === 'test') return;
-    const timer = setTimeout(() => { void this.sweepPaths(); }, 45_000);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try { await this.consolidateMoveOnlyReports(); } catch (err: any) { this.logger.warn(`MOVE report clean-up failed: ${err?.message || err}`); }
+        await this.sweepPaths();
+      })();
+    }, 45_000);
     timer.unref?.();
   }
 
