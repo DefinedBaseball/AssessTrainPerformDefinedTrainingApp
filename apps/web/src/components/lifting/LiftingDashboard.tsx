@@ -19,7 +19,7 @@ import { SectionHeader } from '@/components/assessment/SectionHeader';
 import { ValdLogo } from '@/components/brand/VendorLogos';
 import { headerChipStyle } from '@/app/athletes/[id]/components/ReportInlineEditing';
 import aStyles from '@/components/assessment/assessment.module.css';
-import { bubbleView, byTest, changeColor, fmt, fmtChange, fmtDate } from '@/lib/lifting';
+import { AVG_SUFFIX, bubbleView, byTest, changeColor, fmt, fmtChange, fmtDate } from '@/lib/lifting';
 import s from './lifting.module.css';
 
 /* Phone width -- the Hitting / Pitching Reports' 768px breakpoint. */
@@ -137,17 +137,19 @@ export function LiftingDashboard({ playerId, headerEnd }: { playerId: string; he
                           {k.latest != null && k.kpi.unit && <span className={s.kpiUnit}>{k.kpi.unit}</span>}
                         </span>
                         {(() => {
-                          /* Best only when it isn't the latest result itself. */
+                          /* Under the session's best: its average (VALD sessions
+                             have several trials / reps) and the change since the
+                             session before. */
+                          const showAvg = k.average != null && k.latest != null;
                           const showChange = k.change != null && k.change !== 0;
-                          const showBest = k.best != null && k.latest != null && fmt(k.best, k.kpi.digits) !== fmt(k.latest, k.kpi.digits);
-                          if (!showChange && !showBest) return null;
+                          if (!showAvg && !showChange) return null;
                           return (
                             <span className={s.kpiSub}>
+                              {showAvg && `Avg ${fmt(k.average, k.kpi.digits)}`}
+                              {showAvg && showChange && ' · '}
                               {showChange && (
                                 <span style={{ color: changeColor(k.improved), fontWeight: 700 }}>{fmtChange(k.change, k.kpi.digits)}</span>
                               )}
-                              {showChange && showBest && ' · '}
-                              {showBest && `Best ${fmt(k.best, k.kpi.digits)}`}
                             </span>
                           );
                         })()}
@@ -173,9 +175,17 @@ export function LiftingDashboard({ playerId, headerEnd }: { playerId: string; he
                           {history.map((r) => (
                             <tr key={r.id}>
                               <td>{fmtDate(r.recordedAt)}{r.source === 'manual' ? ' ·' : ''}</td>
-                              {v.bubble.kpis.filter((k) => k.metric).map((k) => (
-                                <td key={k.id}>{fmt(typeof r.metrics?.[k.metric!] === 'number' ? r.metrics[k.metric!] * (k.factor || 1) : null, k.digits)}</td>
-                              ))}
+                              {v.bubble.kpis.filter((k) => k.metric).map((k) => {
+                                const best = r.metrics?.[k.metric!];
+                                const avg = r.metrics?.[k.metric! + AVG_SUFFIX];
+                                const f = k.factor || 1;
+                                return (
+                                  <td key={k.id}>
+                                    {fmt(typeof best === 'number' ? best * f : null, k.digits)}
+                                    {typeof avg === 'number' && <span className={s.kpiSub}> / {fmt(avg * f, k.digits)}</span>}
+                                  </td>
+                                );
+                              })}
                               {canEnter && (
                                 <td>
                                   {r.source === 'manual' && (
@@ -187,7 +197,7 @@ export function LiftingDashboard({ playerId, headerEnd }: { playerId: string; he
                           ))}
                         </tbody>
                       </table>
-                      <div className={s.kpiSub} style={{ marginTop: 4 }}>· = typed in by a coach</div>
+                      <div className={s.kpiSub} style={{ marginTop: 4 }}>Best / average of each session · = typed in by a coach</div>
                     </div>
                   )}
                 </div>

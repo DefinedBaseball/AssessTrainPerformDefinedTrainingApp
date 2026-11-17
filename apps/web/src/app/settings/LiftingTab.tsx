@@ -8,6 +8,8 @@
      Athlete Dashboards  give one or many athletes (ticked) their own
                          layout; it replaces the default for them until
                          "Back to default".
+     VALD Import         date range + filters + PULL, and the automatic
+                         pull (every N days) -- see ValdImport.tsx.
      Editors             (Admin) which coaches may edit layouts.
 
    A layout is bubbles (a name, the test that feeds it, an optional note),
@@ -23,11 +25,12 @@ import { useFacilityPrograms } from '@/lib/use-facility-programs';
 import { activeScheduledPrograms } from '@/lib/facility-schedule';
 import styles from './page.module.css';
 import ls from '@/components/lifting/lifting.module.css';
+import { ValdImport } from './ValdImport';
 
 type Kpi = api.LiftingKpi;
 type Bubble = api.LiftingBubble;
 type Catalog = api.LiftingCatalogTest[];
-type Sub = 'dashboard' | 'athletes' | 'editors';
+type Sub = 'dashboard' | 'athletes' | 'vald' | 'editors';
 
 const newId = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}`;
 const RATIO = '__ratio__';
@@ -82,6 +85,7 @@ export function LiftingTab() {
   const subs: { key: Sub; label: string }[] = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'athletes', label: 'Athlete Dashboards' },
+    { key: 'vald', label: 'VALD Import' },
     ...(isAdmin ? [{ key: 'editors' as Sub, label: 'Editors' }] : []),
   ];
 
@@ -114,6 +118,7 @@ export function LiftingTab() {
           onDirty={setDirty}
         />
       )}
+      {sub === 'vald' && <ValdImport onDirty={setDirty} />}
       {sub === 'editors' && isAdmin && <Editors />}
     </div>
   );
@@ -568,6 +573,10 @@ function LayoutEditor({ bubbles, setBubbles, catalog }: {
       metric: value, ratio: undefined,
       label: !old || k.label === old.label || k.label === 'Ratio' ? (m?.label ?? k.label) : k.label,
       unit: !old || k.unit === old.unit ? (m?.unit ?? k.unit) : k.unit,
+      /* VALD's decimals and better-direction come with the metric. */
+      ...(m?.digits != null ? { digits: Math.min(3, m.digits) } : {}),
+      ...(m && m.better !== undefined ? { better: m.better } : {}),
+      factor: 1,
     });
   };
 

@@ -1,9 +1,11 @@
 /* ─────────────────────────────────────────────────────────────────────────
    Lifting Dashboard maths -- shared by the athlete dashboard and the coach
-   Lifting page. A box (KPI) shows the athlete's latest value, the change
-   since the result before it, and their best; a ratio box (ER:IR) divides
-   the latest of two metrics. Stored values are multiplied by the box's
-   factor for display (e.g. jump height cm -> in).
+   Lifting page. A box (KPI) shows the latest session's BEST (the stored
+   value) and that session's AVERAGE (stored as "<key>__avg" -- VALD
+   sessions have several trials / reps; a typed result has none), plus the
+   change since the session before it. A ratio box (ER:IR) divides the
+   latest of two metrics. Stored values are multiplied by the box's factor
+   for display (1 for VALD results: they keep VALD's own unit).
    ───────────────────────────────────────────────────────────────────────── */
 import type { LiftingBubble, LiftingKpi } from './api';
 
@@ -14,6 +16,8 @@ export interface KpiView {
   kpi: LiftingKpi;
   /** Display units (factor applied). */
   latest: number | null;
+  /** The latest session's average (null for typed results / ratios). */
+  average: number | null;
   previous: number | null;
   best: number | null;
   /** latest - previous, display units. */
@@ -42,6 +46,9 @@ export function byTest(results: LiftingResult[]): Map<string, LiftingResult[]> {
   return m;
 }
 
+/** Suffix the API stores each metric's session average under. */
+export const AVG_SUFFIX = '__avg';
+
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** The values of one metric across a test's results, newest first. */
@@ -52,6 +59,7 @@ function series(tests: Map<string, LiftingResult[]>, test: string, metric: strin
 export function kpiView(kpi: LiftingKpi, test: string, tests: Map<string, LiftingResult[]>): KpiView {
   const f = kpi.factor || 1;
   let latest: number | null = null;
+  let average: number | null = null;
   let previous: number | null = null;
   let best: number | null = null;
   if (kpi.ratio) {
@@ -63,14 +71,23 @@ export function kpiView(kpi: LiftingKpi, test: string, tests: Map<string, Liftin
     const vals = series(tests, test, kpi.metric);
     if (vals.length) {
       latest = vals[0] * f;
+      /* The average from the SAME session as the latest best. */
+      const session = (tests.get(test) ?? []).find((r) => num(r.metrics?.[kpi.metric!]) != null);
+      const avg = num(session?.metrics?.[kpi.metric + AVG_SUFFIX]);
+      if (avg != null) average = avg * f;
       if (vals.length > 1) previous = vals[1] * f;
       if (kpi.better === 'high') best = Math.max(...vals) * f;
       else if (kpi.better === 'low') best = Math.min(...vals) * f;
     }
   }
-  const change = latest != null && previous != null ? latest - previous : null;
+  /* Asymmetries are signed (left / right): what matters is how far from 0,
+     so their change is the change in size (smaller = better). */
+  const asym = !!kpi.metric && /_ASYM$/.test(kpi.metric);
+  const change = latest != null && previous != null
+    ? (asym ? Math.abs(latest) - Math.abs(previous) : latest - previous)
+    : null;
   const improved = change == null || change === 0 || !kpi.better ? null : (kpi.better === 'high') === change > 0;
-  return { kpi, latest, previous, best, change, improved };
+  return { kpi, latest, average, previous, best, change, improved };
 }
 
 export function bubbleView(bubble: LiftingBubble, tests: Map<string, LiftingResult[]>): BubbleView {

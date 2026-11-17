@@ -3198,7 +3198,7 @@ export function groupCollegesByDivision(
 
 /* ── Lifting Dashboard (VALD ForceDecks / DynaMo + typed results) ── */
 
-export interface LiftingCatalogMetric { key: string; label: string; unit: string; group?: string }
+export interface LiftingCatalogMetric { key: string; label: string; unit: string; group?: string; digits?: number; better?: 'high' | 'low' | null }
 export interface LiftingCatalogTest { code: string; label: string; source: string; metrics: LiftingCatalogMetric[] }
 export interface LiftingMetricRef { test: string; metric: string }
 export interface LiftingKpi {
@@ -3227,6 +3227,65 @@ export interface LiftingTestRow {
 }
 export interface LiftingTeamRow { playerId: string; testType: string; recordedAt: string; metrics: Record<string, number> }
 
+/* ── VALD import (Settings -> Lifting -> VALD Import) ── */
+export interface ValdFilters {
+  devices: ('forcedecks' | 'dynamo')[];
+  /** Test codes NOT imported (default none = every test type). */
+  excludedTestTypes: string[];
+  sportIds: string[];
+  groupIds: string[];
+  /** ForceDecks tags only -- DynaMo tests can't be tagged. */
+  tagIds: string[];
+  playerIds: string[];
+}
+export interface ValdSettings {
+  manual: ValdFilters & { from: string; to: string };
+  auto: ValdFilters & { enabled: boolean; everyDays: number; lastRunAt: string | null };
+}
+export interface ValdPullReport {
+  kind: 'manual' | 'auto';
+  from: string;
+  to: string;
+  startedAt: string;
+  finishedAt: string | null;
+  running: boolean;
+  phase: string;
+  added: number;
+  replaced: number;
+  filteredOut: number;
+  /** Athletes whose Physical tab the pull turned on. */
+  physicalShown?: number;
+  unmatched: { name: string; birthday: string | null; reason: string; tests: number }[];
+  error: string | null;
+}
+export interface ValdStatus {
+  configured: boolean;
+  settings: ValdSettings;
+  job: ValdPullReport | null;
+  last: ValdPullReport | null;
+  nextAutoAt: string | null;
+}
+export interface ValdOptions {
+  configured: boolean;
+  sports: { id: string; name: string; category: string }[];
+  groups: { id: string; name: string; category: string }[];
+  tags: { id: string; name: string; type: string }[];
+  testTypes: { code: string; label: string; device: 'forcedecks' | 'dynamo' }[];
+  athletes: { id: string; name: string }[];
+}
+export async function getValdStatus() {
+  return request<ValdStatus>('/lifting/vald/status');
+}
+export async function getValdOptions(refresh = false) {
+  return request<ValdOptions>(`/lifting/vald/options${refresh ? '?refresh=1' : ''}`);
+}
+export async function saveValdSettings(settings: Partial<ValdSettings>) {
+  return request<ValdStatus>('/lifting/vald/settings', { method: 'PUT', body: JSON.stringify(settings) });
+}
+/** PULL: saves these as the manual settings and starts the import. */
+export async function startValdPull(manual: ValdSettings['manual']) {
+  return request<ValdStatus>('/lifting/vald/pull', { method: 'POST', body: JSON.stringify(manual) });
+}
 export async function getLiftingConfig() {
   return request<LiftingConfigResponse>('/lifting/config');
 }

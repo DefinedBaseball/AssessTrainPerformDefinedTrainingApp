@@ -3,8 +3,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { coachLevelOf } from '../auth/jwt.guard';
 import type { JwtPayload } from '../auth/jwt.util';
 import {
-  LIFTING_CATALOG, LiftingConfig, TEST_CODE_RE, defaultLiftingConfig, mergeCatalog, validateLiftingConfig, validateMetrics, validatePlayerIds,
+  LIFTING_CATALOG, LiftingConfig, TEST_CODE_RE, ValdMeta, defaultLiftingConfig, mergeCatalog, validateLiftingConfig, validateMetrics, validatePlayerIds,
 } from './lifting-catalog';
+import { AVG_SUFFIX } from './vald-mapping';
 
 /* ─────────────────────────────────────────────────────────────────────────
    Lifting Dashboard: the default layout (AppSetting "liftingDashboard"),
@@ -35,22 +36,37 @@ export class LiftingService {
     };
   }
 
-  /** The catalog plus every test / metric that saved results hold (so any
-   *  result VALD sends can be put in a box). Recent results are enough --
-   *  a metric VALD reports shows up on every test of that kind. */
+  /** The catalog plus every test / metric VALD has sent (with VALD's names
+   *  and units, stored by each pull as "valdMetricMeta") and any key a typed
+   *  result holds -- so any result VALD sends can be put in a box. */
   private async catalog() {
-    const rows = await this.prisma.liftingTest.findMany({
-      orderBy: { recordedAt: 'desc' },
-      take: 3000,
-      select: { testType: true, metrics: true },
-    });
+    const [rows, metaRow] = await Promise.all([
+      this.prisma.liftingTest.findMany({
+        where: { source: 'manual' },
+        orderBy: { recordedAt: 'desc' },
+        take: 2000,
+        select: { testType: true, metrics: true },
+      }),
+      this.prisma.appSetting.findUnique({ where: { key: 'valdMetricMeta' } }),
+    ]);
     const seen = new Map<string, Set<string>>();
     for (const r of rows) {
       const keys = seen.get(r.testType) ?? new Set<string>();
       for (const k of Object.keys(parseMetrics(r.metrics))) keys.add(k);
       seen.set(r.testType, keys);
     }
-    return mergeCatalog(LIFTING_CATALOG, seen);
+    let meta: ValdMeta | null = null;
+    try { meta = metaRow?.value ? JSON.parse(metaRow.value) : null; } catch { meta = null; }
+    return mergeCatalog(LIFTING_CATALOG, seen, meta);
+  }
+
+  /** The layout an athlete's dashboard shows (their own, else the default). */
+  private async layoutFor(playerId: string): Promise<LiftingConfig> {
+    const own = await this.prisma.liftingLayout.findUnique({ where: { playerId }, select: { config: true } });
+    if (own?.config) {
+      try { return validateLiftingConfig(JSON.parse(own.config)); } catch { /* fall back */ }
+    }
+    return (await this.getConfig()).config;
   }
 
   // ── An athlete's own layout ───────────────────────────────────────────
@@ -184,14 +200,20 @@ export class LiftingService {
 
   // ── Results ───────────────────────────────────────────────────────────
 
+  /** An athlete's results -- only the metrics their layout shows (+ each
+   *  one's average): a VALD session carries ~300 numbers. */
   async listTests(playerId: string) {
-    const rows = await this.prisma.liftingTest.findMany({
-      where: { playerId },
-      orderBy: { recordedAt: 'desc' },
-      take: 1000,
-      select: { id: true, source: true, testType: true, recordedAt: true, metrics: true, notes: true },
-    });
-    return rows.map((r) => ({ ...r, metrics: parseMetrics(r.metrics) }));
+    const [rows, layout] = await Promise.all([
+      this.prisma.liftingTest.findMany({
+        where: { playerId },
+        orderBy: { recordedAt: 'desc' },
+        take: 1000,
+        select: { id: true, source: true, testType: true, recordedAt: true, metrics: true, notes: true },
+      }),
+      this.layoutFor(playerId),
+    ]);
+    const keep = layoutKeys(layout);
+    return rows.map((r) => ({ ...r, metrics: pickMetrics(parseMetrics(r.metrics), keep.get(r.testType)) }));
   }
 
   /** A coach types a result in (med ball velocity, or a test before VALD
@@ -226,8 +248,10 @@ export class LiftingService {
     return { ok: true };
   }
 
-  /** Coach page: each athlete's latest two results per test. */
+  /** Coach page: each athlete's latest two results per test (the default
+   *  layout's metrics only). */
   async team() {
+    const keep = layoutKeys((await this.getConfig()).config);
     const rows = await this.prisma.liftingTest.findMany({
       orderBy: { recordedAt: 'desc' },
       select: { playerId: true, testType: true, recordedAt: true, metrics: true },
@@ -240,10 +264,33 @@ export class LiftingService {
       const n = kept.get(k) ?? 0;
       if (n >= 2) continue;
       kept.set(k, n + 1);
-      out.push({ ...r, metrics: parseMetrics(r.metrics) });
+      out.push({ ...r, metrics: pickMetrics(parseMetrics(r.metrics), keep.get(r.testType)) });
     }
     return out;
   }
+}
+
+/** Per test code, the metric keys a layout's boxes use (ratios name theirs). */
+function layoutKeys(config: LiftingConfig): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  const add = (test: string, key: string) => (out.get(test) ?? out.set(test, new Set()).get(test)!).add(key);
+  for (const b of config.bubbles) {
+    for (const k of b.kpis) {
+      if (k.metric) add(b.test, k.metric);
+      if (k.ratio) { add(k.ratio.num.test, k.ratio.num.metric); add(k.ratio.den.test, k.ratio.den.metric); }
+    }
+  }
+  return out;
+}
+
+/** Only the given keys and their "__avg" twins (all keys when none given). */
+function pickMetrics(m: Record<string, number>, keys: Set<string> | undefined): Record<string, number> {
+  if (!keys) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(m)) {
+    if (keys.has(k) || (k.endsWith(AVG_SUFFIX) && keys.has(k.slice(0, -AVG_SUFFIX.length)))) out[k] = v;
+  }
+  return out;
 }
 
 function parseMetrics(raw: string): Record<string, number> {

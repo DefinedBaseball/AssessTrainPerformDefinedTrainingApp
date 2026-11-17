@@ -17,6 +17,7 @@ import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-par
 import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
+import { aggregateForceDecks, aggregateDynamo, dynamoTestCode, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
 import { decideRendition, withRendition, isPlay720, describeSource } from '../src/modules/videos/bunny-renditions';
 import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
 
@@ -488,10 +489,12 @@ async function liftingTests() {
   await test('Lifting: default layout is valid and matches the strength coach list', () => {
     const d = defaultLiftingConfig();
     const v = validateLiftingConfig(d);
-    assertEqual(v.bubbles.map((b) => b.title).join(','), 'CMJ,SJ,Plyo Push-up,Push-up,Grip Strength,IR,ER,6 lb Med Ball', 'bubble order');
+    assertEqual(v.bubbles.map((b) => b.title).join(','), 'CMJ,SJ,Single Leg Jump,Plyo Push-up,Push-up,Grip Strength,IR (Standing),ER (Standing),IR (90/90),ER (90/90),6 lb Med Ball', 'bubble order');
     assertEqual(v.bubbles[0].kpis.length, 4, 'CMJ has 4 KPIs');
-    const ratio = v.bubbles.find((b) => b.id === 'er')!.kpis.find((k) => k.ratio);
-    assert(!!ratio && ratio.ratio!.den.test === 'IR', 'ER:IR ratio kept');
+    assertEqual(v.bubbles[0].kpis[0].metric, 'JUMP_HEIGHT_INCHES_IMP_MOM', 'CMJ jump height = Imp-Mom inches');
+    assertEqual(v.bubbles[0].kpis[3].metric, 'PEAK_TAKEOFF_FORCE_ASYM', 'asymmetry = takeoff peak force');
+    const ratio = v.bubbles.find((b) => b.id === 'er-9090')!.kpis.find((k) => k.ratio);
+    assert(!!ratio && ratio.ratio!.den.test === 'IR_9090' && ratio.ratio!.num.metric === 'PEAK_FORCE_LEFT', 'ER:IR ratio uses the same position + arm');
     for (const b of v.bubbles) {
       const cat = LIFTING_CATALOG.find((t) => t.code === b.test);
       assert(!!cat, `catalog has ${b.test}`);
@@ -575,6 +578,88 @@ async function renditionTests() {
   });
 }
 
+// ─── VALD import ────────────────────────────────────────────────────────
+
+async function valdTests() {
+  const defs = new Map<string, any>([
+    ['JUMP_HEIGHT_INCHES_IMP_MOM', { resultIdString: 'JUMP_HEIGHT_INCHES_IMP_MOM', resultName: 'Jump Height (Imp-Mom) in Inches', resultUnitName: 'in', numberOfDecimalPlaces: 1, trendDirection: 'Positive' }],
+    ['CONTRACTION_TIME', { resultIdString: 'CONTRACTION_TIME', resultName: 'Contraction Time', resultUnitName: 'ms', numberOfDecimalPlaces: 0, trendDirection: 'Negative' }],
+    ['PEAK_TAKEOFF_FORCE', { resultIdString: 'PEAK_TAKEOFF_FORCE', resultName: 'Takeoff Peak Force', resultUnitName: 'N', numberOfDecimalPlaces: 0, trendDirection: 'Positive' }],
+  ]);
+  const r = (result: string, value: number, limb = 'Trial') => ({ value, limb, definition: { result } });
+
+  await test('VALD: a session keeps its best and average per result', () => {
+    const { metrics, meta } = aggregateForceDecks([
+      { limb: 'Trial', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 16), r('CONTRACTION_TIME', 800), r('PEAK_TAKEOFF_FORCE', 1.5, 'Asym')] },
+      { limb: 'Trial', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 18), r('CONTRACTION_TIME', 700), r('PEAK_TAKEOFF_FORCE', -0.5, 'Asym')] },
+    ], defs);
+    assertEqual(metrics.JUMP_HEIGHT_INCHES_IMP_MOM, 18, 'best jump = highest');
+    assertEqual(metrics['JUMP_HEIGHT_INCHES_IMP_MOM' + AVG_SUFFIX], 17, 'average jump');
+    assertEqual(metrics.CONTRACTION_TIME, 700, 'lower-is-better result: best = lowest');
+    assertEqual(metrics.PEAK_TAKEOFF_FORCE_ASYM, -0.5, 'asymmetry best = closest to 0');
+    assertEqual(meta.PEAK_TAKEOFF_FORCE_ASYM.unit, '%', 'asymmetry in %');
+    assertEqual(meta.JUMP_HEIGHT_INCHES_IMP_MOM.unit, 'in', 'VALD unit kept');
+    assertEqual(meta.CONTRACTION_TIME.better, 'low', 'VALD direction kept');
+  });
+
+  await test('VALD: single-leg trials split by leg', () => {
+    const { metrics } = aggregateForceDecks([
+      { limb: 'Left', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 8)] },
+      { limb: 'Right', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 7)] },
+      { limb: 'Right', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 9)] },
+    ], defs);
+    assertEqual(metrics.JUMP_HEIGHT_INCHES_IMP_MOM_LEFT, 8, 'left leg');
+    assertEqual(metrics.JUMP_HEIGHT_INCHES_IMP_MOM_RIGHT, 9, 'right leg best');
+    assertEqual(metrics['JUMP_HEIGHT_INCHES_IMP_MOM_RIGHT' + AVG_SUFFIX], 8, 'right leg average');
+    assert(!('JUMP_HEIGHT_INCHES_IMP_MOM' in metrics), 'no both-legs value');
+  });
+
+  await test('VALD: DynaMo positions, sides and skipped zeros', () => {
+    assertEqual(dynamoTestCode({ movement: 'InternalRotation', position: 'StandingElbow90Degrees' }), 'IR_STANDING', 'IR standing');
+    assertEqual(dynamoTestCode({ movement: 'InternalRotation', position: 'SupineElbow90Degrees90DegreeShoulderAbduction' }), 'IR_9090', 'IR 90/90 supine');
+    assertEqual(dynamoTestCode({ movement: 'ExternalRotation', position: 'SeatedElbow90Degrees90DegreeShoulderAbduction' }), 'ER_9090', 'ER 90/90 seated');
+    assertEqual(dynamoTestCode({ movement: 'ExternalRotation', position: 'SeatedElbow90Degrees90DegreeShoulderAbduction', testCategory: 'RangeofMotion' }), 'ER_9090_ROM', 'ROM test');
+    assertEqual(dynamoTestCode({ movement: 'GripSqueeze', position: 'p90DegreesElbowFlexion' }), 'GRIP', 'grip');
+    const g = aggregateDynamo({
+      id: 't', athleteId: 'a', movement: 'GripSqueeze', position: 'p90DegreesElbowFlexion',
+      repetitionTypeSummaries: [
+        { laterality: 'RightSide', maxForceNewtons: 381.9, avgForceNewtons: 377, maxRangeOfMotionDegrees: 0 },
+        { laterality: 'LeftSide', maxForceNewtons: 394.4, avgForceNewtons: 377.5 },
+      ],
+      asymmetries: [{ movement: 'GripSqueeze', valuePercentage: -3.2 }],
+    });
+    assertEqual(g.metrics.PEAK_FORCE_RIGHT, 381.9, 'right best');
+    assertEqual(g.metrics['PEAK_FORCE_LEFT' + AVG_SUFFIX], 377.5, 'left average');
+    assertEqual(g.metrics.PEAK_FORCE_ASYM, -3.2, 'asymmetry');
+    assert(!('RANGE_OF_MOTION_RIGHT' in g.metrics), 'unmeasured (0) left out');
+  });
+
+  await test('VALD: athletes match by External ID, else name + birthday', () => {
+    const roster = [
+      { id: 'p1', firstName: 'Mason', lastName: 'Brown', birthDate: '2009-04-02', athleteCode: null },
+      { id: 'p2', firstName: 'Tyler', lastName: 'Davis', birthDate: null, athleteCode: 'TD07' },
+      { id: 'p3', firstName: 'Luke', lastName: 'Garcia', birthDate: '2010-01-01', athleteCode: null },
+    ];
+    assertEqual(JSON.stringify(matchProfile({ profileId: 'v', givenName: ' mason ', familyName: 'BROWN', dateOfBirth: '2009-04-02T00:00:00' }, roster)), '{"playerId":"p1","by":"nameBirthday"}', 'name + birthday (case / spaces ignored)');
+    assertEqual(JSON.stringify(matchProfile({ profileId: 'v', givenName: 'T', familyName: 'D', externalId: 'td07' }, roster)), '{"playerId":"p2","by":"externalId"}', 'External ID wins');
+    assertEqual((matchProfile({ profileId: 'v', givenName: 'Tyler', familyName: 'Davis', dateOfBirth: '2009-01-01T00:00:00' }, roster) as any).reason, 'birthday-missing-in-app', 'app has no birthday');
+    assertEqual((matchProfile({ profileId: 'v', givenName: 'Luke', familyName: 'Garcia', dateOfBirth: '2011-01-01T00:00:00' }, roster) as any).reason, 'birthday-different', 'birthday differs');
+    assertEqual((matchProfile({ profileId: 'v', givenName: 'Nobody', familyName: 'Here' }, roster) as any).reason, 'no-match', 'not on the roster');
+  });
+
+  await test('VALD: filters and tags', () => {
+    const f = cleanFilters({ devices: ['dynamo', 'bogus'], excludedTestTypes: ['cmj'], groupIds: ['g1', 'g1', 'bad id!'], tagIds: 'x' });
+    assertEqual(f.devices.join(','), 'dynamo', 'unknown device dropped');
+    assertEqual(f.excludedTestTypes.join(','), 'CMJ', 'test types upper-cased');
+    assertEqual(f.groupIds.join(','), 'g1', 'de-duplicated, bad ids dropped');
+    assertEqual(f.tagIds.length, 0, 'non-list ignored');
+    assertEqual(cleanFilters({}).devices.join(','), 'forcedecks,dynamo', 'both devices by default');
+    assert(passesTags([], []), 'no tag filter -> passes');
+    assert(!passesTags([], ['t1']), 'untagged test fails a tag filter');
+    assert(passesTags([{ attributeValueId: 't1' }], ['t1', 't2']), 'any chosen tag');
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -590,6 +675,7 @@ async function run() {
   await moveSessionTests();
   await liftingTests();
   await renditionTests();
+  await valdTests();
 
   console.log('\n' + '='.repeat(60));
   for (const r of results) {

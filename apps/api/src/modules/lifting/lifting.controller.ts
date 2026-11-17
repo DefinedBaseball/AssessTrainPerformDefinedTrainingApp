@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Request } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminOnly, AuthenticatedRequest, ParentAllowed, Roles, assertPlayerOwnership } from '../auth/jwt.guard';
 import { LiftingService } from './lifting.service';
+import { ValdService } from './vald.service';
 
 /* ─────────────────────────────────────────────────────────────────────────
    /api/lifting -- the Lifting Dashboard.
@@ -12,6 +13,9 @@ import { LiftingService } from './lifting.service';
                GET layouts (who has their own), PUT layouts / POST
                layouts/reset (several athletes at once, editors)
      editors:  GET editors, PATCH editors/:userId (Admin)
+     VALD:     GET vald/status, GET vald/options, PUT vald/settings,
+               POST vald/pull (Admins + Lifting editors -- checked in the
+               service)
      results:  GET players/:id/tests (ownership), POST players/:id/tests
                (coach), DELETE tests/:id (coach), GET team (coach)
    ───────────────────────────────────────────────────────────────────────── */
@@ -19,7 +23,7 @@ import { LiftingService } from './lifting.service';
 @ApiBearerAuth()
 @Controller('lifting')
 export class LiftingController {
-  constructor(private svc: LiftingService) {}
+  constructor(private svc: LiftingService, private vald: ValdService) {}
 
   @Get('config')
   @Roles('COACH', 'PLAYER', 'PARENT')
@@ -41,6 +45,36 @@ export class LiftingController {
   @ApiOperation({ summary: 'Reset the Lifting Dashboard layout to the defaults' })
   resetConfig(@Request() req: AuthenticatedRequest) {
     return this.svc.resetConfig(req.user!);
+  }
+
+  /* ── VALD import ── */
+
+  @Get('vald/status')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'VALD import: connection, settings, running / last pull' })
+  valdStatus(@Request() req: AuthenticatedRequest) {
+    return this.vald.status(req.user!);
+  }
+
+  @Get('vald/options')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'VALD sports, groups, tags, test types + app athletes to filter a pull by' })
+  valdOptions(@Request() req: AuthenticatedRequest, @Query('refresh') refresh?: string) {
+    return this.vald.options(req.user!, refresh === '1');
+  }
+
+  @Put('vald/settings')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'Save the manual-pull and automatic-pull settings' })
+  valdSettings(@Request() req: AuthenticatedRequest, @Body() body: unknown) {
+    return this.vald.saveSettings(body, req.user!);
+  }
+
+  @Post('vald/pull')
+  @Roles('COACH')
+  @ApiOperation({ summary: 'PULL: import VALD tests for the chosen dates + filters (runs in the background)' })
+  valdPull(@Request() req: AuthenticatedRequest, @Body() body: unknown) {
+    return this.vald.startManualPull(body, req.user!);
   }
 
   @Get('layouts')

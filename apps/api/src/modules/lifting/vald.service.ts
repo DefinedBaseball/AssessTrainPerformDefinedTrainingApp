@@ -1,0 +1,430 @@
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import type { JwtPayload } from '../auth/jwt.util';
+import { LiftingService } from './lifting.service';
+import { ValdClient } from './vald-client';
+import type { ValdMeta } from './lifting-catalog';
+import {
+  FD_TEST_LABELS, FdResultDef, MatchResult, RosterPlayer, TestMeta, ValdFilters, ValdProfile,
+  aggregateDynamo, aggregateForceDecks, cleanFilters, dynamoTestLabel, emptyFilters, matchProfile, passesTags,
+} from './vald-mapping';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   VALD import: settings, the PULL button and the automatic pull.
+
+   Settings (AppSetting "valdImport"): what a manual pull takes (date range +
+   filters) and what the automatic pull takes (filters + every N days).
+   Filters: devices (ForceDecks / DynaMo), test types (all by default),
+   sports + groups (VALD groups -- athlete in any chosen one of each), tags
+   (ForceDecks only; DynaMo tests can't carry tags so they're pulled
+   regardless), and specific athletes.
+
+   A pull matches VALD profiles to the roster (VALD External ID = Athlete
+   ID, else first + last name AND birthday), then saves each session as one
+   LiftingTest (source + VALD test id are unique, so pulling the same
+   session again replaces its numbers; new sessions become the latest, the
+   older ones stay in History). VALD athletes with tests but no match are
+   listed so a coach can fix the name / birthday. Read-only towards VALD.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const SETTINGS_KEY = 'valdImport';
+const META_KEY = 'valdMetricMeta';
+const LAST_KEY = 'valdLastPull';
+const DAY = 86_400_000;
+const PAUSE_MS = 400; // between VALD calls -- well inside its rate limit
+
+export interface ImportSettings {
+  manual: ValdFilters & { from: string; to: string };
+  auto: ValdFilters & { enabled: boolean; everyDays: number; lastRunAt: string | null };
+}
+
+export interface PullReport {
+  kind: 'manual' | 'auto';
+  from: string;
+  to: string;
+  startedAt: string;
+  finishedAt: string | null;
+  running: boolean;
+  phase: string;
+  /** Sessions saved for the first time / replaced (same session pulled again). */
+  added: number;
+  replaced: number;
+  /** Tests left out by the filters. */
+  filteredOut: number;
+  /** Athletes whose Physical tab was turned on (a new session landed for them). */
+  physicalShown: number;
+  /** VALD athletes with tests in range but no roster match (name + birthday). */
+  unmatched: { name: string; birthday: string | null; reason: string; tests: number }[];
+  error: string | null;
+}
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function defaultSettings(): ImportSettings {
+  const now = new Date();
+  return {
+    manual: { ...emptyFilters(), from: isoDay(new Date(now.getTime() - 90 * DAY)), to: isoDay(now) },
+    auto: { ...emptyFilters(), enabled: false, everyDays: 14, lastRunAt: null },
+  };
+}
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/* Tabs hidden on an athlete who has no saved choice -- the same list as the
+   web's DEFAULT_HIDDEN_TABS (apps/web/src/app/athletes/[id]/helpers.ts).
+   "strength" = the Physical tab. */
+const DEFAULT_HIDDEN_TABS = ['catching', 'infield', 'outfield', 'strength'];
+
+@Injectable()
+export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
+  private readonly logger = new Logger(ValdService.name);
+  private job: PullReport | null = null;
+  private timer: NodeJS.Timeout | null = null;
+  private optionsCache: { at: number; data: any } | null = null;
+  private physicalShownThisRun = new Set<string>();
+
+  constructor(private prisma: PrismaService, private vald: ValdClient, private lifting: LiftingService) {}
+
+  /* ── Automatic pull ────────────────────────────────────────────────── */
+
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test' || !this.vald.isConfigured()) return;
+    const tick = () => void this.autoTick().catch((e) => this.logger.warn(`VALD auto pull: ${e?.message || e}`));
+    setTimeout(tick, 2 * 60_000).unref?.();
+    this.timer = setInterval(tick, 60 * 60_000); // hourly check; pulls every N days
+    this.timer.unref?.();
+  }
+
+  onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
+
+  private async autoTick() {
+    const s = await this.settings();
+    if (!s.auto.enabled || this.job?.running) return;
+    const last = s.auto.lastRunAt ? Date.parse(s.auto.lastRunAt) : NaN;
+    if (!Number.isNaN(last) && Date.now() - last < s.auto.everyDays * DAY) return;
+    const startedAt = new Date();
+    const from = Number.isNaN(last) ? new Date(startedAt.getTime() - s.auto.everyDays * DAY) : new Date(last);
+    const report = await this.run('auto', s.auto, from, startedAt);
+    if (!report.error) {
+      const fresh = await this.settings();
+      fresh.auto.lastRunAt = startedAt.toISOString();
+      await this.writeSettings(fresh);
+    }
+  }
+
+  /* ── Settings ──────────────────────────────────────────────────────── */
+
+  private async assertEditor(user: JwtPayload) {
+    if (!(await this.lifting.canEdit(user))) throw new ForbiddenException('Only Admins and Lifting editors can manage the VALD import');
+  }
+
+  async settings(): Promise<ImportSettings> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: SETTINGS_KEY } });
+    const base = defaultSettings();
+    if (!row?.value) return base;
+    try {
+      const raw = JSON.parse(row.value);
+      return {
+        manual: { ...base.manual, ...cleanFilters(raw?.manual), from: DAY_RE.test(raw?.manual?.from) ? raw.manual.from : base.manual.from, to: DAY_RE.test(raw?.manual?.to) ? raw.manual.to : base.manual.to },
+        auto: {
+          ...base.auto, ...cleanFilters(raw?.auto),
+          enabled: raw?.auto?.enabled === true,
+          everyDays: Number.isInteger(raw?.auto?.everyDays) && raw.auto.everyDays >= 1 && raw.auto.everyDays <= 90 ? raw.auto.everyDays : 14,
+          lastRunAt: typeof raw?.auto?.lastRunAt === 'string' ? raw.auto.lastRunAt : null,
+        },
+      };
+    } catch { return base; }
+  }
+
+  private async writeSettings(s: ImportSettings) {
+    const value = JSON.stringify(s);
+    await this.prisma.appSetting.upsert({ where: { key: SETTINGS_KEY }, create: { key: SETTINGS_KEY, value }, update: { value } });
+  }
+
+  async saveSettings(raw: any, user: JwtPayload) {
+    await this.assertEditor(user);
+    const cur = await this.settings();
+    const next: ImportSettings = {
+      manual: {
+        ...cleanFilters(raw?.manual ?? cur.manual),
+        from: DAY_RE.test(raw?.manual?.from) ? raw.manual.from : cur.manual.from,
+        to: DAY_RE.test(raw?.manual?.to) ? raw.manual.to : cur.manual.to,
+      },
+      auto: {
+        ...cleanFilters(raw?.auto ?? cur.auto),
+        enabled: typeof raw?.auto?.enabled === 'boolean' ? raw.auto.enabled : cur.auto.enabled,
+        everyDays: Number.isInteger(raw?.auto?.everyDays) && raw.auto.everyDays >= 1 && raw.auto.everyDays <= 90 ? raw.auto.everyDays : cur.auto.everyDays,
+        lastRunAt: cur.auto.lastRunAt,
+      },
+    };
+    if (next.manual.from > next.manual.to) throw new BadRequestException('The start date is after the end date');
+    await this.writeSettings(next);
+    return this.status(user);
+  }
+
+  async status(user: JwtPayload) {
+    await this.assertEditor(user);
+    const s = await this.settings();
+    const lastRow = await this.prisma.appSetting.findUnique({ where: { key: LAST_KEY } });
+    let last: PullReport | null = null;
+    try { last = lastRow?.value ? JSON.parse(lastRow.value) : null; } catch { last = null; }
+    const nextAuto = s.auto.enabled
+      ? new Date((s.auto.lastRunAt ? Date.parse(s.auto.lastRunAt) : Date.now()) + (s.auto.lastRunAt ? s.auto.everyDays * DAY : 2 * 60_000)).toISOString()
+      : null;
+    return { configured: this.vald.isConfigured(), settings: s, job: this.job, last, nextAutoAt: nextAuto };
+  }
+
+  /* ── What can be filtered on (from VALD) ───────────────────────────── */
+
+  async options(user: JwtPayload, refresh = false) {
+    await this.assertEditor(user);
+    if (!this.vald.isConfigured()) return { configured: false, sports: [], groups: [], tags: [], testTypes: [], athletes: [] };
+    if (!refresh && this.optionsCache && Date.now() - this.optionsCache.at < 30 * 60_000) {
+      return { ...this.optionsCache.data, athletes: await this.athletes() };
+    }
+    const T = this.vald.tenantId;
+    const cats = (await this.vald.get<any>('externaltenants', `/categories?TenantId=${T}`))?.categories ?? [];
+    const groups = (await this.vald.get<any>('externaltenants', `/groups?TenantId=${T}`))?.groups ?? [];
+    const catName = new Map<string, string>(cats.map((c: any) => [c.id, c.name]));
+    const all = groups.map((g: any) => ({ id: g.id, name: g.name, category: catName.get(g.categoryId) ?? '' }))
+      .sort((a: any, b: any) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    /* Tags: the ForceDecks tags used in the last year (VALD has no list). */
+    const tags = new Map<string, { id: string; name: string; type: string }>();
+    let from = new Date(Date.now() - 365 * DAY).toISOString();
+    for (let page = 0; page < 40; page++) {
+      const batch = (await this.vald.get<any>('extforcedecks', `/tests?TenantId=${T}&ModifiedFromUtc=${encodeURIComponent(from)}`))?.tests ?? [];
+      for (const t of batch) for (const a of t.attributes || []) {
+        if (a?.attributeValueId) tags.set(a.attributeValueId, { id: a.attributeValueId, name: a.attributeValueName ?? '', type: a.attributeTypeName ?? 'Tag' });
+      }
+      if (batch.length < 50) break;
+      const last = batch[batch.length - 1].modifiedDateUtc;
+      if (!last || last === from) break;
+      from = last;
+      await sleep(PAUSE_MS);
+    }
+    const meta = await this.meta();
+    const testTypes = new Map<string, { code: string; label: string; device: string }>();
+    for (const [code, label] of Object.entries(FD_TEST_LABELS)) testTypes.set(code, { code, label, device: 'forcedecks' });
+    for (const code of ['GRIP', 'IR_STANDING', 'IR_9090', 'ER_STANDING', 'ER_9090', 'GRIP_ROM', 'IR_STANDING_ROM', 'IR_9090_ROM', 'ER_STANDING_ROM', 'ER_9090_ROM']) {
+      testTypes.set(code, { code, label: dynamoTestLabel(code), device: 'dynamo' });
+    }
+    for (const [code, t] of Object.entries(meta.tests)) {
+      if (!testTypes.has(code)) testTypes.set(code, { code, label: t.label, device: t.source === 'vald:dynamo' ? 'dynamo' : 'forcedecks' });
+    }
+    const data = {
+      configured: true,
+      sports: all.filter((g: any) => g.category === 'Sport'),
+      groups: all.filter((g: any) => g.category !== 'Sport'),
+      tags: [...tags.values()].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
+      testTypes: [...testTypes.values()].sort((a, b) => a.device.localeCompare(b.device) || a.label.localeCompare(b.label)),
+    };
+    this.optionsCache = { at: Date.now(), data };
+    return { ...data, athletes: await this.athletes() };
+  }
+
+  private async athletes() {
+    const rows = await this.prisma.player.findMany({ select: { id: true, firstName: true, lastName: true }, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] });
+    return rows.map((r) => ({ id: r.id, name: `${r.firstName} ${r.lastName}`.trim() }));
+  }
+
+  /* ── Pull ──────────────────────────────────────────────────────────── */
+
+  /** PULL button: saves what was chosen as the manual settings, then pulls in the background. */
+  async startManualPull(raw: any, user: JwtPayload) {
+    await this.assertEditor(user);
+    if (!this.vald.isConfigured()) throw new BadRequestException('VALD is not connected');
+    if (this.job?.running) throw new ConflictException('A VALD pull is already running');
+    const saved = await this.saveSettings({ manual: raw, auto: undefined }, user);
+    const m = saved.settings.manual;
+    const from = new Date(`${m.from}T00:00:00.000Z`);
+    const to = new Date(new Date(`${m.to}T00:00:00.000Z`).getTime() + DAY); // whole end day
+    void this.run('manual', m, from, to).catch((e) => this.logger.warn(`VALD pull failed: ${e?.message || e}`));
+    return this.status(user);
+  }
+
+  /**
+   * A NEW VALD session for an athlete turns their profile's Physical tab on
+   * (where the Lifting Report lives) -- it starts hidden for every athlete.
+   * Pulling the same session again doesn't, so a coach who hides the tab
+   * afterwards keeps it hidden until a new session arrives. Returns true
+   * when the tab was turned on.
+   */
+  private async showPhysicalTab(playerId: string): Promise<boolean> {
+    if (this.physicalShownThisRun.has(playerId)) return false;
+    this.physicalShownThisRun.add(playerId);
+    const p = await this.prisma.player.findUnique({ where: { id: playerId }, select: { hiddenTabs: true } });
+    if (!p) return false;
+    let hidden: string[];
+    try {
+      const parsed = p.hiddenTabs ? JSON.parse(p.hiddenTabs) : null;
+      hidden = Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === 'string') : [...DEFAULT_HIDDEN_TABS];
+    } catch { hidden = [...DEFAULT_HIDDEN_TABS]; }
+    if (!hidden.includes('strength')) return false;
+    await this.prisma.player.update({ where: { id: playerId }, data: { hiddenTabs: JSON.stringify(hidden.filter((t) => t !== 'strength')) } });
+    return true;
+  }
+
+  private async meta(): Promise<ValdMeta> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: META_KEY } });
+    try { const m = row?.value ? JSON.parse(row.value) : null; if (m?.tests) return m; } catch { /* fresh */ }
+    return { tests: {} };
+  }
+
+  private async run(kind: 'manual' | 'auto', f: ValdFilters, from: Date, to: Date): Promise<PullReport> {
+    const report: PullReport = {
+      kind, from: from.toISOString(), to: to.toISOString(), startedAt: new Date().toISOString(), finishedAt: null,
+      running: true, phase: 'Signing in to VALD', added: 0, replaced: 0, filteredOut: 0, physicalShown: 0, unmatched: [], error: null,
+    };
+    this.job = report;
+    this.physicalShownThisRun = new Set();
+    const T = this.vald.tenantId;
+    const newMeta: Record<string, TestMeta> = {};
+    const unmatched = new Map<string, PullReport['unmatched'][number]>();
+    try {
+      /* Athletes: VALD profiles -> roster. */
+      report.phase = 'Matching VALD athletes';
+      const roster: RosterPlayer[] = await this.prisma.player.findMany({ select: { id: true, firstName: true, lastName: true, birthDate: true, athleteCode: true } });
+      const profiles: ValdProfile[] = (await this.vald.get<any>('externalprofile', `/profiles?TenantId=${T}`))?.profiles ?? [];
+      const profileById = new Map(profiles.map((p) => [p.profileId, p]));
+      const matches = new Map<string, MatchResult>(profiles.map((p) => [p.profileId, matchProfile(p, roster)]));
+
+      /* Sports / groups: athlete in any chosen sport AND any chosen group. */
+      const members = async (groupIds: string[]) => {
+        const set = new Set<string>();
+        for (const g of groupIds) {
+          const list = (await this.vald.get<any>('externalprofile', `/profiles?TenantId=${T}&GroupId=${g}`))?.profiles ?? [];
+          for (const p of list) set.add(p.profileId);
+          await sleep(PAUSE_MS);
+        }
+        return set;
+      };
+      const inSport = f.sportIds.length ? await members(f.sportIds) : null;
+      const inGroup = f.groupIds.length ? await members(f.groupIds) : null;
+      const chosenPlayers = f.playerIds.length ? new Set(f.playerIds) : null;
+      const allowedProfile = (profileId: string) => {
+        if (inSport && !inSport.has(profileId)) return false;
+        if (inGroup && !inGroup.has(profileId)) return false;
+        if (chosenPlayers) {
+          const m = matches.get(profileId);
+          if (!m?.playerId || !chosenPlayers.has(m.playerId)) return false;
+        }
+        return true;
+      };
+      const noteUnmatched = (profileId: string) => {
+        const m = matches.get(profileId);
+        const p = profileById.get(profileId);
+        const entry = unmatched.get(profileId) ?? {
+          name: p ? `${p.givenName ?? ''} ${p.familyName ?? ''}`.trim() || 'Unnamed VALD athlete' : 'Unknown VALD athlete',
+          birthday: p?.dateOfBirth ? String(p.dateOfBirth).slice(0, 10) : null,
+          reason: m && m.playerId === null ? m.reason : 'no-match',
+          tests: 0,
+        };
+        entry.tests += 1;
+        unmatched.set(profileId, entry);
+      };
+      const save = async (source: string, externalId: string, playerId: string, testType: string, recordedAt: Date, metrics: Record<string, number>) => {
+        const existing = await this.prisma.liftingTest.findUnique({ where: { source_externalId: { source, externalId } }, select: { id: true } });
+        const data = { playerId, testType, recordedAt, metrics: JSON.stringify(metrics) };
+        if (existing) {
+          await this.prisma.liftingTest.update({ where: { id: existing.id }, data });
+          report.replaced += 1;
+        } else {
+          await this.prisma.liftingTest.create({ data: { ...data, source, externalId } });
+          report.added += 1;
+          if (await this.showPhysicalTab(playerId)) report.physicalShown += 1;
+        }
+      };
+      const excluded = new Set(f.excludedTestTypes);
+
+      /* ForceDecks. */
+      if (f.devices.includes('forcedecks')) {
+        report.phase = 'Reading ForceDecks tests';
+        const defsRaw = (await this.vald.get<any>('extforcedecks', '/resultdefinitions'))?.resultDefinitions ?? [];
+        const defs = new Map<string, FdResultDef>(defsRaw.map((d: FdResultDef) => [d.resultIdString, d]));
+        const tests: any[] = [];
+        const seen = new Set<string>();
+        let cursor = from.toISOString();
+        for (let page = 0; page < 400; page++) {
+          const batch = (await this.vald.get<any>('extforcedecks', `/tests?TenantId=${T}&ModifiedFromUtc=${encodeURIComponent(cursor)}`))?.tests ?? [];
+          let fresh = 0;
+          for (const t of batch) if (!seen.has(t.testId)) { seen.add(t.testId); tests.push(t); fresh++; }
+          if (batch.length < 50 || !fresh) break;
+          const last = batch[batch.length - 1].modifiedDateUtc;
+          if (!last || last === cursor) break;
+          cursor = last;
+          await sleep(PAUSE_MS);
+        }
+        const inRange = tests.filter((t) => {
+          const at = Date.parse(t.recordedDateUtc);
+          return at >= from.getTime() && at < to.getTime();
+        });
+        let n = 0;
+        for (const t of inRange) {
+          n += 1;
+          report.phase = `ForceDecks ${n} of ${inRange.length}`;
+          const code = String(t.testType || '').toUpperCase().slice(0, 30);
+          if (!code || excluded.has(code) || !allowedProfile(t.profileId) || !passesTags(t.attributes, f.tagIds)) { report.filteredOut += 1; continue; }
+          const m = matches.get(t.profileId);
+          if (!m?.playerId) { noteUnmatched(t.profileId); continue; }
+          const trials = (await this.vald.get<any[]>('extforcedecks', `/v2019q3/teams/${T}/tests/${t.testId}/trials`)) ?? [];
+          const { metrics, meta } = aggregateForceDecks(trials, defs);
+          if (Object.keys(metrics).length) {
+            await save('vald:forcedecks', t.testId, m.playerId, code, new Date(t.recordedDateUtc), metrics);
+            const tm = newMeta[code] ?? (newMeta[code] = { label: FD_TEST_LABELS[code] ?? code, source: 'vald:forcedecks', metrics: {} });
+            Object.assign(tm.metrics, meta);
+          }
+          await sleep(PAUSE_MS);
+        }
+      }
+
+      /* DynaMo (no tags -- pulled whatever tags are chosen). */
+      if (f.devices.includes('dynamo')) {
+        report.phase = 'Reading DynaMo tests';
+        const q = `testFromUTC=${encodeURIComponent(from.toISOString())}&testToUTC=${encodeURIComponent(to.toISOString())}&includeRepSummaries=true`;
+        for (let page = 1; page <= 200; page++) {
+          const j = await this.vald.get<any>('extdynamo', `/v2022q2/teams/${T}/tests?${q}&page=${page}`);
+          const items: any[] = j?.items ?? [];
+          for (const t of items) {
+            const { code, metrics, meta } = aggregateDynamo(t);
+            if (excluded.has(code) || !allowedProfile(t.athleteId)) { report.filteredOut += 1; continue; }
+            const m = matches.get(t.athleteId);
+            if (!m?.playerId) { noteUnmatched(t.athleteId); continue; }
+            if (!Object.keys(metrics).length) continue;
+            await save('vald:dynamo', t.id, m.playerId, code, new Date(t.startTimeUTC || t.analysedDateUTC), metrics);
+            const tm = newMeta[code] ?? (newMeta[code] = { label: dynamoTestLabel(code), source: 'vald:dynamo', metrics: {} });
+            Object.assign(tm.metrics, meta);
+          }
+          report.phase = `DynaMo page ${page}`;
+          if (!items.length || (j?.totalPages && page >= j.totalPages)) break;
+          await sleep(PAUSE_MS);
+        }
+      }
+
+      /* VALD's names / units for the box editor. */
+      if (Object.keys(newMeta).length) {
+        const meta = await this.meta();
+        for (const [code, tm] of Object.entries(newMeta)) {
+          const cur = meta.tests[code] ?? { label: tm.label, source: tm.source, metrics: {} };
+          cur.label = tm.label;
+          Object.assign(cur.metrics, tm.metrics);
+          meta.tests[code] = cur;
+        }
+        const value = JSON.stringify(meta);
+        await this.prisma.appSetting.upsert({ where: { key: META_KEY }, create: { key: META_KEY, value }, update: { value } });
+      }
+      report.phase = 'Done';
+    } catch (e: any) {
+      report.error = e?.message || String(e);
+      report.phase = 'Stopped';
+      this.logger.warn(`VALD ${kind} pull stopped: ${report.error}`);
+    } finally {
+      report.unmatched = [...unmatched.values()].sort((a, b) => b.tests - a.tests || a.name.localeCompare(b.name));
+      report.running = false;
+      report.finishedAt = new Date().toISOString();
+      const value = JSON.stringify(report);
+      await this.prisma.appSetting.upsert({ where: { key: LAST_KEY }, create: { key: LAST_KEY, value }, update: { value } }).catch(() => undefined);
+      this.logger.log(`VALD ${kind} pull: ${report.added} added, ${report.replaced} replaced, ${report.unmatched.length} unmatched athletes${report.error ? ` (error: ${report.error})` : ''}`);
+    }
+    return report;
+  }
+}
