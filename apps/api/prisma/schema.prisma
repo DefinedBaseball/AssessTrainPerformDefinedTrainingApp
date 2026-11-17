@@ -33,6 +33,8 @@ model User {
   // Null on a legacy coach is treated as ADMIN for backward-compat (the guard
   // applies that default); new coaches always get an explicit level.
   coachLevel        String?
+  /// Coach may edit the Lifting Dashboard layout (Admins always can).
+  liftingEditor     Boolean  @default(false)
   // Per-subject notification channel matrix as JSON:
   //   { "<SUBJECT>": { "app": bool, "email": bool, "phone": bool }, … }
   // Missing subject/channel ⇒ default (app on, email on, phone off). Only the
@@ -206,6 +208,8 @@ model Player {
   athleteCode      String?
   integrationLinks IntegrationAthleteLink[]
   movePaths        MovePath[]
+  liftingTests     LiftingTest[]
+  liftingLayout    LiftingLayout?
   pbrNational      Int?
   pbrState         Int?
   pbrPosition      Int?
@@ -1341,4 +1345,40 @@ model MovePath {
   fetchedAt  DateTime @default(now())
 
   @@index([playerId])
+}
+
+/// One Lifting Dashboard test result (VALD ForceDecks / DynaMo, or typed in
+/// by a coach -- e.g. med ball velocity). Metrics live under the dashboard's
+/// own keys (apps/api/src/modules/lifting/lifting-catalog.ts) as JSON.
+model LiftingTest {
+  id          String   @id @default(uuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// "manual" | "vald:forcedecks" | "vald:dynamo"
+  source      String
+  /// The partner's id for the test (VALD); null for typed results.
+  externalId  String?
+  /// Catalog test code: CMJ, SJ, PLYO_PUSHUP, PUSHUP, GRIP, IR, ER, MEDBALL...
+  testType    String
+  recordedAt  DateTime
+  /// JSON { metricKey: number }
+  metrics     String
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@unique([source, externalId])
+  @@index([playerId, testType, recordedAt])
+}
+
+/// An athlete's own Lifting Dashboard layout (Settings -> Lifting ->
+/// Athlete Dashboards). Replaces the default layout for that athlete;
+/// deleting the row puts them back on the default.
+model LiftingLayout {
+  playerId    String   @id
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  /// JSON LiftingConfig (validated by validateLiftingConfig)
+  config      String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
 }

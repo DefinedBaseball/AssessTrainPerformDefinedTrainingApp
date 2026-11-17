@@ -150,6 +150,21 @@ const NAV_ITEMS: NavItem[] = [
        longer surfaced from the sidebar. */
     children: [
       {
+        href: '/lifting',
+        label: 'Lifting',
+        coachOnly: true,
+        // Barbell: bar with two plates each side
+        icon: (
+          <svg viewBox="0 0 24 24">
+            <path d="M6 8v8" />
+            <path d="M3.5 10v4" />
+            <path d="M18 8v8" />
+            <path d="M20.5 10v4" />
+            <path d="M6 12h12" />
+          </svg>
+        ),
+      },
+      {
         href: '/program',
         label: 'Program',
         coachOnly: true,
@@ -192,7 +207,7 @@ const PARENT_NAV: NavItem[] = [
    still render in the desktop rail — the bottom-bar CSS hides them there
    (`[data-in-more='1']`) and the sheet carries them instead, so nothing is
    duplicated on any one screen. */
-const MOVES_TO_MORE = new Set(['/analytics', '/program']);
+const MOVES_TO_MORE = new Set(['/analytics', '/lifting', '/program']);
 
 export function Sidebar() {
   const pathname = usePathname();

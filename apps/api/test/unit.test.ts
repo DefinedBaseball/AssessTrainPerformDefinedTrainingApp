@@ -17,6 +17,7 @@ import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-par
 import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
+import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
 
 interface TestResult {
   name: string;
@@ -479,6 +480,76 @@ async function moveSessionTests() {
   });
 }
 
+
+// ─── Lifting Dashboard layout ───────────────────────────────────────────
+
+async function liftingTests() {
+  await test('Lifting: default layout is valid and matches the strength coach list', () => {
+    const d = defaultLiftingConfig();
+    const v = validateLiftingConfig(d);
+    assertEqual(v.bubbles.map((b) => b.title).join(','), 'CMJ,SJ,Plyo Push-up,Push-up,Grip Strength,IR,ER,6 lb Med Ball', 'bubble order');
+    assertEqual(v.bubbles[0].kpis.length, 4, 'CMJ has 4 KPIs');
+    const ratio = v.bubbles.find((b) => b.id === 'er')!.kpis.find((k) => k.ratio);
+    assert(!!ratio && ratio.ratio!.den.test === 'IR', 'ER:IR ratio kept');
+    for (const b of v.bubbles) {
+      const cat = LIFTING_CATALOG.find((t) => t.code === b.test);
+      assert(!!cat, `catalog has ${b.test}`);
+      for (const k of b.kpis) if (k.metric) assert(cat!.metrics.some((m) => m.key === k.metric), `${b.test}.${k.metric} in catalog`);
+    }
+  });
+
+  await test('Lifting: layout edits are checked', () => {
+    expectThrows(() => validateLiftingConfig({ bubbles: 'x' }), 'no list');
+    expectThrows(() => validateLiftingConfig({ bubbles: [{ title: '', test: 'CMJ', kpis: [{ label: 'a', metric: 'x' }] }] }), 'no name');
+    expectThrows(() => validateLiftingConfig({ bubbles: [{ title: 'A', test: 'cm j!', kpis: [{ label: 'a', metric: 'x' }] }] }), 'bad test');
+    expectThrows(() => validateLiftingConfig({ bubbles: [{ title: 'A', test: 'CMJ', kpis: [] }] }), 'no boxes');
+    expectThrows(() => validateLiftingConfig({ bubbles: [{ title: 'A', test: 'CMJ', kpis: [{ label: 'a', metric: '1bad' }] }] }), 'bad metric');
+    const ok = validateLiftingConfig({ bubbles: [{ title: ' Jump ', test: 'cmj', kpis: [{ label: 'JH', metric: 'jumpHeight', digits: 9, factor: -1, better: 'up' }] }] });
+    assertEqual(ok.bubbles[0].test, 'CMJ', 'test code upper-cased');
+    assertEqual(ok.bubbles[0].title, 'Jump', 'name trimmed');
+    assertEqual(ok.bubbles[0].kpis[0].digits, 1, 'bad digits -> 1');
+    assertEqual(ok.bubbles[0].kpis[0].factor, 1, 'bad factor -> 1');
+    assertEqual(ok.bubbles[0].kpis[0].better, null, 'bad direction -> none');
+  });
+
+  await test('Lifting: anything saved results hold can be picked', () => {
+    for (const t of LIFTING_CATALOG) {
+      assertEqual(new Set(t.metrics.map((m) => m.key)).size, t.metrics.length, `${t.code} has no duplicate keys`);
+    }
+    const seen = new Map<string, Set<string>>([
+      ['CMJ', new Set(['jumpHeight', 'lowerLimbStiffnessX'])],
+      ['ISO_SQUAT', new Set(['peakForce', 'rfd0to100msLeft'])],
+    ]);
+    const merged = mergeCatalog(LIFTING_CATALOG, seen);
+    const cmj = merged.find((t) => t.code === 'CMJ')!;
+    assertEqual(cmj.metrics.filter((m) => m.key === 'jumpHeight').length, 1, 'known metric not repeated');
+    assertEqual(cmj.metrics[cmj.metrics.length - 1].key, 'lowerLimbStiffnessX', 'new metric added at the end');
+    const iso = merged.find((t) => t.code === 'ISO_SQUAT')!;
+    assertEqual(iso.label, 'Iso Squat', 'new test named');
+    assertEqual(iso.source, 'other', 'new test marked other');
+    assertEqual(LIFTING_CATALOG.find((t) => t.code === 'CMJ')!.metrics.some((m) => m.key === 'lowerLimbStiffnessX'), false, 'base catalog untouched');
+    assertEqual(humanizeMetricKey('eccentricBrakingRfdLeft'), 'Eccentric Braking RFD (Left)', 'side + acronym');
+    assertEqual(humanizeMetricKey('peakPowerAsym'), 'Peak Power Asymmetry', 'asymmetry');
+    assertEqual(humanizeMetricKey('rfd0to100ms'), 'RFD 0 to 100 ms', 'digits split');
+    assertEqual(humanizeTestCode('SHOULDER_IR'), 'Shoulder IR', 'test code');
+  });
+
+  await test('Lifting: many-athlete changes need a clean list', () => {
+    assertEqual(validatePlayerIds([' a1 ', 'a1', 'b-2', 7]).join(','), 'a1,b-2', 'trimmed, de-duplicated, non-strings dropped');
+    expectThrows(() => validatePlayerIds([]), 'empty');
+    expectThrows(() => validatePlayerIds('a1'), 'not a list');
+    expectThrows(() => validatePlayerIds(['a b']), 'bad id');
+    expectThrows(() => validatePlayerIds(Array.from({ length: 301 }, (_, i) => `p${i}`)), 'too many');
+  });
+
+  await test('Lifting: typed results need real numbers', () => {
+    assertEqual(JSON.stringify(validateMetrics({ velocity: '62.5', blank: '' })), '{"velocity":62.5}', 'string number kept, blank skipped');
+    expectThrows(() => validateMetrics({}), 'nothing entered');
+    expectThrows(() => validateMetrics({ velocity: 'fast' }), 'not a number');
+    expectThrows(() => validateMetrics({ 'bad key': 1 }), 'bad key');
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -492,6 +563,7 @@ async function run() {
   await sendLimiterTests();
   await ownershipTests();
   await moveSessionTests();
+  await liftingTests();
 
   console.log('\n' + '='.repeat(60));
   for (const r of results) {

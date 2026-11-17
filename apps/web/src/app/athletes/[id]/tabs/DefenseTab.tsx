@@ -1,5 +1,6 @@
 'use client';
 
+import { MoveLogo } from '@/components/brand/VendorLogos';
 import { rem } from '@/lib/rem';
 import { PendingVideoCards, useUploadQueue } from '@/lib/upload-queue';
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -1547,8 +1548,10 @@ function SnapPane({ title, hint, children, style }: {
   );
 }
 
-function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, body, coachGrades, notes, headerRightSlot }: {
+function SnapshotBubble({ title, titleLogo, subtitle, leftPane, middle, rightPane, body, coachGrades, notes, headerRightSlot }: {
   title: string;
+  /** Data provider's mark right after the title (MOVE on Catching). */
+  titleLogo?: React.ReactNode;
   subtitle?: string;
   leftPane?: { title: string; hint: string; node: React.ReactNode };
   /** Optional bubble of its own between the two panes. When set the row
@@ -1576,7 +1579,7 @@ function SnapshotBubble({ title, subtitle, leftPane, middle, rightPane, body, co
            sits above its first inner row. */
         style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10, borderRadius: 28, boxShadow: 'var(--report-outer-shadow)' }}
       >
-        <SectionHeader title={title} subtitle={subtitle} rightSlot={headerRightSlot} />
+        <SectionHeader title={title} titleLogo={titleLogo} subtitle={subtitle} rightSlot={headerRightSlot} />
         {body ?? (
           /* Column template lives in page.module.css (.snapRow3 / .snapRow2)
              so it can collapse on narrow screens. `alignItems: stretch`
@@ -2124,7 +2127,7 @@ export function CatchingSubTab({
           {/* Header exists purely to carry the report selector: without a
               catching assessment there is no report bubble to host it, and
               the coach still needs to switch reports or add one. */}
-          <SectionHeader title="Catching Report"
+          <SectionHeader title="Catching Report" titleLogo={<MoveLogo />}
             rightSlot={headerControls} />
           <div className={styles.emptyMsg}>
             <div style={{ fontSize: rem(32), marginBottom: 8, opacity: 0.5 }}>
@@ -2158,6 +2161,7 @@ export function CatchingSubTab({
           <div data-pdf-section="catching-snapshot">
           <SnapshotBubble
             title="Catching Report"
+            titleLogo={<MoveLogo />}
             headerRightSlot={headerControls}
             /* Two rows (grid areas in page.module.css .catchGrid):
                  Receiving Heat Map · Receiving (MOVE metrics + Coaches Grade) · 3D Glove Path

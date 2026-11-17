@@ -10,7 +10,7 @@ import {
   AreaChart, Area,
 } from 'recharts';
 import {
-  TabBarActions, EditProfileButton, ReportSelector, DownloadPdfButton, VideoPlayerModal, VideoBundleCard,
+  TabBarActions, TabBarSub, EditProfileButton, ReportSelector, DownloadPdfButton, VideoPlayerModal, VideoBundleCard,
 } from '@/components/assessment';
 import { usePdfExport } from '@/components/PdfExportDialog';
 import {
@@ -2044,6 +2044,90 @@ export function PlayerSummaryTab({
   // MetricTrendPanel below renders progressData directly with its own
   // dropdown for metric selection.)
 
+  /* Overview / Trends / Stats buttons (docked in the tab bar, or in the
+     standalone bubble on the Dashboard -- see TabBarSub below). */
+  const summarySubTabButtons = (
+    <>
+      {[
+        { key: 'current' as const, label: 'Overview' },
+        { key: 'trends'  as const, label: 'Trends' },
+        { key: 'stats'   as const, label: 'Stats' },
+      ].map((t) => {
+        const active = summarySubTab === t.key;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setSummarySubTab(t.key)}
+            style={{
+              /* Same chrome model as the global Player Summary
+                 TabBar (`.tabBtn` / `.tabActive`) and the Hitting
+                 Snapshot's Swing / Swing Decision toggle: muted
+                 inactive color, bright white active color, white-
+                 gradient-with-glow underline pinned to the bottom.
+                 Typography matches `.panelTitle` (the "Tool Grades"
+                 header style) — italic display font, 23px, weight
+                 600 — so these sub-tab labels read in the same
+                 voice as the section titles below them. */
+              flex: 1,
+              position: 'relative',
+              padding: '10px 16px',
+              /* Selected tab: a solid fill that fades out at its sides into
+                 the bar's lined surface (a themed page sets
+                 --subtab-active-bg); unselected tabs stay clear so the
+                 bar's lines show through. Fallback = the original. */
+              background: active ? 'var(--subtab-active-bg, transparent)' : 'transparent',
+              border: 'none',
+              borderRadius: 10,
+              /* --subtab-active-text lets a themed page darken the selected
+                 label (the profile does in light theme). */
+              color: active ? 'var(--subtab-active-text, var(--text))' : 'var(--text-muted)',
+              fontFamily: 'var(--font-display)',
+              /* Trimmed 23 → 13.8 (a 40% reduction) so the
+                 sub-tab labels sit as understated nav elements
+                 rather than competing with the section titles
+                 (`.panelTitle`) below at 23px. Same italic display
+                 voice, just smaller. */
+              fontSize: rem(13.8),
+              fontWeight: 600,
+              fontStyle: 'italic',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.05,
+              textTransform: 'none',
+              cursor: 'pointer',
+              transition: 'color 0.15s ease',
+            }}
+          >
+            {t.label}
+            {/* Active underline — fade-in/fade-out gradient whose
+                center color uses `var(--tool-grades-line)` so the
+                underline reads at the SAME color as the Tool
+                Grades title hairline (white 23 % in dark theme,
+                black 18 % in light theme). The transparent ends
+                preserve the soft-edge bar look the design had
+                with the original hardcoded white gradient. */}
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: 12,
+                right: 12,
+                bottom: 2,
+                height: 2,
+                borderRadius: '2px 2px 0 0',
+                background: active
+                  ? 'linear-gradient(90deg, transparent, var(--tool-grades-line) 50%, transparent)'
+                  : 'transparent',
+                boxShadow: active ? '0 0 12px rgba(255,255,255,0.5)' : 'none',
+                transition: 'background 0.15s ease, box-shadow 0.15s ease',
+              }}
+            />
+          </button>
+        );
+      })}
+    </>
+  );
+
   return (
     <div className={`${styles.root}${dense ? ' ' + styles.rootDense : ''}`}>
       {/* ── Tab actions: Reports dropdown (per-report download, with "+ Report"
@@ -2111,85 +2195,14 @@ export function PlayerSummaryTab({
           rest of the bubble system. Inline-styled originally; the
           inline style couldn't be overridden via CSS so it stayed
           dark-navy on light mode. */}
-      <div className={styles.subTabBar}>
-        {[
-          { key: 'current' as const, label: 'Overview' },
-          { key: 'trends'  as const, label: 'Trends' },
-          { key: 'stats'   as const, label: 'Stats' },
-        ].map((t) => {
-          const active = summarySubTab === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setSummarySubTab(t.key)}
-              style={{
-                /* Same chrome model as the global Player Summary
-                   TabBar (`.tabBtn` / `.tabActive`) and the Hitting
-                   Snapshot's Swing / Swing Decision toggle: muted
-                   inactive color, bright white active color, white-
-                   gradient-with-glow underline pinned to the bottom.
-                   Typography matches `.panelTitle` (the "Tool Grades"
-                   header style) — italic display font, 23px, weight
-                   600 — so these sub-tab labels read in the same
-                   voice as the section titles below them. */
-                flex: 1,
-                position: 'relative',
-                padding: '10px 16px',
-                /* Selected tab: a solid fill that fades out at its sides into
-                   the bar's lined surface (a themed page sets
-                   --subtab-active-bg); unselected tabs stay clear so the
-                   bar's lines show through. Fallback = the original. */
-                background: active ? 'var(--subtab-active-bg, transparent)' : 'transparent',
-                border: 'none',
-                borderRadius: 10,
-                /* --subtab-active-text lets a themed page darken the selected
-                   label (the profile does in light theme). */
-                color: active ? 'var(--subtab-active-text, var(--text))' : 'var(--text-muted)',
-                fontFamily: 'var(--font-display)',
-                /* Trimmed 23 → 13.8 (a 40% reduction) so the
-                   sub-tab labels sit as understated nav elements
-                   rather than competing with the section titles
-                   (`.panelTitle`) below at 23px. Same italic display
-                   voice, just smaller. */
-                fontSize: rem(13.8),
-                fontWeight: 600,
-                fontStyle: 'italic',
-                letterSpacing: '-0.025em',
-                lineHeight: 1.05,
-                textTransform: 'none',
-                cursor: 'pointer',
-                transition: 'color 0.15s ease',
-              }}
-            >
-              {t.label}
-              {/* Active underline — fade-in/fade-out gradient whose
-                  center color uses `var(--tool-grades-line)` so the
-                  underline reads at the SAME color as the Tool
-                  Grades title hairline (white 23 % in dark theme,
-                  black 18 % in light theme). The transparent ends
-                  preserve the soft-edge bar look the design had
-                  with the original hardcoded white gradient. */}
-              <span
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  left: 12,
-                  right: 12,
-                  bottom: 2,
-                  height: 2,
-                  borderRadius: '2px 2px 0 0',
-                  background: active
-                    ? 'linear-gradient(90deg, transparent, var(--tool-grades-line) 50%, transparent)'
-                    : 'transparent',
-                  boxShadow: active ? '0 0 12px rgba(255,255,255,0.5)' : 'none',
-                  transition: 'background 0.15s ease, box-shadow 0.15s ease',
-                }}
-              />
-            </button>
-          );
-        })}
-      </div>
+      {/* Docked INTO the Player Name bubble under the Player Summary /
+          Hitting / ... tabs (TabBarSub portals into the tab bar's second
+          row), like the Physical tab's Lifting Report / Mobility Screen.
+          The athlete's own Dashboard has no tab bar, so there it falls
+          back to the standalone .subTabBar bubble. */}
+      <TabBarSub fallback={<div className={styles.subTabBar}>{summarySubTabButtons}</div>}>
+        <div style={{ display: 'flex', gap: 4, width: '100%' }}>{summarySubTabButtons}</div>
+      </TabBarSub>
 
       {summarySubTab === 'stats' ? (
         <SeasonStatsSection player={player} onSaved={onRefresh} />

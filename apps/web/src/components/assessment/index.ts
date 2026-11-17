@@ -3,7 +3,7 @@ export { SectionHeader, Section } from './SectionHeader';
 export { ScoreBar } from './ScoreBar';
 export { ScalePips } from './ScalePips';
 export { NotesBox } from './NotesBox';
-export { TabBar, TabPanel, TabBarActions } from './TabBar';
+export { TabBar, TabPanel, TabBarActions, TabBarSub } from './TabBar';
 export type { Tab } from './TabBar';
 export { VideoPlaceholder } from './VideoPlaceholder';
 export { VideoBundleCard } from './VideoBundleCard';

@@ -46,7 +46,10 @@ export function useCanUploadReportVideo(playerId: string | null | undefined): bo
 
 /* Chip-sized header control, matching the resting Live Results button and
    the report date chip it sits beside. */
-const headerChipStyle: React.CSSProperties = {
+/** Small chip button beside a report's date (Upload / Edit); shared with
+ *  the Lifting Report's header buttons so every report header is the same
+ *  height. */
+export const headerChipStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,

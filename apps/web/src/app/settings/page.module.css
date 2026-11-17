@@ -833,3 +833,7 @@
     box-sizing: border-box;
   }
 }
+
+/* Settings -> Lifting: layout-editor fields fit their grid cell (the
+   default .input keeps a 220px minimum, which overflows narrow cells). */
+.liftingEditor .input { min-width: 0; width: 100%; box-sizing: border-box; }

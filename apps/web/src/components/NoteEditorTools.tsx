@@ -39,7 +39,10 @@ function useRememberedSelection(editorRef: EditorRef) {
   return useCallback((): HTMLDivElement | null => {
     const el = editorRef.current;
     if (!el) return null;
-    el.focus();
+    /* Only focus when it isn't already: on iPad every focus() can bring the
+       keyboard back up and re-lay the page out (dictation calls this per
+       spoken phrase). */
+    if (document.activeElement !== el) el.focus();
     const sel = document.getSelection();
     if (!sel) return el;
     const current = sel.rangeCount ? sel.getRangeAt(0) : null;
@@ -199,6 +202,13 @@ export function DictationButton({
   const [interim, setInterim] = useState('');
   const [error, setError] = useState('');
   const recRef = useRef<Recognition | null>(null);
+  /* How many of this session's results have been inserted. iPad / iPhone
+     Safari re-sends EVERY earlier result with each new one and reports
+     resultIndex 0, so trusting resultIndex inserted the whole transcript
+     again each time -- the text multiplied and every insert re-rendered the
+     report tab, which froze iPads. Counting ourselves inserts each phrase
+     exactly once (Chrome / Edge behave the same either way). */
+  const finalsDoneRef = useRef(0);
   const restore = useRememberedSelection(editorRef);
   const insertedRef = useRef(onInserted);
   insertedRef.current = onInserted;
@@ -232,13 +242,28 @@ export function DictationButton({
     rec.continuous = true;
     rec.interimResults = true;
     rec.lang = (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+    finalsDoneRef.current = 0;
     rec.onresult = (e: any) => {
+      const results = e?.results;
+      if (!results) return;
+      /* Results 0..finalsDone-1 are already in the note. New finished ones
+         are inserted together (one insert, one save, per event); anything
+         still being spoken shows as the interim preview. */
+      let fresh = '';
       let pending = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) insert(r[0].transcript);
-        else pending += r[0].transcript;
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        const text = r?.[0]?.transcript ?? '';
+        if (r?.isFinal) {
+          if (i >= finalsDoneRef.current) {
+            fresh += (fresh && text && !/^\s/.test(text) ? ' ' : '') + text;
+            finalsDoneRef.current = i + 1;
+          }
+        } else if (i >= finalsDoneRef.current) {
+          pending += text;
+        }
       }
+      if (fresh.trim()) insert(fresh);
       setInterim(pending);
     };
     rec.onerror = (e: any) => {

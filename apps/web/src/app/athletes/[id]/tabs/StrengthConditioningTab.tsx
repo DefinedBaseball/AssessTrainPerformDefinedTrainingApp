@@ -32,11 +32,12 @@
  * shows the `—` placeholder.
  */
 
+import { LiftingDashboard } from '@/components/lifting/LiftingDashboard';
 import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  SectionHeader,
   TabBarActions,
+  TabBarSub,
   DownloadPdfButton,
   ReportSelector,
 } from '@/components/assessment';
@@ -851,103 +852,6 @@ function ReadOnlyText({
   );
 }
 
-/** Read-only KPI-style value display — used by the Strength and
- *  Speed grey bubbles in place of the previous text inputs.
- *
- *  Per coach-spec: the label (e.g. "CMJ Height") + its unit are
- *  CENTERED above the value, and the value itself renders as plain
- *  centered text — no inner background box / border around it. The
- *  metric reads as a clean column rather than a label + framed
- *  number pair.
- *
- *  `label` is OPTIONAL — Speed-tab cells omit it because their
- *  containing bubble's title (e.g. "60 Yard Dash") already names
- *  the metric, so the cell only needs to surface the unit + value
- *  pair underneath. */
-function DisplayValue({ label, unit, value }: { label?: string; unit?: string; value?: string }) {
-  const empty = !value || value.trim() === '';
-  /* Two layout modes, branched on whether a `label` is supplied:
-       • LABEL MODE (Strength cells: "CMJ Height (in/cm)", "Throwing
-         Hand (lbs/kg)", etc.) — label on line 1, unit on its OWN
-         line 2 BELOW the label, value on line 3. Stacking the unit
-         under the label keeps the label string clean (no inline
-         parens) and reserves a consistent vertical rhythm across
-         all 5 / 3 metric columns regardless of unit length.
-       • UNIT-ONLY MODE (Speed cells: just "sec", "mph", "m/s²" — no
-         label, since the surrounding GreyMetricBubble's title
-         "60 Yard Dash" / "Top Speed" / "Acceleration" already
-         names the metric) — render the value + unit on the SAME
-         line ("4.50 sec") so the unit sits NEXT TO the number
-         instead of floating above it. */
-  const labelMode = !!label;
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 4,
-      padding: '2px 4px',
-      textAlign: 'center',
-    }}>
-      {labelMode && (
-        <>
-          {/* Line 1: label only, in fieldLabelStyle (white, 11.88,
-             weight 600, uppercase, 0.05em letter-spacing). */}
-          <div style={{ ...fieldLabelStyle, textAlign: 'center' }}>
-            {label}
-          </div>
-          {/* Line 2: unit on its own row beneath the label. Slightly
-             lighter weight (400 vs. 600) and lowercase to read as a
-             secondary annotation, not a second label. Reserve a row
-             even when no unit is supplied so all label cells in the
-             same metric grid stay vertically aligned. */}
-          <div style={{
-            fontFamily: 'inherit',
-            fontSize: rem(10),
-            fontWeight: 400,
-            letterSpacing: '0.02em',
-            color: 'rgba(255,255,255,0.78)',
-            lineHeight: 1.1,
-            minHeight: 11,
-          }}>
-            {unit ?? ''}
-          </div>
-        </>
-      )}
-      {/* Value row — naked text, no chip background. In LABEL MODE
-         the value is just the value. In UNIT-ONLY MODE the unit is
-         rendered INLINE after the value ("4.50 sec"). */}
-      <div style={{
-        color: empty ? 'var(--text-muted)' : 'var(--text-bright)',
-        fontSize: rem(16),
-        fontWeight: 700,
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.01em',
-        fontFamily: 'inherit',
-        opacity: empty ? 0.6 : 1,
-        lineHeight: 1.2,
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        justifyContent: 'center',
-        gap: 4,
-      }}>
-        <span>{empty ? '—' : value}</span>
-        {!labelMode && unit && (
-          <span style={{
-            fontSize: rem(11),
-            fontWeight: 500,
-            color: 'rgba(255,255,255,0.78)',
-            letterSpacing: '0.02em',
-            textTransform: 'lowercase',
-          }}>
-            {unit}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 const fieldLabelStyle: React.CSSProperties = {
   /* All secondary labels in the Physical tab (CMF Height, Throwing
      Hand, Throwing Arm, Lower Back Arches Off Wall, every mobility
@@ -977,166 +881,13 @@ const fieldLabelStyle: React.CSSProperties = {
   color: 'var(--text-bright)',
 };
 
-/* ─────────────────────────────────────────────────────────────────────
-   StrengthSection — Big dark-blue bubble #1 ("STRENGTH").
-   Two grey sub-bubbles inside, both read-only.
-   ─────────────────────────────────────────────────────────────── */
-function StrengthSection({ content }: { content: SCContent }) {
-  const force = content.forceAthletic ?? {};
-  const grip = content.gripStrength ?? {};
-
-  return (
-    <div className={aStyles.profilePanel} style={{ marginBottom: 18 }}>
-      {/* Subtitle ("Force testing · Grip strength") retired per
-         coach-spec — the two sub-bubble titles (Force & Athletic
-         Testing + Grip Strength) below already name what the
-         section covers; the eyebrow subtitle was redundant. */}
-      <SectionHeader title="Strength" />
-
-      {/* Force & Athletic Testing on top, Grip Strength stacked
-         BELOW it (both full-width). The earlier 2-column layout
-         was retired per coach-spec so each grey bubble can spread
-         its metrics across a single row instead of wrapping. */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        marginTop: 12,
-      }}>
-        {/* ── Force & Athletic Testing — VALD ──
-            All 5 metrics (CMJ Height / Peak Force Left / Peak Force
-            Right / Asymmetry Index / Rotational Power) land on ONE
-            line via fixed `repeat(5, 1fr)`. Power / Imbalance Notes
-            sit directly below the row.
-
-            Per coach-spec the bubble surface sits 50 % closer to
-            the outer Strength bubble color than the default Grey
-            Metric Bubble — i.e. halfway between `#e6e6e6` (the
-            page-bg grey the default surface inherits via
-            `--bubble-chrome-bg` on `.pageRoot`) and `#f3f3f3` (the
-            Strength bubble's brightest shine point) → `#ededed`. */}
-        <GreyMetricBubble
-          title="Force & Athletic Testing"
-          subtitle="VALD · Informs downstream training"
-          bg="#ededed"
-        >
-          <div style={fiveColGrid}>
-            <DisplayValue label="CMJ Height" unit="in/cm" value={force.cmjHeight} />
-            <DisplayValue label="Peak Force Left" unit="N" value={force.peakForceLeft} />
-            <DisplayValue label="Peak Force Right" unit="N" value={force.peakForceRight} />
-            <DisplayValue label="Asymmetry Index" unit="%" value={force.asymmetryIndex} />
-            <DisplayValue label="Rotational Power" unit="opt" value={force.rotationalPower} />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={fieldLabelStyle}>Power / Imbalance Notes</div>
-            <ReadOnlyText
-              value={force.notes}
-              placeholder="No power / imbalance notes recorded."
-              multiline
-            />
-          </div>
-        </GreyMetricBubble>
-
-        {/* ── Grip Strength — UNDER Force & Athletic Testing. All
-            3 metrics on one line via `repeat(3, 1fr)`. */}
-        <GreyMetricBubble
-          title="Grip Strength"
-          subtitle="Bilateral · handheld dynamometer"
-          bg="#ededed"
-        >
-          <div style={threeColGrid}>
-            <DisplayValue label="Throwing Hand" unit="lbs/kg" value={grip.throwing} />
-            <DisplayValue label="Glove Hand" unit="lbs/kg" value={grip.glove} />
-            <DisplayValue label="Asymmetry Index" unit="%" value={grip.asymmetryIndex} />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={fieldLabelStyle}>Flag / Notes</div>
-            <ReadOnlyText value={grip.notes} placeholder="No grip notes recorded." />
-          </div>
-        </GreyMetricBubble>
-      </div>
-    </div>
-  );
-}
-
-/* Speed bubble — 4 individual grey bubbles, all read-only.
-   Subtitles ("Pro sprint", "Combine sprint", etc.) were retired
-   per coach-spec, and the redundant per-metric labels ("Time" /
-   "Speed" / "Rate") were dropped too. Each cell now shows JUST
-   the unit + value, since the surrounding bubble's title already
-   names the metric. */
-function SpeedSection({ content }: { content: SCContent }) {
-  const speed = content.speed ?? {};
-  return (
-    <div className={aStyles.profilePanel} style={{ marginBottom: 18 }}>
-      {/* Subtitle ("Sprint splits + max velocity") retired per
-         coach-spec — the four sub-bubble titles below (60 / 40
-         Yard Dash + Top Speed + Acceleration) already name what
-         the section covers. */}
-      <SectionHeader title="Speed" />
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 14,
-        marginTop: 12,
-      }}>
-        <GreyMetricBubble title="60 Yard Dash" bg="#ededed">
-          <DisplayValue unit="sec" value={speed.sixty} />
-        </GreyMetricBubble>
-        <GreyMetricBubble title="10 Yard Dash" bg="#ededed">
-          <DisplayValue unit="sec" value={speed.ten} />
-        </GreyMetricBubble>
-      </div>
-    </div>
-  );
-}
-
-/* Vision bubble — Visual Acuity readout ("20/20 - 1") + four coach-
-   entered 20-80 grades (Object Tracking / Timing / Anticipation /
-   Peripheral Awareness). Sits directly under Speed in the
-   Strength-and-Conditioning sub-tab. Read-only profile counterpart to
-   the report form's VisionSection. */
-function VisionSection({ content }: { content: SCContent }) {
-  const vision = content.vision ?? {};
-  const acuity = vision.acuity
-    ? `${vision.acuity}${vision.acuityWrong ? ` - ${vision.acuityWrong}` : ''}`
-    : undefined;
-  return (
-    <div className={aStyles.profilePanel} style={{ marginBottom: 18 }}>
-      <SectionHeader title="Vision" />
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 14,
-        marginTop: 12,
-      }}>
-        <GreyMetricBubble title="Visual Acuity" bg="#ededed">
-          <DisplayValue value={acuity} />
-        </GreyMetricBubble>
-        <GreyMetricBubble title="Object Tracking" bg="#ededed">
-          <DisplayValue unit="/80" value={vision.objectTracking} />
-        </GreyMetricBubble>
-        <GreyMetricBubble title="Timing" bg="#ededed">
-          <DisplayValue unit="/80" value={vision.timing} />
-        </GreyMetricBubble>
-        <GreyMetricBubble title="Anticipation" bg="#ededed">
-          <DisplayValue unit="/80" value={vision.anticipation} />
-        </GreyMetricBubble>
-        <GreyMetricBubble title="Peripheral Awareness" bg="#ededed">
-          <DisplayValue unit="/80" value={vision.peripheral} />
-        </GreyMetricBubble>
-      </div>
-    </div>
-  );
-}
-
 /* Mobility bubble — Mobility Highlights (NEW — failed/flagged
    items rolled up across the battery), Warm-Up Observations
    (COACH-ONLY in profile display per coach-spec — still
    appears in the Report modal / Coach App), and the 12
    read-only mobility cards. All data sourced from the
    parsed report content. */
-function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: boolean }) {
+function MobilitySection({ content, isCoach, headerEnd }: { content: SCContent; isCoach: boolean; headerEnd?: React.ReactNode }) {
   const warmup = content.warmup ?? {};
   const flags = warmup.flags ?? {};
   const mobility = content.mobility ?? {};
@@ -1202,7 +953,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
          immediately sees what needs follow-up without having
          to scan all 12 battery cards below. */}
       <div className={aStyles.profilePanel} style={{ marginBottom: 18 }}>
-        <SnapshotTitle first="Mobility" accent="Highlights" />
+        <SnapshotTitle first="Mobility" accent="Highlights" rightSlot={headerEnd} />
 
         {failures.length === 0 ? (
           <div style={{ fontSize: rem(12), color: 'var(--text-muted)', fontStyle: 'italic', paddingTop: 4 }}>
@@ -1372,7 +1123,7 @@ function MobilitySection({ content, isCoach }: { content: SCContent; isCoach: bo
        borderBottom underline beneath the row — matches every other
        dark-blue bubble's header rhythm
    ─────────────────────────────────────────────────────────────── */
-function SnapshotTitle({ first, accent }: { first: string; accent: string }) {
+function SnapshotTitle({ first, accent, rightSlot }: { first: string; accent: string; rightSlot?: React.ReactNode }) {
   return (
     <div style={{
       position: 'relative',
@@ -1398,112 +1149,26 @@ function SnapshotTitle({ first, accent }: { first: string; accent: string }) {
           marginBottom: 12,
         }}
       />
+      {/* Report date picker (Mobility Highlights only) -- right end of the
+          row, on the title's baseline, like the Hitting / Pitching Reports. */}
+      {rightSlot && <div style={{ alignSelf: 'flex-end', marginBottom: 0 }}>{rightSlot}</div>}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
-   GreyMetricBubble — warm-grey Curveball-style sub-bubble used inside
-   the Strength + Speed big-blue panels.
-
-   Accepts an optional `bg` override so individual callers (e.g. the
-   Force & Athletic Testing bubble) can shift their surface closer to
-   the outer-panel color without changing the shared
-   `movementPlotBubbleStyle` recipe that every other Curveball-style
-   bubble across the app relies on.
-   ─────────────────────────────────────────────────────────────── */
-function GreyMetricBubble({
-  title, subtitle, children, bg,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  bg?: string;
-}) {
-  /* The `bg` overrides (e.g. "#ededed") are LIGHT-theme values picked to sit
-     between the page grey and the panel shine. In dark theme they render
-     near-white and wash the bubble out, so we ignore them there and fall back
-     to the shared `--bubble-chrome-bg` (the warm-grey "Curveball" surface that
-     every other secondary sub-bubble uses in dark theme). */
-  const isLight = typeof document !== 'undefined'
-    && document.documentElement.getAttribute('data-theme') === 'light';
-  return (
-    <div style={{
-      ...movementPlotBubbleStyle,
-      ...(bg && isLight ? { background: bg } : null),
-      padding: '12px 14px 14px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        gap: 10,
-      }}>
-        <span style={{
-          /* Grey bubble title (Force & Athletic Testing, Grip
-             Strength, 60 Yard Dash, etc.) — matched to the
-             Curveball (ArsenalCard) title style in the Pitching
-             tab: Satoshi inherit, 1 rem (16 px), weight 600 normal,
-             -0.025em letter-spacing, uppercase, white, line-height
-             1.05. Was previously 14 px / weight 700 / -0.01em. */
-          fontFamily: 'inherit',
-          fontSize: '1rem', fontWeight: 600, fontStyle: 'normal',
-          color: 'var(--text-bright)', lineHeight: 1.05,
-          letterSpacing: '-0.025em',
-          textTransform: 'uppercase',
-        }}>
-          {title}
-        </span>
-        {subtitle && (
-          <span style={{
-            fontSize: rem(10),
-            /* Subtitle reads white per coach-spec. */
-            color: 'var(--text-bright)',
-            letterSpacing: '0.04em',
-          }}>
-            {subtitle}
-          </span>
-        )}
-        <div
-          aria-hidden="true"
-          style={{
-            flex: 1,
-            height: 1,
-            background: 'var(--border)',
-            alignSelf: 'flex-end',
-            marginBottom: 6,
-          }}
-        />
-      </div>
-      <div
-        aria-hidden="true"
-        style={{ height: 1, background: 'var(--border)' }}
-      />
-      {children}
-    </div>
-  );
+/* Phone width (the Hitting / Pitching Reports' breakpoint): the report
+   date chip shortens its date there, the same as on those reports. */
+function useIsPhone(breakpoint = 768): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [breakpoint]);
+  return phone;
 }
-
-/* Force & Athletic Testing — fixed 5-column row so every metric
-   (CMJ Height / Peak Force Left / Peak Force Right / Asymmetry Index
-   / Rotational Power) sits on a single line. `minmax(0, 1fr)` lets
-   each column shrink past its content's intrinsic width so long
-   labels (e.g. "Peak Force Right") don't push the row off-grid. */
-const fiveColGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-  gap: 10,
-};
-
-/* Grip Strength — fixed 3-column row matching the same single-line
-   layout as the 5-col Force row above. */
-const threeColGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-  gap: 10,
-};
 
 /* ─────────────────────────────────────────────────────────────────────
    StrengthConditioningTab — main export
@@ -1512,16 +1177,16 @@ const threeColGrid: React.CSSProperties = {
    Sub-tab keys for the in-page tab bar (matches the Player Summary
    tab's "Current Grades" / "Trends" pattern exactly).
    ─────────────────────────────────────────────────────────────── */
-type SCSubTab = 'sc' | 'mobility';
+type SCSubTab = 'lifting' | 'mobility';
 
 export function StrengthConditioningTab({
   player, topMetrics, isCoach, onRefresh, reports,
   onNewReport, onEditReport,
 }: TabProps) {
   const [selectedReport, setSelectedReport] = useState<ReportSummary | null>(null);
-  /* In-page sub-tab — defaults to Strength & Conditioning. Mirrors
-     the Player Summary tab's `Current Grades / Trends` toggle. */
-  const [subTab, setSubTab] = useState<SCSubTab>('sc');
+  /* In-page sub-tab -- opens on the Lifting Report (VALD + typed
+     results). Mirrors the Player Summary tab's sub-tab toggle. */
+  const [subTab, setSubTab] = useState<SCSubTab>('lifting');
 
   /* Keep the selected report in sync with the parent's fresh list
      after every save (same pattern every other tab uses). */
@@ -1545,6 +1210,26 @@ export function StrengthConditioningTab({
   );
   const activeReport = selectedReport ?? strengthReports[0] ?? null;
   const content = useMemo(() => parseSCContent(activeReport), [activeReport]);
+  const isPhone = useIsPhone();
+
+  /* Report date chip for the report headers (compact = date-sized, like
+     Hitting / Pitching): report list, + Report, edit / download / delete. */
+  const reportPicker = (
+    <ReportSelector
+      compact
+      reports={reports}
+      reportTypes={REPORT_TYPES}
+      label="Physical"
+      shortDate={isPhone}
+      isCoach={isCoach}
+      selectedId={selectedReport?.id ?? null}
+      onSelect={setSelectedReport}
+      onDeleted={onRefresh}
+      onNewReport={onNewReport}
+      onEdit={onEditReport}
+      onDownload={(r) => generateStrengthPdf(player, [r], topMetrics)}
+    />
+  );
 
   return (
     <>
@@ -1556,47 +1241,23 @@ export function StrengthConditioningTab({
           }}
           disabled={!activeReport}
         />
-        <ReportSelector
-          reports={reports}
-          reportTypes={REPORT_TYPES}
-          label="Physical"
-          isCoach={isCoach}
-          selectedId={selectedReport?.id ?? null}
-          onSelect={setSelectedReport}
-          onDeleted={onRefresh}
-          onNewReport={onNewReport}
-          onEdit={onEditReport}
-          onDownload={(r) => generateStrengthPdf(player, [r], topMetrics)}
-        />
+        {/* The Physical report picker moved OUT of this actions slot into
+            the Mobility Highlights header as the date chip, the same spot
+            and size as the Hitting / Pitching Reports' report-date dropdown.
+            (Not on the Lifting Report -- its results come from VALD / typed
+            results, not Physical reports.) See reportPicker below. */}
       </TabBarActions>
 
-      {/* ══════════ S&C SUB-TABS ══════════
-          Top-of-page tab bar between "Strength and Conditioning"
-          (Strength + Speed bubbles) and "Mobility/Stability" (the
-          12-test mobility battery). Chrome lifted verbatim from the
-          Player Summary tab's Current Grades / Trends bar so the
-          two pages read with identical sub-nav voicing — dark navy
-          + radial highlight + soft white-rim border, italic display
-          font on the labels, white-gradient-with-glow underline on
-          the active tab. */}
-      {/* Sub-tab bar background / border / shadow flow through the
-          `--subtab-bar-*` CSS variables defined in globals.css so the
-          chrome auto-flips between dark (current radial+rgba look)
-          and light (`--panel-bg-light` to match the Strength bubble
-          below) without needing a separate CSS module. */}
-      <div style={{
-        position: 'relative',
-        background: 'var(--subtab-bar-bg)',
-        border: '1px solid var(--subtab-bar-border)',
-        borderRadius: 14,
-        boxShadow: 'var(--subtab-bar-shadow)',
-        padding: '4px',
-        marginBottom: 18,
-        display: 'flex',
-        gap: 4,
-      }}>
+      {/* ══════════ PHYSICAL SUB-TABS ══════════
+          Lifting Report / Mobility Screen -- docked INTO the Player Name
+          bubble under the Hitting / Catching / Pitching / Physical tabs
+          (TabBarSub portals into the tab bar's second row), so it reads
+          as part of that bubble instead of a separate bar. Italic display
+          labels + white-gradient underline on the active one, as before. */}
+      <TabBarSub>
+      <div style={{ display: 'flex', gap: 4, width: '100%' }}>
         {[
-          { key: 'sc'       as const, label: 'Strength and Conditioning' },
+          { key: 'lifting'  as const, label: 'Lifting Report' },
           { key: 'mobility' as const, label: 'Mobility Screen' },
         ].map((t) => {
           const active = subTab === t.key;
@@ -1647,20 +1308,17 @@ export function StrengthConditioningTab({
           );
         })}
       </div>
+      </TabBarSub>
 
       {/* ── Sub-tab content ──
-          "Strength and Conditioning" → Strength + Speed big-blue bubbles
-          "Mobility/Stability"        → Mobility big-blue bubble (warm-up
-                                        observation + 12-card battery) */}
-      {subTab === 'sc' && (
-        <>
-          <StrengthSection content={content} />
-          <SpeedSection content={content} />
-          <VisionSection content={content} />
-        </>
-      )}
+          "Lifting Report"   → the VALD / typed Lifting Report
+          "Mobility Screen"  → Mobility big-blue bubble (warm-up
+                               observation + 12-card battery).
+          (The old "Strength and Conditioning" sub-tab -- Strength,
+          Speed and Vision bubbles -- was removed 2026-11-16.) */}
+      {subTab === 'lifting' && <LiftingDashboard playerId={player.id} />}
       {subTab === 'mobility' && (
-        <MobilitySection content={content} isCoach={isCoach} />
+        <MobilitySection content={content} isCoach={isCoach} headerEnd={reportPicker} />
       )}
     </>
   );

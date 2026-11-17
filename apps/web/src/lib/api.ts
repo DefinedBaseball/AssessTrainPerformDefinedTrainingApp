@@ -3175,3 +3175,85 @@ export function groupCollegesByDivision(
       colleges: (buckets.get(d) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
     }));
 }
+
+/* ── Lifting Dashboard (VALD ForceDecks / DynaMo + typed results) ── */
+
+export interface LiftingCatalogMetric { key: string; label: string; unit: string; group?: string }
+export interface LiftingCatalogTest { code: string; label: string; source: string; metrics: LiftingCatalogMetric[] }
+export interface LiftingMetricRef { test: string; metric: string }
+export interface LiftingKpi {
+  id: string;
+  label: string;
+  metric?: string;
+  ratio?: { num: LiftingMetricRef; den: LiftingMetricRef };
+  unit: string;
+  /** Shown value = stored value x factor (e.g. cm -> in). */
+  factor: number;
+  digits: number;
+  better: 'high' | 'low' | null;
+}
+export interface LiftingBubble { id: string; title: string; test: string; note?: string; kpis: LiftingKpi[] }
+export interface LiftingConfig { version: 1; bubbles: LiftingBubble[] }
+export interface LiftingConfigResponse { config: LiftingConfig; isDefault: boolean; catalog: LiftingCatalogTest[]; canEdit: boolean }
+/** An athlete's dashboard: their own layout (personal) or the default. */
+export interface LiftingPlayerLayoutResponse extends LiftingConfigResponse { personal: boolean; updatedAt: string | null }
+export interface LiftingTestRow {
+  id: string;
+  source: string;
+  testType: string;
+  recordedAt: string;
+  metrics: Record<string, number>;
+  notes: string | null;
+}
+export interface LiftingTeamRow { playerId: string; testType: string; recordedAt: string; metrics: Record<string, number> }
+
+export async function getLiftingConfig() {
+  return request<LiftingConfigResponse>('/lifting/config');
+}
+export async function saveLiftingConfig(config: LiftingConfig) {
+  return request<LiftingConfigResponse>('/lifting/config', { method: 'PUT', body: JSON.stringify(config) });
+}
+export async function resetLiftingConfig() {
+  return request<LiftingConfigResponse>('/lifting/config', { method: 'DELETE' });
+}
+export async function getLiftingPlayerLayout(playerId: string) {
+  return request<LiftingPlayerLayoutResponse>(`/lifting/players/${playerId}/layout`);
+}
+export async function saveLiftingPlayerLayout(playerId: string, config: LiftingConfig) {
+  return request<LiftingPlayerLayoutResponse>(`/lifting/players/${playerId}/layout`, { method: 'PUT', body: JSON.stringify(config) });
+}
+/** Back to the default layout. */
+export async function resetLiftingPlayerLayout(playerId: string) {
+  return request<LiftingPlayerLayoutResponse>(`/lifting/players/${playerId}/layout`, { method: 'DELETE' });
+}
+export interface LiftingOwnLayout { playerId: string; name: string; updatedAt: string; config: LiftingConfig }
+export async function getLiftingLayouts() {
+  return request<LiftingOwnLayout[]>('/lifting/layouts');
+}
+/** The same own layout for several athletes at once. */
+export async function saveLiftingLayouts(playerIds: string[], config: LiftingConfig) {
+  return request<LiftingOwnLayout[]>('/lifting/layouts', { method: 'PUT', body: JSON.stringify({ playerIds, config }) });
+}
+/** Put several athletes back on the default layout. */
+export async function resetLiftingLayouts(playerIds: string[]) {
+  return request<LiftingOwnLayout[]>('/lifting/layouts/reset', { method: 'POST', body: JSON.stringify({ playerIds }) });
+}
+export async function getLiftingEditors() {
+  return request<{ id: string; name: string; level: string; liftingEditor: boolean }[]>('/lifting/editors');
+}
+export async function setLiftingEditor(userId: string, on: boolean) {
+  return request<{ ok: true }>(`/lifting/editors/${userId}`, { method: 'PATCH', body: JSON.stringify({ on }) });
+}
+export async function getLiftingTests(playerId: string) {
+  return request<LiftingTestRow[]>(`/lifting/players/${playerId}/tests`);
+}
+/** Values are in the stored units (see LiftingCatalogMetric.unit). */
+export async function addLiftingTest(playerId: string, data: { testType: string; recordedAt: string; metrics: Record<string, number>; notes?: string }) {
+  return request<LiftingTestRow>(`/lifting/players/${playerId}/tests`, { method: 'POST', body: JSON.stringify(data) });
+}
+export async function deleteLiftingTest(id: string) {
+  return request<{ ok: true }>(`/lifting/tests/${id}`, { method: 'DELETE' });
+}
+export async function getLiftingTeam() {
+  return request<LiftingTeamRow[]>('/lifting/team');
+}

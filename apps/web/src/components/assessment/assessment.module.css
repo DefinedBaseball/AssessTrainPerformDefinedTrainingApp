@@ -2123,3 +2123,35 @@
   height: 30px;
   border-radius: 10px;
 }
+
+/* SectionHeader titleLogo -- a provider mark placed like the TrackMan mark
+   beside "Pitching Report" (measured to match within 1px): 21x21, 7px
+   after the title box (the header's 12px gap less 5; 8px on a phone,
+   where the title is smaller), on the title's
+   baseline. On a phone the TrackMan header centres its whole row; this
+   header keeps the title at the bottom, so the logo stays bottom-aligned
+   and drops 4px below it, which lands it on the letters' middle. */
+.titleLogo {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  display: inline-block;
+  align-self: flex-end;
+  margin-bottom: 1px;
+  margin-left: -5px;
+}
+@media (max-width: 767px) {
+  .titleLogo {
+    margin-bottom: -4px;
+    margin-left: -4px;
+  }
+}
+
+/* TabBar row 2 -- a tab's own sub-tabs (Physical: Lifting Report / Mobility
+   Screen) docked inside the Player Name bubble under the tabs. A hairline
+   divider separates it from the tab row; hidden when no tab fills it. */
+.tabBarSub {
+  border-top: 1px solid var(--border);
+  padding: 4px 0;
+}
+.tabBarSub:empty { display: none; }

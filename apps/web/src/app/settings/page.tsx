@@ -15,6 +15,7 @@ import { DrillsTab } from './DrillsTab';
 import { ProgramsTab } from './ProgramsTab';
 import { JournalTab } from './JournalTab';
 import { IntegrationsTab } from './IntegrationsTab';
+import { LiftingTab } from './LiftingTab';
 import nextDynamic from 'next/dynamic';
 import styles from './page.module.css';
 import eduStyles from '../education/page.module.css';
@@ -32,7 +33,7 @@ const ReportModal = nextDynamic(
 import { getAllCameraLabels, setCameraLabel } from '@/lib/camera-labels';
 import { tzOpt } from '@/lib/academy';
 
-type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'programs' | 'journal' | 'cameras' | 'myProfile' | 'staff' | 'academy' | 'integrations';
+type TabKey = 'account' | 'notifications' | 'data' | 'teams' | 'drills' | 'programs' | 'journal' | 'cameras' | 'myProfile' | 'staff' | 'academy' | 'integrations' | 'lifting';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -44,6 +45,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
   }, [isLoading, user, router]);
+
+  /* Deep link: /settings?tab=lifting (the Lifting page's "Edit layout"). */
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get('tab');
+    if (want === 'lifting') setTab('lifting');
+  }, []);
 
   if (isLoading || !user) return null;
 
@@ -75,6 +82,9 @@ export default function SettingsPage() {
     ...(isAdmin ? ([{ key: 'academy' as TabKey, label: 'Academy' }]) : []),
     /* Admin-only: API keys for outside companies (MOVE, ...) + what they've sent. */
     ...(isAdmin ? ([{ key: 'integrations' as TabKey, label: 'Integrations' }]) : []),
+    /* Lifting Dashboard layout -- Admins + coaches switched on as Lifting
+       editors (the tab itself tells other coaches they can't edit). */
+    ...(isEditorCoach ? ([{ key: 'lifting' as TabKey, label: 'Lifting' }]) : []),
     /* Coach "Cameras" tab — OBS-style friendly names for each attached video
        input, used by Live Training's multi-angle recording. Hidden from viewers. */
     ...(isEditorCoach ? ([{ key: 'cameras' as TabKey, label: 'Cameras' }]) : []),
@@ -120,6 +130,7 @@ export default function SettingsPage() {
       {tab === 'staff' && isAdmin && <StaffTab />}
       {tab === 'academy' && isAdmin && <AcademyTab />}
       {tab === 'integrations' && isAdmin && <IntegrationsTab />}
+      {tab === 'lifting' && isEditorCoach && <LiftingTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}
       </div>
     </div>

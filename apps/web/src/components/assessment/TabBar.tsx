@@ -32,6 +32,7 @@ interface TabBarProps {
 }
 
 const TAB_BAR_ACTIONS_ID = 'pd-tab-bar-actions';
+const TAB_BAR_SUB_ID = 'pd-tab-bar-sub';
 
 export function TabBar({ tabs, activeKey, onTabChange, fullWidth, rightSlot }: TabBarProps) {
   return (
@@ -71,8 +72,33 @@ export function TabBar({ tabs, activeKey, onTabChange, fullWidth, rightSlot }: T
         <div id={TAB_BAR_ACTIONS_ID} className={styles.tabBarActions} />
       </div>
       </div>
+      {/* Row 2 -- a tab's own sub-tabs (e.g. Physical: Lifting Report /
+          Mobility Screen), docked into the same panel under the tabs so
+          they read as part of the Player Name bubble. Empty -> hidden. */}
+      <div id={TAB_BAR_SUB_ID} className={styles.tabBarSub} />
     </div>
   );
+}
+
+/**
+ * Portals its children into the TabBar's sub-tab row (under the tabs,
+ * inside the Player Name bubble). For a tab's own sub-tab switch.
+ * Where the page has no TabBar (the athlete's own Dashboard shows the
+ * Player Summary without one) it renders `fallback` in place instead --
+ * the standalone sub-tab bubble.
+ */
+export function TabBarSub({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
+  /* undefined = not looked yet (render nothing for that first tick, so a
+     docked bar never flashes in place first); null = no TabBar here. */
+  const [target, setTarget] = useState<HTMLElement | null | undefined>(undefined);
+
+  useEffect(() => {
+    setTarget(document.getElementById(TAB_BAR_SUB_ID));
+  }, []);
+
+  if (target === undefined) return null;
+  if (target === null) return <>{fallback}</>;
+  return createPortal(children, target);
 }
 
 /**

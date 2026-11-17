@@ -18,9 +18,10 @@ import {
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
-  ReportFilesButton, ReportVideoUploadButton, CoachNotesInline,
-  useCanEditReports, useCanUploadReportVideo,
+  ReportFilesButton, ReportVideoUploadButton, CoachNotesInline, SaveBar,
+  useCanEditReports, useCanUploadReportVideo, isBlankNote,
 } from '../components/ReportInlineEditing';
+import { NoteBlock } from './SwingTab';
 import { ReportUploadsDialog } from '../ReportUploadsDialog';
 import { useTheme } from '@/lib/theme-context';
 import type { TrackmanPitch } from '@/lib/api';
@@ -110,6 +111,14 @@ function TrackmanLogo() {
       />
     </svg>
   );
+}
+
+/* Pitching Notes saved before the rich editor were plain text: escape it
+   and keep its line breaks so it reads the same in the editor. HTML (from
+   the rich editor or the report modal) passes through unchanged. */
+function notesAsHtml(v: string): string {
+  if (!v || /<\/?[a-z][^>]*>/i.test(v)) return v;
+  return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
 }
 
 /* ── Pitch type colors ── */
@@ -1153,13 +1162,13 @@ export function PitchingTab({
     if (!activePitchingReport?.content) return '';
     try {
       const c = JSON.parse(activePitchingReport.content);
-      return typeof c.pitchingNotes === 'string' ? c.pitchingNotes : '';
+      return typeof c.pitchingNotes === 'string' ? notesAsHtml(c.pitchingNotes) : '';
     } catch { return ''; }
   }, [activePitchingReport]);
   const [pitchingNotes, setPitchingNotes] = useState(persistedPitchingNotes);
   useEffect(() => { setPitchingNotes(persistedPitchingNotes); }, [persistedPitchingNotes]);
   const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSaveOk, setNotesSaveOk] = useState(false);
+  const [notesSavedAt, setNotesSavedAt] = useState<number | null>(null);
   const [notesSaveError, setNotesSaveError] = useState<string | null>(null);
   const notesDirty = pitchingNotes !== persistedPitchingNotes;
 
@@ -1167,20 +1176,22 @@ export function PitchingTab({
     if (!activePitchingReport) { setNotesSaveError('No report selected.'); return; }
     setSavingNotes(true);
     setNotesSaveError(null);
-    setNotesSaveOk(false);
     try {
       /* Saves INTO the report being viewed. This used to call createReport,
-         spawning a brand-new "Pitching Notes Update" report on every save. */
+         spawning a brand-new "Pitching Notes Update" report on every save.
+         The rich editor leaves tags like <br> in an emptied box -- that
+         counts as blank. */
+      const value = isBlankNote(pitchingNotes) ? '' : pitchingNotes;
       await api.mergeReportContent(activePitchingReport.id, {
-        set: { pitchingNotes: pitchingNotes.trim() ? pitchingNotes : null },
+        set: { pitchingNotes: value || null },
       });
-      setNotesSaveOk(true);
+      setPitchingNotes(value);
+      setNotesSavedAt(Date.now());
       onRefresh?.();
     } catch (e) {
       setNotesSaveError((e as Error).message || 'Save failed');
     } finally {
       setSavingNotes(false);
-      setTimeout(() => setNotesSaveOk(false), 2200);
     }
   }
 
@@ -1284,113 +1295,30 @@ export function PitchingTab({
      where they always have. */
   const notesBubble = (
     <>
-          {/* ── Coaching notes — beneath Movement + Location plots ── */}
-          {/* Notes card like Hitting Notes / Coach Notes: the title + Save
-              button form the cross bar (the header row is this card's first
-              child), the text box is attached beneath. --hc-* = padding. */}
-          <div
-            data-head-card=""
-            style={{
-              ...pitchReportBubbleStyle,
-              margin: '10px 0 0', padding: '12px 14px',
-              display: 'flex', flexDirection: 'column', gap: 0,
-              ['--hc-pt' as string]: '12px',
-              ['--hc-px' as string]: '14px',
-            }}
-          >
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-            }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                /* Font B treatment — Brown display, upright, 1 rem,
-                   weight 600, -0.025em, uppercase, bright white. The
-                   leading blue dot is preserved so the eyebrow still
-                   reads as a sub-section bullet, just with the unified
-                   grey-bubble title typography. */
-                /* 1rem: the same label size as Hitting Notes / Coach Notes. */
-                fontFamily: 'inherit', fontSize: '1rem',
-                fontStyle: 'normal', fontWeight: 600,
-                letterSpacing: '-0.025em', textTransform: 'uppercase',
-                color: 'var(--text-bright)', lineHeight: 1.05,
-              }}>
-                {/* Leading blue-dot bullet retired per spec — the
-                   eyebrow now reads as a plain title without the
-                   sub-section indicator dot. */}
-                Pitching Notes
-              </span>
-              {canEdit && activePitchingReport && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                  {notesSaveOk && <span style={{ color: '#86efac', fontSize: rem(9.35) }}>Saved.</span>}
-                  {notesSaveError && <span style={{ color: '#fda4af', fontSize: rem(9.35) }}>{notesSaveError}</span>}
-                  <button
-                    type="button"
-                    onClick={savePitchingNotes}
-                    disabled={savingNotes || !notesDirty}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: 7,
-                      background: notesDirty
-                        ? 'linear-gradient(135deg, rgba(74,222,128,0.30), rgba(74,222,128,0.18))'
-                        : 'rgba(255,255,255,0.04)',
-                      border: notesDirty
-                        ? '1px solid rgba(74,222,128,0.55)'
-                        : '1px solid var(--border)',
-                      color: notesDirty ? '#ecfdf5' : 'var(--text-muted)',
-                      fontSize: rem(9.35), fontWeight: 700, letterSpacing: '0.04em',
-                      cursor: savingNotes || !notesDirty ? 'not-allowed' : 'pointer',
-                      opacity: savingNotes ? 0.6 : 1,
-                    }}
-                  >
-                    {savingNotes ? 'Saving…' : '💾 Save Notes'}
-                  </button>
-                </div>
-              )}
-            </div>
-            {canEdit && activePitchingReport ? (
-              <textarea
-                value={pitchingNotes}
-                onChange={(e) => setPitchingNotes(e.target.value)}
-                placeholder="Pitching observations — arsenal trends, command, release consistency, sequencing notes…"
-                rows={3}
-                style={{
-                  /* Notes-bubble surface token: dark navy in dark theme,
-                     near-white (--bubble-chrome-bg) in light — matches the
-                     Hitting / Player Summary notes bubbles. */
-                  background: 'var(--notes-bg)',
-                  /* Attached under the card's cross bar: no frame of its own,
-                     bleeding to the card edges like the rich notes cards. */
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--text)',
-                  padding: '10px 12px',
-                  margin: '0 -14px -12px',
-                  borderRadius: 0,
-                  fontSize: rem(10.2),
-                  lineHeight: 1.55,
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                  minHeight: 70,
-                  width: 'calc(100% + 28px)',
-                  boxSizing: 'border-box',
-                }}
+          {/* ── Pitching Notes — beneath Movement + Location plots ──
+              The shared rich notes card (NoteBlock -> RichEditableNote), the
+              same as Hitting / Catching Notes: dictation mic, Bold / Italic /
+              Underline and text Size in the card's top bar, Save underneath.
+              (This used to be a hand-built plain textarea, which is why it
+              had none of those tools.) Players see the read-only note. */}
+          <div style={{ margin: '10px 0 0' }}>
+            <NoteBlock
+              label="Pitching Notes"
+              value={pitchingNotes}
+              onChange={setPitchingNotes}
+              placeholder="Pitching observations — arsenal trends, command, release consistency, sequencing notes…"
+              editable={canEdit && !!activePitchingReport}
+              rows={3}
+              largeLabel
+            />
+            {canEdit && activePitchingReport && (
+              <SaveBar
+                dirty={notesDirty}
+                saving={savingNotes}
+                savedAt={notesSavedAt}
+                error={notesSaveError}
+                onSave={() => void savePitchingNotes()}
               />
-            ) : (
-              <div style={{
-                fontSize: rem(10.2), lineHeight: 1.55,
-                color: pitchingNotes ? 'var(--text)' : 'var(--text-muted)',
-                fontStyle: pitchingNotes ? 'normal' : 'italic',
-                padding: '10px 12px',
-                /* Notes-bubble surface token — white in light theme,
-                   dark navy in dark (matches the textarea + other tabs). */
-                background: 'var(--notes-bg)',
-                border: 'none',
-                borderRadius: 0,
-                margin: '0 -14px -12px',
-                minHeight: 50,
-              }}>
-                {pitchingNotes || 'No notes yet.'}
-              </div>
             )}
           </div>
 

@@ -22,6 +22,11 @@ interface SectionHeaderProps {
    *  while `icon` keeps the leading slot -- e.g. Batted Ball Metrics:
    *  HitTrax logo, title, Full Swing logo. */
   trailingIcon?: ReactNode;
+  /** A data provider's mark right after the title, sized and placed
+   *  exactly like the TrackMan mark beside "Pitching Report" (21x21,
+   *  no tile slot) -- e.g. MOVE on the Catching Report, VALD on the
+   *  Lifting Report. */
+  titleLogo?: ReactNode;
   /** Optional right-edge content slot — sits at the far right of the
    *  header row, opposite the title, AFTER the title-midline hairline.
    *  Used by Infield / Outfield / Catching Snapshots to host the
@@ -62,7 +67,7 @@ const ICON_CLASS: Record<IconColor, string> = {
   green: styles.iconGreen,
 };
 
-export function SectionHeader({ icon, iconColor = 'teal', title, subtitle, iconAfter = false, trailingIcon, rightSlot, compact = false, align = 'center', noBorder = false, hairlineUnderTitle = false }: SectionHeaderProps) {
+export function SectionHeader({ icon, iconColor = 'teal', title, subtitle, iconAfter = false, trailingIcon, titleLogo, rightSlot, compact = false, align = 'center', noBorder = false, hairlineUnderTitle = false }: SectionHeaderProps) {
   // Compact `align='left'` opts a specific compact header out of the
   // default centered-cluster layout so it reads left-aligned like the
   // base SectionHeader (only a trailing hairline, no leading one).
@@ -134,6 +139,9 @@ export function SectionHeader({ icon, iconColor = 'teal', title, subtitle, iconA
           purpose) and the hairline runs out from there to the
           right edge. */}
       {iconAfter && iconNode}
+      {titleLogo != null && titleLogo !== false && (
+        <span className={styles.titleLogo} aria-hidden="true">{titleLogo}</span>
+      )}
       {trailingIcon != null && trailingIcon !== false && (
         <div className={`${styles.sectionIcon} ${ICON_CLASS[iconColor]}`}>{trailingIcon}</div>
       )}
