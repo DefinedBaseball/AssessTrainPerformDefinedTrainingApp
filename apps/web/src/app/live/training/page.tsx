@@ -32,6 +32,7 @@
    saved — a fully durable IndexedDB store is a Phase 5 follow-up.
    ───────────────────────────────────────────────────────────────── */
 
+import { openCameraStream, describeStream } from '@/lib/camera-capture';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -458,41 +459,17 @@ export default function LiveTrainingPage() {
         if (cancelled) return;
         if (streamsRef.current.has(id)) continue;
         try {
-          /* Capture is capped at 1080p (NOT 4K) and prefers slow-mo fps.
-             4K was the wrong target: most webcams only expose 4K as a
-             low-bandwidth ~5 fps stills mode, so a 4K `ideal` traps the
-             stream at ~5 fps; on iOS it also blows past Safari's memory
-             ceiling. At 1080p the camera runs its smooth high-fps modes.
-
-             Frame rate: ask for `min: 120, ideal: 240` so high-speed
-             cameras / capture cards LOCK to 1080p 120/240 (true slow-mo)
-             instead of the fitness algorithm settling at 60. A `min` is
-             spec-enforced, so a camera that can't sustain 120 anywhere
-             (a typical 30/60 fps laptop webcam) throws OverconstrainedError
-             — we catch that and retry with no floor so the session still
-             records at the camera's best rate rather than failing.
-
-             Audio is captured only on the FIRST selected camera so the
-             combined session has exactly one audio track. */
-          const baseVideo: MediaTrackConstraints = {
-            deviceId: { exact: id },
-            width:  { ideal: 1920 },
-            height: { ideal: 1080 },
-          };
+          /* Capped at 1080p (never 4K: most webcams only offer 4K as a
+             ~5 fps stills mode, and on iOS it blows Safari's memory).
+             Audio comes from the FIRST selected camera only, so the
+             session has exactly one audio track. */
+          /* openCameraStream: phones / iPads ask for 1080p @ up to 60 fps
+             (their 120/240 fps modes only come at tiny sizes -- the old
+             request recorded ~480x360 pitching clips); desktop cameras
+             still try 120/240 fps; anything that opens below 720p is
+             reopened asking for resolution first. */
           const wantAudio = streamsRef.current.size === 0;
-          let stream: MediaStream;
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { ...baseVideo, frameRate: { min: 120, ideal: 240 } },
-              audio: wantAudio,
-            });
-          } catch (constraintErr: any) {
-            if (constraintErr?.name !== 'OverconstrainedError') throw constraintErr;
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { ...baseVideo, frameRate: { ideal: 240 } },
-              audio: wantAudio,
-            });
-          }
+          const stream = await openCameraStream(id, wantAudio);
           if (cancelled) {
             stream.getTracks().forEach((t) => t.stop());
             return;
@@ -1303,8 +1280,9 @@ export default function LiveTrainingPage() {
                      (≤60). Defaults to "—" when the track hasn't
                      reported settings yet. */
                   const stream = streamsRef.current.get(deviceId);
-                  const negotiatedFps = stream?.getVideoTracks()[0]?.getSettings()?.frameRate;
-                  const fpsLabel = negotiatedFps ? `${Math.round(negotiatedFps)} fps` : null;
+                  /* Resolution too ("1080p · 60 fps"): a clip recorded small
+                     can never be made sharp later, so coaches can see it. */
+                  const fpsLabel = describeStream(stream);
                   return (
                     <div
                       key={deviceId}

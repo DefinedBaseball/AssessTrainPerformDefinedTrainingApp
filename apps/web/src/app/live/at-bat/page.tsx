@@ -45,6 +45,7 @@
    Swing-Decision spray chart + the Pitching tab's Live Results bubble.
    ───────────────────────────────────────────────────────────────── */
 
+import { openCameraStream } from '@/lib/camera-capture';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -483,31 +484,14 @@ export default function LiveAtBatPage() {
         if (cancelled) return;
         if (streamsRef.current.has(id)) continue;
         try {
-          /* Cap capture at 1080p (NOT 4K — 4K traps most webcams into a
-             ~5 fps stills mode). Prefer slow-mo: require ≥120 fps so
-             high-speed cameras lock to 1080p 120/240; fall back to a
-             no-floor request when the camera can't sustain 120 (a typical
-             30/60 fps webcam would otherwise throw OverconstrainedError
-             and fail the session). */
-          const baseVideo: MediaTrackConstraints = {
-            deviceId: { exact: id },
-            width:  { ideal: 1920 },
-            height: { ideal: 1080 },
-          };
+          /* Capped at 1080p (never 4K: most webcams only offer 4K as a
+             ~5 fps stills mode, and on iOS it blows Safari's memory).
+             Audio comes from the FIRST selected camera only, so the
+             session has exactly one audio track. */
+          /* See openCameraStream: 1080p @ <=60 on phones / iPads, 120/240
+             tried on desktop cameras, reopened if it comes up below 720p. */
           const wantAudio = streamsRef.current.size === 0;
-          let stream: MediaStream;
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { ...baseVideo, frameRate: { min: 120, ideal: 240 } },
-              audio: wantAudio,
-            });
-          } catch (constraintErr: any) {
-            if (constraintErr?.name !== 'OverconstrainedError') throw constraintErr;
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { ...baseVideo, frameRate: { ideal: 240 } },
-              audio: wantAudio,
-            });
-          }
+          const stream = await openCameraStream(id, wantAudio);
           if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
           streamsRef.current.set(id, stream);
           const el = videoElsRef.current.get(id);
