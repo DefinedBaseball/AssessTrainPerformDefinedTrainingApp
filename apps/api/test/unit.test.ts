@@ -17,6 +17,7 @@ import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-par
 import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
+import { decideRendition, withRendition, isPlay720, describeSource } from '../src/modules/videos/bunny-renditions';
 import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
 
 interface TestResult {
@@ -550,6 +551,30 @@ async function liftingTests() {
   });
 }
 
+// ─── Bunny 1080p renditions ─────────────────────────────────────────────
+
+async function renditionTests() {
+  await test('Renditions: only a finished encode with 1080p moves up', () => {
+    assertEqual(decideRendition(null).state, 'pending', 'no info yet');
+    assertEqual(decideRendition({ status: 3, encodeProgress: 60 }).state, 'pending', 'transcoding');
+    assertEqual(decideRendition({ status: 5 }).state, 'failed', 'encode error');
+    const order = (d: ReturnType<typeof decideRendition>) => (d.state === 'ready' ? d.candidates.join(',') : d.state);
+    assertEqual(order(decideRendition({ status: 4, availableResolutions: '240p,360p,480p,720p,1080p' })), '1080p,720p,480p,360p,240p', 'best first');
+    assertEqual(order(decideRendition({ status: 4, availableResolutions: '240p,360p,720p' })), '720p,360p,240p', '720p source: 720p first');
+    assertEqual(order(decideRendition({ status: 4, availableResolutions: '240p,360p' })), '360p,240p', 'small source: no 720p at all');
+    assertEqual(order(decideRendition({ status: 8, encodeProgress: 100, availableResolutions: '720p, 1080P' })), '1080p,720p', 'done by progress, case/space tolerant');
+  });
+
+  await test('Renditions: link rewrite + detection', () => {
+    const u = 'https://vz-abc.b-cdn.net/11111111-2222-3333-4444-555555555555/play_720p.mp4';
+    assertEqual(withRendition(u, '1080p'), 'https://vz-abc.b-cdn.net/11111111-2222-3333-4444-555555555555/play_1080p.mp4', '720 -> 1080');
+    assertEqual(withRendition(u, '360p').endsWith('/play_360p.mp4'), true, '720 -> 360');
+    assert(isPlay720(u), 'detects 720p');
+    assert(!isPlay720(withRendition(u, '1080p')), '1080p is not 720p');
+    assertEqual(describeSource({ width: 1080, height: 1920, framerate: 29.97 }), '1080x1920 @ 29.97fps', 'source text');
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -564,6 +589,7 @@ async function run() {
   await ownershipTests();
   await moveSessionTests();
   await liftingTests();
+  await renditionTests();
 
   console.log('\n' + '='.repeat(60));
   for (const r of results) {

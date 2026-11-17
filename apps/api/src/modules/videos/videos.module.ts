@@ -6,6 +6,7 @@ import { VideosController } from './videos.controller';
 import { S3Service } from './s3.service';
 import { BunnyService } from './bunny.service';
 import { BunnyUrlInterceptor } from './bunny-url.interceptor';
+import { VideoRenditionsService } from './video-renditions.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -20,6 +21,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
   controllers: [VideosController],
   providers: [
     VideosService, S3Service, BunnyService,
+    // Moves clips to Bunny's 1080p MP4 once it exists (background sweep).
+    VideoRenditionsService,
     // App-wide: signs every Bunny link in every API response (expiring links).
     { provide: APP_INTERCEPTOR, useClass: BunnyUrlInterceptor },
   ],

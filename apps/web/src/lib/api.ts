@@ -2320,6 +2320,26 @@ export interface IntegrationAthleteLinkRow {
 export async function getIntegrationProviders() {
   return request<IntegrationProvider[]>('/integrations/providers');
 }
+/* ── Video quality (Bunny 1080p renditions, admin) ── */
+export interface VideoRenditionStatus {
+  configured: boolean;
+  /** Clips playing Bunny's 1080p MP4. */
+  on1080p: number;
+  /** Clips checked that have no 1080p copy (720p source or compressed upload). */
+  on720p: number;
+  /** Clips whose original was too small for 720p (playing 480p / 360p / 240p). */
+  onLower: number;
+  /** Clips not checked yet (still encoding, or waiting for the next pass). */
+  waiting: number;
+  recent: { videoId: string; at: string; source: string; outcome: string }[];
+}
+export async function getVideoRenditionStatus() {
+  return request<VideoRenditionStatus>('/videos/renditions');
+}
+export async function runVideoRenditionCheck() {
+  return request<VideoRenditionStatus & { checked: number; upgraded: number }>('/videos/renditions/check', { method: 'POST' });
+}
+
 export async function getIntegrationKeys() {
   return request<IntegrationKeyRow[]>('/integrations/keys');
 }

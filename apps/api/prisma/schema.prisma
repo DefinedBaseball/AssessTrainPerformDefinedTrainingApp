@@ -398,6 +398,9 @@ model Video {
   durationSec  Int?
   status       String   @default("UPLOADING") // "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
   createdAt    DateTime @default(now())
+  /// When the Bunny rendition sweep last settled this clip's MP4 (moved it
+  /// to its best copy, or found none better). Null = not checked yet.
+  renditionCheckedAt DateTime?
 
   annotations        Annotation[]
   voiceOvers         VoiceOver[]

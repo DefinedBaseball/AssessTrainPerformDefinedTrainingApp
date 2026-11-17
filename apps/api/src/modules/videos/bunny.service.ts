@@ -1,5 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'crypto';
+import type { BunnyVideoInfo } from './bunny-renditions';
 
 /**
  * Bunny Stream wrapper — the production video backend.
@@ -23,8 +24,10 @@ export class BunnyService {
   private readonly apiKey: string | null;
   /** Pull-zone host for the stream library, e.g. `vz-xxxx-yyy.b-cdn.net`. */
   readonly cdnHostname: string | null;
-  /** Which MP4 rendition to hand the custom player (must be enabled on the
-   *  library + covered by MP4 Fallback). 720p is a safe default. */
+  /** Which MP4 rendition a new upload's link starts on (must be enabled on
+   *  the library + covered by MP4 Fallback). 720p always exists for HD
+   *  sources; VideoRenditionsService moves a clip to 1080p once Bunny has
+   *  encoded one. */
   private readonly mp4Quality: string;
   /** Pull-zone URL Token Authentication key. When set, every Bunny link the
    *  API hands out is signed and expires (see BunnyUrlInterceptor). */
@@ -191,6 +194,45 @@ export class BunnyService {
         : null;
     } catch {
       return null;
+    }
+  }
+
+  /** Bunny's record of a video: encode status, renditions, and the size
+   *  / frame rate of what was uploaded. null when Bunny can't be reached. */
+  async getVideoInfo(guid: string): Promise<BunnyVideoInfo | null> {
+    if (!this.isConfigured() || !guid) return null;
+    try {
+      const res = await fetch(`https://video.bunnycdn.com/library/${this.libraryId}/videos/${guid}`, {
+        headers: { AccessKey: this.apiKey!, accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        this.logger.warn(`Bunny video info ${guid} failed (${res.status})`);
+        return null;
+      }
+      return (await res.json()) as BunnyVideoInfo;
+    } catch (e: any) {
+      this.logger.warn(`Bunny video info ${guid} errored: ${e?.message || e}`);
+      return null;
+    }
+  }
+
+  /** Whether one of our CDN links actually serves a file (first byte only).
+   *  Sent signed when link signing is on, and with the web app as Referer
+   *  so a library that only allows the app's domain still answers. */
+  async cdnFileLoads(url: string): Promise<boolean> {
+    if (!this.cdnHostname || !url.startsWith(`https://${this.cdnHostname}/`)) return false;
+    const referer = (process.env.CORS_ORIGINS || '')
+      .split(',').map((s) => s.trim()).find((o) => o.startsWith('https://'));
+    try {
+      const res = await fetch(this.signUrl(url), {
+        headers: { Range: 'bytes=0-0', ...(referer ? { Referer: `${referer}/` } : {}) },
+        signal: AbortSignal.timeout(15_000),
+      });
+      await res.body?.cancel().catch(() => undefined);
+      return res.status === 200 || res.status === 206;
+    } catch {
+      return false;
     }
   }
 

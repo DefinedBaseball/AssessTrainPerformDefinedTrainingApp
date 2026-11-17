@@ -7,7 +7,8 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagg
 import { VideosService } from './videos.service';
 import { S3Service } from './s3.service';
 import { BunnyService } from './bunny.service';
-import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
+import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed, AdminOnly } from '../auth/jwt.guard';
+import { VideoRenditionsService } from './video-renditions.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuid } from 'uuid';
@@ -93,7 +94,30 @@ export class VideosController {
     private videosService: VideosService,
     private s3: S3Service,
     private bunny: BunnyService,
+    private renditions: VideoRenditionsService,
   ) {}
+
+  /**
+   * GET /api/videos/renditions (Admin) -- how many clips play Bunny's 1080p
+   * MP4 vs 720p, and the latest checks with the size / frame rate Bunny
+   * received from the phone. POST runs a pass now instead of waiting.
+   */
+  @Get('renditions')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Clip quality status: 1080p vs 720p + latest sources (admin)' })
+  renditionStatus() {
+    return this.renditions.status();
+  }
+
+  @Post('renditions/check')
+  @Roles('COACH')
+  @AdminOnly()
+  @ApiOperation({ summary: 'Run the 1080p rendition check now (admin)' })
+  async renditionCheck() {
+    const run = await this.renditions.sweep();
+    return { ...run, ...(await this.renditions.status()) };
+  }
 
   /**
    * POST /api/videos/presign

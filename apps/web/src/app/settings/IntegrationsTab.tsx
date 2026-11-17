@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import * as api from '@/lib/api';
 import styles from './page.module.css';
+import { VideoQualityCard } from './VideoQualityCard';
 
 /** The permanent public address of the API (custom domain on Render). */
 const API_BASE = (process.env.NEXT_PUBLIC_API_PUBLIC_URL || 'https://api.definedbaseball.com').replace(/\/+$/, '');
@@ -355,6 +356,7 @@ curl -X POST ${API_BASE}/api/integrations/move/sessions \\
           </div>
         </div>
       )}
+      <VideoQualityCard />
     </div>
   );
 }
