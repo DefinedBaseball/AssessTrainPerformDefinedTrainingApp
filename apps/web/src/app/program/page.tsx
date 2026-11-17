@@ -11,6 +11,7 @@
    column; 2–8 fill the board side-by-side.
    ───────────────────────────────────────────────────────────────────────── */
 
+import { isModularRows, groupBlocks } from '@/lib/modular-sets';
 import { rem } from '@/lib/rem';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -517,14 +518,15 @@ function AthleteColumn({
   /** Clicked a scheduled drill name — opens its video (mirrors Training). */
   onPlayDrill: (drill: ScheduledDrill) => void;
 }) {
-  /* Group drills by category so the card reads as
-       Movement Prep
-       ─ Drill A
-       ─ Drill B
-     Drills
-       ─ ...
-     etc. */
+  /* Laid out the way the athlete's Training calendar has the day:
+       Structured -> grouped by section (Movement Prep, Drills, ...);
+       Modular    -> Set 1, Set 2, ... (any drill with a set number makes the
+                     day Modular -- lib/modular-sets, shared with Training). */
+  const modular = useMemo(() => isModularRows(drills), [drills]);
   const grouped = useMemo(() => {
+    if (modular) {
+      return groupBlocks(drills).map((items, i) => ({ category: `Set ${i + 1}`, items }));
+    }
     const map = new Map<string, ScheduledDrill[]>();
     for (const d of drills) {
       const cat = d.category || 'Drills';
@@ -533,7 +535,10 @@ function AthleteColumn({
       map.set(cat, arr);
     }
     return [...map.entries()].map(([category, items]) => ({ category, items }));
-  }, [drills]);
+  }, [drills, modular]);
+  /* Drag-to-reorder is by section, so it's Structured-only: a Modular day's
+     sets are arranged in the Training calendar (✎ editing still works). */
+  const canDrag = isCoach && !modular;
 
   /* dnd-kit: the whole column body is a drop target so a coach can drag a
      drill from another athlete and drop it anywhere in this column (even an
@@ -542,6 +547,7 @@ function AthleteColumn({
   const { setNodeRef: setColumnRef, isOver: colIsOver } = useDroppable({
     id: `col:${player.id}`,
     data: { type: 'column', playerId: player.id },
+    disabled: modular,
   });
 
   const scheduleLabel = SCHEDULE_OPTIONS.find(o => o.key === schedule)?.label ?? '';
@@ -597,7 +603,7 @@ function AthleteColumn({
       <div
         ref={setColumnRef}
         className={styles.athleteCardBody}
-        style={colIsOver && isCoach ? {
+        style={colIsOver && canDrag ? {
           // Soft highlight when a coach drags a drill over this athlete.
           outline: `2px dashed ${scheduleColor}`,
           outlineOffset: -2,
@@ -647,7 +653,7 @@ function AthleteColumn({
                   count={items.length}
                   bgStyle={sectionStyle(scheduleColor, i, grouped.length)}
                   headStyle={headStyle}
-                  isCoach={isCoach}
+                  isCoach={canDrag}
                 >
                   {/* Two rows, filled column by column: drill 1 top, 2 under
                       it, 3 top of the next column ... -- a grid, so drag
@@ -661,7 +667,7 @@ function AthleteColumn({
                           playerId={player.id}
                           category={category}
                           tab={schedule}
-                          isCoach={isCoach}
+                          isCoach={canDrag}
                           onPlay={onPlayDrill}
                           editMode={editMode}
                           onEdit={onClickDrill}
@@ -1388,7 +1394,12 @@ export default function ProgramPage() {
     };
     const raf = requestAnimationFrame(fit);
     window.addEventListener('resize', fit);
+    /* Text measured before the web fonts arrive is a few px off -- fit
+       again once they're in. */
+    let live = true;
+    document.fonts?.ready.then(() => { if (live) fit(); }).catch(() => {});
     return () => {
+      live = false;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', fit);
     };

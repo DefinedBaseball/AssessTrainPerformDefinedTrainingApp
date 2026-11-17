@@ -724,7 +724,10 @@
   background:
     radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
     #06080c;
-  padding: 40px 32px 28px;
+  /* Shrinks with the fit-to-screen scaler (page.tsx) like everything else
+     on the TV board, so 6+ schedules fit a short screen (a TV run at 125%
+     Windows scaling is only 864px tall). */
+  padding: calc(40px * var(--prog-scale, 1)) calc(32px * var(--prog-scale, 1)) calc(28px * var(--prog-scale, 1));
   margin: 0;
   /* Hard-clamp to the viewport — no scroll, no leak. */
   height: 100vh;
@@ -736,7 +739,7 @@
   align-content: stretch;
   /* Slightly tighter than the standard 14px gap so the columns get
      a bit more horizontal room when 6+ athletes are on the board. */
-  gap: 12px;
+  gap: calc(12px * var(--prog-scale, 1));
 }
 /* One athlete per row; the rows share the screen height. */
 .board:fullscreen { grid-template-columns: minmax(0, 1fr); }
@@ -767,8 +770,20 @@
   overflow-y: hidden;
   padding: calc(8px * var(--prog-scale, 1)) 12px;
   gap: calc(12px * var(--prog-scale, 1));
+  /* No horizontal scrollbar on the TV: it took ~10px of every row's height
+     (the "scrolls slightly" on 6-athlete boards). Rows still scroll
+     sideways by swipe / drag / trackpad. */
+  scrollbar-width: none;
 }
-.board:fullscreen .athleteCardHead { padding: 10px 12px; }
+.board:fullscreen .athleteCardBody::-webkit-scrollbar { display: none; }
+/* The fixed bits of each section shrink with the board too -- at full
+   size they were ~35px per row that the scaler couldn't reclaim. */
+.board:fullscreen .drillGroupHead {
+  min-height: calc(20px * var(--prog-scale, 1));
+  margin-bottom: calc(6px * var(--prog-scale, 1));
+}
+.board:fullscreen .drillGroupCards { gap: calc(8px * var(--prog-scale, 1)); }
+.board:fullscreen .athleteCardHead { padding: calc(10px * var(--prog-scale, 1)) 12px; }
 .board:fullscreen .drillGroup {
   padding: calc(6px * var(--prog-scale, 1)) 10px calc(8px * var(--prog-scale, 1));
 }
@@ -1029,7 +1044,12 @@
   grid-template-rows: auto;
   grid-auto-rows: minmax(0, 1fr);
 }
-.board:fullscreen .sessionHead { padding: 8px 14px; }
+.board:fullscreen .sessionHead { padding: calc(8px * var(--prog-scale, 1)) 14px; }
+/* The title row shrinks with the board too (it is the one row every
+   athlete shares the screen with). */
+.board:fullscreen .sessionProgram { font-size: calc(15px * var(--prog-scale, 1)); }
+.board:fullscreen .sessionWeek { font-size: calc(12px * var(--prog-scale, 1)); }
+.board:fullscreen .sessionWhen { font-size: calc(14px * var(--prog-scale, 1)); }
 
 /* ── Check-in box (name bar) ──
    Green ✓ = the athlete checked in for the board's day, red ✕ = not yet.

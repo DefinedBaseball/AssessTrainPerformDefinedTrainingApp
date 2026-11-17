@@ -112,16 +112,20 @@ export default function LeaderboardPage() {
   const [recomputing, setRecomputing] = useState(false);
 
   // Filters
-  const [gradYear, setGradYear] = useState<number | null>(null);
+  /* Opens on All Ages (sentinel 0 -- every class ranked together). */
+  const [gradYear, setGradYear] = useState<number | null>(0);
   const [metricType, setMetricType] = useState('max_exit_velo');
   /* All Age Groups: every class side by side (top 5 each) instead of one
-     class's full board. */
-  const [allGroups, setAllGroups] = useState(false);
+     class's full board. The page opens on it; turning it off shows one
+     board, starting on All Ages. */
+  const [allGroups, setAllGroups] = useState(true);
   const [groupEntries, setGroupEntries] = useState<Record<number, LeaderboardEntry[]>>({});
   const [groupsLoading, setGroupsLoading] = useState(false);
-  /* Always eight classes, starting with this calendar year's. */
+  /* Always eight classes, starting with the first class still to graduate
+     (next calendar year's -- this year's class has graduated; it stays
+     pickable at the bottom of the single-board drop-down). */
   const ageGroupYears = useMemo(() => {
-    const first = new Date().getFullYear();
+    const first = new Date().getFullYear() + 1;
     return Array.from({ length: AGE_GROUP_COUNT }, (_, i) => first + i);
   }, []);
 
@@ -146,12 +150,20 @@ export default function LeaderboardPage() {
     return [...new Set(gradYears)].sort((a, b) => a - b);
   }, [gradYears]);
 
-  // Auto-select the first available grad year when players load
-  useEffect(() => {
-    if (gradYear === null && availableGradYears.length > 0) {
-      setGradYear(availableGradYears[0]);
-    }
-  }, [availableGradYears, gradYear]);
+  /* Drop-down order: All Ages, then the classes still to graduate (next
+     year's first), College, Professional, and last the classes that have
+     already graduated -- this calendar year and earlier, newest first --
+     kept so they can still be compared. Same line as the All Age Groups
+     view, which starts at next year's class. */
+  const gradYearOptions = useMemo(() => {
+    const thisYear = new Date().getFullYear();
+    const isClass = (y: number) => y !== api.GRAD_COLLEGE && y !== api.GRAD_PRO;
+    const classes = availableGradYears.filter(isClass);
+    return {
+      upcoming: classes.filter((y) => y > thisYear),
+      previous: classes.filter((y) => y <= thisYear).sort((a, b) => b - a),
+    };
+  }, [availableGradYears]);
 
   // Fetch the leaderboard: the precomputed rankings (a fast indexed read).
   const fetchLeaderboard = useCallback(() => {
@@ -279,17 +291,17 @@ export default function LeaderboardPage() {
             >
               {/* All Ages = sentinel 0 → backend ranks every grad year together. */}
               <option value={0}>All Ages</option>
-              {availableGradYears.map(y => (
+              {gradYearOptions.upcoming.map(y => (
                 <option key={y} value={y}>{api.formatGradYear(y)}</option>
               ))}
               {/* Always offer College + Professional, even when no athlete
                   currently carries that grad year. */}
-              {!availableGradYears.includes(api.GRAD_COLLEGE) && (
-                <option value={api.GRAD_COLLEGE}>{api.formatGradYear(api.GRAD_COLLEGE)}</option>
-              )}
-              {!availableGradYears.includes(api.GRAD_PRO) && (
-                <option value={api.GRAD_PRO}>{api.formatGradYear(api.GRAD_PRO)}</option>
-              )}
+              <option value={api.GRAD_COLLEGE}>{api.formatGradYear(api.GRAD_COLLEGE)}</option>
+              <option value={api.GRAD_PRO}>{api.formatGradYear(api.GRAD_PRO)}</option>
+              {/* Classes that have graduated -- bottom of the list. */}
+              {gradYearOptions.previous.map(y => (
+                <option key={y} value={y}>{api.formatGradYear(y)}</option>
+              ))}
             </select>
           ) : (
             <span className={styles.noYears}>No athletes found — add players to see grad years.</span>

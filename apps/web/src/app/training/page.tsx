@@ -1,5 +1,6 @@
 'use client';
 
+import { MAX_BLOCK_DRILLS, isModularRows, groupBlocks } from '@/lib/modular-sets';
 import { useEffect, useId, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -582,7 +583,6 @@ function sameEnv(a: Record<string, DrillEnv>, b: Record<string, DrillEnv>): bool
   return true;
 }
 
-const MAX_BLOCK_DRILLS = 8;
 /** Sections offered in a block's "Movement" picker (Vision = cognitive). */
 const MOVEMENT_SECTIONS = ['Movement Prep', 'Vision'];
 
@@ -599,31 +599,8 @@ function modularPickerDds(tabKey: string): { movement: ModalDropdown[]; drills: 
   };
 }
 
-/** A tab's day is Modular once any of its rows carries a block number. */
-function isModularRows(rows: { block?: number | null }[]): boolean {
-  return rows.some(r => r.block != null);
-}
-
-/**
- * A modular day's rows as ordered blocks. Rows with no block number (pasted
- * in beside a block day) trail as extra blocks of up to 8, so nothing is
- * hidden from either the coach or the athlete.
- */
-function groupBlocks<T extends { block?: number | null; order: number; sectionOrder: number; time: string }>(rows: T[]): T[][] {
-  const byBlock = new Map<number, T[]>();
-  const loose: T[] = [];
-  for (const r of rows) {
-    if (r.block == null) { loose.push(r); continue; }
-    const arr = byBlock.get(r.block) || [];
-    arr.push(r);
-    byBlock.set(r.block, arr);
-  }
-  const byPos = (a: T, b: T) => a.order - b.order || parseTime(a.time) - parseTime(b.time);
-  const out = [...byBlock.entries()].sort((a, b) => a[0] - b[0]).map(([, arr]) => arr.sort(byPos));
-  loose.sort((a, b) => a.sectionOrder - b.sectionOrder || byPos(a, b));
-  for (let i = 0; i < loose.length; i += MAX_BLOCK_DRILLS) out.push(loose.slice(i, i + MAX_BLOCK_DRILLS));
-  return out;
-}
+/* isModularRows / groupBlocks live in lib/modular-sets (the Program board
+   groups Modular days the same way). */
 
 /** The day's Modular tabs as editable blocks (library-linked rows only). */
 function buildBlocksFromEvents(events: ScheduledDrill[]): Record<string, BlockItem[][]> {
