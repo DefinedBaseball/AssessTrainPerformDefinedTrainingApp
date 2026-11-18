@@ -3196,7 +3196,7 @@ export function groupCollegesByDivision(
     }));
 }
 
-/* ── Lifting Dashboard (VALD ForceDecks / DynaMo + typed results) ── */
+/* ── Lifting Dashboard (VALD ForceDecks / DynaMo / SmartSpeed + typed results) ── */
 
 export interface LiftingCatalogMetric { key: string; label: string; unit: string; group?: string; digits?: number; better?: 'high' | 'low' | null }
 export interface LiftingCatalogTest { code: string; label: string; source: string; metrics: LiftingCatalogMetric[] }
@@ -3229,12 +3229,12 @@ export interface LiftingTeamRow { playerId: string; testType: string; recordedAt
 
 /* ── VALD import (Settings -> Lifting -> VALD Import) ── */
 export interface ValdFilters {
-  devices: ('forcedecks' | 'dynamo')[];
+  devices: ('forcedecks' | 'dynamo' | 'smartspeed')[];
   /** Test codes NOT imported (default none = every test type). */
   excludedTestTypes: string[];
   sportIds: string[];
   groupIds: string[];
-  /** ForceDecks tags only -- DynaMo tests can't be tagged. */
+  /** ForceDecks tags only -- DynaMo / SmartSpeed tests can't be tagged. */
   tagIds: string[];
   playerIds: string[];
 }
@@ -3255,6 +3255,8 @@ export interface ValdPullReport {
   filteredOut: number;
   /** Athletes whose Physical tab the pull turned on. */
   physicalShown?: number;
+  /** ForceDecks weigh-ins saved to athletes' weight history. */
+  weighIns?: number;
   unmatched: { name: string; birthday: string | null; reason: string; tests: number }[];
   error: string | null;
 }
@@ -3270,7 +3272,7 @@ export interface ValdOptions {
   sports: { id: string; name: string; category: string }[];
   groups: { id: string; name: string; category: string }[];
   tags: { id: string; name: string; type: string }[];
-  testTypes: { code: string; label: string; device: 'forcedecks' | 'dynamo' }[];
+  testTypes: { code: string; label: string; device: 'forcedecks' | 'dynamo' | 'smartspeed' }[];
   athletes: { id: string; name: string }[];
 }
 export async function getValdStatus() {

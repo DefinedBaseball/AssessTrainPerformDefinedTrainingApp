@@ -10,10 +10,11 @@
      Automatic pull  on / off, every N days (14 by default), with its own
                      filters -- each run picks up everything since the last.
 
-   Filters (empty = no limit): Devices (ForceDecks / DynaMo), Test types
-   (all on by default), Sports + Groups (VALD groups -- an athlete in ANY
-   chosen sport and ANY chosen group), Tags (ForceDecks only: DynaMo tests
-   can't carry tags, so DynaMo is pulled whatever tags are chosen) and
+   Filters (empty = no limit): Devices (ForceDecks / DynaMo / SmartSpeed),
+   Test types (all on by default), Sports + Groups (VALD groups -- an
+   athlete in ANY chosen sport and ANY chosen group), Tags (ForceDecks only:
+   DynaMo / SmartSpeed tests can't carry tags, so they're pulled whatever
+   tags are chosen) and
    specific athletes. Pulling the same session again replaces its numbers;
    new sessions become the latest and the older ones move to History.
    ───────────────────────────────────────────────────────────────────────── */
@@ -31,7 +32,8 @@ const REASONS: Record<string, string> = {
   'birthday-different': 'Name matches, but the birthday is different',
   'several-matches': 'More than one athlete matches',
 };
-const DEVICE_LABEL: Record<string, string> = { forcedecks: 'ForceDecks', dynamo: 'DynaMo' };
+const DEVICE_LABEL: Record<string, string> = { forcedecks: 'ForceDecks', dynamo: 'DynaMo', smartspeed: 'SmartSpeed' };
+const DEVICES = ['forcedecks', 'dynamo', 'smartspeed'] as const;
 
 function toggle(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -70,7 +72,7 @@ function FilterEditor({ value, onChange, options }: { value: Filters; onChange: 
       <div style={small}>
         Devices
         <div className={ls.chips}>
-          {(['forcedecks', 'dynamo'] as const).map((d) => (
+          {DEVICES.map((d) => (
             <Chip
               key={d}
               on={value.devices.includes(d)}
@@ -90,7 +92,7 @@ function FilterEditor({ value, onChange, options }: { value: Filters; onChange: 
           <button type="button" className={ls.linkBtn} onClick={() => set({ excludedTestTypes: [] })}>All</button>{' · '}
           <button type="button" className={ls.linkBtn} onClick={() => set({ excludedTestTypes: options.testTypes.map((t) => t.code) })}>None</button>
         </span>
-        {(['forcedecks', 'dynamo'] as const).filter((d) => value.devices.includes(d)).map((d) => (
+        {DEVICES.filter((d) => value.devices.includes(d)).map((d) => (
           <div key={d} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontWeight: 500 }}>{DEVICE_LABEL[d]}</span>
             <div className={ls.chips}>
@@ -133,7 +135,7 @@ function FilterEditor({ value, onChange, options }: { value: Filters; onChange: 
       </div>
 
       <div style={small}>
-        Tags <span style={{ fontWeight: 400 }}>(ForceDecks only -- DynaMo tests can&rsquo;t be tagged, so they&rsquo;re pulled whatever is chosen here)</span>
+        Tags <span style={{ fontWeight: 400 }}>(ForceDecks only -- DynaMo and SmartSpeed tests can&rsquo;t be tagged, so they&rsquo;re pulled whatever is chosen here)</span>
         {tagsByType.length === 0 && <span style={{ fontWeight: 400 }}>No tags used in VALD in the last year.</span>}
         {tagsByType.map(([type, list]) => (
           <div key={type} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -183,6 +185,7 @@ function PullReport({ report }: { report: api.ValdPullReport }) {
         <span><strong>{report.added}</strong> new sessions</span>
         <span><strong>{report.replaced}</strong> replaced (pulled again)</span>
         <span><strong>{report.filteredOut}</strong> left out by the filters</span>
+        {!!report.weighIns && <span><strong>{report.weighIns}</strong> weigh-ins saved to weight history</span>}
         {!!report.physicalShown && <span><strong>{report.physicalShown}</strong> athletes&rsquo; Physical tab turned on</span>}
         <span><strong>{report.unmatched.length}</strong> unmatched athletes</span>
       </div>
@@ -326,7 +329,7 @@ export function ValdImport({ onDirty }: { onDirty: (d: boolean) => void }) {
           </button>
         </div>
         <p className={styles.cardDesc} style={{ margin: 0 }}>
-          Imports ForceDecks and DynaMo sessions into athletes&rsquo; Lifting Reports. Athletes are matched by VALD&rsquo;s External ID
+          Imports ForceDecks, DynaMo and SmartSpeed sessions into athletes&rsquo; Lifting Reports, and ForceDecks weigh-ins into their weight history. Athletes are matched by VALD&rsquo;s External ID
           (= Athlete ID) when set, otherwise by first + last name and birthday. Pulling a session again replaces its numbers; a
           newer session becomes the latest and the older ones stay in History. A new session turns the athlete&rsquo;s Physical tab on.
         </p>

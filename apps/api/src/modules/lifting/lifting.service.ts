@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { coachLevelOf } from '../auth/jwt.guard';
 import type { JwtPayload } from '../auth/jwt.util';
 import {
-  LIFTING_CATALOG, LiftingConfig, TEST_CODE_RE, ValdMeta, defaultLiftingConfig, mergeCatalog, validateLiftingConfig, validateMetrics, validatePlayerIds,
+  BODYWEIGHT_METRIC, BODYWEIGHT_TEST, LIFTING_CATALOG, LiftingConfig, TEST_CODE_RE, ValdMeta, defaultLiftingConfig, mergeCatalog, validateLiftingConfig, validateMetrics, validatePlayerIds,
 } from './lifting-catalog';
 import { AVG_SUFFIX } from './vald-mapping';
 
@@ -12,6 +12,10 @@ import { AVG_SUFFIX } from './vald-mapping';
    athletes' own layouts (LiftingLayout -- replaces the default for that
    athlete), test results (LiftingTest) and who may edit layouts (Admins,
    plus coaches switched on as Lifting editors).
+
+   Body Weight (BODYWEIGHT) isn't a stored test: its results are the
+   athlete's weight history (WeightEntry -- typed in, or ForceDecks
+   weigh-ins), shown as results with ids "weight:<entry id>".
    ───────────────────────────────────────────────────────────────────────── */
 
 const CONFIG_KEY = 'liftingDashboard';
@@ -213,7 +217,15 @@ export class LiftingService {
       this.layoutFor(playerId),
     ]);
     const keep = layoutKeys(layout);
-    return rows.map((r) => ({ ...r, metrics: pickMetrics(parseMetrics(r.metrics), keep.get(r.testType)) }));
+    const out = rows.map((r) => ({ ...r, metrics: pickMetrics(parseMetrics(r.metrics), keep.get(r.testType)) }));
+    if (!keep.has(BODYWEIGHT_TEST)) return out;
+    const weights = await this.prisma.weightEntry.findMany({
+      where: { playerId },
+      orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
+      select: { id: true, weightLbs: true, recordedOn: true, source: true },
+    });
+    return [...out, ...weights.map(weightRow)];
   }
 
   /** A coach types a result in (med ball velocity, or a test before VALD
@@ -226,6 +238,7 @@ export class LiftingService {
     const when = typeof dto?.recordedAt === 'string' ? Date.parse(dto.recordedAt) : NaN;
     if (Number.isNaN(when)) throw new BadRequestException('Pick a date');
     if (when > Date.now() + 86_400_000) throw new BadRequestException('That date is in the future');
+    if (testType === BODYWEIGHT_TEST) return this.addWeighIn(playerId, (dto?.metrics as any)?.[BODYWEIGHT_METRIC], dto.recordedAt as string, actorId);
     let metrics: Record<string, number>;
     try { metrics = validateMetrics(dto?.metrics); } catch (err: any) { throw new BadRequestException(err?.message); }
     const notes = typeof dto?.notes === 'string' ? dto.notes.trim().slice(0, 500) || null : null;
@@ -239,6 +252,7 @@ export class LiftingService {
   /** Coaches remove typed results; VALD results come back on the next sync,
    *  so only Admins may remove those. */
   async deleteTest(id: string, user: JwtPayload) {
+    if (id.startsWith('weight:')) return this.deleteWeighIn(id.slice(7), user);
     const row = await this.prisma.liftingTest.findUnique({ where: { id }, select: { id: true, source: true } });
     if (!row) throw new NotFoundException('Result not found');
     if (row.source !== 'manual' && coachLevelOf(user) !== 'ADMIN') {
@@ -246,6 +260,37 @@ export class LiftingService {
     }
     await this.prisma.liftingTest.delete({ where: { id } });
     return { ok: true };
+  }
+
+  /** Body Weight's Add Result: a weigh-in in the weight history (a typed
+   *  weight replaces a VALD one for that day). The dialog sends noon local
+   *  time, so the UTC date is the coach's day. */
+  private async addWeighIn(playerId: string, raw: unknown, recordedAt: string, actorId?: string) {
+    const lbs = Math.round(Number(raw));
+    if (!Number.isFinite(lbs) || lbs < 50 || lbs > 500) throw new BadRequestException('Enter a weight between 50 and 500 lb');
+    const day = new Date(recordedAt).toISOString().slice(0, 10);
+    await this.prisma.weightEntry.deleteMany({ where: { playerId, recordedOn: day, source: 'vald' } });
+    const row = await this.prisma.weightEntry.create({
+      data: { playerId, weightLbs: lbs, recordedOn: day, createdById: actorId ?? null },
+      select: { id: true, weightLbs: true, recordedOn: true, source: true },
+    });
+    await this.syncLatestWeight(playerId);
+    return weightRow(row);
+  }
+
+  private async deleteWeighIn(entryId: string, user: JwtPayload) {
+    const row = await this.prisma.weightEntry.findUnique({ where: { id: entryId }, select: { id: true, playerId: true, source: true } });
+    if (!row) throw new NotFoundException('Weigh-in not found');
+    if (row.source === 'vald' && coachLevelOf(user) !== 'ADMIN') throw new ForbiddenException('Only Admins can remove VALD results');
+    await this.prisma.weightEntry.delete({ where: { id: entryId } });
+    await this.syncLatestWeight(row.playerId);
+    return { ok: true };
+  }
+
+  /** Player.weightLbs (the weight in the name bubble) = the newest weigh-in. */
+  private async syncLatestWeight(playerId: string) {
+    const latest = await this.prisma.weightEntry.findFirst({ where: { playerId }, orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }], select: { weightLbs: true } });
+    await this.prisma.player.update({ where: { id: playerId }, data: { weightLbs: latest?.weightLbs ?? null } });
   }
 
   /** Coach page: each athlete's latest two results per test (the default
@@ -266,8 +311,35 @@ export class LiftingService {
       kept.set(k, n + 1);
       out.push({ ...r, metrics: pickMetrics(parseMetrics(r.metrics), keep.get(r.testType)) });
     }
+    if (keep.has(BODYWEIGHT_TEST)) {
+      const weights = await this.prisma.weightEntry.findMany({
+        orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }],
+        select: { id: true, playerId: true, weightLbs: true, recordedOn: true, source: true },
+        take: 20_000,
+      });
+      const wk = new Map<string, number>();
+      for (const w of weights) {
+        const n = wk.get(w.playerId) ?? 0;
+        if (n >= 2) continue;
+        wk.set(w.playerId, n + 1);
+        const r = weightRow(w);
+        out.push({ playerId: w.playerId, testType: r.testType, recordedAt: r.recordedAt, metrics: r.metrics });
+      }
+    }
     return out;
   }
+}
+
+/** A weigh-in as a Body Weight result (noon UTC keeps the date in US time zones). */
+function weightRow(w: { id: string; weightLbs: number; recordedOn: string; source: string | null }) {
+  return {
+    id: `weight:${w.id}`,
+    source: w.source === 'vald' ? 'vald:forcedecks' : 'manual',
+    testType: BODYWEIGHT_TEST,
+    recordedAt: new Date(`${w.recordedOn}T12:00:00.000Z`),
+    metrics: { [BODYWEIGHT_METRIC]: w.weightLbs } as Record<string, number>,
+    notes: null as string | null,
+  };
 }
 
 /** Per test code, the metric keys a layout's boxes use (ratios name theirs). */

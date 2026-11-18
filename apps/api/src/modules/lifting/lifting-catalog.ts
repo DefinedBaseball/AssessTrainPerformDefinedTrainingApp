@@ -28,7 +28,7 @@ export interface CatalogTest {
   code: string;
   label: string;
   /** Where the result comes from ("other" = only seen in saved results). */
-  source: 'vald:forcedecks' | 'vald:dynamo' | 'manual' | 'other';
+  source: 'vald:forcedecks' | 'vald:dynamo' | 'vald:smartspeed' | 'manual' | 'weight' | 'other';
   metrics: CatalogMetric[];
 }
 
@@ -63,7 +63,13 @@ const DYNAMO = [
   M('PEAK_FORCE_ASYM', 'Peak Force Asymmetry', '%', 1, 'low', 'Asymmetry'),
 ];
 
+/** Body Weight: not a stored test -- its results are the athlete's weight
+ *  history (typed in, or ForceDecks weigh-ins from the VALD import). */
+export const BODYWEIGHT_TEST = 'BODYWEIGHT';
+export const BODYWEIGHT_METRIC = 'WEIGHT_LBS';
+
 export const LIFTING_CATALOG: CatalogTest[] = [
+  { code: BODYWEIGHT_TEST, label: 'Body Weight', source: 'weight', metrics: [M(BODYWEIGHT_METRIC, 'Body Weight', 'lb', 0, null)] },
   { code: 'CMJ', label: 'Countermovement Jump', source: 'vald:forcedecks', metrics: JUMP },
   { code: 'SJ', label: 'Squat Jump', source: 'vald:forcedecks', metrics: JUMP },
   {
@@ -133,7 +139,7 @@ export function humanizeTestCode(code: string): string {
 
 /** Names / units VALD gave each test's metrics on a pull (AppSetting). */
 export interface ValdMeta {
-  tests: Record<string, { label: string; source: 'vald:forcedecks' | 'vald:dynamo'; metrics: Record<string, { label: string; unit: string; digits: number; better: 'high' | 'low' | null; group?: string }> }>;
+  tests: Record<string, { label: string; source: 'vald:forcedecks' | 'vald:dynamo' | 'vald:smartspeed'; metrics: Record<string, { label: string; unit: string; digits: number; better: 'high' | 'low' | null; group?: string }> }>;
 }
 
 /** The editor's list: the catalog, plus every test and metric VALD has sent
@@ -204,6 +210,7 @@ export function defaultLiftingConfig(): LiftingConfig {
   return {
     version: 1,
     bubbles: [
+      { id: 'bodyweight', title: 'Body Weight', test: BODYWEIGHT_TEST, kpis: [kpi('bw', 'Body Weight', BODYWEIGHT_METRIC, 'lb', 0, null)] },
       {
         id: 'cmj', title: 'CMJ', test: 'CMJ',
         kpis: [

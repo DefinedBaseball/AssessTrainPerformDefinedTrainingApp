@@ -2,11 +2,13 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.util';
 import { LiftingService } from './lifting.service';
+import { AcademyService } from '../academy/academy.service';
 import { ValdClient } from './vald-client';
 import type { ValdMeta } from './lifting-catalog';
 import {
-  FD_TEST_LABELS, FdResultDef, MatchResult, RosterPlayer, TestMeta, ValdFilters, ValdProfile,
-  aggregateDynamo, aggregateForceDecks, cleanFilters, dynamoTestLabel, emptyFilters, matchProfile, passesTags,
+  FD_TEST_LABELS, FdResultDef, KNOWN_DYNAMO_CODES, MatchResult, RosterPlayer, SmartSpeedRep, TestMeta, VALD_DEVICES, ValdFilters, ValdProfile,
+  aggregateDynamo, aggregateForceDecks, aggregateSmartSpeed, cleanFilters, dynamoTestLabel, emptyFilters, localDay, matchProfile, passesTags,
+  smartSpeedTestCode, weighInLbs,
 } from './vald-mapping';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -14,10 +16,14 @@ import {
 
    Settings (AppSetting "valdImport"): what a manual pull takes (date range +
    filters) and what the automatic pull takes (filters + every N days).
-   Filters: devices (ForceDecks / DynaMo), test types (all by default),
-   sports + groups (VALD groups -- athlete in any chosen one of each), tags
-   (ForceDecks only; DynaMo tests can't carry tags so they're pulled
-   regardless), and specific athletes.
+   Filters: devices (ForceDecks / DynaMo / SmartSpeed), test types (all by
+   default), sports + groups (VALD groups -- athlete in any chosen one of
+   each), tags (ForceDecks only; DynaMo and SmartSpeed tests can't carry
+   tags so they're pulled regardless), and specific athletes.
+
+   ForceDecks weigh-ins (every ForceDecks test records bodyweight) go into
+   the athlete's weight history -- one per day, never over a weight a
+   person typed for that day -- and the newest becomes their weight.
 
    A pull matches VALD profiles to the roster (VALD External ID = Athlete
    ID, else first + last name AND birthday), then saves each session as one
@@ -53,6 +59,8 @@ export interface PullReport {
   filteredOut: number;
   /** Athletes whose Physical tab was turned on (a new session landed for them). */
   physicalShown: number;
+  /** ForceDecks weigh-ins saved to athletes' weight history. */
+  weighIns: number;
   /** VALD athletes with tests in range but no roster match (name + birthday). */
   unmatched: { name: string; birthday: string | null; reason: string; tests: number }[];
   error: string | null;
@@ -74,6 +82,11 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
    web's DEFAULT_HIDDEN_TABS (apps/web/src/app/athletes/[id]/helpers.ts).
    "strength" = the Physical tab. */
 const DEFAULT_HIDDEN_TABS = ['catching', 'infield', 'outfield', 'strength'];
+/* Settings saved before SmartSpeed was imported (v1) get it switched on:
+   the academy uses ForceDecks, DynaMo AND SmartSpeed. */
+const SETTINGS_VERSION = 2;
+const withSmartSpeed = (f: ValdFilters, raw: any): ValdFilters =>
+  (raw?.v ?? 1) < SETTINGS_VERSION && !f.devices.includes('smartspeed') ? { ...f, devices: [...f.devices, 'smartspeed'] } : f;
 
 @Injectable()
 export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -83,7 +96,7 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
   private optionsCache: { at: number; data: any } | null = null;
   private physicalShownThisRun = new Set<string>();
 
-  constructor(private prisma: PrismaService, private vald: ValdClient, private lifting: LiftingService) {}
+  constructor(private prisma: PrismaService, private vald: ValdClient, private lifting: LiftingService, private academy: AcademyService) {}
 
   /* ── Automatic pull ────────────────────────────────────────────────── */
 
@@ -125,9 +138,9 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
     try {
       const raw = JSON.parse(row.value);
       return {
-        manual: { ...base.manual, ...cleanFilters(raw?.manual), from: DAY_RE.test(raw?.manual?.from) ? raw.manual.from : base.manual.from, to: DAY_RE.test(raw?.manual?.to) ? raw.manual.to : base.manual.to },
+        manual: { ...base.manual, ...withSmartSpeed(cleanFilters(raw?.manual), raw), from: DAY_RE.test(raw?.manual?.from) ? raw.manual.from : base.manual.from, to: DAY_RE.test(raw?.manual?.to) ? raw.manual.to : base.manual.to },
         auto: {
-          ...base.auto, ...cleanFilters(raw?.auto),
+          ...base.auto, ...withSmartSpeed(cleanFilters(raw?.auto), raw),
           enabled: raw?.auto?.enabled === true,
           everyDays: Number.isInteger(raw?.auto?.everyDays) && raw.auto.everyDays >= 1 && raw.auto.everyDays <= 90 ? raw.auto.everyDays : 14,
           lastRunAt: typeof raw?.auto?.lastRunAt === 'string' ? raw.auto.lastRunAt : null,
@@ -137,7 +150,7 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private async writeSettings(s: ImportSettings) {
-    const value = JSON.stringify(s);
+    const value = JSON.stringify({ ...s, v: SETTINGS_VERSION });
     await this.prisma.appSetting.upsert({ where: { key: SETTINGS_KEY }, create: { key: SETTINGS_KEY, value }, update: { value } });
   }
 
@@ -205,18 +218,22 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
     const meta = await this.meta();
     const testTypes = new Map<string, { code: string; label: string; device: string }>();
     for (const [code, label] of Object.entries(FD_TEST_LABELS)) testTypes.set(code, { code, label, device: 'forcedecks' });
-    for (const code of ['GRIP', 'IR_STANDING', 'IR_9090', 'ER_STANDING', 'ER_9090', 'GRIP_ROM', 'IR_STANDING_ROM', 'IR_9090_ROM', 'ER_STANDING_ROM', 'ER_9090_ROM']) {
-      testTypes.set(code, { code, label: dynamoTestLabel(code), device: 'dynamo' });
+    for (const code of KNOWN_DYNAMO_CODES) testTypes.set(code, { code, label: dynamoTestLabel(code), device: 'dynamo' });
+    /* SmartSpeed drills: the ones run in the last year (drills are named by the coach in VALD). */
+    for (const rep of await this.smartSpeedReps(new Date(Date.now() - 365 * DAY), new Date(Date.now() + DAY))) {
+      const code = smartSpeedTestCode(rep.testName);
+      if (!testTypes.has(code)) testTypes.set(code, { code, label: String(rep.testName || code), device: 'smartspeed' });
     }
     for (const [code, t] of Object.entries(meta.tests)) {
-      if (!testTypes.has(code)) testTypes.set(code, { code, label: t.label, device: t.source === 'vald:dynamo' ? 'dynamo' : 'forcedecks' });
+      const device = t.source === 'vald:dynamo' ? 'dynamo' : t.source === 'vald:smartspeed' ? 'smartspeed' : 'forcedecks';
+      if (!testTypes.has(code)) testTypes.set(code, { code, label: t.label, device });
     }
     const data = {
       configured: true,
       sports: all.filter((g: any) => g.category === 'Sport'),
       groups: all.filter((g: any) => g.category !== 'Sport'),
       tags: [...tags.values()].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
-      testTypes: [...testTypes.values()].sort((a, b) => a.device.localeCompare(b.device) || a.label.localeCompare(b.label)),
+      testTypes: [...testTypes.values()].sort((a, b) => VALD_DEVICES.indexOf(a.device) - VALD_DEVICES.indexOf(b.device) || a.label.localeCompare(b.label)),
     };
     this.optionsCache = { at: Date.now(), data };
     return { ...data, athletes: await this.athletes() };
@@ -264,6 +281,57 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
     return true;
   }
 
+  /** SmartSpeed reps (each test is one rep) recorded in [from, to). */
+  private async smartSpeedReps(from: Date, to: Date): Promise<SmartSpeedRep[]> {
+    const T = this.vald.tenantId;
+    const out: SmartSpeedRep[] = [];
+    const q = `TestFromUtc=${encodeURIComponent(from.toISOString())}&TestToUtc=${encodeURIComponent(to.toISOString())}`;
+    for (let page = 1; page <= 200; page++) {
+      const batch = (await this.vald.get<SmartSpeedRep[]>('extsmartspeed', `/v1/team/${T}/tests?${q}&Page=${page}`)) ?? [];
+      out.push(...(Array.isArray(batch) ? batch : []));
+      if (!Array.isArray(batch) || batch.length < 50) break;
+      await sleep(PAUSE_MS);
+    }
+    return out;
+  }
+
+  /**
+   * ForceDecks weigh-ins -> weight history: one entry per athlete per day
+   * (the day's last weigh-in), marked as from VALD. A weight a person typed
+   * for that day wins and is left alone. Each athlete's weight then follows
+   * their newest entry (what the name bubble shows).
+   */
+  private async saveWeighIns(weighIns: Map<string, Map<string, { lbs: number; at: number }>>): Promise<number> {
+    let saved = 0;
+    for (const [playerId, days] of weighIns) {
+      const player = await this.prisma.player.findUnique({ where: { id: playerId }, select: { weightLbs: true, updatedAt: true } });
+      if (!player) continue;
+      const existing = await this.prisma.weightEntry.findMany({ where: { playerId }, select: { id: true, recordedOn: true, source: true, weightLbs: true } });
+      /* An athlete who only had the old single weight keeps it as their first entry. */
+      if (!existing.length && player.weightLbs != null) {
+        await this.prisma.weightEntry.create({ data: { playerId, weightLbs: player.weightLbs, recordedOn: player.updatedAt.toISOString().slice(0, 10) } });
+      }
+      let changed = false;
+      for (const [day, w] of days) {
+        const sameDay = existing.filter((e) => e.recordedOn === day);
+        if (sameDay.some((e) => e.source !== 'vald')) continue;
+        const mine = sameDay.find((e) => e.source === 'vald');
+        if (mine) {
+          if (mine.weightLbs !== w.lbs) { await this.prisma.weightEntry.update({ where: { id: mine.id }, data: { weightLbs: w.lbs } }); changed = true; saved += 1; }
+        } else {
+          await this.prisma.weightEntry.create({ data: { playerId, weightLbs: w.lbs, recordedOn: day, source: 'vald' } });
+          changed = true;
+          saved += 1;
+        }
+      }
+      if (changed) {
+        const latest = await this.prisma.weightEntry.findFirst({ where: { playerId }, orderBy: [{ recordedOn: 'desc' }, { createdAt: 'desc' }], select: { weightLbs: true } });
+        if (latest) await this.prisma.player.update({ where: { id: playerId }, data: { weightLbs: latest.weightLbs } });
+      }
+    }
+    return saved;
+  }
+
   private async meta(): Promise<ValdMeta> {
     const row = await this.prisma.appSetting.findUnique({ where: { key: META_KEY } });
     try { const m = row?.value ? JSON.parse(row.value) : null; if (m?.tests) return m; } catch { /* fresh */ }
@@ -273,13 +341,16 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
   private async run(kind: 'manual' | 'auto', f: ValdFilters, from: Date, to: Date): Promise<PullReport> {
     const report: PullReport = {
       kind, from: from.toISOString(), to: to.toISOString(), startedAt: new Date().toISOString(), finishedAt: null,
-      running: true, phase: 'Signing in to VALD', added: 0, replaced: 0, filteredOut: 0, physicalShown: 0, unmatched: [], error: null,
+      running: true, phase: 'Signing in to VALD', added: 0, replaced: 0, filteredOut: 0, physicalShown: 0, weighIns: 0, unmatched: [], error: null,
     };
     this.job = report;
     this.physicalShownThisRun = new Set();
     const T = this.vald.tenantId;
     const newMeta: Record<string, TestMeta> = {};
     const unmatched = new Map<string, PullReport['unmatched'][number]>();
+    const timeZone = (await this.academy.get().catch(() => null))?.timeZone || undefined;
+    /* player -> day -> the day's last ForceDecks weigh-in. */
+    const weighIns = new Map<string, Map<string, { lbs: number; at: number }>>();
     try {
       /* Athletes: VALD profiles -> roster. */
       report.phase = 'Matching VALD athletes';
@@ -363,8 +434,18 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
           n += 1;
           report.phase = `ForceDecks ${n} of ${inRange.length}`;
           const code = String(t.testType || '').toUpperCase().slice(0, 30);
-          if (!code || excluded.has(code) || !allowedProfile(t.profileId) || !passesTags(t.attributes, f.tagIds)) { report.filteredOut += 1; continue; }
           const m = matches.get(t.profileId);
+          /* The weigh-in counts whatever the test (test type / tag filters
+             are about which results to show, not the athlete's weight). */
+          const lbs = weighInLbs(t.weight, code);
+          if (lbs != null && m?.playerId && allowedProfile(t.profileId)) {
+            const at = Date.parse(t.recordedDateUtc);
+            const day = localDay(new Date(at), timeZone);
+            const days = weighIns.get(m.playerId) ?? weighIns.set(m.playerId, new Map()).get(m.playerId)!;
+            const cur = days.get(day);
+            if (!cur || at > cur.at) days.set(day, { lbs, at });
+          }
+          if (!code || excluded.has(code) || !allowedProfile(t.profileId) || !passesTags(t.attributes, f.tagIds)) { report.filteredOut += 1; continue; }
           if (!m?.playerId) { noteUnmatched(t.profileId); continue; }
           const trials = (await this.vald.get<any[]>('extforcedecks', `/v2019q3/teams/${T}/tests/${t.testId}/trials`)) ?? [];
           const { metrics, meta } = aggregateForceDecks(trials, defs);
@@ -377,6 +458,11 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
         }
       }
 
+      if (weighIns.size) {
+        report.phase = 'Saving weigh-ins';
+        report.weighIns = await this.saveWeighIns(weighIns);
+      }
+
       /* DynaMo (no tags -- pulled whatever tags are chosen). */
       if (f.devices.includes('dynamo')) {
         report.phase = 'Reading DynaMo tests';
@@ -385,18 +471,58 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
           const j = await this.vald.get<any>('extdynamo', `/v2022q2/teams/${T}/tests?${q}&page=${page}`);
           const items: any[] = j?.items ?? [];
           for (const t of items) {
-            const { code, metrics, meta } = aggregateDynamo(t);
-            if (excluded.has(code) || !allowedProfile(t.athleteId)) { report.filteredOut += 1; continue; }
+            if (!allowedProfile(t.athleteId)) { report.filteredOut += 1; continue; }
             const m = matches.get(t.athleteId);
             if (!m?.playerId) { noteUnmatched(t.athleteId); continue; }
-            if (!Object.keys(metrics).length) continue;
-            await save('vald:dynamo', t.id, m.playerId, code, new Date(t.startTimeUTC || t.analysedDateUTC), metrics);
-            const tm = newMeta[code] ?? (newMeta[code] = { label: dynamoTestLabel(code), source: 'vald:dynamo', metrics: {} });
-            Object.assign(tm.metrics, meta);
+            const sessions = aggregateDynamo(t);
+            /* A combined IR + ER test is saved as two sessions (id:IR, id:ER);
+               an earlier import kept it as one -- that one goes. */
+            if (sessions.some((x) => x.idSuffix)) {
+              await this.prisma.liftingTest.deleteMany({ where: { source: 'vald:dynamo', externalId: t.id } });
+            }
+            for (const x of sessions) {
+              if (excluded.has(x.code)) { report.filteredOut += 1; continue; }
+              if (!Object.keys(x.metrics).length) continue;
+              await save('vald:dynamo', t.id + x.idSuffix, m.playerId, x.code, new Date(t.startTimeUTC || t.analysedDateUTC), x.metrics);
+              const tm = newMeta[x.code] ?? (newMeta[x.code] = { label: x.label, source: 'vald:dynamo', metrics: {} });
+              Object.assign(tm.metrics, x.meta);
+            }
           }
           report.phase = `DynaMo page ${page}`;
           if (!items.length || (j?.totalPages && page >= j.totalPages)) break;
           await sleep(PAUSE_MS);
+        }
+      }
+
+      /* SmartSpeed (no tags). Each test is one rep, so a session = one
+         athlete's reps of one drill on one day (academy time zone). Reps are
+         read from 2 days before to 1 day after the range, so a day at
+         either end is never saved half-read (a re-pull replaces it). */
+      if (f.devices.includes('smartspeed')) {
+        report.phase = 'Reading SmartSpeed tests';
+        const firstDay = localDay(new Date(from.getTime() - DAY), timeZone);
+        const reps = (await this.smartSpeedReps(new Date(from.getTime() - 2 * DAY), new Date(to.getTime() + DAY))).filter((r) => r?.profileId && r.testDateUtc);
+        const sessions = new Map<string, SmartSpeedRep[]>();
+        for (const r of reps) {
+          const at = new Date(r.testDateUtc.endsWith('Z') ? r.testDateUtc : `${r.testDateUtc}Z`);
+          const key = `${r.profileId}|${smartSpeedTestCode(r.testName)}|${localDay(at, timeZone)}`;
+          (sessions.get(key) ?? sessions.set(key, []).get(key)!).push(r);
+        }
+        let n = 0;
+        for (const [key, list] of sessions) {
+          n += 1;
+          report.phase = `SmartSpeed ${n} of ${sessions.size}`;
+          const [profileId, code, day] = key.split('|');
+          const first = list.map((r) => Date.parse(r.testDateUtc.endsWith('Z') ? r.testDateUtc : `${r.testDateUtc}Z`)).sort((a, b) => a - b)[0];
+          if (day < firstDay || first >= to.getTime()) continue;
+          if (excluded.has(code) || !allowedProfile(profileId)) { report.filteredOut += 1; continue; }
+          const m = matches.get(profileId);
+          if (!m?.playerId) { noteUnmatched(profileId); continue; }
+          const { metrics, meta } = aggregateSmartSpeed(list);
+          if (!Object.keys(metrics).length) continue;
+          await save('vald:smartspeed', `ss:${profileId}:${code}:${day}`, m.playerId, code, new Date(first), metrics);
+          const tm = newMeta[code] ?? (newMeta[code] = { label: String(list[0].testName || code), source: 'vald:smartspeed', metrics: {} });
+          Object.assign(tm.metrics, meta);
         }
       }
 
@@ -409,6 +535,8 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
           Object.assign(cur.metrics, tm.metrics);
           meta.tests[code] = cur;
         }
+        const stored = new Set((await this.prisma.liftingTest.findMany({ where: { source: { startsWith: 'vald:' } }, distinct: ['testType'], select: { testType: true } })).map((r) => r.testType));
+        for (const code of Object.keys(meta.tests)) if (!stored.has(code)) delete meta.tests[code];
         const value = JSON.stringify(meta);
         await this.prisma.appSetting.upsert({ where: { key: META_KEY }, create: { key: META_KEY, value }, update: { value } });
       }
@@ -423,7 +551,7 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
       report.finishedAt = new Date().toISOString();
       const value = JSON.stringify(report);
       await this.prisma.appSetting.upsert({ where: { key: LAST_KEY }, create: { key: LAST_KEY, value }, update: { value } }).catch(() => undefined);
-      this.logger.log(`VALD ${kind} pull: ${report.added} added, ${report.replaced} replaced, ${report.unmatched.length} unmatched athletes${report.error ? ` (error: ${report.error})` : ''}`);
+      this.logger.log(`VALD ${kind} pull: ${report.added} added, ${report.replaced} replaced, ${report.weighIns} weigh-ins, ${report.unmatched.length} unmatched athletes${report.error ? ` (error: ${report.error})` : ''}`);
     }
     return report;
   }

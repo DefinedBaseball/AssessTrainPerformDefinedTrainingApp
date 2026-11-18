@@ -17,7 +17,7 @@ import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-par
 import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
-import { aggregateForceDecks, aggregateDynamo, dynamoTestCode, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
+import { aggregateForceDecks, aggregateDynamo, aggregateSmartSpeed, dynamoTestCode, dynamoTestLabel, smartSpeedTestCode, weighInLbs, localDay, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
 import { decideRendition, withRendition, isPlay720, describeSource } from '../src/modules/videos/bunny-renditions';
 import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
 
@@ -489,10 +489,10 @@ async function liftingTests() {
   await test('Lifting: default layout is valid and matches the strength coach list', () => {
     const d = defaultLiftingConfig();
     const v = validateLiftingConfig(d);
-    assertEqual(v.bubbles.map((b) => b.title).join(','), 'CMJ,SJ,Single Leg Jump,Plyo Push-up,Push-up,Grip Strength,IR (Standing),ER (Standing),IR (90/90),ER (90/90),6 lb Med Ball', 'bubble order');
-    assertEqual(v.bubbles[0].kpis.length, 4, 'CMJ has 4 KPIs');
-    assertEqual(v.bubbles[0].kpis[0].metric, 'JUMP_HEIGHT_INCHES_IMP_MOM', 'CMJ jump height = Imp-Mom inches');
-    assertEqual(v.bubbles[0].kpis[3].metric, 'PEAK_TAKEOFF_FORCE_ASYM', 'asymmetry = takeoff peak force');
+    assertEqual(v.bubbles.map((b) => b.title).join(','), 'Body Weight,CMJ,SJ,Single Leg Jump,Plyo Push-up,Push-up,Grip Strength,IR (Standing),ER (Standing),IR (90/90),ER (90/90),6 lb Med Ball', 'bubble order');
+    assertEqual(v.bubbles[1].kpis.length, 4, 'CMJ has 4 KPIs');
+    assertEqual(v.bubbles[1].kpis[0].metric, 'JUMP_HEIGHT_INCHES_IMP_MOM', 'CMJ jump height = Imp-Mom inches');
+    assertEqual(v.bubbles[1].kpis[3].metric, 'PEAK_TAKEOFF_FORCE_ASYM', 'asymmetry = takeoff peak force');
     const ratio = v.bubbles.find((b) => b.id === 'er-9090')!.kpis.find((k) => k.ratio);
     assert(!!ratio && ratio.ratio!.den.test === 'IR_9090' && ratio.ratio!.num.metric === 'PEAK_FORCE_LEFT', 'ER:IR ratio uses the same position + arm');
     for (const b of v.bubbles) {
@@ -620,7 +620,7 @@ async function valdTests() {
     assertEqual(dynamoTestCode({ movement: 'ExternalRotation', position: 'SeatedElbow90Degrees90DegreeShoulderAbduction' }), 'ER_9090', 'ER 90/90 seated');
     assertEqual(dynamoTestCode({ movement: 'ExternalRotation', position: 'SeatedElbow90Degrees90DegreeShoulderAbduction', testCategory: 'RangeofMotion' }), 'ER_9090_ROM', 'ROM test');
     assertEqual(dynamoTestCode({ movement: 'GripSqueeze', position: 'p90DegreesElbowFlexion' }), 'GRIP', 'grip');
-    const g = aggregateDynamo({
+    const [g] = aggregateDynamo({
       id: 't', athleteId: 'a', movement: 'GripSqueeze', position: 'p90DegreesElbowFlexion',
       repetitionTypeSummaries: [
         { laterality: 'RightSide', maxForceNewtons: 381.9, avgForceNewtons: 377, maxRangeOfMotionDegrees: 0 },
@@ -632,6 +632,69 @@ async function valdTests() {
     assertEqual(g.metrics['PEAK_FORCE_LEFT' + AVG_SUFFIX], 377.5, 'left average');
     assertEqual(g.metrics.PEAK_FORCE_ASYM, -3.2, 'asymmetry');
     assert(!('RANGE_OF_MOTION_RIGHT' in g.metrics), 'unmeasured (0) left out');
+  });
+
+  await test('VALD: combined IR + ER test splits into IR and ER sessions', () => {
+    const sessions = aggregateDynamo({
+      id: 't', athleteId: 'a', testCategory: 'Strength', bodyRegion: 'Shoulder', movement: 'InternalRotationExternalRotation', position: 'StandingElbow90Degrees',
+      repetitionTypeSummaries: [
+        { movement: 'InternalRotation', laterality: 'LeftSide', maxForceNewtons: 207, avgForceNewtons: 206 },
+        { movement: 'ExternalRotation', laterality: 'RightSide', maxForceNewtons: 123.6, avgForceNewtons: 113.6 },
+        { movement: 'ExternalRotation', laterality: 'LeftSide', maxForceNewtons: 142.7, avgForceNewtons: 142.7 },
+        { movement: 'InternalRotation', laterality: 'RightSide', maxForceNewtons: 240.2, avgForceNewtons: 227.7 },
+      ],
+      asymmetries: [{ movement: 'InternalRotation', valuePercentage: 13.8 }, { movement: 'ExternalRotation', valuePercentage: -13.4 }],
+      ratios: [
+        { laterality: 'RightSide', numeratorMovement: 'InternalRotation', denominatorMovement: 'ExternalRotation', value: 1.94 },
+        { laterality: 'RightSide', numeratorMovement: 'ExternalRotation', denominatorMovement: 'InternalRotation', value: 0.51 },
+      ],
+    });
+    assertEqual(sessions.map((x) => `${x.code}${x.idSuffix}`).join(','), 'IR_STANDING:IR,ER_STANDING:ER', 'two sessions');
+    const [ir, er] = sessions;
+    assertEqual(ir.metrics.PEAK_FORCE_RIGHT, 240.2, 'IR right = the IR rep, not ER');
+    assertEqual(er.metrics.PEAK_FORCE_RIGHT, 123.6, 'ER right');
+    assertEqual(er.metrics.PEAK_FORCE_LEFT, 142.7, 'ER left');
+    assertEqual(ir.metrics.PEAK_FORCE_ASYM, 13.8, 'IR asymmetry');
+    assertEqual(er.metrics.PEAK_FORCE_ASYM, -13.4, 'ER asymmetry');
+    assertEqual(er.metrics.ER_IR_RATIO_RIGHT, 0.51, 'VALD ER:IR ratio on the ER session');
+    assertEqual(ir.metrics.IR_ER_RATIO_RIGHT, 1.94, 'VALD IR:ER ratio on the IR session');
+    assertEqual(ir.label, 'Shoulder IR (Standing)', 'label');
+  });
+
+  await test('VALD: flexion tests are named by body region', () => {
+    assertEqual(dynamoTestCode({ bodyRegion: 'Knee', movement: 'Flexion', position: 'Seated', testCategory: 'Strength' }), 'KNEE_FLEXION_SEATED', 'knee flexion seated');
+    assertEqual(dynamoTestCode({ bodyRegion: 'Knee', movement: 'Flexion', position: 'Prone', testCategory: 'Strength' }), 'KNEE_FLEXION_PRONE', 'knee flexion prone');
+    assertEqual(dynamoTestCode({ bodyRegion: 'Shoulder', movement: 'Flexion', position: 'Standing', testCategory: 'RangeofMotion' }), 'SHOULDER_FLEXION_STANDING_ROM', 'shoulder flexion ROM');
+    assertEqual(dynamoTestLabel('KNEE_FLEXION_SEATED'), 'Knee Flexion (Seated)', 'knee label');
+    assertEqual(dynamoTestLabel('HIP_EXTENSION_PRONE', { bodyRegion: 'Hip', movement: 'Extension', position: 'Prone', testCategory: 'Strength' }), 'Hip Extension (Prone)', 'unknown test named from its fields');
+  });
+
+  await test('VALD: SmartSpeed sessions, junk velocity and weigh-ins', () => {
+    const rep = (total: number, v: number, splits: number[] = [total]) => ({
+      id: 'r', profileId: 'p', testDateUtc: '2026-08-27T22:14:45.785', testName: '10yd Sprint', isValid: true,
+      runningSummaryFields: {
+        totalTimeSeconds: total,
+        velocityFields: { peakVelocityMetersPerSecond: v, meanVelocityMetersPerSecond: v },
+        gateSummaryFields: { splitOne: splits[0] ?? 0, splitTwo: splits[1] ?? 0, splitThree: 0, splitFour: 0 },
+      },
+    });
+    assertEqual(smartSpeedTestCode('10yd Sprint'), 'SS_10YD_SPRINT', 'code');
+    const a = aggregateSmartSpeed([rep(0.951, 9.6), rep(0.927, 9.9), { ...rep(0.8, 11), isValid: false }]);
+    assertEqual(a.metrics.TOTAL_TIME, 0.927, 'best = fastest valid rep');
+    assertEqual(a.metrics['TOTAL_TIME' + AVG_SUFFIX], 0.939, 'average time');
+    assertEqual(a.metrics.PEAK_VELOCITY, 9.9, 'best velocity');
+    assertEqual(a.metrics.REPS, 2, 'invalid rep left out');
+    assert(!('SPLIT_1' in a.metrics), 'one-split drill: no split boxes');
+    const junk = aggregateSmartSpeed([rep(0.923, 99.1)]);
+    assert(!('PEAK_VELOCITY' in junk.metrics), 'impossible velocity left out');
+    const pa = aggregateSmartSpeed([rep(4.878, 0, [2.494, 2.384]), rep(4.93, 0, [2.623, 2.307])]);
+    assertEqual(pa.metrics.SPLIT_2, 2.307, 'split 2 best');
+    assert(!('PEAK_VELOCITY' in pa.metrics), 'no velocity recorded -> none');
+    assertEqual(weighInLbs(81.6), 180, 'kg -> whole lb');
+    assertEqual(weighInLbs(0), null, '0 = no weigh-in');
+    assertEqual(weighInLbs(81.6, 'CMJ'), 180, 'jump = bodyweight');
+    assertEqual(weighInLbs(28, 'PPU'), null, 'push-up weighs only the hands');
+    assertEqual(localDay(new Date('2026-08-28T02:00:00Z'), 'America/Chicago'), '2026-08-27', 'evening session keeps its local day');
   });
 
   await test('VALD: athletes match by External ID, else name + birthday', () => {
@@ -653,7 +716,7 @@ async function valdTests() {
     assertEqual(f.excludedTestTypes.join(','), 'CMJ', 'test types upper-cased');
     assertEqual(f.groupIds.join(','), 'g1', 'de-duplicated, bad ids dropped');
     assertEqual(f.tagIds.length, 0, 'non-list ignored');
-    assertEqual(cleanFilters({}).devices.join(','), 'forcedecks,dynamo', 'both devices by default');
+    assertEqual(cleanFilters({}).devices.join(','), 'forcedecks,dynamo,smartspeed', 'every device by default');
     assert(passesTags([], []), 'no tag filter -> passes');
     assert(!passesTags([], ['t1']), 'untagged test fails a tag filter');
     assert(passesTags([{ attributeValueId: 't1' }], ['t1', 't2']), 'any chosen tag');

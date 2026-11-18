@@ -34,10 +34,12 @@ type Sub = 'dashboard' | 'athletes' | 'vald' | 'editors';
 
 const newId = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}`;
 const RATIO = '__ratio__';
-const GROUP_ORDER = ['Main', 'Power', 'Velocity', 'Force', 'Impulse', 'Rate of Force', 'Timing', 'Left / Right', 'Asymmetry', 'More from results'];
+const GROUP_ORDER = ['Main', 'Power', 'Velocity', 'Force', 'Impulse', 'Rate of Force', 'Timing', 'Splits', 'Left / Right', 'Asymmetry', 'Ratio', 'More from results'];
 const SOURCE_GROUPS: [string, string][] = [
+  ['weight', 'Body Weight (weight history)'],
   ['vald:forcedecks', 'VALD ForceDecks'],
   ['vald:dynamo', 'VALD DynaMo'],
+  ['vald:smartspeed', 'VALD SmartSpeed'],
   ['manual', 'Typed in by coaches'],
   ['other', 'Other tests (from saved results)'],
 ];

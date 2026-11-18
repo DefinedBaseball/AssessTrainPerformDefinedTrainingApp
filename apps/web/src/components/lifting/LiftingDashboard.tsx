@@ -17,6 +17,7 @@ import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { SectionHeader } from '@/components/assessment/SectionHeader';
 import { ValdLogo } from '@/components/brand/VendorLogos';
+import { WEIGHT_CHANGED_EVENT, type WeightChangedDetail } from '@/components/WeightTracker';
 import { headerChipStyle } from '@/app/athletes/[id]/components/ReportInlineEditing';
 import aStyles from '@/components/assessment/assessment.module.css';
 import { AVG_SUFFIX, bubbleView, byTest, changeColor, fmt, fmtChange, fmtDate } from '@/lib/lifting';
@@ -65,9 +66,23 @@ export function LiftingDashboard({ playerId, headerEnd }: { playerId: string; he
   );
   const shown = views.filter((v) => v.hasData);
 
+  /* Body Weight results are the athlete's weight history: after one is
+     added or removed, the name bubble's weight follows the newest. */
+  const announceWeight = useCallback(async () => {
+    try {
+      const list = await api.getWeightEntries(playerId, 1);
+      window.dispatchEvent(new CustomEvent<WeightChangedDetail>(WEIGHT_CHANGED_EVENT, { detail: { playerId, weightLbs: list[0]?.weightLbs ?? null } }));
+    } catch { /* the name bubble catches up on the next load */ }
+  }, [playerId]);
+
   const remove = async (t: api.LiftingTestRow) => {
-    if (!window.confirm(`Remove the ${t.testType} result from ${fmtDate(t.recordedAt)}?`)) return;
-    try { await api.deleteLiftingTest(t.id); load(); } catch (e: any) { setError(e?.message || 'Could not remove it'); }
+    const what = t.testType === 'BODYWEIGHT' ? 'weigh-in' : `${t.testType} result`;
+    if (!window.confirm(`Remove the ${what} from ${fmtDate(t.recordedAt)}?`)) return;
+    try {
+      await api.deleteLiftingTest(t.id);
+      load();
+      if (t.testType === 'BODYWEIGHT') void announceWeight();
+    } catch (e: any) { setError(e?.message || 'Could not remove it'); }
   };
 
   return (
@@ -211,7 +226,7 @@ export function LiftingDashboard({ playerId, headerEnd }: { playerId: string; he
           playerId={playerId}
           cfg={cfg}
           onClose={() => setAdding(false)}
-          onSaved={() => { setAdding(false); load(); }}
+          onSaved={(testType) => { setAdding(false); load(); if (testType === 'BODYWEIGHT') void announceWeight(); }}
         />
       )}
     </div>
@@ -228,7 +243,7 @@ function AddResultDialog({ playerId, cfg, onClose, onSaved }: {
   playerId: string;
   cfg: api.LiftingPlayerLayoutResponse;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (testType: string) => void;
 }) {
   const tests = useMemo(() => {
     const seen = new Map<string, string>();
@@ -277,7 +292,7 @@ function AddResultDialog({ playerId, cfg, onClose, onSaved }: {
     try {
       /* Noon local time, so the date never slips a day in another zone. */
       await api.addLiftingTest(playerId, { testType: test, recordedAt: new Date(`${date}T12:00:00`).toISOString(), metrics, notes: notes.trim() || undefined });
-      onSaved();
+      onSaved(test);
     } catch (e: any) {
       setError(e?.message || 'Could not save the result');
       setSaving(false);

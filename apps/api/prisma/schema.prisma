@@ -774,6 +774,8 @@ model WeightEntry {
   recordedOn  String
   /// Who typed it in (coach or the athlete), when known.
   createdById String?
+  /// "vald" = a ForceDecks weigh-in from the VALD import; null = typed in.
+  source      String?
   createdAt   DateTime @default(now())
 
   @@index([playerId, recordedOn])
@@ -1357,7 +1359,7 @@ model LiftingTest {
   id          String   @id @default(uuid())
   playerId    String
   player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  /// "manual" | "vald:forcedecks" | "vald:dynamo"
+  /// "manual" | "vald:forcedecks" | "vald:dynamo" | "vald:smartspeed"
   source      String
   /// The partner's id for the test (VALD); null for typed results.
   externalId  String?

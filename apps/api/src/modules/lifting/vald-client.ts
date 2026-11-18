@@ -14,7 +14,7 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 
 const TOKEN_URL = 'https://auth.prd.vald.com/oauth/token';
 
-export type ValdService = 'externalprofile' | 'externaltenants' | 'extforcedecks' | 'extdynamo';
+export type ValdService = 'externalprofile' | 'externaltenants' | 'extforcedecks' | 'extdynamo' | 'extsmartspeed';
 
 @Injectable()
 export class ValdClient {
