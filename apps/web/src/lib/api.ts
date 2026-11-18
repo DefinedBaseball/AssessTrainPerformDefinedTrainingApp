@@ -2657,6 +2657,10 @@ export interface AnalyticsColumn {
   source: string;
   metricType: string;
   unit: string;
+  /** Lifting Report / body weight columns: a readable name and picker heading
+   *  (source LIFTING = "<TEST>:<KEY>", BODY_WEIGHT = "weight"). */
+  label?: string;
+  group?: string;
 }
 
 export interface ChartDataSource {
@@ -3337,4 +3341,47 @@ export async function deleteLiftingTest(id: string) {
 }
 export async function getLiftingTeam() {
   return request<LiftingTeamRow[]>('/lifting/team');
+}
+
+/* ── Data -> Studies (coach-only) ── */
+export interface StudyMeasure { id: string; label: string; unit: string; group: string; better: 'high' | 'low' | null; digits: number }
+export interface StudyAthlete { id: string; name: string; gradYear: number | null; positions: string[]; athleteTypes: string[]; photo: string | null; seasonStats?: string | null }
+/** [athlete index, "YYYY-MM-DD", value] */
+export type StudyPoint = [number, string, number];
+export interface StudyData { athletes: StudyAthlete[]; series: Record<string, StudyPoint[]> }
+export interface SavedStudy {
+  id: string;
+  title: string;
+  type: string;
+  config: any;
+  conclusion: string | null;
+  pinned: boolean;
+  createdById: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface StudyValdFilters {
+  configured: boolean;
+  groups: { id: string; name: string; category: string; playerIds: string[] }[];
+  tags: { id: string; name: string; type: string; playerIds: string[] }[];
+}
+export async function getStudyValdFilters(refresh = false) {
+  return request<StudyValdFilters>(`/studies/vald-filters${refresh ? '?refresh=1' : ''}`);
+}
+export async function getStudyMeasures() {
+  return request<StudyMeasure[]>('/studies/measures');
+}
+export async function getStudyData(measures: string[], from?: string | null, to?: string | null) {
+  return request<StudyData>('/studies/data', { method: 'POST', body: JSON.stringify({ measures, from: from || undefined, to: to || undefined }) });
+}
+export async function listStudies() {
+  return request<SavedStudy[]>('/studies');
+}
+export async function saveStudy(study: { id?: string; title: string; type: string; config: any; conclusion?: string | null; pinned?: boolean }) {
+  const { id, ...body } = study;
+  return request<SavedStudy>(id ? `/studies/${id}` : '/studies', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+}
+export async function deleteStudy(id: string) {
+  return request<{ ok: true }>(`/studies/${id}`, { method: 'DELETE' });
 }

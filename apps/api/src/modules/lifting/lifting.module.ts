@@ -8,6 +8,7 @@ import { ValdService } from './vald.service';
   controllers: [LiftingController],
   /* ValdService: VALD import (settings, PULL button, automatic pull). */
   providers: [LiftingService, ValdClient, ValdService],
-  exports: [LiftingService],
+  /* ValdService: Data -> Studies reads VALD groups / tags as athlete filters. */
+  exports: [LiftingService, ValdService],
 })
 export class LiftingModule {}

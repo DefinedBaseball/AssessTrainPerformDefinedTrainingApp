@@ -7,7 +7,7 @@ import { ValdClient } from './vald-client';
 import type { ValdMeta } from './lifting-catalog';
 import {
   FD_TEST_LABELS, FdResultDef, KNOWN_DYNAMO_CODES, MatchResult, RosterPlayer, SmartSpeedRep, TestMeta, VALD_DEVICES, ValdFilters, ValdProfile,
-  aggregateDynamo, aggregateForceDecks, aggregateSmartSpeed, cleanFilters, dynamoTestLabel, emptyFilters, localDay, matchProfile, passesTags,
+  aggregateDynamo, aggregateForceDecks, aggregateSmartSpeed, cleanFilters, dynamoCodesOf, dynamoTestLabel, emptyFilters, localDay, matchProfile, passesTags,
   smartSpeedTestCode, weighInLbs,
 } from './vald-mapping';
 
@@ -42,6 +42,12 @@ const PAUSE_MS = 400; // between VALD calls -- well inside its rate limit
 export interface ImportSettings {
   manual: ValdFilters & { from: string; to: string };
   auto: ValdFilters & { enabled: boolean; everyDays: number; lastRunAt: string | null };
+}
+
+export interface ValdHistory {
+  groups: { id: string; name: string; category: string; profileIds: string[] }[];
+  tags: { id: string; name: string; type: string; profileIds: string[] }[];
+  testTypes: { code: string; label: string; device: string }[];
 }
 
 export interface PullReport {
@@ -94,6 +100,7 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
   private job: PullReport | null = null;
   private timer: NodeJS.Timeout | null = null;
   private optionsCache: { at: number; data: any } | null = null;
+  private historyCache: { at: number; data: ValdHistory } | null = null;
   private physicalShownThisRun = new Set<string>();
 
   constructor(private prisma: PrismaService, private vald: ValdClient, private lifting: LiftingService, private academy: AcademyService) {}
@@ -195,48 +202,105 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
     if (!refresh && this.optionsCache && Date.now() - this.optionsCache.at < 30 * 60_000) {
       return { ...this.optionsCache.data, athletes: await this.athletes() };
     }
-    const T = this.vald.tenantId;
-    const cats = (await this.vald.get<any>('externaltenants', `/categories?TenantId=${T}`))?.categories ?? [];
-    const groups = (await this.vald.get<any>('externaltenants', `/groups?TenantId=${T}`))?.groups ?? [];
-    const catName = new Map<string, string>(cats.map((c: any) => [c.id, c.name]));
-    const all = groups.map((g: any) => ({ id: g.id, name: g.name, category: catName.get(g.categoryId) ?? '' }))
-      .sort((a: any, b: any) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
-    /* Tags: the ForceDecks tags used in the last year (VALD has no list). */
-    const tags = new Map<string, { id: string; name: string; type: string }>();
-    let from = new Date(Date.now() - 365 * DAY).toISOString();
-    for (let page = 0; page < 40; page++) {
-      const batch = (await this.vald.get<any>('extforcedecks', `/tests?TenantId=${T}&ModifiedFromUtc=${encodeURIComponent(from)}`))?.tests ?? [];
-      for (const t of batch) for (const a of t.attributes || []) {
-        if (a?.attributeValueId) tags.set(a.attributeValueId, { id: a.attributeValueId, name: a.attributeValueName ?? '', type: a.attributeTypeName ?? 'Tag' });
-      }
-      if (batch.length < 50) break;
-      const last = batch[batch.length - 1].modifiedDateUtc;
-      if (!last || last === from) break;
-      from = last;
-      await sleep(PAUSE_MS);
-    }
+    const h = await this.history(refresh);
     const meta = await this.meta();
+    /* Every test type VALD actually has (all time), plus the well-known ones
+       and any already pulled -- so a type is choosable before its first pull. */
     const testTypes = new Map<string, { code: string; label: string; device: string }>();
-    for (const [code, label] of Object.entries(FD_TEST_LABELS)) testTypes.set(code, { code, label, device: 'forcedecks' });
-    for (const code of KNOWN_DYNAMO_CODES) testTypes.set(code, { code, label: dynamoTestLabel(code), device: 'dynamo' });
-    /* SmartSpeed drills: the ones run in the last year (drills are named by the coach in VALD). */
-    for (const rep of await this.smartSpeedReps(new Date(Date.now() - 365 * DAY), new Date(Date.now() + DAY))) {
-      const code = smartSpeedTestCode(rep.testName);
-      if (!testTypes.has(code)) testTypes.set(code, { code, label: String(rep.testName || code), device: 'smartspeed' });
-    }
+    for (const t of h.testTypes) testTypes.set(t.code, t);
+    for (const [code, label] of Object.entries(FD_TEST_LABELS)) if (!testTypes.has(code)) testTypes.set(code, { code, label, device: 'forcedecks' });
+    for (const code of KNOWN_DYNAMO_CODES) if (!testTypes.has(code)) testTypes.set(code, { code, label: dynamoTestLabel(code), device: 'dynamo' });
     for (const [code, t] of Object.entries(meta.tests)) {
       const device = t.source === 'vald:dynamo' ? 'dynamo' : t.source === 'vald:smartspeed' ? 'smartspeed' : 'forcedecks';
       if (!testTypes.has(code)) testTypes.set(code, { code, label: t.label, device });
     }
     const data = {
       configured: true,
-      sports: all.filter((g: any) => g.category === 'Sport'),
-      groups: all.filter((g: any) => g.category !== 'Sport'),
-      tags: [...tags.values()].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
+      sports: h.groups.filter((g) => g.category === 'Sport').map(({ profileIds: _p, ...g }) => g),
+      groups: h.groups.filter((g) => g.category !== 'Sport').map(({ profileIds: _p, ...g }) => g),
+      tags: h.tags.map(({ profileIds: _p, ...t }) => t),
       testTypes: [...testTypes.values()].sort((a, b) => VALD_DEVICES.indexOf(a.device) - VALD_DEVICES.indexOf(b.device) || a.label.localeCompare(b.label)),
     };
     this.optionsCache = { at: Date.now(), data };
     return { ...data, athletes: await this.athletes() };
+  }
+
+  /**
+   * Everything in VALD's history (all time): groups with their members,
+   * ForceDecks tags with the athletes tested under them, and every test
+   * type of each device. Read-only, cached 30 minutes. Used by the import
+   * filters and by Data -> Studies (VALD groups / tags as athlete filters).
+   */
+  async history(refresh = false): Promise<ValdHistory> {
+    if (!refresh && this.historyCache && Date.now() - this.historyCache.at < 30 * 60_000) return this.historyCache.data;
+    const T = this.vald.tenantId;
+    const cats = (await this.vald.get<any>('externaltenants', `/categories?TenantId=${T}`))?.categories ?? [];
+    const groupsRaw = (await this.vald.get<any>('externaltenants', `/groups?TenantId=${T}`))?.groups ?? [];
+    const catName = new Map<string, string>(cats.map((c: any) => [c.id, c.name]));
+    const groups: ValdHistory['groups'] = [];
+    for (const g of groupsRaw) {
+      const members = (await this.vald.get<any>('externalprofile', `/profiles?TenantId=${T}&GroupId=${g.id}`))?.profiles ?? [];
+      groups.push({ id: g.id, name: g.name, category: catName.get(g.categoryId) ?? '', profileIds: members.map((p: any) => p.profileId) });
+      await sleep(PAUSE_MS);
+    }
+    groups.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+
+    const testTypes = new Map<string, { code: string; label: string; device: string }>();
+    const tags = new Map<string, { id: string; name: string; type: string; profileIds: Set<string> }>();
+    let cursor = '2000-01-01T00:00:00.000Z';
+    const seen = new Set<string>();
+    for (let page = 0; page < 400; page++) {
+      const batch = (await this.vald.get<any>('extforcedecks', `/tests?TenantId=${T}&ModifiedFromUtc=${encodeURIComponent(cursor)}`))?.tests ?? [];
+      let fresh = 0;
+      for (const t of batch) {
+        if (seen.has(t.testId)) continue;
+        seen.add(t.testId);
+        fresh += 1;
+        const code = String(t.testType || '').toUpperCase().slice(0, 30);
+        if (code && !testTypes.has(code)) testTypes.set(code, { code, label: FD_TEST_LABELS[code] ?? code, device: 'forcedecks' });
+        for (const a of t.attributes || []) {
+          if (!a?.attributeValueId) continue;
+          const tag = tags.get(a.attributeValueId) ?? { id: a.attributeValueId, name: a.attributeValueName ?? '', type: a.attributeTypeName ?? 'Tag', profileIds: new Set<string>() };
+          if (t.profileId) tag.profileIds.add(t.profileId);
+          tags.set(a.attributeValueId, tag);
+        }
+      }
+      if (batch.length < 50 || !fresh) break;
+      const last = batch[batch.length - 1].modifiedDateUtc;
+      if (!last || last === cursor) break;
+      cursor = last;
+      await sleep(PAUSE_MS);
+    }
+    const q = `testFromUTC=${encodeURIComponent('2000-01-01T00:00:00.000Z')}&testToUTC=${encodeURIComponent(new Date(Date.now() + DAY).toISOString())}`;
+    for (let page = 1; page <= 200; page++) {
+      const j = await this.vald.get<any>('extdynamo', `/v2022q2/teams/${T}/tests?${q}&page=${page}`);
+      for (const t of j?.items ?? []) for (const c of dynamoCodesOf(t)) if (!testTypes.has(c.code)) testTypes.set(c.code, { ...c, device: 'dynamo' });
+      if (!(j?.items ?? []).length || (j?.totalPages && page >= j.totalPages)) break;
+      await sleep(PAUSE_MS);
+    }
+    for (const rep of await this.smartSpeedReps(new Date('2000-01-01T00:00:00.000Z'), new Date(Date.now() + DAY))) {
+      const code = smartSpeedTestCode(rep.testName);
+      if (!testTypes.has(code)) testTypes.set(code, { code, label: String(rep.testName || code), device: 'smartspeed' });
+    }
+    const data: ValdHistory = {
+      groups,
+      tags: [...tags.values()].map((t) => ({ ...t, profileIds: [...t.profileIds] })).sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name)),
+      testTypes: [...testTypes.values()],
+    };
+    this.historyCache = { at: Date.now(), data };
+    return data;
+  }
+
+  configured(): boolean { return this.vald.isConfigured(); }
+
+  /** VALD profile -> app athlete (External ID, else name + birthday). */
+  async profileToPlayer(): Promise<Map<string, string>> {
+    const T = this.vald.tenantId;
+    const roster: RosterPlayer[] = await this.prisma.player.findMany({ select: { id: true, firstName: true, lastName: true, birthDate: true, athleteCode: true } });
+    const profiles: ValdProfile[] = (await this.vald.get<any>('externalprofile', `/profiles?TenantId=${T}`))?.profiles ?? [];
+    const out = new Map<string, string>();
+    for (const p of profiles) { const m = matchProfile(p, roster); if (m.playerId) out.set(p.profileId, m.playerId); }
+    return out;
   }
 
   private async athletes() {

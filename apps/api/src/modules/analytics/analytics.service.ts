@@ -1,5 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { JwtPayload } from '../auth/jwt.util';
+import { LiftingService } from '../lifting/lifting.service';
+import { BODYWEIGHT_TEST } from '../lifting/lifting-catalog';
+
+/* Chart Builder sources beyond the Metric table:
+     LIFTING      metricType "<TEST>:<KEY>" (session best) or "<TEST>:<KEY>:avg"
+                  -- Lifting Report results (VALD ForceDecks / DynaMo /
+                  SmartSpeed and typed results)
+     BODY_WEIGHT  metricType "weight" -- the weight history (typed + VALD) */
+const LIFT_SOURCE = 'LIFTING';
+const WEIGHT_SOURCE = 'BODY_WEIGHT';
+const LIFT_GROUP: Record<string, string> = {
+  'vald:forcedecks': 'VALD ForceDecks',
+  'vald:dynamo': 'VALD DynaMo',
+  'vald:smartspeed': 'VALD SmartSpeed',
+  manual: 'Lifting (typed in)',
+};
 
 export interface ChartConfigDto {
   scope?: 'PRIVATE' | 'GLOBAL';
@@ -32,9 +49,42 @@ export interface ChartConfigDto {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private lifting: LiftingService) {}
 
-  async listColumns() {
+  /** Points of a Lifting / Body Weight source for some athletes (null = not one of those sources). */
+  private async extraPoints(playerIds: string[], s: { source: string; metricType: string }, dateFilter: { gte?: Date; lte?: Date } | null): Promise<{ playerId: string; date: Date; value: number }[] | null> {
+    if (s.source === WEIGHT_SOURCE) {
+      const day = (d?: Date) => (d ? d.toISOString().slice(0, 10) : undefined);
+      const rows = await this.prisma.weightEntry.findMany({
+        where: {
+          playerId: { in: playerIds },
+          ...(dateFilter ? { recordedOn: { ...(dateFilter.gte ? { gte: day(dateFilter.gte) } : {}), ...(dateFilter.lte ? { lte: day(dateFilter.lte) } : {}) } } : {}),
+        },
+        orderBy: [{ recordedOn: 'asc' }, { createdAt: 'asc' }],
+        select: { playerId: true, recordedOn: true, weightLbs: true },
+      });
+      return rows.map((r) => ({ playerId: r.playerId, date: new Date(`${r.recordedOn}T12:00:00.000Z`), value: r.weightLbs }));
+    }
+    if (s.source !== LIFT_SOURCE) return null;
+    const [test, key, avg] = String(s.metricType).split(':');
+    if (!test || !key) return [];
+    const rows = await this.prisma.liftingTest.findMany({
+      where: { playerId: { in: playerIds }, testType: test, ...(dateFilter ? { recordedAt: dateFilter } : {}) },
+      orderBy: { recordedAt: 'asc' },
+      select: { playerId: true, recordedAt: true, metrics: true },
+    });
+    const field = avg === 'avg' ? `${key}__avg` : key;
+    const out: { playerId: string; date: Date; value: number }[] = [];
+    for (const r of rows) {
+      let m: Record<string, unknown> = {};
+      try { m = JSON.parse(r.metrics) || {}; } catch { /* skip */ }
+      const v = m[field];
+      if (typeof v === 'number' && Number.isFinite(v)) out.push({ playerId: r.playerId, date: r.recordedAt, value: v });
+    }
+    return out;
+  }
+
+  async listColumns(user?: JwtPayload) {
     const rows = await this.prisma.metric.findMany({
       select: { source: true, metricType: true, unit: true },
       distinct: ['source', 'metricType'],
@@ -49,7 +99,22 @@ export class AnalyticsService {
       { source: 'REPORT', metricType: 'overall_score', unit: 'score' },
     ];
 
-    return [...rows, ...reportScoreFields];
+    /* Lifting Report results for every test with saved results (VALD's
+       names / units), plus body weight. `group` / `label` are for the picker. */
+    const extra: { source: string; metricType: string; unit: string; label: string; group: string }[] = [
+      { source: WEIGHT_SOURCE, metricType: 'weight', unit: 'lb', label: 'Body Weight', group: 'Body Weight' },
+    ];
+    const [tested, { catalog }] = await Promise.all([
+      this.prisma.liftingTest.findMany({ distinct: ['testType'], select: { testType: true } }),
+      this.lifting.getConfig(user),
+    ]);
+    const have = new Set(tested.map((t) => t.testType));
+    for (const t of catalog) {
+      if (t.code === BODYWEIGHT_TEST || !have.has(t.code)) continue;
+      const group = `${LIFT_GROUP[t.source] ?? 'Lifting'} · ${t.label}`;
+      for (const m of t.metrics) extra.push({ source: LIFT_SOURCE, metricType: `${t.code}:${m.key}`, unit: m.unit, label: m.label, group });
+    }
+    return [...rows, ...reportScoreFields, ...extra];
   }
 
   async listConfigs(userId: string, section?: string) {
@@ -268,6 +333,11 @@ export class AnalyticsService {
           return { source: s.source, metricType: s.metricType, label: s.label || s.metricType, points };
         }
 
+        const extra = await this.extraPoints([playerId], s, dateFilter);
+        if (extra) {
+          return { source: s.source, metricType: s.metricType, label: s.label || s.metricType, points: extra.map((p) => ({ date: p.date.toISOString(), value: p.value })) };
+        }
+
         // Metric source: respect dateFilter (which in REPORTS mode is derived
         // from the selected reports' createdAt span, see buildReportDateFilter).
         const metrics = await this.prisma.metric.findMany({
@@ -350,15 +420,18 @@ export class AnalyticsService {
           };
         }
 
-        const metrics = await this.prisma.metric.findMany({
-          where: {
-            playerId: { in: peerIds },
-            source: s.source,
-            metricType: s.metricType,
-            ...(dateFilter ? { recordedAt: dateFilter } : {}),
-          },
-          select: { recordedAt: true, value: true },
-        });
+        const extra = await this.extraPoints(peerIds, s, dateFilter);
+        const metrics = extra
+          ? extra.map((p) => ({ recordedAt: p.date, value: p.value }))
+          : await this.prisma.metric.findMany({
+            where: {
+              playerId: { in: peerIds },
+              source: s.source,
+              metricType: s.metricType,
+              ...(dateFilter ? { recordedAt: dateFilter } : {}),
+            },
+            select: { recordedAt: true, value: true },
+          });
 
         // Bucket by calendar day, then average — collapses multiple peers
         // and multiple per-peer reads on a given day into one comparison

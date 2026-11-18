@@ -17,6 +17,7 @@ import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-par
 import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
+import { parseMeasureId, cleanDataRequest, cleanStudy } from '../src/modules/studies/study-measures';
 import { aggregateForceDecks, aggregateDynamo, aggregateSmartSpeed, dynamoTestCode, dynamoTestLabel, smartSpeedTestCode, weighInLbs, localDay, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
 import { decideRendition, withRendition, isPlay720, describeSource } from '../src/modules/videos/bunny-renditions';
 import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
@@ -666,6 +667,8 @@ async function valdTests() {
     assertEqual(dynamoTestCode({ bodyRegion: 'Knee', movement: 'Flexion', position: 'Prone', testCategory: 'Strength' }), 'KNEE_FLEXION_PRONE', 'knee flexion prone');
     assertEqual(dynamoTestCode({ bodyRegion: 'Shoulder', movement: 'Flexion', position: 'Standing', testCategory: 'RangeofMotion' }), 'SHOULDER_FLEXION_STANDING_ROM', 'shoulder flexion ROM');
     assertEqual(dynamoTestLabel('KNEE_FLEXION_SEATED'), 'Knee Flexion (Seated)', 'knee label');
+    assertEqual(dynamoTestCode({ movement: 'InternalRotation', position: 'SeatedElbow90Degrees' }), 'IR_SEATED', 'IR seated (arm at side)');
+    assertEqual(dynamoTestLabel('ER_SEATED'), 'Shoulder ER (Seated)', 'seated label');
     assertEqual(dynamoTestLabel('HIP_EXTENSION_PRONE', { bodyRegion: 'Hip', movement: 'Extension', position: 'Prone', testCategory: 'Strength' }), 'Hip Extension (Prone)', 'unknown test named from its fields');
   });
 
@@ -723,6 +726,35 @@ async function valdTests() {
   });
 }
 
+// ─── Studies ────────────────────────────────────────────────────────────
+
+async function studiesTests() {
+  await test('Studies: measure ids', () => {
+    assertEqual(JSON.stringify(parseMeasureId('report:max_exit_velo')), '{"kind":"report","key":"max_exit_velo"}', 'report metric');
+    assertEqual(JSON.stringify(parseMeasureId('lift:CMJ:JUMP_HEIGHT_INCHES_IMP_MOM')), '{"kind":"lift","test":"CMJ","key":"JUMP_HEIGHT_INCHES_IMP_MOM","avg":false}', 'lifting best');
+    assertEqual((parseMeasureId('lift:CMJ:PEAK_TAKEOFF_POWER:avg') as any).avg, true, 'lifting average');
+    assertEqual(parseMeasureId('weight')?.kind, 'weight', 'body weight');
+    assertEqual((parseMeasureId('checkin:sleep') as any).field, 'sleepRating', 'check-in');
+    assertEqual(parseMeasureId('lift:cmj;drop:X'), null, 'junk refused');
+    assertEqual(parseMeasureId({}), null, 'non-string refused');
+  });
+
+  await test('Studies: data request + saved study checks', () => {
+    const r = cleanDataRequest({ measures: ['weight', 'weight', 'bogus', 'report:fb_max_velo'], from: '2026-01-01', to: 'nope' });
+    assertEqual(r.ids.join(','), 'weight,report:fb_max_velo', 'deduped, junk dropped');
+    assertEqual(r.to, null, 'bad date ignored');
+    let threw = false;
+    try { cleanDataRequest({ measures: [] }); } catch { threw = true; }
+    assert(threw, 'no measures -> error');
+    const st = cleanStudy({ title: '  Jump vs velo ', type: 'relationship', config: { x: { id: 'weight' } }, conclusion: ' ok ' });
+    assertEqual(st.title, 'Jump vs velo', 'title trimmed');
+    assertEqual(st.conclusion, 'ok', 'conclusion trimmed');
+    threw = false;
+    try { cleanStudy({ title: 'x', type: 'pie', config: {} }); } catch { threw = true; }
+    assert(threw, 'unknown type refused');
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -737,6 +769,7 @@ async function run() {
   await ownershipTests();
   await moveSessionTests();
   await liftingTests();
+  await studiesTests();
   await renditionTests();
   await valdTests();
 

@@ -53,6 +53,8 @@ export const FD_TEST_LABELS: Record<string, string> = {
   SLCMJ: 'Single Leg CMJ',
   RSHIP: 'RSHIP',
   ABCMJ: 'Abalakov CMJ',
+  /* Carries VALD's "Effective Additional Load" (e.g. 20 kg). */
+  LCMJ: 'Loaded CMJ',
 };
 
 const LIMB_SUFFIX: Record<string, string> = { Left: '_LEFT', Right: '_RIGHT', Asym: '_ASYM' };
@@ -156,8 +158,13 @@ export function dynamoTestCode(t: Pick<DynamoTest, 'movement' | 'position' | 'te
   let code: string;
   if (mv === 'GripSqueeze') code = 'GRIP';
   else if (ROTATION[mv]) {
-    const ninety = /90DegreeShoulderAbduction/i.test(position);
-    code = `${ROTATION[mv]}_${ninety ? '9090' : /Standing/i.test(position) ? 'STANDING' : snake(position) || 'OTHER'}`;
+    const where = /90DegreeShoulderAbduction/i.test(position) ? '9090'
+      : /^Standing/i.test(position) ? 'STANDING'
+        : /^Seated/i.test(position) ? 'SEATED'
+          : /^Supine/i.test(position) ? 'SUPINE'
+            : /^Prone/i.test(position) ? 'PRONE'
+              : snake(position) || 'OTHER';
+    code = `${ROTATION[mv]}_${where}`;
   } else {
     code = [snake(t.bodyRegion || ''), snake(mv), snake(position)].filter(Boolean).join('_');
   }
@@ -170,6 +177,10 @@ const KNOWN_DY: Record<string, string> = {
   IR_9090: 'Shoulder IR (90/90)',
   ER_STANDING: 'Shoulder ER (Standing)',
   ER_9090: 'Shoulder ER (90/90)',
+  IR_SEATED: 'Shoulder IR (Seated)',
+  ER_SEATED: 'Shoulder ER (Seated)',
+  IR_SUPINE: 'Shoulder IR (Supine)',
+  ER_SUPINE: 'Shoulder ER (Supine)',
   GRIP_ROM: 'Grip Range of Motion',
   IR_STANDING_ROM: 'Shoulder IR ROM (Standing)',
   IR_9090_ROM: 'Shoulder IR ROM (90/90)',
@@ -270,6 +281,15 @@ function dynamoSession(t: DynamoTest, movement: string | null, idSuffix: string)
     }
   }
   return { idSuffix, code, label: dynamoTestLabel(code, t, movement || undefined), metrics, meta };
+}
+
+/** A DynaMo test's code(s) and name(s) without its reps (the filter list). */
+export function dynamoCodesOf(t: Pick<DynamoTest, 'movement' | 'position' | 'testCategory' | 'bodyRegion'>): { code: string; label: string }[] {
+  const moves = t.movement === COMBINED ? ['InternalRotation', 'ExternalRotation'] : [t.movement || ''];
+  return moves.map((mv) => {
+    const code = dynamoTestCode(t, mv || undefined);
+    return { code, label: dynamoTestLabel(code, t, mv || undefined) };
+  });
 }
 
 /** One DynaMo test -> its session(s): a combined IR + ER test becomes an IR and an ER session. */

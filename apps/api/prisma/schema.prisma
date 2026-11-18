@@ -1387,3 +1387,21 @@ model LiftingLayout {
   updatedById String?
   updatedAt   DateTime @updatedAt
 }
+
+/// Data -> Studies: a saved study (coach-only, shared by all coaches). Only
+/// its settings are stored, so it recalculates with the newest data each
+/// time it's opened.
+model Study {
+  id          String   @id @default(uuid())
+  title       String
+  /// relationship | drivers | change | beforeAfter | groups | profile | trend
+  type        String
+  /// JSON: the study's measures, athletes and dates (as the page sends them).
+  config      String
+  /// What the coaches concluded.
+  conclusion  String?
+  pinned      Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

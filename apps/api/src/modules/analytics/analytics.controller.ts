@@ -8,8 +8,8 @@ export class AnalyticsController {
 
   @Get('columns')
   @Roles('COACH')
-  listColumns() {
-    return this.analytics.listColumns();
+  listColumns(@Request() req: AuthenticatedRequest) {
+    return this.analytics.listColumns(req.user!);
   }
 
   @Get('configs')

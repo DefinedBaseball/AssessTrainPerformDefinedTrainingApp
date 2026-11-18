@@ -33,6 +33,7 @@ import { CoachTasksModule } from './modules/coach-tasks/coach-tasks.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { LiftingModule } from './modules/lifting/lifting.module';
+import { StudiesModule } from './modules/studies/studies.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { LiftingModule } from './modules/lifting/lifting.module';
     JournalModule,
     IntegrationsModule,
     LiftingModule,
+    StudiesModule,
   ],
   providers: [
     /* Keyed on the real visitor -- see ClientIpThrottlerGuard. */

@@ -15,6 +15,8 @@ import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconChart } from '../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
+import { StudiesPane } from './studies/StudiesPane';
+import { ComparisonPane } from './studies/ComparisonPane';
 
 const SECTIONS = [
   { value: 'HITTING', label: 'Hitting' },
@@ -48,15 +50,19 @@ const ALWAYS_ON = [
   'Movement Plot', 'Strike Zone Plot', 'Catcher Zone',
 ];
 
-type TabKey = 'analytics' | 'builder' | 'metrics' | 'saved';
-type AnalyticsSubTab = 'running' | 'compare';
+/* Studies first (coach-only, like the whole Data page), then Comparison
+   (athletes head to head; the old device-data compare is its 2nd view),
+   then the Chart Builder, Metric Builder and Saved Charts. */
+type TabKey = 'studies' | 'compare' | 'builder' | 'metrics' | 'saved';
+type CompareSubTab = 'athletes' | 'device';
+const TAB_LABEL: Record<TabKey, string> = { studies: 'Studies', compare: 'Comparison', builder: 'Chart Builder', metrics: 'Metric Builder', saved: 'Saved Charts' };
 type MetricBuilderMode = 'basic' | 'advanced';
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const { user, isLoading, isCoach } = useAuth();
-  const [tab, setTab] = useState<TabKey>('builder');
-  const [analyticsSubTab, setAnalyticsSubTab] = useState<AnalyticsSubTab>('running');
+  const [tab, setTab] = useState<TabKey>('studies');
+  const [compareSubTab, setCompareSubTab] = useState<CompareSubTab>('athletes');
 
   useEffect(() => {
     if (isLoading) return;
@@ -75,58 +81,44 @@ export default function AnalyticsPage() {
         eyebrow="Coach Workbench"
         title="Data"
         accent="Analytics"
-        readout="Chart Builder"
+        readout={TAB_LABEL[tab]}
         readoutClassName={theme.firm}
       />
 
       {/* Tab chips in a lined bubble (like Settings / the Athlete Hub). */}
       <div className={`${styles.tabs} ${theme.bubble} ${theme.pad}`}>
-        <button
-          className={`${styles.tab} ${tab === 'analytics' ? styles.tabActive : theme.field} ${theme.firm}`}
-          onClick={() => setTab('analytics')}
-        >
-          Analytics
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'builder' ? styles.tabActive : theme.field} ${theme.firm}`}
-          onClick={() => setTab('builder')}
-        >
-          Chart Builder
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'metrics' ? styles.tabActive : theme.field} ${theme.firm}`}
-          onClick={() => setTab('metrics')}
-        >
-          Metric Builder
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'saved' ? styles.tabActive : theme.field} ${theme.firm}`}
-          onClick={() => setTab('saved')}
-        >
-          Saved Charts
-        </button>
+        {(Object.keys(TAB_LABEL) as TabKey[]).map((k) => (
+          <button
+            key={k}
+            className={`${styles.tab} ${tab === k ? styles.tabActive : theme.field} ${theme.firm}`}
+            onClick={() => setTab(k)}
+          >
+            {TAB_LABEL[k]}
+          </button>
+        ))}
       </div>
 
       {/* The active tab's cards sit inside one lined bubble. */}
       <div className={`${theme.bubble} ${styles.contentBubble}`}>
-      {tab === 'analytics' && (
+      {tab === 'studies' && <StudiesPane />}
+      {tab === 'compare' && (
         <div>
           <div className={styles.subTabs}>
             <button
-              className={`${styles.subTab} ${analyticsSubTab === 'running' ? styles.subTabActive : ''}`}
-              onClick={() => setAnalyticsSubTab('running')}
+              className={`${styles.subTab} ${compareSubTab === 'athletes' ? styles.subTabActive : ''}`}
+              onClick={() => setCompareSubTab('athletes')}
             >
-              Running Average
+              Athletes
             </button>
             <button
-              className={`${styles.subTab} ${analyticsSubTab === 'compare' ? styles.subTabActive : ''}`}
-              onClick={() => setAnalyticsSubTab('compare')}
+              className={`${styles.subTab} ${compareSubTab === 'device' ? styles.subTabActive : ''}`}
+              onClick={() => setCompareSubTab('device')}
             >
-              Compare
+              Device Data
             </button>
           </div>
-          {analyticsSubTab === 'running' && <RunningAvgPane />}
-          {analyticsSubTab === 'compare' && <ComparePane />}
+          {compareSubTab === 'athletes' && <ComparisonPane />}
+          {compareSubTab === 'device' && <ComparePane />}
         </div>
       )}
       {tab === 'builder' && <BuilderPane userId={user.id} />}
@@ -215,14 +207,21 @@ function BuilderPane({ userId }: { userId: string }) {
     return () => { cancelled = true; };
   }, [dataMode, previewPlayerId]);
 
+  /* Grouped by device (VALD columns by test), filtered by the search box --
+     VALD sends hundreds of results per test. */
+  const [colQuery, setColQuery] = useState('');
   const grouped = useMemo(() => {
+    const words = colQuery.toLowerCase().split(/\s+/).filter(Boolean);
     const g: Record<string, AnalyticsColumn[]> = {};
     columns.forEach((c) => {
-      if (!g[c.source]) g[c.source] = [];
-      g[c.source].push(c);
+      const hay = `${c.group ?? c.source} ${c.label ?? c.metricType} ${c.metricType}`.toLowerCase();
+      if (words.some((w) => !hay.includes(w))) return;
+      const k = c.group ?? c.source;
+      if (!g[k]) g[k] = [];
+      g[k].push(c);
     });
     return g;
-  }, [columns]);
+  }, [columns, colQuery]);
 
   const payload = useMemo<ChartConfigInput>(() => ({
     title: title.trim() || 'Untitled chart',
@@ -281,7 +280,7 @@ function BuilderPane({ userId }: { userId: string }) {
     if (exists) {
       setSelected(selected.filter((s) => `${s.source}::${s.metricType}` !== key));
     } else {
-      setSelected([...selected, { source: col.source, metricType: col.metricType, label: col.metricType }]);
+      setSelected([...selected, { source: col.source, metricType: col.metricType, label: col.label ?? col.metricType }]);
     }
   };
 
@@ -733,7 +732,7 @@ function BuilderPane({ userId }: { userId: string }) {
               <div className={styles.selectedPills}>
                 {selected.map((s) => (
                   <span key={`${s.source}::${s.metricType}`} className={styles.selectedPill}>
-                    {s.source} · {s.metricType}
+                    {s.label && s.label !== s.metricType ? s.label : `${s.source} · ${s.metricType}`}
                     <button
                       onClick={() =>
                         setSelected(selected.filter((x) => !(x.source === s.source && x.metricType === s.metricType)))
@@ -751,19 +750,26 @@ function BuilderPane({ userId }: { userId: string }) {
               }
               placeholder={selected.length === 0}
             >
+              <input
+                className={styles.input}
+                style={{ marginBottom: 8 }}
+                placeholder="Search columns (e.g. CMJ jump height)…"
+                value={colQuery}
+                onChange={(e) => setColQuery(e.target.value)}
+              />
               <div className={styles.columnList} style={{ maxHeight: 320, border: 'none', padding: 0, background: 'transparent' }}>
                 {Object.keys(grouped).length === 0 ? (
                   <div className={styles.empty}>
-                    No columns yet. Upload CSVs from the Upload page to populate data sources.
+                    {colQuery ? 'No columns match.' : 'No columns yet. Upload CSVs from the Upload page to populate data sources.'}
                   </div>
                 ) : (
                   Object.entries(grouped).map(([src, cols]) => (
                     <div key={src} className={styles.columnGroup}>
                       <div className={styles.columnGroupLabel}>{src}</div>
                       {cols.map((c) => (
-                        <label key={c.metricType} className={styles.columnItem}>
+                        <label key={`${c.source}::${c.metricType}`} className={styles.columnItem}>
                           <input type="checkbox" checked={isSelected(c)} onChange={() => toggleColumn(c)} />
-                          <span>{c.metricType}</span>
+                          <span>{c.label ?? c.metricType}</span>
                           <span className={styles.columnUnit}>({c.unit})</span>
                         </label>
                       ))}
@@ -1036,27 +1042,6 @@ function LoadExistingConfigList({
 
 /* ─── Running Avg pane (placeholder) ─────────────────────── */
 
-function RunningAvgPane() {
-  return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <div>
-          <h3 className={styles.cardTitle}>Running Average</h3>
-          <p className={styles.cardDesc}>
-            Display running-average line graphs for the metrics we track most closely — exit velocity,
-            bat speed, sprint times, and more. Pick an athlete, a metric, and a window; the chart
-            smooths out day-to-day noise so long-term trends stand out.
-          </p>
-        </div>
-      </div>
-      <div className={styles.empty} style={{ padding: 48, textAlign: 'center' }}>
-        Configuration UI coming soon — metric list will be defined once we finalize which columns
-        feed this view.
-      </div>
-    </div>
-  );
-}
-
 /* ─── Compare pane ──────────────────────────────────────── */
 
 /**
@@ -1206,7 +1191,7 @@ function ComparePane() {
             <option value="">Choose a metric…</option>
             {metricsForSource.map((m) => (
               <option key={m.metricType} value={m.metricType}>
-                {m.metricType} ({m.unit})
+                {m.label ?? m.metricType}{m.unit ? ` (${m.unit})` : ''}
               </option>
             ))}
           </select>
@@ -1515,8 +1500,9 @@ function MetricBuilderPane() {
   const groupedColumns = useMemo(() => {
     const g: Record<string, AnalyticsColumn[]> = {};
     columns.forEach((c) => {
-      if (!g[c.source]) g[c.source] = [];
-      g[c.source].push(c);
+      const k = c.group ?? c.source;
+      if (!g[k]) g[k] = [];
+      g[k].push(c);
     });
     return g;
   }, [columns]);
@@ -1803,7 +1789,7 @@ function MetricBuilderPane() {
                     <optgroup key={source} label={source}>
                       {cols.map((c) => (
                         <option key={`${c.source}::${c.metricType}`} value={`${c.source}::${c.metricType}`}>
-                          {c.metricType}{c.unit ? ` (${c.unit})` : ''}
+                          {c.label ?? c.metricType}{c.unit ? ` (${c.unit})` : ''}
                         </option>
                       ))}
                     </optgroup>
@@ -1852,7 +1838,7 @@ function MetricBuilderPane() {
                           <optgroup key={source} label={source}>
                             {cols.map((c) => (
                               <option key={`${c.source}::${c.metricType}`} value={`${c.source}::${c.metricType}`}>
-                                {c.metricType}{c.unit ? ` (${c.unit})` : ''}
+                                {c.label ?? c.metricType}{c.unit ? ` (${c.unit})` : ''}
                               </option>
                             ))}
                           </optgroup>
@@ -2013,7 +1999,7 @@ function MetricBuilderPane() {
                     <optgroup key={source} label={source}>
                       {cols.map((c) => (
                         <option key={`${c.source}::${c.metricType}`} value={`${c.source}::${c.metricType}`}>
-                          {c.metricType}{c.unit ? ` (${c.unit})` : ''}
+                          {c.label ?? c.metricType}{c.unit ? ` (${c.unit})` : ''}
                         </option>
                       ))}
                     </optgroup>
