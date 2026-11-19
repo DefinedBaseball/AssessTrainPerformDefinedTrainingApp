@@ -18,7 +18,8 @@ import { SendLimiter } from '../src/modules/auth/send-limiter';
 import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveFileUrl, parseMovePath } from '../src/modules/integrations/move/move-session';
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
 import { parseMeasureId, cleanDataRequest, cleanStudy } from '../src/modules/studies/study-measures';
-import { aggregateForceDecks, aggregateDynamo, aggregateSmartSpeed, dynamoTestCode, dynamoTestLabel, smartSpeedTestCode, weighInLbs, localDay, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
+import { aggregateDaily } from '../src/modules/analytics/analytics.service';
+import { aggregateForceDecks, aggregateDynamo, aggregateSmartSpeed, dynamoTestCode, dynamoTestLabel, smartSpeedTestCode, weighInLbs, localDay, ianaFromVald, dayAtOffset, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
 import { decideRendition, withRendition, isPlay720, describeSource } from '../src/modules/videos/bunny-renditions';
 import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
 
@@ -591,8 +592,8 @@ async function valdTests() {
 
   await test('VALD: a session keeps its best and average per result', () => {
     const { metrics, meta } = aggregateForceDecks([
-      { limb: 'Trial', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 16), r('CONTRACTION_TIME', 800), r('PEAK_TAKEOFF_FORCE', 1.5, 'Asym')] },
-      { limb: 'Trial', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 18), r('CONTRACTION_TIME', 700), r('PEAK_TAKEOFF_FORCE', -0.5, 'Asym')] },
+      { limb: 'Trial', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 16), r('CONTRACTION_TIME', 0.8), r('PEAK_TAKEOFF_FORCE', 1.5, 'Asym')] },
+      { limb: 'Trial', results: [r('JUMP_HEIGHT_INCHES_IMP_MOM', 18), r('CONTRACTION_TIME', 0.7), r('PEAK_TAKEOFF_FORCE', -0.5, 'Asym')] },
     ], defs);
     assertEqual(metrics.JUMP_HEIGHT_INCHES_IMP_MOM, 18, 'best jump = highest');
     assertEqual(metrics['JUMP_HEIGHT_INCHES_IMP_MOM' + AVG_SUFFIX], 17, 'average jump');
@@ -601,6 +602,21 @@ async function valdTests() {
     assertEqual(meta.PEAK_TAKEOFF_FORCE_ASYM.unit, '%', 'asymmetry in %');
     assertEqual(meta.JUMP_HEIGHT_INCHES_IMP_MOM.unit, 'in', 'VALD unit kept');
     assertEqual(meta.CONTRACTION_TIME.better, 'low', 'VALD direction kept');
+  });
+
+  await test('VALD: values put into the unit VALD names (ms, lbs, RSI)', () => {
+    const d = new Map<string, any>([
+      ['CONTRACTION_TIME', { resultIdString: 'CONTRACTION_TIME', resultName: 'Contraction Time', resultUnitName: 'ms', numberOfDecimalPlaces: 0, trendDirection: 'Negative' }],
+      ['BODY_WEIGHT_LBS', { resultIdString: 'BODY_WEIGHT_LBS', resultName: 'Bodyweight in Pounds', resultUnitName: 'lbs', numberOfDecimalPlaces: 1, trendDirection: null }],
+      ['RSI_MODIFIED', { resultIdString: 'RSI_MODIFIED', resultName: 'RSI-modified', resultUnitName: 'm/s', numberOfDecimalPlaces: 2, trendDirection: 'Positive' }],
+      ['TAKEOFF_VELOCITY', { resultIdString: 'TAKEOFF_VELOCITY', resultName: 'Takeoff Velocity', resultUnitName: 'm/s', numberOfDecimalPlaces: 2, trendDirection: 'Positive' }],
+    ]);
+    const { metrics } = aggregateForceDecks([{ limb: 'Trial', results: [r('CONTRACTION_TIME', 0.806), r('BODY_WEIGHT_LBS', 66.1), r('RSI_MODIFIED', 67.5), r('TAKEOFF_VELOCITY', 2.9), r('CONTRACTION_TIME', 3.2, 'Asym')] }], d);
+    assertEqual(metrics.CONTRACTION_TIME, 806, 'seconds -> ms');
+    assertEqual(Math.round(metrics.BODY_WEIGHT_LBS), 146, 'kg -> lb');
+    assertEqual(metrics.RSI_MODIFIED, 0.675, 'RSI cm/s -> m/s');
+    assertEqual(metrics.TAKEOFF_VELOCITY, 2.9, 'a real m/s value left alone');
+    assertEqual(metrics.CONTRACTION_TIME_ASYM, 3.2, 'asymmetry % left alone');
   });
 
   await test('VALD: single-leg trials split by leg', () => {
@@ -698,6 +714,8 @@ async function valdTests() {
     assertEqual(weighInLbs(81.6, 'CMJ'), 180, 'jump = bodyweight');
     assertEqual(weighInLbs(28, 'PPU'), null, 'push-up weighs only the hands');
     assertEqual(localDay(new Date('2026-08-28T02:00:00Z'), 'America/Chicago'), '2026-08-27', 'evening session keeps its local day');
+    assertEqual(ianaFromVald('Central Standard Time'), 'America/Chicago', 'VALD Windows time zone name');
+    assertEqual(dayAtOffset('2026-06-16T01:30:00Z', -300), '2026-06-15', 'weigh-in day from the test offset');
   });
 
   await test('VALD: athletes match by External ID, else name + birthday', () => {
@@ -737,6 +755,17 @@ async function studiesTests() {
     assertEqual((parseMeasureId('checkin:sleep') as any).field, 'sleepRating', 'check-in');
     assertEqual(parseMeasureId('lift:cmj;drop:X'), null, 'junk refused');
     assertEqual(parseMeasureId({}), null, 'non-string refused');
+  });
+
+  await test('Chart Builder: one point per day (average / max)', () => {
+    const pts = [
+      { date: '2026-11-01T15:00:00.000Z', value: 90 },
+      { date: '2026-11-01T15:05:00.000Z', value: 100 },
+      { date: '2026-11-03T15:00:00.000Z', value: 95 },
+    ];
+    assertEqual(aggregateDaily(pts, 'AVG').map((p) => p.value).join(','), '95,95', 'daily average');
+    assertEqual(aggregateDaily(pts, 'MAX').map((p) => p.value).join(','), '100,95', 'daily max');
+    assertEqual(aggregateDaily(pts, null).length, 3, 'no aggregation keeps every reading');
   });
 
   await test('Studies: data request + saved study checks', () => {

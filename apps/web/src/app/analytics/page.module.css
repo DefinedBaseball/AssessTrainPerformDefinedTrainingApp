@@ -1100,3 +1100,8 @@
 [data-theme="light"] .contentBubble .pos { color: #1f7a3d; }
 [data-theme="light"] .contentBubble .feedbackErr,
 [data-theme="light"] .contentBubble .neg { color: #a12a2a; }
+
+/* Light theme: the column group headings and picked-column chips were
+   unreadable (accent on a black bar; pale blue text on white). */
+[data-theme="light"] .columnGroupLabel { background: rgba(255, 255, 255, 0.96); color: #1c2128; }
+[data-theme="light"] .selectedPill { color: #1c2128; background: rgba(70, 130, 255, 0.12); border-color: rgba(70, 130, 255, 0.45); }

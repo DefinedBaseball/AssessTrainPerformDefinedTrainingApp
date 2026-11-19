@@ -1,5 +1,6 @@
 'use client';
 
+import { CustomCharts } from '@/components/CustomCharts';
 import { rem } from '@/lib/rem';
 import { useVideoAttachedListener } from '@/lib/upload-queue';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -1036,9 +1037,11 @@ export default function PlayerProfilePage() {
                two surfaces always agree on what the player "trains". */
             visibleTabKeys={visibleTabs.map((t) => t.key)}
           />
+          <CustomCharts section="OVERVIEW" playerId={player.id} />
         </TabPanel>
         <TabPanel active={activeTab === 'hitting'}>
           <HittingTab {...tabProps} />
+          <CustomCharts section="HITTING" playerId={player.id} />
         </TabPanel>
         <TabPanel active={activeTab === 'infield'}>
           <InfieldTab {...tabProps} />
@@ -1057,6 +1060,7 @@ export default function PlayerProfilePage() {
         </TabPanel>
         <TabPanel active={activeTab === 'strength'}>
           <StrengthConditioningTab {...tabProps} />
+          <CustomCharts section="STRENGTH" playerId={player.id} />
         </TabPanel>
         <TabPanel active={activeTab === 'videos'}>
           <VideosTab {...tabProps} />

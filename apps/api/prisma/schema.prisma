@@ -1118,7 +1118,7 @@ model CsvUpload {
 model ChartConfig {
   id            String   @id @default(uuid())
   createdById   String // User.id (coach)
-  scope         String   @default("PRIVATE") // "PRIVATE" | "GLOBAL"
+  scope         String   @default("PRIVATE") // "PRIVATE" (coaches only) | "GLOBAL" (athletes too)
   section       String // "HITTING" | "PITCHING" | "DEFENSE" | "CATCHING" | "STRENGTH" | "OVERVIEW"
   chartType     String // "BAR" | "LINE" | "SCATTER" | "BUBBLE" | "PERCENT_INCREASE" | "STAT_BUBBLE"
   title         String
@@ -1143,6 +1143,11 @@ model ChartConfig {
   // Cohort overlay — adds "class average" comparison series at evaluate time
   cohortEnabled Boolean? @default(false) // when true, append peer-average series
   cohortMode    String? // "GRAD_YEAR" | "POSITION" | "ALL"
+  /// Chart Builder data source: "REPORTS" (athlete reports, one value per
+  /// report) | "VALD" (Lifting Report results). Null = older charts.
+  dataset       String?
+  /// One point per day: "AVG" | "MAX" of that day's readings. Null = every reading.
+  dailyAgg      String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

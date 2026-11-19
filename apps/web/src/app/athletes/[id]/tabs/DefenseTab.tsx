@@ -3263,7 +3263,7 @@ export function CatchingTab(props: TabProps) {
   return (
     <>
       <CatchingSubTab {...props} />
-      <CustomCharts section="DEFENSE" playerId={props.player.id} />
+      <CustomCharts section="CATCHING" playerId={props.player.id} />
     </>
   );
 }

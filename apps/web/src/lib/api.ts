@@ -2661,6 +2661,8 @@ export interface AnalyticsColumn {
    *  (source LIFTING = "<TEST>:<KEY>", BODY_WEIGHT = "weight"). */
   label?: string;
   group?: string;
+  /** Chart Builder data set: "REPORTS" (Athlete Reports) | "VALD". */
+  dataset?: 'REPORTS' | 'VALD';
 }
 
 export interface ChartDataSource {
@@ -2696,6 +2698,8 @@ export interface ChartConfig {
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
   cohortEnabled?: boolean | null;
   cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
+  dataset?: 'REPORTS' | 'VALD' | null;
+  dailyAgg?: 'AVG' | 'MAX' | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2724,10 +2728,16 @@ export interface ChartConfigInput {
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
   cohortEnabled?: boolean | null;
   cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
+  /** Which data set the columns come from (Chart Builder "Data Source"). */
+  dataset?: 'REPORTS' | 'VALD' | null;
+  /** One point per day: the day's average or max. */
+  dailyAgg?: 'AVG' | 'MAX' | null;
 }
 
-export async function getAnalyticsColumns(): Promise<AnalyticsColumn[]> {
-  return request('/analytics/columns');
+/** `builder`: the Chart Builder's columns (Athlete Reports + VALD, each metric
+ *  once, named). Without it: device columns (Metric Builder, Device Data). */
+export async function getAnalyticsColumns(forWhat?: 'builder'): Promise<AnalyticsColumn[]> {
+  return request(`/analytics/columns${forWhat ? `?for=${forWhat}` : ''}`);
 }
 
 export async function getChartConfigs(section?: string): Promise<ChartConfig[]> {

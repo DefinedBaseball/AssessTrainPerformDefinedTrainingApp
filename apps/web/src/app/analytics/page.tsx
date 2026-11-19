@@ -15,16 +15,26 @@ import dashStyles from '../page.module.css';
 import theme from '../dashTheme.module.css';
 import { EduHeader, IconChart } from '../education/EduHeader';
 import { tzOpt } from '@/lib/academy';
+import { CustomChartBody } from '@/components/CustomCharts';
 import { StudiesPane } from './studies/StudiesPane';
 import { ComparisonPane } from './studies/ComparisonPane';
 
+/* Chart Builder "Position": the profile tab a saved chart shows on. */
 const SECTIONS = [
   { value: 'HITTING', label: 'Hitting' },
   { value: 'PITCHING', label: 'Pitching' },
-  { value: 'DEFENSE', label: 'Defense' },
   { value: 'CATCHING', label: 'Catching' },
-  { value: 'STRENGTH', label: 'Strength' },
-  { value: 'OVERVIEW', label: 'Overview' },
+  { value: 'DEFENSE', label: 'Defense (Infield / Outfield)' },
+  { value: 'STRENGTH', label: 'Lifting' },
+  { value: 'OVERVIEW', label: 'Player Summary' },
+];
+
+/* Visibility = who sees the chart: coaches only, or athletes too (all of
+   them, or picked ones). Stored as scope (PRIVATE / GLOBAL) + playerScope. */
+type Visibility = 'COACHES' | 'ALL' | 'INDIVIDUAL';
+const DATASETS: { value: 'REPORTS' | 'VALD'; label: string }[] = [
+  { value: 'REPORTS', label: 'Athlete Reports' },
+  { value: 'VALD', label: 'VALD' },
 ];
 
 const CHART_TYPES = [
@@ -164,6 +174,14 @@ function BuilderPane({ userId }: { userId: string }) {
   const [zoneMetric, setZoneMetric] = useState<'COUNT' | 'AVG' | 'WHIFF'>('COUNT');
   const [cohortEnabled, setCohortEnabled] = useState(false);
   const [cohortMode, setCohortMode] = useState<'GRAD_YEAR' | 'POSITION' | 'ALL'>('GRAD_YEAR');
+  /* Data Source (data set) and one point per day (average / max). */
+  const [dataset, setDataset] = useState<'REPORTS' | 'VALD'>('REPORTS');
+  const [dailyAgg, setDailyAgg] = useState<'AVG' | 'MAX'>('AVG');
+  const visibility: Visibility = scope === 'PRIVATE' ? 'COACHES' : playerScope === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'ALL';
+  const setVisibility = (v: Visibility) => {
+    setScope(v === 'COACHES' ? 'PRIVATE' : 'GLOBAL');
+    setPlayerScope(v === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'ALL');
+  };
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -175,7 +193,7 @@ function BuilderPane({ userId }: { userId: string }) {
   useEffect(() => {
     (async () => {
       try {
-        const [cols, plyrs] = await Promise.all([api.getAnalyticsColumns(), api.getPlayers()]);
+        const [cols, plyrs] = await Promise.all([api.getAnalyticsColumns('builder'), api.getPlayers()]);
         setColumns(cols);
         setPlayers(plyrs);
         if (plyrs.length > 0 && !previewPlayerId) setPreviewPlayerId(plyrs[0].id);
@@ -214,6 +232,7 @@ function BuilderPane({ userId }: { userId: string }) {
     const words = colQuery.toLowerCase().split(/\s+/).filter(Boolean);
     const g: Record<string, AnalyticsColumn[]> = {};
     columns.forEach((c) => {
+      if (c.dataset && c.dataset !== dataset) return;
       const hay = `${c.group ?? c.source} ${c.label ?? c.metricType} ${c.metricType}`.toLowerCase();
       if (words.some((w) => !hay.includes(w))) return;
       const k = c.group ?? c.source;
@@ -221,7 +240,7 @@ function BuilderPane({ userId }: { userId: string }) {
       g[k].push(c);
     });
     return g;
-  }, [columns, colQuery]);
+  }, [columns, colQuery, dataset]);
 
   const payload = useMemo<ChartConfigInput>(() => ({
     title: title.trim() || 'Untitled chart',
@@ -246,11 +265,13 @@ function BuilderPane({ userId }: { userId: string }) {
     zoneMetric: chartType === 'STRIKE_ZONE_HEAT' ? zoneMetric : null,
     cohortEnabled,
     cohortMode: cohortEnabled ? cohortMode : null,
+    dataset,
+    dailyAgg,
   }), [
     title, section, chartType, scope, selected, dateMode, dateFrom, dateTo, lastNDays,
     playerScope, scopePlayerIds, dataMode, selectedReportIds,
     rollingWindow, rollingMode, targetMin, targetMax, pbDirection, zoneGrid, zoneMetric,
-    cohortEnabled, cohortMode,
+    cohortEnabled, cohortMode, dataset, dailyAgg,
   ]);
 
   // Debounced live preview — refetch whenever config or player changes
@@ -311,6 +332,8 @@ function BuilderPane({ userId }: { userId: string }) {
     setZoneMetric('COUNT');
     setCohortEnabled(false);
     setCohortMode('GRAD_YEAR');
+    setDataset('REPORTS');
+    setDailyAgg('AVG');
     setError('');
   };
 
@@ -339,6 +362,10 @@ function BuilderPane({ userId }: { userId: string }) {
     setZoneMetric((cfg.zoneMetric as 'COUNT' | 'AVG' | 'WHIFF') || 'COUNT');
     setCohortEnabled(!!cfg.cohortEnabled);
     setCohortMode((cfg.cohortMode as 'GRAD_YEAR' | 'POSITION' | 'ALL') || 'GRAD_YEAR');
+    let srcs: ChartDataSource[] = [];
+    try { srcs = JSON.parse(cfg.dataSources); } catch { srcs = []; }
+    setDataset(cfg.dataset ?? (srcs.some((x) => x.source === 'LIFTING') ? 'VALD' : 'REPORTS'));
+    setDailyAgg(cfg.dailyAgg ?? 'AVG');
     setError('');
   };
 
@@ -384,11 +411,11 @@ function BuilderPane({ userId }: { userId: string }) {
         <div className={styles.builderForm}>
           <div className={styles.builderField}>
             <label>Title</label>
-            <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Exit Velo Trend" />
+            <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Name the chart" />
           </div>
 
           <div className={styles.builderField}>
-            <label>Profile Section</label>
+            <label>Position</label>
             <select className={styles.select} value={section} onChange={(e) => setSection(e.target.value)}>
               {SECTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
@@ -401,28 +428,17 @@ function BuilderPane({ userId }: { userId: string }) {
             </select>
           </div>
 
+          {/* ── Visibility: coaches only, every athlete, or picked athletes ── */}
           <div className={styles.builderField}>
             <label>Visibility</label>
-            <select className={styles.select} value={scope} onChange={(e) => setScope(e.target.value as any)}>
-              <option value="PRIVATE">Private (just me)</option>
-              <option value="GLOBAL">Global (all coaches)</option>
+            <select className={styles.select} value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+              <option value="COACHES">Private (for Coaches)</option>
+              <option value="ALL">All Athletes</option>
+              <option value="INDIVIDUAL">Individual Athletes</option>
             </select>
           </div>
 
-          {/* ── Appears on (profile scope) ── */}
-          <div className={styles.builderField}>
-            <label>Appears on</label>
-            <select
-              className={styles.select}
-              value={playerScope}
-              onChange={(e) => setPlayerScope(e.target.value as 'ALL' | 'INDIVIDUAL')}
-            >
-              <option value="ALL">All athletes</option>
-              <option value="INDIVIDUAL">Individual athletes…</option>
-            </select>
-          </div>
-
-          {playerScope === 'INDIVIDUAL' && (
+          {visibility === 'INDIVIDUAL' && (
             <div className={`${styles.builderField} ${styles.columnPicker}`}>
               <label>Select athletes ({scopePlayerIds.length} selected)</label>
               {scopePlayerIds.length > 0 && (
@@ -477,23 +493,38 @@ function BuilderPane({ userId }: { userId: string }) {
             </div>
           )}
 
-          {/* ── Data source mode ── */}
+          {/* ── Data Source: which data set the columns come from ── */}
           <div className={styles.builderField}>
-            <label>Data source</label>
+            <label>Data Source</label>
             <select
               className={styles.select}
-              value={dataMode}
-              onChange={(e) => setDataMode(e.target.value as 'DATE_RANGE' | 'REPORTS')}
+              value={dataset}
+              onChange={(e) => {
+                const next = e.target.value as 'REPORTS' | 'VALD';
+                if (next === dataset) return;
+                setDataset(next);
+                /* Columns belong to a data set -- start the pick over. */
+                setSelected([]);
+                setColQuery('');
+              }}
             >
-              <option value="DATE_RANGE">Date range</option>
-              <option value="REPORTS">Reports…</option>
+              {DATASETS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+          </div>
+
+          {/* ── Daily value: one point per day ── */}
+          <div className={styles.builderField}>
+            <label>Daily Value</label>
+            <select className={styles.select} value={dailyAgg} onChange={(e) => setDailyAgg(e.target.value as 'AVG' | 'MAX')}>
+              <option value="AVG">Average of the day</option>
+              <option value="MAX">Max of the day</option>
             </select>
           </div>
 
           {dataMode === 'DATE_RANGE' && (
             <>
               <div className={styles.builderField}>
-                <label>Preset</label>
+                <label>Date Range</label>
                 <select className={styles.select} value={dateMode} onChange={(e) => setDateMode(e.target.value as any)}>
                   <option value="ALL_TIME">All time</option>
                   <option value="LAST_N_DAYS">Last N days</option>
@@ -521,10 +552,12 @@ function BuilderPane({ userId }: { userId: string }) {
             </>
           )}
 
+          {/* Older charts built on hand-picked reports keep working; new ones use a date range. */}
           {dataMode === 'REPORTS' && (
             <div className={`${styles.builderField} ${styles.columnPicker}`}>
-              <label>
-                Reports for preview athlete ({selectedReportIds.length} selected)
+              <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Reports for preview athlete ({selectedReportIds.length} selected)</span>
+                <button type="button" className={styles.btnSecondary} style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => { setDataMode('DATE_RANGE'); setSelectedReportIds([]); }}>Use a date range</button>
               </label>
               <div className={styles.cardDesc} style={{ marginBottom: 6 }}>
                 Reports are listed for the athlete you&apos;re previewing against. When this chart is
@@ -976,26 +1009,21 @@ function PreviewCard({
           No data points for this athlete in the selected range.<br />
           Try a different athlete or widen the date range.
         </div>
-      ) : chartType === 'STAT_BUBBLE' ? (
-        <StatBubbleView series={series} />
-      ) : chartType === 'PERCENT_INCREASE' ? (
-        <PercentIncreaseView series={series} />
-      ) : chartType === 'BAR' ? (
-        <BarView series={series} />
-      ) : chartType === 'MOVEMENT_PLOT' ? (
-        <MovementPlotView series={series} />
-      ) : chartType === 'ROLLING_AVG' ? (
-        <RollingAvgView series={series} window={options.rollingWindow} mode={options.rollingMode} />
-      ) : chartType === 'TRENDLINE' ? (
-        <TrendlineView series={series} />
-      ) : chartType === 'TARGET_BAND' ? (
-        <TargetBandView series={series} targetMin={options.targetMin} targetMax={options.targetMax} />
-      ) : chartType === 'PERSONAL_BEST' ? (
-        <PersonalBestView series={series} direction={options.pbDirection} />
-      ) : chartType === 'STRIKE_ZONE_HEAT' ? (
-        <StrikeZoneHeatView series={series} grid={options.zoneGrid} metric={options.zoneMetric} />
       ) : (
-        <LineView series={series} />
+        /* The profile's own renderer: the preview is exactly what the profile shows. */
+        <CustomChartBody
+          config={{
+            chartType,
+            rollingWindow: options.rollingWindow,
+            rollingMode: options.rollingMode,
+            targetMin: options.targetMin,
+            targetMax: options.targetMax,
+            pbDirection: options.pbDirection,
+            zoneGrid: options.zoneGrid,
+            zoneMetric: options.zoneMetric,
+          }}
+          series={series}
+        />
       )}
     </div>
   );
@@ -2316,563 +2344,6 @@ function SavedPane() {
     </div>
   );
 }
-
-/* ─── Chart views (shared with profile renderer) ────────── */
-
-function StatBubbleView({ series }: { series: ChartEvaluation['series'] }) {
-  return (
-    <div className={styles.bubbleRow}>
-      {series.map((s) => {
-        const latest = s.points[s.points.length - 1];
-        return (
-          <div key={`${s.source}::${s.metricType}`} className={styles.bubble}>
-            <div className={styles.bubbleValue}>{latest ? latest.value.toFixed(1) : '—'}</div>
-            <div className={styles.bubbleLabel}>{s.label}</div>
-            <div className={styles.bubbleSub}>{s.source}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PercentIncreaseView({ series }: { series: ChartEvaluation['series'] }) {
-  return (
-    <div className={styles.bubbleRow}>
-      {series.map((s) => {
-        const first = s.points[0];
-        const last = s.points[s.points.length - 1];
-        const pct = first && last && first.value !== 0 ? ((last.value - first.value) / first.value) * 100 : null;
-        const positive = (pct || 0) >= 0;
-        return (
-          <div key={`${s.source}::${s.metricType}`} className={styles.bubble}>
-            <div className={`${styles.bubbleValue} ${positive ? styles.pos : styles.neg}`}>
-              {pct == null ? '—' : `${positive ? '+' : ''}${pct.toFixed(1)}%`}
-            </div>
-            <div className={styles.bubbleLabel}>{s.label}</div>
-            <div className={styles.bubbleSub}>
-              {first && last ? `${first.value.toFixed(1)} → ${last.value.toFixed(1)}` : s.source}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function BarView({ series }: { series: ChartEvaluation['series'] }) {
-  const bars = series.map((s) => {
-    const values = s.points.map((p) => p.value);
-    const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-    const max = values.length ? Math.max(...values) : 0;
-    return { label: s.label, avg, max };
-  });
-  const scale = Math.max(...bars.map((b) => b.max), 1);
-
-  return (
-    <div className={styles.barWrap}>
-      {bars.map((b) => (
-        <div key={b.label} className={styles.barRow}>
-          <div className={styles.barLabel}>{b.label}</div>
-          <div className={styles.barTrack}>
-            <div className={styles.barFill} style={{ width: `${(b.avg / scale) * 100}%` }} />
-          </div>
-          <div className={styles.barValue}>{b.avg.toFixed(1)}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LineView({ series }: { series: ChartEvaluation['series'] }) {
-  const W = 560;
-  const H = 220;
-  const PAD = 34;
-  const allPoints = series.flatMap((s) => s.points);
-  if (allPoints.length === 0) return <div className={styles.previewEmpty}>No points</div>;
-
-  const xs = allPoints.map((p) => new Date(p.date).getTime());
-  const ys = allPoints.map((p) => p.value);
-  const xMin = Math.min(...xs);
-  const xMax = Math.max(...xs);
-  const yMin = Math.min(...ys);
-  const yMax = Math.max(...ys);
-  const xRange = xMax - xMin || 1;
-  const yRange = yMax - yMin || 1;
-
-  const colors = ['#4682FF', '#D4AF37', '#34D399', '#E11D48', '#8B5CF6', '#F472B6'];
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
-        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
-        {series.map((s, i) => {
-          if (s.points.length === 0) return null;
-          const isCohort = (s as any).cohort === true;
-          // Cohort overlays get muted gray + dashed stroke + no point dots.
-          // Keeps the focal athlete's line as the visual hero.
-          const color = isCohort ? 'rgba(255,255,255,0.55)' : colors[i % colors.length];
-          const points = s.points.map((p) => {
-            const x = PAD + ((new Date(p.date).getTime() - xMin) / xRange) * (W - PAD - 6);
-            const y = 6 + (1 - (p.value - yMin) / yRange) * (H - PAD - 6);
-            return `${x.toFixed(1)},${y.toFixed(1)}`;
-          }).join(' ');
-          return (
-            <g key={`${s.source}::${s.metricType}::${isCohort ? 'cohort' : 'self'}`}>
-              <polyline
-                fill="none"
-                stroke={color}
-                strokeWidth={isCohort ? 1.5 : 2}
-                strokeDasharray={isCohort ? '5 4' : undefined}
-                points={points}
-              />
-              {!isCohort && s.points.map((p, j) => {
-                const x = PAD + ((new Date(p.date).getTime() - xMin) / xRange) * (W - PAD - 6);
-                const y = 6 + (1 - (p.value - yMin) / yRange) * (H - PAD - 6);
-                return <circle key={j} cx={x} cy={y} r="3" fill={color} />;
-              })}
-            </g>
-          );
-        })}
-        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMin.toFixed(1)}</text>
-        <text x={PAD - 6} y={12} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMax.toFixed(1)}</text>
-      </svg>
-      <div className={styles.legend}>
-        {series.map((s, i) => {
-          const isCohort = (s as any).cohort === true;
-          const color = isCohort ? 'rgba(255,255,255,0.55)' : colors[i % colors.length];
-          return (
-            <span
-              key={`${s.source}::${s.metricType}::${isCohort ? 'cohort' : 'self'}`}
-              className={styles.legendItem}
-              style={isCohort ? { opacity: 0.85, fontStyle: 'italic' } : undefined}
-            >
-              <span className={styles.legendDot} style={{ background: color }} />
-              {s.label}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Advanced chart views ───────────────────────────────── */
-
-const CHART_COLORS = ['#4682FF', '#D4AF37', '#34D399', '#E11D48', '#8B5CF6', '#F472B6'];
-
-function MovementPlotView({ series }: { series: ChartEvaluation['series'] }) {
-  // First series = X axis, second series = Y axis. Match by date so each recording becomes one point.
-  const W = 560;
-  const H = 300;
-  const PAD = 38;
-  const xSeries = series[0];
-  const ySeries = series[1];
-  if (!xSeries || !ySeries) return <div className={styles.previewEmpty}>Pick two columns.</div>;
-
-  const yMap = new Map(ySeries.points.map((p) => [p.date.slice(0, 10), p.value]));
-  const pairs = xSeries.points
-    .map((p) => {
-      const y = yMap.get(p.date.slice(0, 10));
-      return y != null ? { date: p.date, x: p.value, y } : null;
-    })
-    .filter(Boolean) as Array<{ date: string; x: number; y: number }>;
-
-  if (pairs.length === 0) {
-    return (
-      <div className={styles.previewEmpty}>
-        No dates overlap between the two columns.<br />
-        Movement Plot pairs X and Y by recording date.
-      </div>
-    );
-  }
-
-  const xs = pairs.map((p) => p.x);
-  const ys = pairs.map((p) => p.y);
-  const xMin = Math.min(0, ...xs);
-  const xMax = Math.max(0, ...xs);
-  const yMin = Math.min(0, ...ys);
-  const yMax = Math.max(0, ...ys);
-  const xRange = xMax - xMin || 1;
-  const yRange = yMax - yMin || 1;
-
-  const toX = (x: number) => PAD + ((x - xMin) / xRange) * (W - PAD - 6);
-  const toY = (y: number) => 6 + (1 - (y - yMin) / yRange) * (H - PAD - 6);
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-        {/* axes */}
-        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
-        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
-        {/* zero lines */}
-        {xMin <= 0 && xMax >= 0 && (
-          <line x1={toX(0)} y1={6} x2={toX(0)} y2={H - PAD} stroke="var(--border-strong)" strokeDasharray="3 4" />
-        )}
-        {yMin <= 0 && yMax >= 0 && (
-          <line x1={PAD} y1={toY(0)} x2={W - 6} y2={toY(0)} stroke="var(--border-strong)" strokeDasharray="3 4" />
-        )}
-        {pairs.map((p, i) => (
-          <circle key={i} cx={toX(p.x)} cy={toY(p.y)} r="5" fill="#4682FF" fillOpacity="0.75" stroke="#D4AF37" strokeWidth="0.75" />
-        ))}
-        <text x={W - 8} y={H - PAD - 6} fontSize="10" fill="var(--text-muted)" textAnchor="end">
-          X: {xSeries.label}
-        </text>
-        <text x={PAD + 6} y={14} fontSize="10" fill="var(--text-muted)">
-          Y: {ySeries.label}
-        </text>
-      </svg>
-      <div className={styles.legend}>
-        <span className={styles.legendItem}>
-          <span className={styles.legendDot} style={{ background: '#4682FF' }} />
-          {pairs.length} paired points
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/** Compute simple or exponential moving average over a point series */
-function computeMovingAverage(
-  points: Array<{ date: string; value: number }>,
-  window: number,
-  mode: 'SMA' | 'EMA',
-): Array<{ date: string; value: number }> {
-  if (points.length === 0 || window < 2) return [];
-  if (mode === 'EMA') {
-    const k = 2 / (window + 1);
-    const out: Array<{ date: string; value: number }> = [];
-    let ema = points[0].value;
-    points.forEach((p, i) => {
-      ema = i === 0 ? p.value : p.value * k + ema * (1 - k);
-      out.push({ date: p.date, value: ema });
-    });
-    return out;
-  }
-  // SMA
-  const out: Array<{ date: string; value: number }> = [];
-  for (let i = 0; i < points.length; i++) {
-    const start = Math.max(0, i - window + 1);
-    const slice = points.slice(start, i + 1);
-    const avg = slice.reduce((a, b) => a + b.value, 0) / slice.length;
-    out.push({ date: points[i].date, value: avg });
-  }
-  return out;
-}
-
-function RollingAvgView({
-  series, window, mode,
-}: { series: ChartEvaluation['series']; window: number; mode: 'SMA' | 'EMA' }) {
-  const withSmoothed = series.map((s) => ({
-    ...s,
-    smoothed: computeMovingAverage(s.points, window, mode),
-  }));
-  return (
-    <LineViewAnnotated
-      series={series}
-      overlays={withSmoothed.map((s, i) => ({
-        points: s.smoothed,
-        color: CHART_COLORS[i % CHART_COLORS.length],
-        dashed: true,
-        label: `${s.label} · ${mode}${window}`,
-      }))}
-    />
-  );
-}
-
-/** Linear regression: y = a + b*x where x is ms timestamp */
-function linearRegression(points: Array<{ date: string; value: number }>) {
-  if (points.length < 2) return null;
-  const xs = points.map((p) => new Date(p.date).getTime());
-  const ys = points.map((p) => p.value);
-  const n = xs.length;
-  const sx = xs.reduce((a, b) => a + b, 0);
-  const sy = ys.reduce((a, b) => a + b, 0);
-  const sxx = xs.reduce((a, b) => a + b * b, 0);
-  const sxy = xs.reduce((a, b, i) => a + b * ys[i], 0);
-  const b = (n * sxy - sx * sy) / (n * sxx - sx * sx) || 0;
-  const a = (sy - b * sx) / n;
-  // R²
-  const meanY = sy / n;
-  const ssTot = ys.reduce((acc, v) => acc + (v - meanY) ** 2, 0) || 1;
-  const ssRes = ys.reduce((acc, v, i) => acc + (v - (a + b * xs[i])) ** 2, 0);
-  const r2 = 1 - ssRes / ssTot;
-  const xMin = Math.min(...xs);
-  const xMax = Math.max(...xs);
-  return {
-    slope: b,
-    intercept: a,
-    r2,
-    endpoints: [
-      { date: new Date(xMin).toISOString(), value: a + b * xMin },
-      { date: new Date(xMax).toISOString(), value: a + b * xMax },
-    ],
-  };
-}
-
-function TrendlineView({ series }: { series: ChartEvaluation['series'] }) {
-  const overlays = series.map((s, i) => {
-    const reg = linearRegression(s.points);
-    return reg
-      ? {
-          points: reg.endpoints,
-          color: CHART_COLORS[i % CHART_COLORS.length],
-          dashed: true,
-          label: `${s.label} · trend (R²=${reg.r2.toFixed(2)})`,
-        }
-      : null;
-  }).filter(Boolean) as Array<{ points: Array<{ date: string; value: number }>; color: string; dashed: boolean; label: string }>;
-  return <LineViewAnnotated series={series} overlays={overlays} />;
-}
-
-function TargetBandView({
-  series, targetMin, targetMax,
-}: { series: ChartEvaluation['series']; targetMin: number | null; targetMax: number | null }) {
-  return <LineViewAnnotated series={series} band={{ min: targetMin, max: targetMax }} />;
-}
-
-function PersonalBestView({
-  series, direction,
-}: { series: ChartEvaluation['series']; direction: 'MAX' | 'MIN' }) {
-  const overlays = series.map((s, i) => {
-    if (s.points.length === 0) return null;
-    let best = s.points[0].value;
-    const pb: Array<{ date: string; value: number }> = [];
-    s.points.forEach((p) => {
-      if (direction === 'MAX' ? p.value > best : p.value < best) best = p.value;
-      pb.push({ date: p.date, value: best });
-    });
-    return {
-      points: pb,
-      color: CHART_COLORS[i % CHART_COLORS.length],
-      dashed: false,
-      label: `${s.label} · PB (${direction})`,
-      stepped: true,
-    };
-  }).filter(Boolean) as Array<{ points: Array<{ date: string; value: number }>; color: string; dashed: boolean; label: string; stepped?: boolean }>;
-  return <LineViewAnnotated series={series} overlays={overlays} dimRaw />;
-}
-
-/**
- * Generic annotated line view used by RollingAvg, Trendline, TargetBand, PersonalBest.
- * Renders the raw series (optionally dimmed) plus overlays and an optional horizontal band.
- */
-function LineViewAnnotated({
-  series, overlays = [], band, dimRaw = false,
-}: {
-  series: ChartEvaluation['series'];
-  overlays?: Array<{
-    points: Array<{ date: string; value: number }>;
-    color: string;
-    dashed?: boolean;
-    label: string;
-    stepped?: boolean;
-  }>;
-  band?: { min: number | null; max: number | null };
-  dimRaw?: boolean;
-}) {
-  const W = 560;
-  const H = 220;
-  const PAD = 34;
-  const rawPoints = series.flatMap((s) => s.points);
-  const overlayPoints = overlays.flatMap((o) => o.points);
-  const allPoints = [...rawPoints, ...overlayPoints];
-  if (allPoints.length === 0) return <div className={styles.previewEmpty}>No points</div>;
-
-  const xs = allPoints.map((p) => new Date(p.date).getTime());
-  const ys = allPoints.map((p) => p.value);
-  let yMin = Math.min(...ys);
-  let yMax = Math.max(...ys);
-  if (band) {
-    if (band.min != null) yMin = Math.min(yMin, band.min);
-    if (band.max != null) yMax = Math.max(yMax, band.max);
-  }
-  const xMin = Math.min(...xs);
-  const xMax = Math.max(...xs);
-  const xRange = xMax - xMin || 1;
-  const yRange = yMax - yMin || 1;
-
-  const toX = (d: string) => PAD + ((new Date(d).getTime() - xMin) / xRange) * (W - PAD - 6);
-  const toY = (v: number) => 6 + (1 - (v - yMin) / yRange) * (H - PAD - 6);
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg}>
-        <line x1={PAD} y1={H - PAD} x2={W - 6} y2={H - PAD} stroke="var(--border-light)" />
-        <line x1={PAD} y1={6} x2={PAD} y2={H - PAD} stroke="var(--border-light)" />
-
-        {/* Target band */}
-        {band && band.min != null && band.max != null && (
-          <rect
-            x={PAD}
-            y={toY(Math.max(band.min, band.max))}
-            width={W - PAD - 6}
-            height={Math.abs(toY(band.min) - toY(band.max))}
-            fill="rgba(52, 211, 153, 0.14)"
-            stroke="rgba(52, 211, 153, 0.38)"
-            strokeDasharray="3 4"
-          />
-        )}
-
-        {/* Raw series */}
-        {series.map((s, i) => {
-          if (s.points.length === 0) return null;
-          const color = CHART_COLORS[i % CHART_COLORS.length];
-          const pts = s.points.map((p) => `${toX(p.date).toFixed(1)},${toY(p.value).toFixed(1)}`).join(' ');
-          return (
-            <g key={`raw-${i}`} opacity={dimRaw ? 0.45 : 1}>
-              <polyline fill="none" stroke={color} strokeWidth="2" points={pts} />
-              {s.points.map((p, j) => (
-                <circle key={j} cx={toX(p.date)} cy={toY(p.value)} r="2.5" fill={color} />
-              ))}
-            </g>
-          );
-        })}
-
-        {/* Overlays */}
-        {overlays.map((o, i) => {
-          if (o.points.length === 0) return null;
-          let d = '';
-          if (o.stepped && o.points.length > 0) {
-            d = `M ${toX(o.points[0].date).toFixed(1)} ${toY(o.points[0].value).toFixed(1)}`;
-            for (let k = 1; k < o.points.length; k++) {
-              const py = toY(o.points[k - 1].value);
-              const x = toX(o.points[k].date);
-              const y = toY(o.points[k].value);
-              d += ` L ${x.toFixed(1)} ${py.toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)}`;
-            }
-          } else {
-            d = o.points.map((p, k) => `${k === 0 ? 'M' : 'L'} ${toX(p.date).toFixed(1)} ${toY(p.value).toFixed(1)}`).join(' ');
-          }
-          return (
-            <path
-              key={`ov-${i}`}
-              d={d}
-              fill="none"
-              stroke={o.color}
-              strokeWidth="2.5"
-              strokeDasharray={o.dashed ? '6 5' : undefined}
-            />
-          );
-        })}
-
-        <text x={PAD - 6} y={H - PAD + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMin.toFixed(1)}</text>
-        <text x={PAD - 6} y={12} fontSize="10" fill="var(--text-muted)" textAnchor="end">{yMax.toFixed(1)}</text>
-      </svg>
-      <div className={styles.legend}>
-        {series.map((s, i) => (
-          <span key={`leg-raw-${i}`} className={styles.legendItem}>
-            <span className={styles.legendDot} style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-            {s.label}
-          </span>
-        ))}
-        {overlays.map((o, i) => (
-          <span key={`leg-ov-${i}`} className={styles.legendItem}>
-            <span
-              className={styles.legendDot}
-              style={{
-                background: 'transparent',
-                border: `2px ${o.dashed ? 'dashed' : 'solid'} ${o.color}`,
-              }}
-            />
-            {o.label}
-          </span>
-        ))}
-        {band && band.min != null && band.max != null && (
-          <span className={styles.legendItem}>
-            <span
-              className={styles.legendDot}
-              style={{ background: 'rgba(52, 211, 153, 0.35)', border: '1px solid rgba(52,211,153,0.6)' }}
-            />
-            Target {band.min}–{band.max}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Strike zone heat map.
- * NOTE: real per-pitch zone coordinates aren't stored on Metric rows yet.
- * For the live preview we deterministically bin the values of the FIRST series
- * across the grid (index % cells) so coaches can see the visual treatment and
- * save the config; once pitch location is wired into ingest the same renderer
- * will display real spatial data with no further changes.
- */
-function StrikeZoneHeatView({
-  series, grid, metric,
-}: { series: ChartEvaluation['series']; grid: '3x3' | '5x5'; metric: 'COUNT' | 'AVG' | 'WHIFF' }) {
-  const n = grid === '3x3' ? 3 : 5;
-  const cells: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
-  const sums: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
-
-  const first = series[0];
-  if (first) {
-    first.points.forEach((p, i) => {
-      const r = i % n;
-      const c = Math.floor(i / n) % n;
-      cells[r][c] += 1;
-      sums[r][c] += p.value;
-    });
-  }
-
-  const values: number[][] = cells.map((row, r) => row.map((count, c) => {
-    if (metric === 'COUNT') return count;
-    if (metric === 'AVG') return count ? sums[r][c] / count : 0;
-    // WHIFF proxy: normalize low values as "miss" — just a demo until real whiff flags are available
-    return count ? 1 - Math.min(1, sums[r][c] / (count * Math.max(...sums.flat(), 1))) : 0;
-  }));
-  const maxV = Math.max(...values.flat(), 1);
-
-  const W = 320;
-  const H = 320;
-  const cellSize = (W - 40) / n;
-  const ox = 20;
-  const oy = 20;
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className={styles.svg} style={{ maxWidth: 360, margin: '0 auto' }}>
-        <rect x={ox} y={oy} width={cellSize * n} height={cellSize * n} fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" />
-        {values.map((row, r) =>
-          row.map((v, c) => {
-            const intensity = maxV ? v / maxV : 0;
-            const hue = metric === 'WHIFF' ? 355 : 210;
-            return (
-              <g key={`${r}-${c}`}>
-                <rect
-                  x={ox + c * cellSize}
-                  y={oy + r * cellSize}
-                  width={cellSize - 1}
-                  height={cellSize - 1}
-                  fill={`hsla(${hue}, 70%, 55%, ${0.15 + intensity * 0.65})`}
-                  stroke="var(--border)"
-                />
-                <text
-                  x={ox + c * cellSize + cellSize / 2}
-                  y={oy + r * cellSize + cellSize / 2 + 4}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="rgba(255,255,255,0.85)"
-                  fontFamily="DM Mono, monospace"
-                >
-                  {metric === 'COUNT' ? v : v.toFixed(1)}
-                </text>
-              </g>
-            );
-          }),
-        )}
-      </svg>
-      <div className={styles.previewEmpty} style={{ padding: '8px 0', fontSize: rem(11) }}>
-        Showing <strong>{metric}</strong> on a {grid} grid from {first?.label || '—'}.{' '}
-        Once per-pitch zone coordinates are ingested, this chart will reflect real spatial data.
-      </div>
-    </div>
-  );
-}
-
 /* ─── Date range calendar picker ─────────────────────────── */
 
 /** Format a Date as YYYY-MM-DD in local time (what <input type="date"> uses). */

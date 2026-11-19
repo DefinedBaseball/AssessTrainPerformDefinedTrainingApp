@@ -7,7 +7,7 @@ import { ValdClient } from './vald-client';
 import type { ValdMeta } from './lifting-catalog';
 import {
   FD_TEST_LABELS, FdResultDef, KNOWN_DYNAMO_CODES, MatchResult, RosterPlayer, SmartSpeedRep, TestMeta, VALD_DEVICES, ValdFilters, ValdProfile,
-  aggregateDynamo, aggregateForceDecks, aggregateSmartSpeed, cleanFilters, dynamoCodesOf, dynamoTestLabel, emptyFilters, localDay, matchProfile, passesTags,
+  aggregateDynamo, aggregateForceDecks, aggregateSmartSpeed, cleanFilters, dayAtOffset, dynamoCodesOf, dynamoTestLabel, emptyFilters, ianaFromVald, localDay, matchProfile, passesTags,
   smartSpeedTestCode, weighInLbs,
 } from './vald-mapping';
 
@@ -412,7 +412,10 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
     const T = this.vald.tenantId;
     const newMeta: Record<string, TestMeta> = {};
     const unmatched = new Map<string, PullReport['unmatched'][number]>();
-    const timeZone = (await this.academy.get().catch(() => null))?.timeZone || undefined;
+    /* Days (SmartSpeed sessions, weigh-ins) are local days: the academy's
+       time zone (Settings -> Academy), else the one VALD recorded the
+       ForceDecks tests in, else UTC. Weigh-ins use each test's own offset. */
+    let timeZone = (await this.academy.get().catch(() => null))?.timeZone || undefined;
     /* player -> day -> the day's last ForceDecks weigh-in. */
     const weighIns = new Map<string, Map<string, { lbs: number; at: number }>>();
     try {
@@ -489,6 +492,11 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
           cursor = last;
           await sleep(PAUSE_MS);
         }
+        if (!timeZone) {
+          const count = new Map<string, number>();
+          for (const t of tests) { const z = ianaFromVald(t.recordedDateTimezone); if (z) count.set(z, (count.get(z) ?? 0) + 1); }
+          timeZone = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+        }
         const inRange = tests.filter((t) => {
           const at = Date.parse(t.recordedDateUtc);
           return at >= from.getTime() && at < to.getTime();
@@ -504,7 +512,7 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
           const lbs = weighInLbs(t.weight, code);
           if (lbs != null && m?.playerId && allowedProfile(t.profileId)) {
             const at = Date.parse(t.recordedDateUtc);
-            const day = localDay(new Date(at), timeZone);
+            const day = typeof t.recordedDateOffset === 'number' ? dayAtOffset(t.recordedDateUtc, t.recordedDateOffset) : localDay(new Date(at), timeZone);
             const days = weighIns.get(m.playerId) ?? weighIns.set(m.playerId, new Map()).get(m.playerId)!;
             const cur = days.get(day);
             if (!cur || at > cur.at) days.set(day, { lbs, at });

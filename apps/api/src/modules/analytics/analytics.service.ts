@@ -3,12 +3,25 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.util';
 import { LiftingService } from '../lifting/lifting.service';
 import { BODYWEIGHT_TEST } from '../lifting/lifting-catalog';
+import { REPORT_MEASURES } from '../studies/study-measures';
 
 /* Chart Builder sources beyond the Metric table:
      LIFTING      metricType "<TEST>:<KEY>" (session best) or "<TEST>:<KEY>:avg"
                   -- Lifting Report results (VALD ForceDecks / DynaMo /
                   SmartSpeed and typed results)
-     BODY_WEIGHT  metricType "weight" -- the weight history (typed + VALD) */
+     BODY_WEIGHT  metricType "weight" -- the weight history (typed + VALD)
+     REPORTS      metricType = a report metric key (max_exit_velo ...) -- one
+                  value per saved report (the Player Summary trend points),
+                  instead of every raw swing / pitch row.
+
+   The Chart Builder lists two data sets (dataset on each column): Athlete
+   Reports (REPORTS + body weight) and VALD (LIFTING). The per-report
+   REPORT_<id> sources are never listed as columns -- there's one per saved
+   report, which repeated every metric (Blast, Full Swing ...) dozens of times.
+
+   Visibility: PRIVATE = coaches only (every coach sees it on the athletes
+   it applies to; athletes / parents never do), GLOBAL = athletes too. */
+const REPORTS_SOURCE = 'REPORTS';
 const LIFT_SOURCE = 'LIFTING';
 const WEIGHT_SOURCE = 'BODY_WEIGHT';
 const LIFT_GROUP: Record<string, string> = {
@@ -45,6 +58,27 @@ export interface ChartConfigDto {
   // is appended to every primary series. cohortMode controls which peers count.
   cohortEnabled?: boolean | null;
   cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
+  /** "REPORTS" | "VALD" (which data set the columns come from). */
+  dataset?: 'REPORTS' | 'VALD' | null;
+  /** One point per day: average or max of that day's readings. */
+  dailyAgg?: 'AVG' | 'MAX' | null;
+}
+
+const cleanDataset = (v: unknown) => (v === 'REPORTS' || v === 'VALD' ? v : null);
+const cleanDailyAgg = (v: unknown) => (v === 'AVG' || v === 'MAX' ? v : null);
+
+/** One point per day (UTC date, plotted at noon): the day's average or max. */
+export function aggregateDaily(points: { date: string; value: number }[], how: 'AVG' | 'MAX' | null | undefined) {
+  if (!how) return points;
+  const byDay = new Map<string, number[]>();
+  for (const p of points) {
+    const d = p.date.slice(0, 10);
+    (byDay.get(d) ?? byDay.set(d, []).get(d)!).push(p.value);
+  }
+  return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([d, v]) => ({
+    date: `${d}T12:00:00.000Z`,
+    value: how === 'MAX' ? Math.max(...v) : v.reduce((a, b) => a + b, 0) / v.length,
+  }));
 }
 
 @Injectable()
@@ -65,6 +99,14 @@ export class AnalyticsService {
       });
       return rows.map((r) => ({ playerId: r.playerId, date: new Date(`${r.recordedOn}T12:00:00.000Z`), value: r.weightLbs }));
     }
+    if (s.source === REPORTS_SOURCE) {
+      const rows = await this.prisma.metric.findMany({
+        where: { playerId: { in: playerIds }, metricType: s.metricType, source: { startsWith: 'REPORT_' }, ...(dateFilter ? { recordedAt: dateFilter } : {}) },
+        orderBy: { recordedAt: 'asc' },
+        select: { playerId: true, recordedAt: true, value: true },
+      });
+      return rows.map((r) => ({ playerId: r.playerId, date: r.recordedAt, value: r.value }));
+    }
     if (s.source !== LIFT_SOURCE) return null;
     const [test, key, avg] = String(s.metricType).split(':');
     if (!test || !key) return [];
@@ -84,8 +126,39 @@ export class AnalyticsService {
     return out;
   }
 
+  /** The Chart Builder's columns: Athlete Reports (each report metric once,
+   *  named) + body weight, and VALD (Lifting Report results). */
+  async builderColumns(user?: JwtPayload) {
+    const reportKeys = await this.prisma.metric.groupBy({ by: ['metricType'], where: { source: { startsWith: 'REPORT_' } } });
+    const have = new Set(reportKeys.map((r) => r.metricType));
+    const out: { source: string; metricType: string; unit: string; label: string; group: string; dataset: 'REPORTS' | 'VALD' }[] = REPORT_MEASURES
+      .filter((m) => have.has(m.key))
+      .map((m) => ({ source: REPORTS_SOURCE, metricType: m.key, unit: m.unit, label: m.label, group: m.group, dataset: 'REPORTS' as const }));
+    out.push({ source: WEIGHT_SOURCE, metricType: 'weight', unit: 'lb', label: 'Body Weight', group: 'Body', dataset: 'REPORTS' });
+    for (const c of await this.liftingColumns(user)) out.push({ ...c, dataset: 'VALD' });
+    return out;
+  }
+
+  private async liftingColumns(user?: JwtPayload) {
+    const [tested, { catalog }] = await Promise.all([
+      this.prisma.liftingTest.findMany({ distinct: ['testType'], select: { testType: true } }),
+      this.lifting.getConfig(user),
+    ]);
+    const have = new Set(tested.map((t) => t.testType));
+    const out: { source: string; metricType: string; unit: string; label: string; group: string }[] = [];
+    for (const t of catalog) {
+      if (t.code === BODYWEIGHT_TEST || !have.has(t.code)) continue;
+      const group = `${LIFT_GROUP[t.source] ?? 'Lifting'} · ${t.label}`;
+      for (const m of t.metrics) out.push({ source: LIFT_SOURCE, metricType: `${t.code}:${m.key}`, unit: m.unit, label: m.label, group });
+    }
+    return out;
+  }
+
   async listColumns(user?: JwtPayload) {
     const rows = await this.prisma.metric.findMany({
+      /* Device rows only: REPORT_<id> sources (one per saved report) would
+         list every metric again for each report. */
+      where: { NOT: { source: { startsWith: 'REPORT_' } } },
       select: { source: true, metricType: true, unit: true },
       distinct: ['source', 'metricType'],
       orderBy: [{ source: 'asc' }, { metricType: 'asc' }],
@@ -104,23 +177,13 @@ export class AnalyticsService {
     const extra: { source: string; metricType: string; unit: string; label: string; group: string }[] = [
       { source: WEIGHT_SOURCE, metricType: 'weight', unit: 'lb', label: 'Body Weight', group: 'Body Weight' },
     ];
-    const [tested, { catalog }] = await Promise.all([
-      this.prisma.liftingTest.findMany({ distinct: ['testType'], select: { testType: true } }),
-      this.lifting.getConfig(user),
-    ]);
-    const have = new Set(tested.map((t) => t.testType));
-    for (const t of catalog) {
-      if (t.code === BODYWEIGHT_TEST || !have.has(t.code)) continue;
-      const group = `${LIFT_GROUP[t.source] ?? 'Lifting'} · ${t.label}`;
-      for (const m of t.metrics) extra.push({ source: LIFT_SOURCE, metricType: `${t.code}:${m.key}`, unit: m.unit, label: m.label, group });
-    }
+    extra.push(...(await this.liftingColumns(user)));
     return [...rows, ...reportScoreFields, ...extra];
   }
 
-  async listConfigs(userId: string, section?: string) {
-    const where: any = {
-      OR: [{ scope: 'GLOBAL' }, { createdById: userId, scope: 'PRIVATE' }],
-    };
+  /** Coaches see every chart (Private = for coaches); athletes / parents only the GLOBAL ones. */
+  async listConfigs(user: JwtPayload, section?: string) {
+    const where: any = user.role === 'COACH' ? {} : { scope: 'GLOBAL' };
     if (section) where.section = section;
     return this.prisma.chartConfig.findMany({
       where,
@@ -155,14 +218,16 @@ export class AnalyticsService {
         zoneMetric: dto.zoneMetric ?? null,
         cohortEnabled: dto.cohortEnabled ?? false,
         cohortMode: dto.cohortMode ?? null,
+        dataset: cleanDataset(dto.dataset),
+        dailyAgg: cleanDailyAgg(dto.dailyAgg),
       },
     });
   }
 
-  async update(id: string, userId: string, dto: Partial<ChartConfigDto>) {
+  /* Any coach can edit or delete a chart (Private charts are shared by the coaches). */
+  async update(id: string, _userId: string, dto: Partial<ChartConfigDto>) {
     const existing = await this.prisma.chartConfig.findUnique({ where: { id } });
     if (!existing) return null;
-    if (existing.scope === 'PRIVATE' && existing.createdById !== userId) return null;
 
     const data: any = {};
     if (dto.scope) data.scope = dto.scope;
@@ -192,20 +257,23 @@ export class AnalyticsService {
     if (dto.zoneMetric !== undefined) data.zoneMetric = dto.zoneMetric;
     if (dto.cohortEnabled !== undefined) data.cohortEnabled = dto.cohortEnabled;
     if (dto.cohortMode !== undefined) data.cohortMode = dto.cohortMode;
+    if (dto.dataset !== undefined) data.dataset = cleanDataset(dto.dataset);
+    if (dto.dailyAgg !== undefined) data.dailyAgg = cleanDailyAgg(dto.dailyAgg);
 
     return this.prisma.chartConfig.update({ where: { id }, data });
   }
 
-  async delete(id: string, userId: string) {
+  async delete(id: string, _userId: string) {
     const existing = await this.prisma.chartConfig.findUnique({ where: { id } });
     if (!existing) return null;
-    if (existing.scope === 'PRIVATE' && existing.createdById !== userId) return null;
     return this.prisma.chartConfig.delete({ where: { id } });
   }
 
-  async evaluate(configId: string, playerId: string) {
+  async evaluate(configId: string, playerId: string, user?: JwtPayload) {
     const config = await this.prisma.chartConfig.findUnique({ where: { id: configId } });
     if (!config) return null;
+    /* A coaches-only chart is never shown to an athlete or parent. */
+    if (config.scope === 'PRIVATE' && user && user.role !== 'COACH') return null;
 
     const sources = JSON.parse(config.dataSources) as Array<{ source: string; metricType: string; label?: string }>;
     const reportIds = this.parseJsonArray(config.reportIds);
@@ -230,7 +298,8 @@ export class AnalyticsService {
       );
     }
 
-    return { config, series: [...series, ...cohortSeries] };
+    const daily = cleanDailyAgg((config as any).dailyAgg);
+    return { config, series: series.map((s) => ({ ...s, points: aggregateDaily(s.points, daily) })).concat(cohortSeries) };
   }
 
   /**
@@ -291,8 +360,10 @@ export class AnalyticsService {
         zoneMetric: dto.zoneMetric ?? null,
         cohortEnabled: dto.cohortEnabled ?? false,
         cohortMode: dto.cohortMode ?? null,
+        dataset: cleanDataset(dto.dataset),
+        dailyAgg: cleanDailyAgg(dto.dailyAgg),
       },
-      series: [...series, ...cohortSeries],
+      series: series.map((s) => ({ ...s, points: aggregateDaily(s.points, cleanDailyAgg(dto.dailyAgg)) })).concat(cohortSeries as any[]),
     };
   }
 

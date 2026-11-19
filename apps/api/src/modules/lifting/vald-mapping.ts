@@ -79,6 +79,20 @@ const mean = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length;
 const round = (n: number) => Math.round(n * 1e6) / 1e6;
 
 /**
+ * VALD's API sends ForceDecks values in base units whatever the result's
+ * unit name says (checked against every test type, 2026-11-19): "ms"
+ * results come in seconds, "Bodyweight in Pounds" in kilograms, and RSI
+ * results in cm/s although named m/s. Multiply by this to get the unit
+ * VALD names (what its own app shows). Everything else already matches.
+ */
+export function unitFactor(result: string, unit: string | null | undefined): number {
+  if (unit === 'ms') return 1000;
+  if (unit === 'lbs') return 2.2046226218;
+  if (unit === 'm/s' && /RSI/.test(result)) return 0.01;
+  return 1;
+}
+
+/**
  * One ForceDecks session's trials -> best + average per result / limb.
  * A single-leg test reports each trial's leg on the trial (its results say
  * "Trial"), so those get the trial's _LEFT / _RIGHT.
@@ -94,7 +108,8 @@ export function aggregateForceDecks(trials: FdTrial[], defs: Map<string, FdResul
       const limb = r.limb && r.limb !== 'Trial' ? r.limb : trialLimb;
       const suffix = limb ? LIMB_SUFFIX[limb] ?? '' : '';
       const key = result + suffix;
-      (values.get(key) ?? values.set(key, []).get(key)!).push(r.value);
+      const v = suffix === '_ASYM' ? r.value : r.value * unitFactor(result, defs.get(result)?.resultUnitName ?? r.definition?.unit);
+      (values.get(key) ?? values.set(key, []).get(key)!).push(v);
       if (!info.has(key)) info.set(key, { result, suffix, name: r.definition?.name, unit: r.definition?.unit });
     }
   }
@@ -358,6 +373,34 @@ export function aggregateSmartSpeed(reps: SmartSpeedRep[]): { metrics: Record<st
     meta.REPS = { label: 'Reps', unit: '', digits: 0, better: null, group: 'Main' };
   }
   return { metrics, meta };
+}
+
+/* VALD names the time zone a ForceDecks test was recorded in the Windows way
+   ("Central Standard Time"); these are the IANA names for the usual ones. */
+const WINDOWS_TZ: Record<string, string> = {
+  'Eastern Standard Time': 'America/New_York',
+  'Central Standard Time': 'America/Chicago',
+  'Mountain Standard Time': 'America/Denver',
+  'US Mountain Standard Time': 'America/Phoenix',
+  'Pacific Standard Time': 'America/Los_Angeles',
+  'Alaskan Standard Time': 'America/Anchorage',
+  'Hawaiian Standard Time': 'Pacific/Honolulu',
+  'Atlantic Standard Time': 'America/Halifax',
+  'GMT Standard Time': 'Europe/London',
+  'AUS Eastern Standard Time': 'Australia/Sydney',
+};
+
+/** VALD's recordedDateTimezone -> an IANA time zone (undefined when unknown). */
+export function ianaFromVald(tz: string | null | undefined): string | undefined {
+  const v = String(tz || '').trim();
+  if (!v) return undefined;
+  if (v.includes('/')) return v;
+  return WINDOWS_TZ[v];
+}
+
+/** The local day of a ForceDecks test from VALD's own offset (minutes from UTC). */
+export function dayAtOffset(utc: string, offsetMinutes: number): string {
+  return new Date(Date.parse(utc) + offsetMinutes * 60_000).toISOString().slice(0, 10);
 }
 
 /** A day in the academy's time zone ("YYYY-MM-DD"); UTC when none is set. */

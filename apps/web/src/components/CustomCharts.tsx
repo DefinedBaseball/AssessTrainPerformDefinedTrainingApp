@@ -83,7 +83,18 @@ function CustomChartCard({ config, evaluation }: { config: ChartConfig; evaluati
 
       {!hasData ? (
         <div className={styles.empty}>No data in the selected range</div>
-      ) : config.chartType === 'STAT_BUBBLE' ? (
+      ) : <CustomChartBody config={config} series={series} />}
+    </div>
+  );
+}
+
+/** The chart itself -- shared by the profile cards and the Chart Builder's
+ *  live preview, so the preview is exactly what the profile shows. */
+export type ChartBodyConfig = Pick<ChartConfig, 'chartType' | 'rollingWindow' | 'rollingMode' | 'targetMin' | 'targetMax' | 'pbDirection' | 'zoneGrid' | 'zoneMetric'>;
+export function CustomChartBody({ config, series }: { config: ChartBodyConfig; series: ChartEvaluation['series'] }) {
+  return (
+    <>
+      {config.chartType === 'STAT_BUBBLE' ? (
         <StatBubbleView series={series} />
       ) : config.chartType === 'PERCENT_INCREASE' ? (
         <PercentIncreaseView series={series} />
@@ -142,7 +153,7 @@ function CustomChartCard({ config, evaluation }: { config: ChartConfig; evaluati
       ) : (
         <LineView series={series} />
       )}
-    </div>
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { CustomCharts } from '@/components/CustomCharts';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import nextDynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -310,6 +311,7 @@ export default function DashboardPage() {
               dense
             />
           ) : null}
+          {summary.player && <CustomCharts section="OVERVIEW" playerId={summary.player.id} />}
         </div>
       </div>
     );

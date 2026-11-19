@@ -8,15 +8,15 @@ export class AnalyticsController {
 
   @Get('columns')
   @Roles('COACH')
-  listColumns(@Request() req: AuthenticatedRequest) {
-    return this.analytics.listColumns(req.user!);
+  listColumns(@Request() req: AuthenticatedRequest, @Query('for') forWhat?: string) {
+    return forWhat === 'builder' ? this.analytics.builderColumns(req.user!) : this.analytics.listColumns(req.user!);
   }
 
   @Get('configs')
   @Roles('COACH', 'PLAYER', 'PARENT')
   @ParentAllowed() // linked parents read (ownership-checked)
   listConfigs(@Request() req: any, @Query('section') section?: string) {
-    return this.analytics.listConfigs(req.user.sub, section);
+    return this.analytics.listConfigs(req.user, section);
   }
 
   @Post('configs')
@@ -43,7 +43,7 @@ export class AnalyticsController {
   evaluate(@Request() req: AuthenticatedRequest, @Param('id') id: string, @Param('playerId') playerId: string) {
     // A player may only evaluate a config against their OWN data; coaches any.
     assertPlayerOwnership(req, playerId);
-    return this.analytics.evaluate(id, playerId);
+    return this.analytics.evaluate(id, playerId, req.user);
   }
 
   @Post('preview/:playerId')
