@@ -12,6 +12,7 @@ import { assertPlayerOwnership, AuthenticatedRequest } from '../src/modules/auth
 import { detectParser, getParserBySource, getRegisteredSources } from '../src/modules/uploads/parsers/parser-registry';
 import { BlastMotionParser } from '../src/modules/uploads/parsers/blast-motion-parser';
 import { TrackmanParser } from '../src/modules/uploads/parsers/trackman-parser';
+import { parseFtIn, parseTilt, alignDots, buildColorMap, parsePitchTable, readTrackmanCharts, PdfPage } from '../src/modules/uploads/parsers/trackman-pdf-pitches';
 import { HitTraxParser } from '../src/modules/uploads/parsers/hittrax-parser';
 import { HitTraxPoiParser } from '../src/modules/uploads/parsers/hittrax-poi-parser';
 import { SendLimiter } from '../src/modules/auth/send-limiter';
@@ -806,6 +807,68 @@ async function studiesTests() {
   });
 }
 
+// ─── TrackMan PDF (per-pitch table + vector charts) ──────────────────────
+
+async function trackmanPdfTests() {
+  await test('TrackMan PDF ft/in values', () => {
+    assertEqual(Math.round(parseFtIn(`2'1"`)! * 1000) / 1000, 2.083, `2'1"`);
+    assertEqual(parseFtIn(`6'`), 6, `6'`);
+    assertEqual(Math.round(parseFtIn(`10"`)! * 1000) / 1000, 0.833, `10"`);
+    assertEqual(Math.round(parseFtIn(`-1'2"`)! * 1000) / 1000, -1.167, 'negative');
+    assertEqual(parseFtIn('-'), null, 'blank dash');
+    assertEqual(parseFtIn('5.5'), 5.5, 'plain number');
+  });
+  await test('TrackMan PDF tilt values', () => {
+    assertEqual(parseTilt('12:45'), '12:45', '12:45');
+    assertEqual(parseTilt('1:15'), '1:15', '1:15');
+    assertEqual(parseTilt('0:30'), '12:30', '0 -> 12');
+    assertEqual(parseTilt('-'), null, 'blank');
+  });
+  await test('TrackMan PDF chart dots align to pitches by type in order', () => {
+    const pitches = ['FB', 'CB', 'O', 'O', 'SL', 'O'].map(pitchType => ({ pitchType }));
+    const dots = [{ pitchType: 'FB', n: 1 }, { pitchType: 'O', n: 2 }, { pitchType: 'SL', n: 3 }, { pitchType: 'O', n: 4 }];
+    const a = alignDots(pitches, dots);
+    assertEqual(a.map(d => (d ? d.n : 0)).join(','), '1,0,2,0,3,4', 'skips pitches the chart left out');
+    const full = pitches.map((p, i) => ({ pitchType: p.pitchType, n: i }));
+    assertEqual(alignDots(pitches, full).map(d => d!.n).join(','), '0,1,2,3,4,5', '1:1 when complete');
+  });
+  await test('TrackMan PDF per-pitch table + chart calibration', () => {
+    const t = (x: number, y: number, s: string, w = 6) => ({ x, y, t: s, w, h: 7 });
+    const RED = '147,4,18', GREY = '147,147,147';
+    const p1: PdfPage = {
+      items: [t(20, 428, 'Fastball'), t(20, 450, 'Other'), t(235, 156, 'Movement'),
+        t(297, 359, '-10'), t(397, 359, '10'), t(480, 202.5, '10'), t(480, 302.5, '-10')],
+      dots: [{ x: 11, y: 425.5, d: 8.8, color: RED }, { x: 11, y: 447.5, d: 8.8, color: GREY },
+        { x: 325, y: 225, d: 8.8, color: RED }, { x: 420, y: 180, d: 8.8, color: GREY }],
+      lines: [{ x0: 300, y0: 166, x1: 300, y1: 368, color: '224,224,224' }, { x0: 400, y0: 166, x1: 400, y1: 368, color: '224,224,224' },
+        { x0: 236, y0: 200, x1: 499, y1: 200, color: '224,224,224' }, { x0: 236, y0: 300, x1: 499, y1: 300, color: '224,224,224' }],
+    };
+    const p2: PdfPage = {
+      items: [t(62, 90, 'Pitch Speed'), t(62, 100, 'mph'), t(144, 90, 'Total spin'), t(226, 90, 'Tilt'), t(307, 90, 'I. Vert. Mov'),
+        t(389, 90, 'Horz. Mov'), t(471, 90, 'Extension'), t(553, 90, 'Release Height'), t(635, 90, 'Release Side'), t(717, 90, 'Spin efficiency'),
+        t(18, 116, '#1'), t(62, 116, '51.3'), t(144, 116, '1430'), t(226, 116, '12:30'), t(307, 116, '29.0'), t(389, 116, '8.1'),
+        t(471, 116, `2'1"`), t(553, 116, `6'9"`), t(635, 116, `10"`), t(717, 116, '96%'),
+        t(18, 138, '#2'), t(62, 138, '70.0'), t(144, 138, '-'), t(226, 138, '-'), t(307, 138, '18.7'), t(389, 138, '12.2'),
+        t(471, 138, '-'), t(553, 138, `6'2"`), t(635, 138, `1'4"`), t(717, 138, '-')],
+      dots: [{ x: 10, y: 113.6, d: 6.6, color: RED }, { x: 10, y: 135.6, d: 6.6, color: GREY }],
+      lines: [],
+    };
+    const cm = buildColorMap([p1, p2]);
+    assertEqual(cm[RED], 'Fastball', 'red = Fastball'); assertEqual(cm[GREY], 'Other', 'grey = Other');
+    const rows = parsePitchTable([p1, p2], cm);
+    assertEqual(rows.length, 2, 'two pitches');
+    assertEqual(rows[0].pitchType, 'Fastball', 'row 1 type from its dot');
+    assertEqual(rows[0].relSpeed, 51.3, 'speed'); assertEqual(rows[0].spinRate, 1430, 'spin'); assertEqual(rows[0].tilt, '12:30', 'tilt');
+    assertEqual(rows[0].inducedVertBreak, 29, 'ivb'); assertEqual(rows[0].horzBreak, 8.1, 'hb'); assertEqual(rows[0].extension, 2.08, 'ext');
+    assertEqual(rows[0].relHeight, 6.75, 'rel h'); assertEqual(rows[0].relSide, 0.83, 'rel side'); assertEqual(rows[0].spinEfficiency, 96, 'spin eff');
+    assertEqual(rows[1].pitchType, 'Other', 'row 2 grey'); assertEqual(rows[1].spinRate, null, 'blank spin'); assertEqual(rows[1].extension, null, 'blank ext');
+    const ch = readTrackmanCharts([p1, p2], cm);
+    assertEqual(ch.movement.length, 2, 'two movement dots');
+    assertEqual(ch.movement[0].x, -5, 'x calibrated'); assertEqual(ch.movement[0].y, 5, 'y calibrated');
+    assertEqual(ch.movement[1].pitchType, 'Other', 'dot type');
+  });
+}
+
 // ─── Runner ─────────────────────────────────────────────────────────────
 
 async function run() {
@@ -815,6 +878,7 @@ async function run() {
   await parserRegistryTests();
   await blastParserTests();
   await trackmanParserTests();
+  await trackmanPdfTests();
   await hittraxParserTests();
   await sendLimiterTests();
   await ownershipTests();

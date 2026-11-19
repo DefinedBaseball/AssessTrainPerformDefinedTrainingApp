@@ -1113,6 +1113,13 @@ export interface TrackmanPitch {
   /** True for pitches rebuilt from a Trackman PDF report (table-driven, not
    *  per-pitch tracked) — the Pitching tab renders these non-interactive. */
   pdfSource?: boolean;
+  /** Reported spin efficiency % (PDF pitch table). */
+  spinEfficiency?: number | null;
+  /** Pitch number in the session (CSV PitchNo / PDF "#n"). */
+  pitchNo?: number | null;
+  /** PDF pitch read from the report's per-pitch table (real values, not
+   *  rebuilt from per-type averages). */
+  pdfPerPitch?: boolean;
 }
 
 export async function getTrackmanPitches(playerId: string, opts?: { from?: string; to?: string; uploadIds?: string[] }) {

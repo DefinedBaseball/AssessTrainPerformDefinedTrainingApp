@@ -7,7 +7,8 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth } from '@nes
 import * as XLSX from 'xlsx';
 import { UploadsService } from './uploads.service';
 import { CsvProcessingService } from './csv-processing.service';
-import { extractPdfTextItems, buildTrackmanPdfResult, extractTrackmanLocations, extractTrackmanMovement } from './parsers/trackman-pdf-parser';
+import { extractTrackmanPdf, buildTrackmanPdfResult, extractTrackmanLocations, extractTrackmanMovement, chartDotsForSummary } from './parsers/trackman-pdf-parser';
+import { buildTrackmanPdfPerPitch } from './parsers/trackman-pdf-pitches';
 import { Roles } from '../auth/jwt.guard';
 
 @ApiTags('uploads')
@@ -144,19 +145,25 @@ export class UploadsController {
     await this.uploadsService.updateUploadStatus(upload.id, { status: 'PROCESSING' });
 
     try {
-      const items = await extractPdfTextItems(file.buffer);
-      // Best-effort: render the Location + Movement charts and detect their dots
-      // so both plots match the report. A rendering failure never blocks the
-      // upload — each defaults to [] (→ table-driven fallback for Movement,
-      // empty Location).
-      let locationDots: Awaited<ReturnType<typeof extractTrackmanLocations>> = [];
-      let movementDots: Awaited<ReturnType<typeof extractTrackmanMovement>> = [];
-      try { locationDots = await extractTrackmanLocations(file.buffer); } catch { locationDots = []; }
-      try { movementDots = await extractTrackmanMovement(file.buffer); } catch { movementDots = []; }
-      const result = buildTrackmanPdfResult(items, recordedAt ? new Date(recordedAt) : new Date(), 'TrackMan PDF', locationDots, movementDots);
+      const when = recordedAt ? new Date(recordedAt) : new Date();
+      // One cheap pass over every page: text + the charts' vector dots/grid
+      // lines (no bitmap render, so no memory risk).
+      const pages = await extractTrackmanPdf(file.buffer);
+      // Newer reports: a real per-pitch table + vector charts → every pitch's
+      // actual metrics, and Movement / Location / Release straight off the report.
+      let result = buildTrackmanPdfPerPitch(pages, when);
+      if (!result) {
+        // Older summary-only reports: rebuild from "Stats by pitch type". Chart
+        // dots come from the vector charts when present; otherwise the (opt-in,
+        // memory-gated) bitmap detector; otherwise empty → synthetic scatter.
+        let { locationDots, movementDots } = chartDotsForSummary(pages);
+        if (!locationDots.length) { try { locationDots = await extractTrackmanLocations(file.buffer); } catch { locationDots = []; } }
+        if (!movementDots.length) { try { movementDots = await extractTrackmanMovement(file.buffer); } catch { movementDots = []; } }
+        result = buildTrackmanPdfResult(pages[0]?.items ?? [], when, 'TrackMan PDF', locationDots, movementDots);
+      }
 
       if (result.totalRows === 0) {
-        throw new Error('No pitch data found — could not read the "Stats by pitch type" table from this PDF.');
+        throw new Error('No pitch data found — could not read the per-pitch table or the "Stats by pitch type" table from this PDF.');
       }
 
       const metricsCreated = await this.csvProcessingService.storeParsedMetricsForPlayer(

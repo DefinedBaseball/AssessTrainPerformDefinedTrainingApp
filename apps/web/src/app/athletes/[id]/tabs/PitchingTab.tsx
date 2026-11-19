@@ -30,6 +30,7 @@ import { usePdfExport } from '@/components/PdfExportDialog';
 import { CustomCharts } from '@/components/CustomCharts';
 import { LiveAtBatsList } from '@/components/LiveAtBatsList';
 import { TabBarActions } from '@/components/assessment';
+import { avgTilt, avgSpinEfficiency } from '@/lib/pitchTilt';
 
 /** Tracks whether the viewport is at phone width (≤ breakpoint px).
  *  Mirrors the same hook in SwingTab — used here so the Break & Spin
@@ -132,6 +133,7 @@ const PITCH_COLORS: Record<string, string> = {
   Splitter:    '#1ABC9C',
   Sweeper:     '#E91E63',
   Knuckleball: '#95A5A6',
+  Other:       '#A0A4AB',
   Unknown:     '#7F8C8D',
 };
 
@@ -139,7 +141,7 @@ const PITCH_COLORS: Record<string, string> = {
 const PITCH_SHORT: Record<string, string> = {
   Fastball: '4S FB', Sinker: 'SI', Cutter: 'FC', Slider: 'SL',
   Curveball: 'CB', ChangeUp: 'CH', Splitter: 'FS', Sweeper: 'SW',
-  Knuckleball: 'KN', Unknown: '??',
+  Knuckleball: 'KN', Other: 'OT', Unknown: '??',
 };
 
 function getPitchColor(type: string): string {
@@ -193,21 +195,17 @@ function computeArsenal(pitches: TrackmanPitch[]): ArsenalRow[] {
     const exts = pts.map(p => p.extension).filter((v): v is number => v != null);
     const relHeights = pts.map(p => p.relHeight).filter((v): v is number => v != null);
     const relSides = pts.map(p => p.relSide).filter((v): v is number => v != null);
-    const axes = pts.map(p => p.spinAxis).filter((v): v is number => v != null);
+    // TrackMan's own per-pitch Tilt when present, else derived from Spin Axis.
+    const tilt = avgTilt(pts);
 
-    // Compute tilt from spin axis (clock face format)
-    const avgAxis = avg(axes);
-    const hour = Math.floor(avgAxis / 30) || 12;
-    const minute = Math.round((avgAxis % 30) / 30 * 60);
-    const tilt = axes.length > 0 ? `${hour}:${minute.toString().padStart(2, '0')}` : '--';
-
-    // Approximate spin efficiency from IVB and total break
+    // Reported spin efficiency (PDF pitch table) when present; otherwise
+    // approximate it from IVB and total break.
     const avgIvbVal = avg(ivbs);
     const avgHVal = avg(hBreaks);
     const totalBreak = Math.sqrt(avgIvbVal * avgIvbVal + avgHVal * avgHVal);
-    const spinEff = totalBreak > 0 && spins.length > 0
+    const spinEff = avgSpinEfficiency(pts) ?? (totalBreak > 0 && spins.length > 0
       ? Math.min(100, Math.round((Math.abs(avgIvbVal) + Math.abs(avgHVal)) / (totalBreak + 5) * 100))
-      : 0;
+      : 0);
 
     rows.push({
       pitchType,
@@ -924,7 +922,7 @@ function ReleaseTable({ rows }: { rows: ArsenalRow[] }) {
         {rows.map(r => (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, fontSize: rem(10.2), color: getPitchColor(r.pitchType) }}>
-              {PITCH_SHORT[r.pitchType]}
+              {PITCH_SHORT[r.pitchType] || r.pitchType}
             </span>
             <span style={cellStyle}>
               {r.avgExt > 0 ? r.avgExt : '--'} <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)' }}>ft</span>
@@ -985,7 +983,7 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
         {rows.map(r => (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, fontSize: rem(10.2), color: getPitchColor(r.pitchType) }}>
-              {PITCH_SHORT[r.pitchType]}
+              {PITCH_SHORT[r.pitchType] || r.pitchType}
             </span>
             {/* Max Velo — same `r.maxVelo` the Arsenal card shows for this
                 pitch type, so the two always agree. Guarded like Avg Velo:
@@ -1768,10 +1766,15 @@ export function PitchingTab({
           </div>
           {pdfOrigin && (
             <div style={{ textAlign: 'center', fontSize: '0.72rem', lineHeight: 1.5, color: 'var(--text-muted)', margin: '8px auto 0', maxWidth: 620 }}>
-              Rebuilt from a Trackman session-report PDF — Movement &amp; Release reflect the
-              report&rsquo;s per-pitch-type averages; Location shows the pitches plotted on the
-              report. Points aren&rsquo;t individually clickable. Upload the CSV for fully
-              interactive, pitch-linked data.
+              {pitches.some(p => p.pdfPerPitch)
+                ? <>From a Trackman session-report PDF — every pitch&rsquo;s metrics come from the
+                  report&rsquo;s pitch table and the Movement, Location &amp; Release plots match the
+                  report&rsquo;s charts. Points aren&rsquo;t individually clickable. Upload the CSV for
+                  fully interactive, pitch-linked data.</>
+                : <>Rebuilt from a Trackman session-report PDF — Movement &amp; Release reflect the
+                  report&rsquo;s per-pitch-type averages; Location shows the pitches plotted on the
+                  report. Points aren&rsquo;t individually clickable. Upload the CSV for fully
+                  interactive, pitch-linked data.</>}
             </div>
           )}
 

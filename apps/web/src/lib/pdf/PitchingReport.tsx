@@ -71,12 +71,13 @@ const PITCH_COLORS: Record<string, string> = {
   Splitter:    '#1ABC9C',
   Sweeper:     '#E91E63',
   Knuckleball: '#95A5A6',
+  Other:       '#A0A4AB',
   Unknown:     '#7F8C8D',
 };
 const PITCH_SHORT: Record<string, string> = {
   Fastball: '4S FB', Sinker: 'SI', Cutter: 'FC', Slider: 'SL',
   Curveball: 'CB', ChangeUp: 'CH', Splitter: 'FS', Sweeper: 'SW',
-  Knuckleball: 'KN', Unknown: '??',
+  Knuckleball: 'KN', Other: 'OT', Unknown: '??',
 };
 function pitchColor(type: string): string {
   return PITCH_COLORS[type] || PITCH_COLORS.Unknown;

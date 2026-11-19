@@ -21,6 +21,7 @@ import { StrengthReportPages, type StrengthPdfData } from './StrengthReport';
 import { VisionReportPages, type VisionPdfData } from './VisionReport';
 import * as api from '@/lib/api';
 import type { ReportSummary } from '@/app/athletes/[id]/helpers';
+import { avgTilt } from '@/lib/pitchTilt';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
   gradeIfKnown,
@@ -347,15 +348,10 @@ function buildArsenalFromPitches(pitches: api.TrackmanPitch[]): ArsenalRow[] {
       const exts = list.map(p => p.extension).filter((v): v is number => v !== null && v > 0);
       const relHeights = list.map(p => p.relHeight).filter((v): v is number => v !== null);
       const relSides = list.map(p => p.relSide).filter((v): v is number => v !== null);
-      const spinAxes = list.map(p => p.spinAxis).filter((v): v is number => v !== null);
-
       const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
-      // Calculate tilt from spin axis
-      const avgAxis = avg(spinAxes);
-      const tiltH = Math.floor(avgAxis / 30) || 12;
-      const tiltM = Math.round((avgAxis % 30) * 2);
-      const tilt = `${tiltH}:${String(tiltM).padStart(2, '0')}`;
+      // TrackMan's own per-pitch Tilt when present, else derived from Spin Axis.
+      const tilt = avgTilt(list);
 
       return {
         pitchType: type,

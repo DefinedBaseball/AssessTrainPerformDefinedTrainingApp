@@ -154,7 +154,7 @@ const PITCH_TYPE_MAP: Record<string, string> = {
   'sw': 'Sweeper',
 };
 
-function normalizePitchType(raw: string): string {
+export function normalizePitchType(raw: string): string {
   const lower = raw.toLowerCase().trim();
   return PITCH_TYPE_MAP[lower] || raw.trim();
 }

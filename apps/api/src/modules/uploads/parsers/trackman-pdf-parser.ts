@@ -1,4 +1,6 @@
 import { ParseResult, ParsedMetric } from './base-parser';
+import { PdfTextItem, PdfPage, PdfDot, PdfLine, pushAggregates, buildColorMap, readTrackmanCharts } from './trackman-pdf-pitches';
+export type { PdfTextItem, PdfPage } from './trackman-pdf-pitches';
 
 /**
  * Trackman "Player Session Report" PDF parser (table-driven).
@@ -19,8 +21,6 @@ import { ParseResult, ParsedMetric } from './base-parser';
  * Every generated pitch carries `rawData.pdfSource = true` so the Pitching tab
  * renders the plots non-interactive (points aren't clickable / pitch-linked).
  */
-
-export interface PdfTextItem { x: number; y: number; t: string }
 
 /** Per-pitch-type aggregates read out of the summary table. */
 export interface TrackmanPdfRow {
@@ -123,6 +123,89 @@ export async function extractPdfTextItems(buffer: Buffer): Promise<PdfTextItem[]
   } finally {
     await doc.destroy?.();
   }
+}
+
+/**
+ * Read every page's text + vector geometry (filled round dots and straight
+ * grid lines) in ONE document load. Walks pdf.js's operator list only — no
+ * canvas/bitmap — so memory stays tiny. Feeds the per-pitch table + chart
+ * readers in trackman-pdf-pitches.ts.
+ */
+export async function extractTrackmanPdf(buffer: Buffer, maxPages = 8): Promise<PdfPage[]> {
+  const pdfjs = await loadPdfjs();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), useSystemFonts: true, isEvalSupported: false }).promise;
+  const OPS = pdfjs.OPS;
+  const nm: Record<number, string> = {}; for (const k in OPS) nm[OPS[k]] = k;
+  const argCount: Record<string, number> = { moveTo: 2, lineTo: 2, curveTo: 6, curveTo2: 4, curveTo3: 4, closePath: 0, rectangle: 4 };
+  const rgb = (a: any): string => {
+    if (typeof a === 'string') { const h = a.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)).join(','); }
+    if (Array.isArray(a) && typeof a[0] === 'string') return rgb(a[0]);
+    return Array.from(a as ArrayLike<number>).slice(0, 3).map(v => Math.round(Number(v))).join(',');
+  };
+  const pages: PdfPage[] = [];
+  try {
+    for (let p = 1; p <= Math.min(doc.numPages, maxPages); p++) {
+      const page = await doc.getPage(p);
+      const H = page.getViewport({ scale: 1 }).height;
+      const items: PdfTextItem[] = [];
+      const tc = await page.getTextContent();
+      for (const it of tc.items as any[]) {
+        const str = (it.str || '').trim();
+        if (!str) continue;
+        const tr = it.transform;
+        items.push({
+          x: Math.round(tr[4] * 10) / 10,
+          y: Math.round((H - tr[5]) * 10) / 10,
+          t: str,
+          w: Math.round((it.width || 0) * 10) / 10,
+          h: Math.round((Math.hypot(tr[2], tr[3]) || it.height || 7) * 10) / 10,
+        });
+      }
+
+      const dots: PdfDot[] = [];
+      const lines: PdfLine[] = [];
+      const ol = await page.getOperatorList();
+      let ctm = [1, 0, 0, 1, 0, 0]; const st: [number[], string, string][] = [];
+      let fill = '0,0,0', stroke = '0,0,0';
+      let pts: number[][] = []; let curves = 0; let segs = 0;
+      const reset = () => { pts = []; curves = 0; segs = 0; };
+      for (let i = 0; i < ol.fnArray.length; i++) {
+        const n = nm[ol.fnArray[i]], a = ol.argsArray[i];
+        if (n === 'save') st.push([ctm.slice(), fill, stroke]);
+        else if (n === 'restore') { const s = st.pop(); if (s) [ctm, fill, stroke] = s; }
+        else if (n === 'transform') ctm = lc_compose(a, ctm);
+        else if (n === 'setFillRGBColor') fill = rgb(a);
+        else if (n === 'setStrokeRGBColor') stroke = rgb(a);
+        else if (n === 'constructPath') {
+          const ops: number[] = Array.from(a[0]); const co: number[] = Array.from(a[1]); let k = 0;
+          for (const op of ops) {
+            const on = nm[op]; const c = argCount[on] ?? 0;
+            if (on === 'rectangle') { pts.push(lc_tp(ctm, co[k], co[k + 1]), lc_tp(ctm, co[k] + co[k + 2], co[k + 1] + co[k + 3])); segs += 4; }
+            else { for (let j = 0; j < c; j += 2) pts.push(lc_tp(ctm, co[k + j], co[k + j + 1])); if (on === 'curveTo' || on === 'curveTo2' || on === 'curveTo3') curves++; if (on !== 'moveTo' && on !== 'closePath') segs++; }
+            k += c;
+          }
+        } else if (n === 'fill' || n === 'eoFill' || n === 'fillStroke' || n === 'eoFillStroke' || n === 'stroke' || n === 'closeStroke') {
+          if (pts.length) {
+            const xs = pts.map(q => q[0]), ys = pts.map(q => H - q[1]);
+            const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+            const w = x1 - x0, h = y1 - y0;
+            const filled = n !== 'stroke' && n !== 'closeStroke';
+            if (filled && curves >= 4 && w > 2 && w < 16 && Math.abs(w - h) < 1) {
+              dots.push({ x: Math.round(((x0 + x1) / 2) * 100) / 100, y: Math.round(((y0 + y1) / 2) * 100) / 100, d: Math.round(w * 100) / 100, color: fill });
+            } else if (!filled && segs === 1 && curves === 0 && (w < 0.5 || h < 0.5)) {
+              lines.push({ x0, y0, x1, y1, color: stroke });
+            }
+          }
+          reset();
+        } else if (n === 'endPath' || n === 'clip' || n === 'eoClip') reset();
+      }
+      pages.push({ items, dots, lines });
+      page.cleanup?.();
+    }
+  } finally {
+    await doc.destroy?.();
+  }
+  return pages;
 }
 
 /* ── Location-plot dot extraction (renders the PDF; needs @napi-rs/canvas) ── */
@@ -561,28 +644,21 @@ export function buildTrackmanPdfResult(
   }
 
   // Aggregate summary metrics — same set the CSV parser emits, for parity.
-  if (pitches.length > 0) {
-    const agg = (metricType: string, value: number, unit: string, count: number) =>
-      success.push({ playerName, metricType, value, unit, recordedAt, rawData: { source: 'trackman_pdf_aggregate', pitchCount: count } });
-    const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
-
-    const fastballs = pitches.filter(p => ['Fastball', 'Sinker', 'Cutter'].includes(p.pitchType));
-    if (fastballs.length) {
-      const v = fastballs.map(p => p.relSpeed);
-      agg('fb_max_velo', round(Math.max(...v), 2), 'mph', v.length);
-      agg('fb_avg_velo', round(mean(v), 2), 'mph', v.length);
-    }
-    const spins = pitches.map(p => p.spinRate).filter((x): x is number => x != null);
-    if (spins.length) agg('spin_rate', Math.round(mean(spins)), 'rpm', spins.length);
-    const hb = pitches.map(p => p.horzBreak);
-    if (hb.length) agg('h_break', round(mean(hb), 2), 'in', hb.length);
-    const ivb = pitches.map(p => p.inducedVertBreak);
-    if (ivb.length) agg('v_break', round(mean(ivb), 2), 'in', ivb.length);
-    const rh = pitches.map(p => p.relHeight);
-    if (rh.length) agg('release_height', round(mean(rh), 2), 'ft', rh.length);
-    const ex = pitches.map(p => p.extension);
-    if (ex.length) agg('extension', round(mean(ex), 2), 'ft', ex.length);
-  }
+  pushAggregates(success, pitches, recordedAt, playerName);
 
   return { success, errors: [], totalRows: pitches.length };
+}
+
+/**
+ * Summary-only PDFs (no per-pitch table) whose charts are vector dots: hand
+ * the chart dots to the table-driven builder in the shape the old bitmap
+ * detector produced, so its Location/Movement plots match the report too.
+ */
+export function chartDotsForSummary(pages: PdfPage[]): { locationDots: LocationDot[]; movementDots: MovementDot[] } {
+  const colorMap = buildColorMap(pages);
+  const charts = readTrackmanCharts(pages, colorMap);
+  return {
+    locationDots: charts.location.map(d => ({ pitchType: d.pitchType, plateLocSide: d.x, plateLocHeight: d.y })),
+    movementDots: charts.movement.map(d => ({ pitchType: d.pitchType, horzBreak: round(d.x, 1), inducedVertBreak: round(d.y, 1) })),
+  };
 }
