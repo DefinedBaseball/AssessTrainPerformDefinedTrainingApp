@@ -1480,6 +1480,19 @@ export interface VendorContact {
   contactPhone: string;
 }
 
+/** Settings -> Integrations "Connections": every data source's status. */
+export interface ConnectionsStatus {
+  vald: {
+    configured: boolean; running: boolean; autoEnabled: boolean; everyDays: number | null;
+    lastAt: string | null; lastAdded: number; lastReplaced: number; lastError: string | null; unmatched: number;
+  } | null;
+  move: { liveKeys: number; testKeys: number; lastAt: string | null; lastMode: string | null; unmatched: number };
+  devices: { source: string; lastAt: string | null; readings: number }[];
+}
+export async function getConnections() {
+  return request<ConnectionsStatus>('/analytics/connections');
+}
+
 export async function getVendorContacts() {
   return request<VendorContact[]>('/vendor-contacts');
 }

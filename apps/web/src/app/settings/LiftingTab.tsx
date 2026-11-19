@@ -57,8 +57,11 @@ export function LiftingTab() {
   /* Deep link: /settings?tab=lifting&athlete=<id> (athlete dashboard's
      "Customize Layout"). */
   useEffect(() => {
-    const want = new URLSearchParams(window.location.search).get('athlete');
+    const q = new URLSearchParams(window.location.search);
+    const want = q.get('athlete');
     if (want) { setSub('athletes'); setAthlete(want); }
+    /* /settings?tab=lifting&sub=vald (Integrations -> Connections). */
+    else if (q.get('sub') === 'vald') setSub('vald');
   }, []);
 
   useEffect(() => {

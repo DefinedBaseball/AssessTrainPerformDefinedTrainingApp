@@ -293,6 +293,15 @@ export class ValdService implements OnApplicationBootstrap, OnModuleDestroy {
 
   configured(): boolean { return this.vald.isConfigured(); }
 
+  /** Status for Settings -> Integrations -> Connections (no editor check: status only). */
+  async connectionStatus() {
+    const s = await this.settings();
+    const lastRow = await this.prisma.appSetting.findUnique({ where: { key: LAST_KEY } });
+    let last: PullReport | null = null;
+    try { last = lastRow?.value ? JSON.parse(lastRow.value) : null; } catch { last = null; }
+    return { configured: this.vald.isConfigured(), settings: s, job: this.job, last };
+  }
+
   /** VALD profile -> app athlete (External ID, else name + birthday). */
   async profileToPlayer(): Promise<Map<string, string>> {
     const T = this.vald.tenantId;

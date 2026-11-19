@@ -3,6 +3,14 @@
 /* ─────────────────────────────────────────────────────────────────────────
    Settings → Integrations (Admin) — outside companies sending data in.
 
+   • Connections (top, every non-viewer coach): every outside data source,
+     whichever way the data flows -- VALD (we pull from it), MOVE (it sends
+     to us) and the devices whose files are uploaded on reports (TrackMan,
+     Blast Motion, HitTrax, Full Swing). A Status | Contacts toggle switches
+     the list to each source's sales-rep contact (what used to be the
+     separate Data & Integrations tab), editable in place.
+   • Everything below is Admin-only:
+
    • API keys: one per company (MOVE now; Trackman, VALD, ... later), Test or
      Live. The key is shown ONCE when created -- copy it and send it to the
      developer privately. Revoke stops it instantly.
@@ -72,7 +80,17 @@ const codeBox: React.CSSProperties = {
   padding: '10px 12px', margin: 0, color: 'var(--text)',
 };
 
-export function IntegrationsTab() {
+export function IntegrationsTab({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <div className={styles.section}>
+      <ConnectionsCard isAdmin={isAdmin} />
+      {isAdmin && <AdminIntegrations />}
+    </div>
+  );
+}
+
+/** API keys, deliveries, linked athletes, quick start, video quality (Admins). */
+function AdminIntegrations() {
   const [providers, setProviders] = useState<api.IntegrationProvider[]>([]);
   const [keys, setKeys] = useState<api.IntegrationKeyRow[] | null>(null);
   const [deliveries, setDeliveries] = useState<api.IntegrationDeliveryRow[] | null>(null);
@@ -129,6 +147,7 @@ export function IntegrationsTab() {
 
   const providerName = (slug: string) => providers.find((p) => p.slug === slug)?.label ?? slug;
 
+
   const create = async () => {
     setCreating(true);
     setError('');
@@ -172,7 +191,7 @@ export function IntegrationsTab() {
   };
 
   return (
-    <div className={styles.section}>
+    <>
       {/* ── Quick start ── */}
       <div className={styles.card}>
         <h3 className={styles.cardTitle}>Integrations</h3>
@@ -198,6 +217,7 @@ curl -X POST ${API_BASE}/api/integrations/move/sessions \\
       </div>
 
       {/* ── Keys ── */}
+      <span id="integration-keys" />
       <div className={styles.card}>
         <h3 className={styles.cardTitle}>API Keys</h3>
         <p className={styles.cardDesc}>
@@ -357,6 +377,206 @@ curl -X POST ${API_BASE}/api/integrations/move/sessions \\
         </div>
       )}
       <VideoQualityCard />
+    </>
+  );
+}
+
+/* ── Connections ─────────────────────────────────────────────────────────
+   One row per data source (add a row to SOURCES when a new one is
+   connected). Status view: what it brings in, which way, status, last
+   data in, where it's managed. Contacts view: the sales rep for each
+   source (Settings key "vendorContacts", same sources). */
+const SOURCES: { key: string; name: string; direction: string; brings: string }[] = [
+  { key: 'VALD', name: 'VALD', direction: 'We pull from VALD', brings: 'ForceDecks, DynaMo and SmartSpeed tests → Lifting Report; ForceDecks weigh-ins → weight history' },
+  { key: 'MOVE', name: 'MOVE', direction: 'MOVE sends to us', brings: 'Catching sessions (throws, pop times, 3D paths) → Catching report' },
+  { key: 'TRACKMAN', name: 'TrackMan', direction: 'Files uploaded on reports', brings: 'Pitch-by-pitch data (CSV or Session Report PDF) → Pitching report' },
+  { key: 'BLAST_MOTION', name: 'Blast Motion', direction: 'Files uploaded on reports', brings: 'Swing metrics (CSV) → Hitting report' },
+  { key: 'HITTRAX', name: 'HitTrax', direction: 'Files uploaded on reports', brings: 'Batted balls, spray chart and point of impact (CSV) → Hitting report' },
+  { key: 'FULL_SWING', name: 'Full Swing', direction: 'Files uploaded on reports', brings: 'Batted balls (CSV) → Hitting report' },
+];
+
+type Tone = 'ok' | 'warn' | 'off';
+const TONE: Record<Tone, React.CSSProperties> = {
+  ok: pill('rgba(22,163,74,0.18)', '#16a34a'),
+  warn: pill('rgba(234,179,8,0.22)', '#b45309'),
+  off: pill('rgba(127,127,127,0.2)', 'var(--text-muted)'),
+};
+
+function ConnectionsCard({ isAdmin }: { isAdmin: boolean }) {
+  const [view, setView] = useState<'status' | 'contacts'>('status');
+  const [conn, setConn] = useState<api.ConnectionsStatus | null>(null);
+  const [contacts, setContacts] = useState<api.VendorContact[] | null>(null);
+  const [draft, setDraft] = useState<api.VendorContact[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getConnections().then(setConn).catch((e) => setError(e?.message || 'Could not load the connections'));
+    api.getVendorContacts().then(setContacts).catch(() => setContacts([]));
+  }, []);
+
+  /* Status of one source. */
+  const status = (key: string): { label: string; tone: Tone; note: string; last: string } => {
+    if (!conn) return { label: 'Checking…', tone: 'off', note: '', last: '' };
+    if (key === 'VALD') {
+      const v = conn.vald;
+      if (!v) return { label: 'Unknown', tone: 'off', note: 'Could not read the VALD status', last: '' };
+      if (!v.configured) return { label: 'Not connected', tone: 'off', note: 'Add the VALD credentials in Render to connect', last: '' };
+      return {
+        label: v.lastError ? 'Last pull failed' : 'Connected',
+        tone: v.lastError ? 'warn' : 'ok',
+        note: [v.autoEnabled ? `Automatic pull every ${v.everyDays} days` : 'Automatic pull off', v.unmatched ? `${v.unmatched} unmatched VALD athlete${v.unmatched === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · '),
+        last: v.running ? 'Pulling now…' : v.lastAt ? `${when(v.lastAt)} · ${v.lastAdded} new, ${v.lastReplaced} updated` : 'Never pulled',
+      };
+    }
+    if (key === 'MOVE') {
+      const m = conn.move;
+      const keys = m.liveKeys + m.testKeys;
+      return {
+        label: m.liveKeys ? 'Connected' : m.testKeys ? 'Test key only' : 'No API key',
+        tone: m.liveKeys ? 'ok' : m.testKeys ? 'warn' : 'off',
+        note: [`${keys} active key${keys === 1 ? '' : 's'}`, m.unmatched ? `${m.unmatched} unmatched session${m.unmatched === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · '),
+        last: m.lastAt ? `${when(m.lastAt)}${m.lastMode === 'test' ? ' (test)' : ''}` : 'Nothing received yet',
+      };
+    }
+    const d = conn.devices.find((x) => x.source === key);
+    return d && d.readings
+      ? { label: 'In use', tone: 'ok', note: `${d.readings.toLocaleString()} readings`, last: d.lastAt ? when(d.lastAt) : '' }
+      : { label: 'No data yet', tone: 'off', note: 'Upload a file on a report', last: '' };
+  };
+
+  const manage = (key: string): { label: string; onClick: () => void } | null => {
+    if (key === 'VALD') return { label: 'VALD Import', onClick: () => { window.location.href = '/settings?tab=lifting&sub=vald'; } };
+    if (key === 'MOVE' && isAdmin) return { label: 'API Keys', onClick: () => document.getElementById('integration-keys')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) };
+    return null;
+  };
+
+  const contactOf = (key: string) => (draft ?? contacts ?? []).find((c) => c.source === key);
+  const setField = (key: string, field: 'contactName' | 'contactEmail' | 'contactPhone', value: string) =>
+    setDraft((d) => (d ? d.map((c) => (c.source === key ? { ...c, [field]: value } : c)) : d));
+  const save = async () => {
+    if (!draft) return;
+    setSaving(true);
+    setError('');
+    try {
+      const next = await api.saveVendorContacts(draft.map(({ source, contactName, contactEmail, contactPhone }) => ({ source, contactName, contactEmail, contactPhone })));
+      setContacts(next);
+      setDraft(null);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e?.message || 'Could not save the contacts');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleBtn = (v: 'status' | 'contacts', label: string) => (
+    <button type="button" onClick={() => { if (draft) return; setView(v); }}
+      style={{
+        border: 'none', borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: draft ? 'not-allowed' : 'pointer',
+        background: view === v ? 'var(--text)' : 'transparent', color: view === v ? 'var(--bg, #fff)' : 'var(--text-muted)',
+      }}
+      aria-pressed={view === v}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className={styles.card}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h3 className={styles.cardTitle}>Connections</h3>
+          <p className={styles.cardDesc} style={{ marginBottom: 0 }}>
+            {view === 'status'
+              ? 'Every outside data source — whether it sends data to us, we pull from it, or its files are uploaded on reports.'
+              : 'The sales rep for each technology we use.'}
+            {saved && <span style={{ marginLeft: 8, color: '#34D399', fontWeight: 600 }}>Saved</span>}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {view === 'contacts' && contacts && (draft ? (
+            <>
+              <button className={styles.btnSecondary} onClick={() => { setDraft(null); setError(''); }} disabled={saving}>Cancel</button>
+              <button className={styles.btn} onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+            </>
+          ) : (
+            <button className={styles.btnSecondary} onClick={() => setDraft(contacts.map((c) => ({ ...c })))}>Edit</button>
+          ))}
+          <div role="group" aria-label="Show" style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 999, padding: 2 }}>
+            {toggleBtn('status', 'Status')}
+            {toggleBtn('contacts', 'Contacts')}
+          </div>
+        </div>
+      </div>
+      {error && <div className={`${styles.feedback} ${styles.feedbackErr}`} style={{ marginTop: 10 }}>{error}</div>}
+      <div style={{ overflowX: 'auto', marginTop: 12 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <th style={th}>Connection</th>
+              {view === 'status' ? (
+                <>
+                  <th style={th}>Data</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Last data in</th>
+                  <th style={th} aria-label="Manage" />
+                </>
+              ) : (
+                <>
+                  <th style={th}>Source contact</th>
+                  <th style={th}>Contact email</th>
+                  <th style={th}>Contact phone</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {SOURCES.map((src) => {
+              const st = status(src.key);
+              const m = manage(src.key);
+              const c = contactOf(src.key);
+              return (
+                <tr key={src.key} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ ...td, minWidth: 130 }}>
+                    <div style={{ fontWeight: 700 }}>{src.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{src.direction}</div>
+                  </td>
+                  {view === 'status' ? (
+                    <>
+                      <td style={{ ...td, minWidth: 220 }}>{src.brings}</td>
+                      <td style={td}>
+                        <span style={TONE[st.tone]}>{st.label.toUpperCase()}</span>
+                        {st.note && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{st.note}</div>}
+                      </td>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>{st.last || '—'}</td>
+                      <td style={{ ...td, textAlign: 'right' }}>
+                        {m && <button type="button" className={styles.btnSecondary} onClick={m.onClick} style={{ whiteSpace: 'nowrap' }}>{m.label} →</button>}
+                      </td>
+                    </>
+                  ) : draft ? (
+                    <>
+                      <td style={td}><input className={styles.input} aria-label={`${src.name} contact name`} value={c?.contactName ?? ''} maxLength={100} placeholder="Sales rep name" onChange={(e) => setField(src.key, 'contactName', e.target.value)} /></td>
+                      <td style={td}><input className={styles.input} type="email" aria-label={`${src.name} contact email`} value={c?.contactEmail ?? ''} maxLength={200} placeholder="rep@company.com" onChange={(e) => setField(src.key, 'contactEmail', e.target.value)} /></td>
+                      <td style={td}><input className={styles.input} type="tel" aria-label={`${src.name} contact phone`} value={c?.contactPhone ?? ''} maxLength={40} placeholder="(555) 123-4567" onChange={(e) => setField(src.key, 'contactPhone', e.target.value)} /></td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={td}>{c?.contactName || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      <td style={td}>{c?.contactEmail ? <a href={`mailto:${c.contactEmail}`} className={styles.vendorLink}>{c.contactEmail}</a> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      <td style={td}>{c?.contactPhone ? <a href={`tel:${c.contactPhone.replace(/[^\d+]/g, '')}`} className={styles.vendorLink}>{c.contactPhone}</a> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
+
+const th: React.CSSProperties = { padding: '6px 10px 6px 0', fontWeight: 700 };
+const td: React.CSSProperties = { padding: '10px 10px 10px 0', verticalAlign: 'top' };

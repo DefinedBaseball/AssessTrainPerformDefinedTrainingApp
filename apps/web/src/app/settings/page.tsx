@@ -62,9 +62,6 @@ export default function SettingsPage() {
     /* Athletes have no notification settings: report, video and Coach
        Review notifications always reach them. */
     ...(isCoach ? ([{ key: 'notifications' as TabKey, label: 'Notifications' }]) : []),
-    /* Data & Integrations is coach-only — players don't import vendor CSVs.
-       Hidden from viewers (read-only). */
-    ...(isEditorCoach ? ([{ key: 'data' as TabKey, label: 'Data & Integrations' }]) : []),
     ...(isEditorCoach ? ([{ key: 'teams' as TabKey, label: 'Teams & Colleges' }]) : []),
     /* The drill library as a spreadsheet; typing in its blank bottom row
        adds a drill (view-only coaches just see the lists). */
@@ -80,8 +77,10 @@ export default function SettingsPage() {
     /* Admin-only "Academy" tab — name, logos, contact info, email wording,
        reply-to, new-athlete switch, time zone. */
     ...(isAdmin ? ([{ key: 'academy' as TabKey, label: 'Academy' }]) : []),
-    /* Admin-only: API keys for outside companies (MOVE, ...) + what they've sent. */
-    ...(isAdmin ? ([{ key: 'integrations' as TabKey, label: 'Integrations' }]) : []),
+    /* Integrations: the Connections list (status + sales-rep contacts, which
+       replaced the Data & Integrations tab) for coaches; API keys and what
+       partners sent stay Admin-only. Hidden from viewers. */
+    ...(isEditorCoach ? ([{ key: 'integrations' as TabKey, label: 'Integrations' }]) : []),
     /* Lifting Dashboard layout -- Admins + coaches switched on as Lifting
        editors (the tab itself tells other coaches they can't edit). */
     ...(isEditorCoach ? ([{ key: 'lifting' as TabKey, label: 'Lifting' }]) : []),
@@ -122,14 +121,13 @@ export default function SettingsPage() {
       {tab === 'account' && <AccountTab user={user} onLogout={logout} isCoach={isCoach} />}
       {tab === 'myProfile' && !isCoach && playerId && <MyProfileTab playerId={playerId} />}
       {tab === 'notifications' && isCoach && <NotificationsTab isCoach={isCoach} />}
-      {tab === 'data' && isEditorCoach && <DataTab isCoach={isCoach} />}
       {tab === 'teams' && isEditorCoach && <TeamsAndCollegesTab />}
       {tab === 'drills' && isCoach && <DrillsTab />}
       {tab === 'programs' && isCoach && <ProgramsTab />}
       {tab === 'journal' && isCoach && <JournalTab />}
       {tab === 'staff' && isAdmin && <StaffTab />}
       {tab === 'academy' && isAdmin && <AcademyTab />}
-      {tab === 'integrations' && isAdmin && <IntegrationsTab />}
+      {tab === 'integrations' && isEditorCoach && <IntegrationsTab isAdmin={isAdmin} />}
       {tab === 'lifting' && isEditorCoach && <LiftingTab />}
       {tab === 'cameras' && isEditorCoach && <CamerasTab />}
       </div>
@@ -1401,116 +1399,6 @@ function NotificationsTab({ isCoach }: { isCoach: boolean }) {
             })}
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Data & Integrations ────────────────────────────────── */
-
-/* Data & Integrations is now a contact hub: the sales rep for each
-   technology the academy uses, shared by every coach. Data files are
-   uploaded on each report (its Upload button), and Data Analytics lives
-   in the sidebar. */
-function DataTab(_props: { isCoach: boolean }) {
-  const [contacts, setContacts] = useState<api.VendorContact[] | null>(null);
-  const [draft, setDraft] = useState<api.VendorContact[] | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    api.getVendorContacts()
-      .then(setContacts)
-      .catch((e) => { setContacts([]); setError(e?.message || 'Could not load contacts'); });
-  }, []);
-
-  const editing = draft !== null;
-  const rows = draft ?? contacts ?? [];
-
-  const setField = (source: string, field: 'contactName' | 'contactEmail' | 'contactPhone', value: string) => {
-    setDraft((d) => (d ? d.map((c) => (c.source === source ? { ...c, [field]: value } : c)) : d));
-  };
-
-  const save = async () => {
-    if (!draft) return;
-    setSaving(true);
-    setError('');
-    try {
-      const next = await api.saveVendorContacts(draft.map(({ source, contactName, contactEmail, contactPhone }) => ({
-        source, contactName, contactEmail, contactPhone,
-      })));
-      setContacts(next);
-      setDraft(null);
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 2000);
-    } catch (e: any) {
-      setError(e?.message || 'Could not save contacts');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className={styles.section}>
-      <div className={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <h3 className={styles.cardTitle}>Supported Sources</h3>
-            <p className={styles.cardDesc} style={{ marginBottom: 0 }}>
-              Sales rep contacts for each technology we use.
-              {saved && <span style={{ marginLeft: 8, color: '#34D399', fontWeight: 600 }}>Saved</span>}
-            </p>
-          </div>
-          {contacts && (editing ? (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className={styles.btnSecondary} onClick={() => { setDraft(null); setError(''); }} disabled={saving}>Cancel</button>
-              <button className={styles.btn} onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-            </div>
-          ) : (
-            <button className={styles.btnSecondary} onClick={() => setDraft(contacts.map((c) => ({ ...c })))}>Edit</button>
-          ))}
-        </div>
-
-        {error && <div className={`${styles.feedback} ${styles.feedbackErr}`}>{error}</div>}
-
-        {contacts === null ? (
-          <div className={styles.empty}>Loading…</div>
-        ) : (
-          <div className={styles.vendorTable} role="table" aria-label="Technology contacts">
-            <div className={`${styles.vendorRow} ${styles.vendorHead}`} role="row">
-              <span role="columnheader">Source</span>
-              <span role="columnheader">Source Contact</span>
-              <span role="columnheader">Contact Email</span>
-              <span role="columnheader">Contact Phone</span>
-            </div>
-            {rows.map((c) => (
-              <div key={c.source} className={styles.vendorRow} role="row">
-                <span role="cell" className={styles.vendorSource}>{c.label}</span>
-                {editing ? (
-                  <>
-                    <input className={styles.input} aria-label={`${c.label} contact name`} value={c.contactName}
-                      onChange={(e) => setField(c.source, 'contactName', e.target.value)} placeholder="Sales rep name" maxLength={100} />
-                    <input className={styles.input} type="email" aria-label={`${c.label} contact email`} value={c.contactEmail}
-                      onChange={(e) => setField(c.source, 'contactEmail', e.target.value)} placeholder="rep@company.com" maxLength={200} />
-                    <input className={styles.input} type="tel" aria-label={`${c.label} contact phone`} value={c.contactPhone}
-                      onChange={(e) => setField(c.source, 'contactPhone', e.target.value)} placeholder="(555) 123-4567" maxLength={40} />
-                  </>
-                ) : (
-                  <>
-                    <span role="cell" data-label="Contact">{c.contactName || <span className={styles.rowSub}>—</span>}</span>
-                    <span role="cell" data-label="Email">
-                      {c.contactEmail ? <a href={`mailto:${c.contactEmail}`} className={styles.vendorLink}>{c.contactEmail}</a> : <span className={styles.rowSub}>—</span>}
-                    </span>
-                    <span role="cell" data-label="Phone">
-                      {c.contactPhone ? <a href={`tel:${c.contactPhone.replace(/[^\d+]/g, '')}`} className={styles.vendorLink}>{c.contactPhone}</a> : <span className={styles.rowSub}>—</span>}
-                    </span>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -5,12 +5,14 @@ import { PrismaService } from '../../prisma/prisma.service';
    Integrations). One shared list for the whole academy, kept as a JSON
    value in the AppSetting key/value table. */
 
+/* Same keys as the Settings -> Integrations "Connections" list. */
 export const VENDOR_SOURCES = [
-  { key: 'TRACKMAN', label: 'Trackman' },
+  { key: 'VALD', label: 'VALD' },
+  { key: 'MOVE', label: 'MOVE' },
+  { key: 'TRACKMAN', label: 'TrackMan' },
   { key: 'BLAST_MOTION', label: 'Blast Motion' },
-  { key: 'FULL_SWING', label: 'Full Swing' },
   { key: 'HITTRAX', label: 'HitTrax' },
-  { key: 'VALD', label: 'Vald Strength' },
+  { key: 'FULL_SWING', label: 'Full Swing' },
 ] as const;
 
 export interface VendorContact {

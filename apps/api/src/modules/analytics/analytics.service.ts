@@ -208,6 +208,53 @@ export class AnalyticsService {
     return out;
   }
 
+  // ── Connections (Settings -> Integrations) ──────────────────────────
+
+  /**
+   * Every outside data source and how it's doing, for the Connections list:
+   * VALD (pulled), MOVE (sends to us with an API key) and the devices whose
+   * files are uploaded on reports (TrackMan, Blast Motion, HitTrax, Full
+   * Swing). Status only -- no keys, payloads or athlete data.
+   */
+  async connections(vald: { configured: boolean; settings: any; last: any; job: any } | null) {
+    const devices = ['TRACKMAN', 'BLAST_MOTION', 'HITTRAX', 'FULL_SWING'];
+    const [metricLast, keys, lastMove, moveUnmatched] = await Promise.all([
+      this.prisma.metric.groupBy({ by: ['source'], where: { source: { in: [...devices, 'HITTRAX_POI'] } }, _max: { createdAt: true }, _count: { _all: true } }),
+      this.prisma.integrationKey.findMany({ where: { provider: 'move', revokedAt: null }, select: { mode: true } }),
+      this.prisma.integrationDelivery.findFirst({ where: { provider: 'move' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, mode: true } }),
+      this.prisma.integrationDelivery.count({ where: { provider: 'move', status: 'unmatched' } }),
+    ]);
+    const byDevice = new Map(metricLast.map((m) => [m.source, { last: m._max.createdAt, readings: m._count._all }]));
+    const poi = byDevice.get('HITTRAX_POI');
+    const hittrax = byDevice.get('HITTRAX');
+    if (poi) byDevice.set('HITTRAX', {
+      last: [hittrax?.last, poi.last].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+      readings: (hittrax?.readings ?? 0) + poi.readings,
+    });
+    const lastRun = vald?.job?.running ? vald.job : vald?.last;
+    return {
+      vald: vald ? {
+        configured: vald.configured,
+        running: !!vald.job?.running,
+        autoEnabled: !!vald.settings?.auto?.enabled,
+        everyDays: vald.settings?.auto?.everyDays ?? null,
+        lastAt: lastRun?.finishedAt ?? null,
+        lastAdded: lastRun?.added ?? 0,
+        lastReplaced: lastRun?.replaced ?? 0,
+        lastError: vald.last?.error ?? null,
+        unmatched: vald.last?.unmatched?.length ?? 0,
+      } : null,
+      move: {
+        liveKeys: keys.filter((k) => k.mode === 'live').length,
+        testKeys: keys.filter((k) => k.mode !== 'live').length,
+        lastAt: lastMove?.createdAt ?? null,
+        lastMode: lastMove?.mode ?? null,
+        unmatched: moveUnmatched,
+      },
+      devices: devices.map((d) => ({ source: d, lastAt: byDevice.get(d)?.last ?? null, readings: byDevice.get(d)?.readings ?? 0 })),
+    };
+  }
+
   // ── Data Sets (reference tables) ─────────────────────────────────────
 
   private dataSetOut(r: { id: string; name: string; description: string | null; source: string | null; labelColumn: string; columns: string; rows: string; createdAt: Date; updatedAt: Date }, withRows: boolean) {

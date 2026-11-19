@@ -1,10 +1,19 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request } from '@nestjs/common';
 import { AnalyticsService, ChartConfigDto } from './analytics.service';
+import { ValdService } from '../lifting/vald.service';
 import { Roles, assertPlayerOwnership, AuthenticatedRequest, ParentAllowed } from '../auth/jwt.guard';
 
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private analytics: AnalyticsService) {}
+  constructor(private analytics: AnalyticsService, private vald: ValdService) {}
+
+  /** Settings -> Integrations "Connections": every data source's status (coaches). */
+  @Get('connections')
+  @Roles('COACH')
+  async connections() {
+    const v = await this.vald.connectionStatus().catch(() => null);
+    return this.analytics.connections(v);
+  }
 
   @Get('columns')
   @Roles('COACH')
