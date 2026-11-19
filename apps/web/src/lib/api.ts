@@ -2661,8 +2661,8 @@ export interface AnalyticsColumn {
    *  (source LIFTING = "<TEST>:<KEY>", BODY_WEIGHT = "weight"). */
   label?: string;
   group?: string;
-  /** Chart Builder data set: "REPORTS" (Athlete Reports) | "VALD". */
-  dataset?: 'REPORTS' | 'VALD';
+  /** Chart Builder data source: "PLAYER" (Player Data). */
+  dataset?: string;
 }
 
 export interface ChartDataSource {
@@ -2698,8 +2698,11 @@ export interface ChartConfig {
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
   cohortEnabled?: boolean | null;
   cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
-  dataset?: 'REPORTS' | 'VALD' | null;
+  /** "PLAYER" | "ds:<DataSet id>" (older charts: "REPORTS" | "VALD"). */
+  dataset?: string | null;
   dailyAgg?: 'AVG' | 'MAX' | null;
+  /** JSON { dataSetId, row } -- a benchmark line from a Data Set row. */
+  benchmark?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2728,10 +2731,49 @@ export interface ChartConfigInput {
   zoneMetric?: 'COUNT' | 'AVG' | 'WHIFF' | null;
   cohortEnabled?: boolean | null;
   cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
-  /** Which data set the columns come from (Chart Builder "Data Source"). */
-  dataset?: 'REPORTS' | 'VALD' | null;
+  /** Data Source: "PLAYER" (Player Data) or "ds:<DataSet id>". */
+  dataset?: string | null;
   /** One point per day: the day's average or max. */
   dailyAgg?: 'AVG' | 'MAX' | null;
+  /** A benchmark line from a Data Set row (Player Data charts). */
+  benchmark?: { dataSetId: string; row: string } | null;
+}
+
+/* ── Data -> Data Sets: uploaded reference tables (coaches only) ── */
+export interface DataSetColumn { key: string; name: string; unit: string; link?: { source: string; metricType: string } | null }
+export interface DataSetRow { label: string; values: Record<string, number | null> }
+export interface DataSetSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  source: string | null;
+  labelColumn: string;
+  columns: DataSetColumn[];
+  rowLabels: string[];
+  rowCount: number;
+  rows?: DataSetRow[];
+  createdAt: string;
+  updatedAt: string;
+}
+export interface DataSetInput {
+  name: string;
+  description?: string | null;
+  source?: string | null;
+  labelColumn: string;
+  columns: DataSetColumn[];
+  rows: DataSetRow[];
+}
+export async function listDataSets() {
+  return request<DataSetSummary[]>('/analytics/datasets');
+}
+export async function getDataSet(id: string) {
+  return request<DataSetSummary>(`/analytics/datasets/${id}`);
+}
+export async function saveDataSet(data: DataSetInput, id?: string) {
+  return request<DataSetSummary>(id ? `/analytics/datasets/${id}` : '/analytics/datasets', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
+}
+export async function deleteDataSet(id: string) {
+  return request<{ ok: true }>(`/analytics/datasets/${id}`, { method: 'DELETE' });
 }
 
 /** `builder`: the Chart Builder's columns (Athlete Reports + VALD, each metric
@@ -2765,6 +2807,10 @@ export interface ChartEvaluation {
     label: string;
     /** When true this series is the class-average overlay, not the focal athlete. */
     cohort?: boolean;
+    /** A Data Set row drawn as a dashed benchmark line. */
+    benchmark?: boolean;
+    /** This athlete's bar beside a Data Set's groups. */
+    athlete?: boolean;
     points: Array<{ date: string; value: number }>;
   }>;
 }

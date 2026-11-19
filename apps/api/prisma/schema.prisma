@@ -1143,11 +1143,13 @@ model ChartConfig {
   // Cohort overlay — adds "class average" comparison series at evaluate time
   cohortEnabled Boolean? @default(false) // when true, append peer-average series
   cohortMode    String? // "GRAD_YEAR" | "POSITION" | "ALL"
-  /// Chart Builder data source: "REPORTS" (athlete reports, one value per
-  /// report) | "VALD" (Lifting Report results). Null = older charts.
+  /// Chart Builder data source: "PLAYER" (Player Data) | "ds:<DataSet id>"
+  /// (an uploaded reference table); older charts: "REPORTS" | "VALD" | null.
   dataset       String?
   /// One point per day: "AVG" | "MAX" of that day's readings. Null = every reading.
   dailyAgg      String?
+  /// Benchmark line from a Data Set row: JSON { dataSetId, row }. Null = none.
+  benchmark     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1406,6 +1408,27 @@ model Study {
   /// What the coaches concluded.
   conclusion  String?
   pinned      Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Data -> Data Sets: a reference table a coach uploaded (MLB / college /
+/// age-group averages, published study numbers ...). Rows are groups,
+/// columns are numbers; a column can be linked to a Player Data metric so
+/// charts can compare an athlete with it. Coaches only.
+model DataSet {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  /// Where the numbers come from (citation / link).
+  source      String?
+  /// Name of the file's group column ("Level", "Age" ...).
+  labelColumn String
+  /// JSON [{ key, name, unit, link?: { source, metricType } }]
+  columns     String
+  /// JSON [{ label, values: { <column key>: number | null } }]
+  rows        String
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

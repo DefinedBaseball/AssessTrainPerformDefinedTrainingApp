@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { JwtPayload } from '../auth/jwt.util';
 import { LiftingService } from '../lifting/lifting.service';
 import { BODYWEIGHT_TEST } from '../lifting/lifting-catalog';
-import { REPORT_MEASURES } from '../studies/study-measures';
+import {
+  BATTED_BALL_SKIP, BATTED_BALL_SOURCES, TM_FIELDS, aggregateDaily, cleanDataSet, metricLabel, pitchTypeLabel, tmPitchValue,
+  type DataSetColumn, type DataSetRow,
+} from './player-data';
+
+export { aggregateDaily } from './player-data';
 
 /* Chart Builder sources beyond the Metric table:
      LIFTING      metricType "<TEST>:<KEY>" (session best) or "<TEST>:<KEY>:avg"
@@ -22,6 +27,9 @@ import { REPORT_MEASURES } from '../studies/study-measures';
    Visibility: PRIVATE = coaches only (every coach sees it on the athletes
    it applies to; athletes / parents never do), GLOBAL = athletes too. */
 const REPORTS_SOURCE = 'REPORTS';
+/* Player Data (the Chart Builder's default data source) -- see player-data.ts. */
+const TM_SOURCE = 'TM_PITCH';
+const BATTED_SOURCE = 'BATTED_BALL';
 const LIFT_SOURCE = 'LIFTING';
 const WEIGHT_SOURCE = 'BODY_WEIGHT';
 const LIFT_GROUP: Record<string, string> = {
@@ -58,28 +66,25 @@ export interface ChartConfigDto {
   // is appended to every primary series. cohortMode controls which peers count.
   cohortEnabled?: boolean | null;
   cohortMode?: 'GRAD_YEAR' | 'POSITION' | 'ALL' | null;
-  /** "REPORTS" | "VALD" (which data set the columns come from). */
-  dataset?: 'REPORTS' | 'VALD' | null;
+  /** "PLAYER" | "ds:<DataSet id>" (older charts: "REPORTS" | "VALD"). */
+  dataset?: string | null;
+  /** Benchmark line from a Data Set row. */
+  benchmark?: { dataSetId: string; row: string } | null;
   /** One point per day: average or max of that day's readings. */
   dailyAgg?: 'AVG' | 'MAX' | null;
 }
 
-const cleanDataset = (v: unknown) => (v === 'REPORTS' || v === 'VALD' ? v : null);
+const cleanDataset = (v: unknown) =>
+  (v === 'PLAYER' || v === 'REPORTS' || v === 'VALD' || (typeof v === 'string' && /^ds:[A-Za-z0-9-]{1,64}$/.test(v)) ? (v as string) : null);
 const cleanDailyAgg = (v: unknown) => (v === 'AVG' || v === 'MAX' ? v : null);
+const cleanBenchmark = (v: any) =>
+  v && typeof v.dataSetId === 'string' && /^[A-Za-z0-9-]{1,64}$/.test(v.dataSetId) && typeof v.row === 'string' && v.row.trim()
+    ? JSON.stringify({ dataSetId: v.dataSetId, row: v.row.trim().slice(0, 100) }) : null;
+const parseBenchmark = (v: string | null | undefined): { dataSetId: string; row: string } | null => {
+  try { const b = v ? JSON.parse(v) : null; return b?.dataSetId && b?.row ? b : null; } catch { return null; }
+};
 
-/** One point per day (UTC date, plotted at noon): the day's average or max. */
-export function aggregateDaily(points: { date: string; value: number }[], how: 'AVG' | 'MAX' | null | undefined) {
-  if (!how) return points;
-  const byDay = new Map<string, number[]>();
-  for (const p of points) {
-    const d = p.date.slice(0, 10);
-    (byDay.get(d) ?? byDay.set(d, []).get(d)!).push(p.value);
-  }
-  return [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([d, v]) => ({
-    date: `${d}T12:00:00.000Z`,
-    value: how === 'MAX' ? Math.max(...v) : v.reduce((a, b) => a + b, 0) / v.length,
-  }));
-}
+type Series = { source: string; metricType: string; label: string; points: { date: string; value: number }[]; benchmark?: boolean; athlete?: boolean; cohort?: boolean };
 
 @Injectable()
 export class AnalyticsService {
@@ -98,6 +103,29 @@ export class AnalyticsService {
         select: { playerId: true, recordedOn: true, weightLbs: true },
       });
       return rows.map((r) => ({ playerId: r.playerId, date: new Date(`${r.recordedOn}T12:00:00.000Z`), value: r.weightLbs }));
+    }
+    if (s.source === TM_SOURCE) {
+      const rows = await this.prisma.metric.findMany({
+        where: { playerId: { in: playerIds }, source: 'TRACKMAN', metricType: 'trackman_pitch', ...(dateFilter ? { recordedAt: dateFilter } : {}) },
+        orderBy: { recordedAt: 'asc' },
+        select: { playerId: true, recordedAt: true, rawData: true },
+      });
+      const out: { playerId: string; date: Date; value: number }[] = [];
+      for (const r of rows) {
+        let raw: Record<string, unknown> | null = null;
+        try { raw = r.rawData ? JSON.parse(r.rawData) : null; } catch { raw = null; }
+        const v = tmPitchValue(raw, s.metricType);
+        if (v != null) out.push({ playerId: r.playerId, date: r.recordedAt, value: v });
+      }
+      return out;
+    }
+    if (s.source === BATTED_SOURCE) {
+      const rows = await this.prisma.metric.findMany({
+        where: { playerId: { in: playerIds }, source: { in: BATTED_BALL_SOURCES }, metricType: s.metricType, ...(dateFilter ? { recordedAt: dateFilter } : {}) },
+        orderBy: { recordedAt: 'asc' },
+        select: { playerId: true, recordedAt: true, value: true },
+      });
+      return rows.map((r) => ({ playerId: r.playerId, date: r.recordedAt, value: r.value }));
     }
     if (s.source === REPORTS_SOURCE) {
       const rows = await this.prisma.metric.findMany({
@@ -126,17 +154,161 @@ export class AnalyticsService {
     return out;
   }
 
-  /** The Chart Builder's columns: Athlete Reports (each report metric once,
-   *  named) + body weight, and VALD (Lifting Report results). */
+  private pitchTypes: { at: number; types: string[] } | null = null;
+
+  /** TrackMan pitch types that have pitches (most pitches first), cached 10 minutes. */
+  private async trackmanPitchTypes(): Promise<string[]> {
+    if (this.pitchTypes && Date.now() - this.pitchTypes.at < 10 * 60_000) return this.pitchTypes.types;
+    const rows = await this.prisma.metric.findMany({
+      where: { source: 'TRACKMAN', metricType: 'trackman_pitch' },
+      orderBy: { recordedAt: 'desc' },
+      select: { rawData: true },
+      take: 20_000,
+    });
+    const count = new Map<string, number>();
+    for (const r of rows) {
+      try { const t = JSON.parse(r.rawData || '{}').pitchType; if (t && t !== 'Unknown') count.set(String(t), (count.get(String(t)) ?? 0) + 1); } catch { /* skip */ }
+    }
+    const types = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+    this.pitchTypes = { at: Date.now(), types };
+    return types;
+  }
+
+  /** The Chart Builder's Player Data columns, grouped by device: TrackMan
+   *  (per pitch type), Blast Motion, HitTrax / Full Swing (pooled), typed
+   *  report values, VALD and body weight. Every reading counts; the chart's
+   *  Daily Value turns a day into one point. */
   async builderColumns(user?: JwtPayload) {
-    const reportKeys = await this.prisma.metric.groupBy({ by: ['metricType'], where: { source: { startsWith: 'REPORT_' } } });
-    const have = new Set(reportKeys.map((r) => r.metricType));
-    const out: { source: string; metricType: string; unit: string; label: string; group: string; dataset: 'REPORTS' | 'VALD' }[] = REPORT_MEASURES
-      .filter((m) => have.has(m.key))
-      .map((m) => ({ source: REPORTS_SOURCE, metricType: m.key, unit: m.unit, label: m.label, group: m.group, dataset: 'REPORTS' as const }));
-    out.push({ source: WEIGHT_SOURCE, metricType: 'weight', unit: 'lb', label: 'Body Weight', group: 'Body', dataset: 'REPORTS' });
-    for (const c of await this.liftingColumns(user)) out.push({ ...c, dataset: 'VALD' });
+    type Col = { source: string; metricType: string; unit: string; label: string; group: string; dataset: 'PLAYER' };
+    const out: Col[] = [];
+    const types = await this.trackmanPitchTypes();
+    if (types.length) {
+      for (const t of ['ALL', ...types]) {
+        for (const f of TM_FIELDS) out.push({ source: TM_SOURCE, metricType: `${f.field}|${t}`, unit: f.unit, label: `${f.label}${t === 'ALL' ? '' : ` (${pitchTypeLabel(t)})`}`, group: `TrackMan · ${pitchTypeLabel(t)}`, dataset: 'PLAYER' });
+      }
+    }
+    const kinds = await this.prisma.metric.groupBy({
+      by: ['source', 'metricType', 'unit'],
+      where: { source: { in: ['BLAST_MOTION', 'MANUAL', ...BATTED_BALL_SOURCES] } },
+    });
+    const blast = kinds.filter((k) => k.source === 'BLAST_MOTION');
+    for (const k of blast.sort((a, b) => metricLabel(a.metricType).localeCompare(metricLabel(b.metricType)))) {
+      out.push({ source: 'BLAST_MOTION', metricType: k.metricType, unit: k.unit, label: metricLabel(k.metricType), group: 'Blast Motion', dataset: 'PLAYER' });
+    }
+    const batted = new Map<string, string>();
+    for (const k of kinds) if (BATTED_BALL_SOURCES.includes(k.source) && !BATTED_BALL_SKIP.has(k.metricType)) batted.set(k.metricType, k.unit);
+    for (const [key, unit] of [...batted.entries()].sort((a, b) => metricLabel(a[0]).localeCompare(metricLabel(b[0])))) {
+      out.push({ source: BATTED_SOURCE, metricType: key, unit, label: metricLabel(key), group: 'HitTrax / Full Swing', dataset: 'PLAYER' });
+    }
+    for (const k of kinds.filter((x) => x.source === 'MANUAL')) {
+      out.push({ source: 'MANUAL', metricType: k.metricType, unit: k.unit, label: metricLabel(k.metricType), group: 'Typed in reports (defense / speed)', dataset: 'PLAYER' });
+    }
+    for (const c of await this.liftingColumns(user)) out.push({ ...c, dataset: 'PLAYER' });
+    out.push({ source: WEIGHT_SOURCE, metricType: 'weight', unit: 'lb', label: 'Body Weight', group: 'Body Weight', dataset: 'PLAYER' });
     return out;
+  }
+
+  // ── Data Sets (reference tables) ─────────────────────────────────────
+
+  private dataSetOut(r: { id: string; name: string; description: string | null; source: string | null; labelColumn: string; columns: string; rows: string; createdAt: Date; updatedAt: Date }, withRows: boolean) {
+    let columns: DataSetColumn[] = [];
+    let rows: DataSetRow[] = [];
+    try { columns = JSON.parse(r.columns); } catch { columns = []; }
+    try { rows = JSON.parse(r.rows); } catch { rows = []; }
+    return {
+      id: r.id, name: r.name, description: r.description, source: r.source, labelColumn: r.labelColumn, columns,
+      rowLabels: rows.map((x) => x.label), rowCount: rows.length,
+      ...(withRows ? { rows } : {}),
+      createdAt: r.createdAt, updatedAt: r.updatedAt,
+    };
+  }
+
+  async listDataSets() {
+    const rows = await this.prisma.dataSet.findMany({ orderBy: { name: 'asc' } });
+    return rows.map((r) => this.dataSetOut(r, false));
+  }
+
+  async getDataSet(id: string) {
+    const r = await this.prisma.dataSet.findUnique({ where: { id } });
+    if (!r) throw new NotFoundException('Data set not found');
+    return this.dataSetOut(r, true);
+  }
+
+  async saveDataSet(raw: any, userId: string, id?: string) {
+    let d: ReturnType<typeof cleanDataSet>;
+    try { d = cleanDataSet(raw); } catch (e: any) { throw new BadRequestException(e?.message); }
+    const data = { name: d.name, description: d.description, source: d.source, labelColumn: d.labelColumn, columns: JSON.stringify(d.columns), rows: JSON.stringify(d.rows) };
+    if (data.rows.length > 3_000_000) throw new BadRequestException('That data set is too large');
+    if (id) {
+      const found = await this.prisma.dataSet.findUnique({ where: { id }, select: { id: true } });
+      if (!found) throw new NotFoundException('Data set not found');
+      return this.dataSetOut(await this.prisma.dataSet.update({ where: { id }, data }), true);
+    }
+    return this.dataSetOut(await this.prisma.dataSet.create({ data: { ...data, createdById: userId } }), true);
+  }
+
+  async deleteDataSet(id: string) {
+    await this.prisma.dataSet.deleteMany({ where: { id } });
+    return { ok: true };
+  }
+
+  private async loadDataSet(id: string) {
+    const r = await this.prisma.dataSet.findUnique({ where: { id } });
+    if (!r) return null;
+    try { return { name: r.name, columns: JSON.parse(r.columns) as DataSetColumn[], rows: JSON.parse(r.rows) as DataSetRow[] }; } catch { return null; }
+  }
+
+  /**
+   * The finishing step shared by evaluate + preview:
+   *  - a Data Set chart: one bar per group (row) for each chosen column, and
+   *    this athlete's value beside them (their readings in the date range,
+   *    averaged or the max per Daily Value) when the column is linked;
+   *  - a Player Data chart: one point per day (Daily Value), plus a dashed
+   *    benchmark line for each column a chosen Data Set row is linked to.
+   */
+  private async finishSeries(
+    playerId: string,
+    cfg: { dataset: string | null; dailyAgg: 'AVG' | 'MAX' | null; benchmark: { dataSetId: string; row: string } | null },
+    sources: Array<{ source: string; metricType: string; label?: string }>,
+    series: Series[],
+    dateFilter: { gte?: Date; lte?: Date } | null,
+  ): Promise<Series[]> {
+    if (cfg.dataset?.startsWith('ds:')) {
+      const ds = await this.loadDataSet(cfg.dataset.slice(3));
+      if (!ds) return [];
+      const out: Series[] = [];
+      const cols = sources.map((s) => ds.columns.find((c) => c.key === s.metricType)).filter((c): c is DataSetColumn => !!c);
+      const many = cols.length > 1;
+      for (const c of cols) {
+        if (c.link) {
+          const [own] = await this.buildSeries(playerId, [{ source: c.link.source, metricType: c.link.metricType, label: c.name }], dateFilter);
+          const vals = own.points.map((p) => p.value);
+          if (vals.length) {
+            const v = cfg.dailyAgg === 'MAX' ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0) / vals.length;
+            out.push({ source: 'ATHLETE', metricType: c.key, label: many ? `This athlete · ${c.name}` : 'This athlete', athlete: true, points: [{ date: new Date().toISOString(), value: v }] });
+          }
+        }
+        for (const r of ds.rows) {
+          const v = r.values[c.key];
+          if (typeof v === 'number') out.push({ source: 'DATASET', metricType: c.key, label: many ? `${r.label} · ${c.name}` : r.label, points: [{ date: new Date().toISOString(), value: v }] });
+        }
+      }
+      return out;
+    }
+    const daily = series.map((s) => ({ ...s, points: aggregateDaily(s.points, cfg.dailyAgg) }));
+    if (!cfg.benchmark) return daily;
+    const ds = await this.loadDataSet(cfg.benchmark.dataSetId);
+    const row = ds?.rows.find((r) => r.label === cfg.benchmark!.row);
+    if (!ds || !row) return daily;
+    const lines: Series[] = [];
+    for (const s of daily) {
+      if (!s.points.length) continue;
+      const col = ds.columns.find((c) => c.link && c.link.source === s.source && c.link.metricType === s.metricType);
+      const v = col ? row.values[col.key] : null;
+      if (typeof v !== 'number') continue;
+      lines.push({ source: 'BENCHMARK', metricType: col!.key, label: `${row.label} (${ds.name})`, benchmark: true, points: [{ date: s.points[0].date, value: v }, { date: s.points[s.points.length - 1].date, value: v }] });
+    }
+    return [...daily, ...lines];
   }
 
   private async liftingColumns(user?: JwtPayload) {
@@ -220,6 +392,7 @@ export class AnalyticsService {
         cohortMode: dto.cohortMode ?? null,
         dataset: cleanDataset(dto.dataset),
         dailyAgg: cleanDailyAgg(dto.dailyAgg),
+        benchmark: cleanBenchmark(dto.benchmark),
       },
     });
   }
@@ -258,6 +431,7 @@ export class AnalyticsService {
     if (dto.cohortEnabled !== undefined) data.cohortEnabled = dto.cohortEnabled;
     if (dto.cohortMode !== undefined) data.cohortMode = dto.cohortMode;
     if (dto.dataset !== undefined) data.dataset = cleanDataset(dto.dataset);
+    if (dto.benchmark !== undefined) data.benchmark = cleanBenchmark(dto.benchmark);
     if (dto.dailyAgg !== undefined) data.dailyAgg = cleanDailyAgg(dto.dailyAgg);
 
     return this.prisma.chartConfig.update({ where: { id }, data });
@@ -298,8 +472,12 @@ export class AnalyticsService {
       );
     }
 
-    const daily = cleanDailyAgg((config as any).dailyAgg);
-    return { config, series: series.map((s) => ({ ...s, points: aggregateDaily(s.points, daily) })).concat(cohortSeries) };
+    const finished = await this.finishSeries(playerId, {
+      dataset: cleanDataset((config as any).dataset),
+      dailyAgg: cleanDailyAgg((config as any).dailyAgg),
+      benchmark: parseBenchmark((config as any).benchmark),
+    }, sources, series as Series[], dateFilter);
+    return { config, series: [...finished, ...(String((config as any).dataset || '').startsWith('ds:') ? [] : cohortSeries)] };
   }
 
   /**
@@ -363,7 +541,14 @@ export class AnalyticsService {
         dataset: cleanDataset(dto.dataset),
         dailyAgg: cleanDailyAgg(dto.dailyAgg),
       },
-      series: series.map((s) => ({ ...s, points: aggregateDaily(s.points, cleanDailyAgg(dto.dailyAgg)) })).concat(cohortSeries as any[]),
+      series: [
+        ...(await this.finishSeries(playerId, {
+          dataset: cleanDataset(dto.dataset),
+          dailyAgg: cleanDailyAgg(dto.dailyAgg),
+          benchmark: parseBenchmark(cleanBenchmark(dto.benchmark)),
+        }, sources, series as Series[], dateFilter)),
+        ...(String(dto.dataset || '').startsWith('ds:') ? [] : (cohortSeries as Series[])),
+      ],
     };
   }
 

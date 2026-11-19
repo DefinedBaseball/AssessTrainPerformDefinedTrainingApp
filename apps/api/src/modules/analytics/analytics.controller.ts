@@ -12,6 +12,38 @@ export class AnalyticsController {
     return forWhat === 'builder' ? this.analytics.builderColumns(req.user!) : this.analytics.listColumns(req.user!);
   }
 
+  // ── Data Sets (reference tables) -- coaches only ──
+
+  @Get('datasets')
+  @Roles('COACH')
+  listDataSets() {
+    return this.analytics.listDataSets();
+  }
+
+  @Get('datasets/:id')
+  @Roles('COACH')
+  getDataSet(@Param('id') id: string) {
+    return this.analytics.getDataSet(id);
+  }
+
+  @Post('datasets')
+  @Roles('COACH')
+  createDataSet(@Request() req: any, @Body() body: any) {
+    return this.analytics.saveDataSet(body, req.user.sub);
+  }
+
+  @Put('datasets/:id')
+  @Roles('COACH')
+  updateDataSet(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.analytics.saveDataSet(body, req.user.sub, id);
+  }
+
+  @Delete('datasets/:id')
+  @Roles('COACH')
+  deleteDataSet(@Param('id') id: string) {
+    return this.analytics.deleteDataSet(id);
+  }
+
   @Get('configs')
   @Roles('COACH', 'PLAYER', 'PARENT')
   @ParentAllowed() // linked parents read (ownership-checked)

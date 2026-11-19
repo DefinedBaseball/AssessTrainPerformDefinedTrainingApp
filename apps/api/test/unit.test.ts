@@ -19,6 +19,7 @@ import { parseMoveSession, sessionLocalDay, localDate, mergeMoveSession, isMoveF
 import { isMoveOnly, pickReportForDay } from '../src/modules/integrations/move/move.processor';
 import { parseMeasureId, cleanDataRequest, cleanStudy } from '../src/modules/studies/study-measures';
 import { aggregateDaily } from '../src/modules/analytics/analytics.service';
+import { tmPitchValue, cleanDataSet } from '../src/modules/analytics/player-data';
 import { aggregateForceDecks, aggregateDynamo, aggregateSmartSpeed, dynamoTestCode, dynamoTestLabel, smartSpeedTestCode, weighInLbs, localDay, ianaFromVald, dayAtOffset, matchProfile, cleanFilters, passesTags, AVG_SUFFIX } from '../src/modules/lifting/vald-mapping';
 import { decideRendition, withRendition, isPlay720, describeSource } from '../src/modules/videos/bunny-renditions';
 import { defaultLiftingConfig, validateLiftingConfig, validateMetrics, LIFTING_CATALOG, mergeCatalog, humanizeMetricKey, humanizeTestCode, validatePlayerIds } from '../src/modules/lifting/lifting-catalog';
@@ -766,6 +767,27 @@ async function studiesTests() {
     assertEqual(aggregateDaily(pts, 'AVG').map((p) => p.value).join(','), '95,95', 'daily average');
     assertEqual(aggregateDaily(pts, 'MAX').map((p) => p.value).join(','), '100,95', 'daily max');
     assertEqual(aggregateDaily(pts, null).length, 3, 'no aggregation keeps every reading');
+  });
+
+  await test('Chart Builder: TrackMan pitch values + Data Set checks', () => {
+    const raw = { pitchType: 'Fastball', relSpeed: 88.4, spinRate: '2210' };
+    assertEqual(tmPitchValue(raw, 'relSpeed|Fastball'), 88.4, 'fastball velo');
+    assertEqual(tmPitchValue(raw, 'relSpeed|Slider'), null, 'other pitch type left out');
+    assertEqual(tmPitchValue(raw, 'spinRate|ALL'), 2210, 'all pitches, text number');
+    const d = cleanDataSet({
+      name: ' MLB averages ', labelColumn: 'Level',
+      columns: [{ key: 'ev', name: 'Exit Velo', unit: 'mph', link: { source: 'BATTED_BALL', metricType: 'max_exit_velo' } }, { key: 'bad key!', name: 'Spin' }],
+      rows: [{ label: 'MLB', values: { ev: '88.6', c1: '2,300' } }, { label: '', values: { ev: 'n/a' } }],
+    });
+    assertEqual(d.name, 'MLB averages', 'name trimmed');
+    assertEqual(d.columns[1].key, 'c1', 'bad column key replaced');
+    assertEqual(d.rows[0].values.ev, 88.6, 'number from text');
+    assertEqual(d.rows[0].values.c1, 2300, 'thousands comma');
+    assertEqual(d.rows[1].values.ev, null, 'not a number -> blank');
+    assertEqual(d.rows[1].label, 'Row 2', 'blank group named');
+    let threw = false;
+    try { cleanDataSet({ name: 'x', columns: [], rows: [] }); } catch { threw = true; }
+    assert(threw, 'no columns refused');
   });
 
   await test('Studies: data request + saved study checks', () => {

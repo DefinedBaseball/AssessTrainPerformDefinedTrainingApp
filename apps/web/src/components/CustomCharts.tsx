@@ -92,48 +92,54 @@ function CustomChartCard({ config, evaluation }: { config: ChartConfig; evaluati
  *  live preview, so the preview is exactly what the profile shows. */
 export type ChartBodyConfig = Pick<ChartConfig, 'chartType' | 'rollingWindow' | 'rollingMode' | 'targetMin' | 'targetMax' | 'pbDirection' | 'zoneGrid' | 'zoneMetric'>;
 export function CustomChartBody({ config, series }: { config: ChartBodyConfig; series: ChartEvaluation['series'] }) {
+  /* Benchmark lines (a Data Set row) draw as dashed grey lines on the
+     line-style charts; bar charts show every series as a bar. */
+  const isBar = config.chartType === 'BAR';
+  const bench = isBar ? [] : series.filter((s) => s.benchmark);
+  const main = isBar ? series : series.filter((s) => !s.benchmark);
+  const benchLines = bench.map((b) => ({ points: b.points, color: '#9CA3AF', dashed: true }));
   return (
     <>
       {config.chartType === 'STAT_BUBBLE' ? (
-        <StatBubbleView series={series} />
+        <StatBubbleView series={main} />
       ) : config.chartType === 'PERCENT_INCREASE' ? (
-        <PercentIncreaseView series={series} />
+        <PercentIncreaseView series={main} />
       ) : config.chartType === 'BAR' ? (
-        <BarView series={series} />
+        <BarView series={main} />
       ) : config.chartType === 'LINE' ? (
-        <LineView series={series} />
+        <LineView series={main} overlays={benchLines} />
       ) : config.chartType === 'SCATTER' ? (
-        <ScatterView series={series} />
+        <ScatterView series={main} />
       ) : config.chartType === 'BUBBLE' ? (
-        <ScatterView series={series} bubble />
+        <ScatterView series={main} bubble />
       ) : config.chartType === 'MOVEMENT_PLOT' ? (
-        <MovementPlotView series={series} />
+        <MovementPlotView series={main} />
       ) : config.chartType === 'ROLLING_AVG' ? (
         <LineView
-          series={series}
-          overlays={series.map((s, i) => ({
+          series={main}
+          overlays={[...main.map((s, i) => ({
             points: computeMovingAverage(s.points, config.rollingWindow || 5, (config.rollingMode as 'SMA' | 'EMA') || 'SMA'),
             color: SERIES_COLORS[i % SERIES_COLORS.length],
             dashed: true,
-          }))}
+          })), ...benchLines]}
         />
       ) : config.chartType === 'TRENDLINE' ? (
         <LineView
-          series={series}
-          overlays={series.map((s, i) => {
+          series={main}
+          overlays={[...main.map((s, i) => {
             const reg = linearRegression(s.points);
             return reg
               ? { points: reg.endpoints, color: SERIES_COLORS[i % SERIES_COLORS.length], dashed: true }
               : null;
-          }).filter(Boolean) as any[]}
+          }).filter(Boolean) as any[], ...benchLines]}
         />
       ) : config.chartType === 'TARGET_BAND' ? (
-        <LineView series={series} band={{ min: config.targetMin ?? null, max: config.targetMax ?? null }} />
+        <LineView series={main} overlays={benchLines} band={{ min: config.targetMin ?? null, max: config.targetMax ?? null }} />
       ) : config.chartType === 'PERSONAL_BEST' ? (
         <LineView
-          series={series}
+          series={main}
           dimRaw
-          overlays={series.map((s, i) => {
+          overlays={[...main.map((s, i) => {
             if (s.points.length === 0) return null;
             const dir = (config.pbDirection as 'MAX' | 'MIN') || 'MAX';
             let best = s.points[0].value;
@@ -142,16 +148,21 @@ export function CustomChartBody({ config, series }: { config: ChartBodyConfig; s
               return { date: p.date, value: best };
             });
             return { points: pb, color: SERIES_COLORS[i % SERIES_COLORS.length], stepped: true };
-          }).filter(Boolean) as any[]}
+          }).filter(Boolean) as any[], ...benchLines]}
         />
       ) : config.chartType === 'STRIKE_ZONE_HEAT' ? (
         <StrikeZoneHeatView
-          series={series}
+          series={main}
           grid={(config.zoneGrid as '3x3' | '5x5') || '3x3'}
           metric={(config.zoneMetric as 'COUNT' | 'AVG' | 'WHIFF') || 'COUNT'}
         />
       ) : (
-        <LineView series={series} />
+        <LineView series={main} />
+      )}
+      {bench.length > 0 && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          <span style={{ letterSpacing: 2 }}>- - -</span> {bench.map((b) => b.label).filter((l, i, a) => a.indexOf(l) === i).join(' · ')}
+        </div>
       )}
     </>
   );
@@ -203,7 +214,7 @@ function BarView({ series }: { series: ChartEvaluation['series'] }) {
     const values = s.points.map((p) => p.value);
     const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
     const max = values.length ? Math.max(...values) : 0;
-    return { label: s.label, avg, max };
+    return { label: s.label, avg, max, athlete: !!s.athlete };
   });
   const scale = Math.max(...bars.map((b) => b.max), 1);
 
@@ -211,9 +222,10 @@ function BarView({ series }: { series: ChartEvaluation['series'] }) {
     <div className={styles.barWrap}>
       {bars.map((b) => (
         <div key={b.label} className={styles.barRow}>
-          <div className={styles.barLabel}>{b.label}</div>
+          <div className={styles.barLabel} style={b.athlete ? { fontWeight: 700 } : undefined}>{b.label}</div>
           <div className={styles.barTrack}>
-            <div className={styles.barFill} style={{ width: `${(b.avg / scale) * 100}%` }} />
+            {/* This athlete's bar (beside a Data Set's groups) in gold. */}
+            <div className={styles.barFill} style={{ width: `${(b.avg / scale) * 100}%`, ...(b.athlete ? { background: '#D4AF37' } : {}) }} />
           </div>
           <div className={styles.barValue}>{b.avg.toFixed(1)}</div>
         </div>

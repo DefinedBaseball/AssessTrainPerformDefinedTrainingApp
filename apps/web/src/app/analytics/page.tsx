@@ -18,6 +18,7 @@ import { tzOpt } from '@/lib/academy';
 import { CustomChartBody } from '@/components/CustomCharts';
 import { StudiesPane } from './studies/StudiesPane';
 import { ComparisonPane } from './studies/ComparisonPane';
+import { DataSetsPane } from './DataSetsPane';
 
 /* Chart Builder "Position": the profile tab a saved chart shows on. */
 const SECTIONS = [
@@ -32,10 +33,10 @@ const SECTIONS = [
 /* Visibility = who sees the chart: coaches only, or athletes too (all of
    them, or picked ones). Stored as scope (PRIVATE / GLOBAL) + playerScope. */
 type Visibility = 'COACHES' | 'ALL' | 'INDIVIDUAL';
-const DATASETS: { value: 'REPORTS' | 'VALD'; label: string }[] = [
-  { value: 'REPORTS', label: 'Athlete Reports' },
-  { value: 'VALD', label: 'VALD' },
-];
+/* Data Source: "PLAYER" (every reading the athletes produced -- TrackMan,
+   Blast, HitTrax / Full Swing, VALD ...) or "ds:<id>", an uploaded Data Set
+   (Data -> Data Sets). Older charts saved "REPORTS" / "VALD" -- shown as Player Data. */
+const PLAYER_DATA = 'PLAYER';
 
 const CHART_TYPES = [
   { value: 'BAR', label: 'Bar Chart' },
@@ -63,9 +64,9 @@ const ALWAYS_ON = [
 /* Studies first (coach-only, like the whole Data page), then Comparison
    (athletes head to head; the old device-data compare is its 2nd view),
    then the Chart Builder, Metric Builder and Saved Charts. */
-type TabKey = 'studies' | 'compare' | 'builder' | 'metrics' | 'saved';
+type TabKey = 'studies' | 'compare' | 'builder' | 'datasets' | 'metrics' | 'saved';
 type CompareSubTab = 'athletes' | 'device';
-const TAB_LABEL: Record<TabKey, string> = { studies: 'Studies', compare: 'Comparison', builder: 'Chart Builder', metrics: 'Metric Builder', saved: 'Saved Charts' };
+const TAB_LABEL: Record<TabKey, string> = { studies: 'Studies', compare: 'Comparison', builder: 'Chart Builder', datasets: 'Data Sets', metrics: 'Metric Builder', saved: 'Saved Charts' };
 type MetricBuilderMode = 'basic' | 'advanced';
 
 export default function AnalyticsPage() {
@@ -132,6 +133,7 @@ export default function AnalyticsPage() {
         </div>
       )}
       {tab === 'builder' && <BuilderPane userId={user.id} />}
+      {tab === 'datasets' && <DataSetsPane />}
       {tab === 'metrics' && <MetricBuilderPane />}
       {tab === 'saved' && <SavedPane />}
       </div>
@@ -175,8 +177,15 @@ function BuilderPane({ userId }: { userId: string }) {
   const [cohortEnabled, setCohortEnabled] = useState(false);
   const [cohortMode, setCohortMode] = useState<'GRAD_YEAR' | 'POSITION' | 'ALL'>('GRAD_YEAR');
   /* Data Source (data set) and one point per day (average / max). */
-  const [dataset, setDataset] = useState<'REPORTS' | 'VALD'>('REPORTS');
+  const [dataset, setDataset] = useState<string>(PLAYER_DATA);
   const [dailyAgg, setDailyAgg] = useState<'AVG' | 'MAX'>('AVG');
+  /* Uploaded Data Sets: a chart's data source, or a benchmark line. */
+  const [dataSets, setDataSets] = useState<api.DataSetSummary[]>([]);
+  const [benchmarkSet, setBenchmarkSet] = useState('');
+  const [benchmarkRow, setBenchmarkRow] = useState('');
+  useEffect(() => { api.listDataSets().then(setDataSets).catch(() => setDataSets([])); }, []);
+  const activeSet = dataset.startsWith('ds:') ? dataSets.find((d) => d.id === dataset.slice(3)) ?? null : null;
+  const benchSet = dataSets.find((d) => d.id === benchmarkSet) ?? null;
   const visibility: Visibility = scope === 'PRIVATE' ? 'COACHES' : playerScope === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'ALL';
   const setVisibility = (v: Visibility) => {
     setScope(v === 'COACHES' ? 'PRIVATE' : 'GLOBAL');
@@ -231,8 +240,11 @@ function BuilderPane({ userId }: { userId: string }) {
   const grouped = useMemo(() => {
     const words = colQuery.toLowerCase().split(/\s+/).filter(Boolean);
     const g: Record<string, AnalyticsColumn[]> = {};
-    columns.forEach((c) => {
-      if (c.dataset && c.dataset !== dataset) return;
+    /* A Data Set's columns, or the Player Data columns. */
+    const list: AnalyticsColumn[] = activeSet
+      ? activeSet.columns.map((c) => ({ source: 'DATASET', metricType: c.key, unit: c.unit, label: c.name, group: activeSet.name }))
+      : columns;
+    list.forEach((c) => {
       const hay = `${c.group ?? c.source} ${c.label ?? c.metricType} ${c.metricType}`.toLowerCase();
       if (words.some((w) => !hay.includes(w))) return;
       const k = c.group ?? c.source;
@@ -240,7 +252,7 @@ function BuilderPane({ userId }: { userId: string }) {
       g[k].push(c);
     });
     return g;
-  }, [columns, colQuery, dataset]);
+  }, [columns, colQuery, activeSet]);
 
   const payload = useMemo<ChartConfigInput>(() => ({
     title: title.trim() || 'Untitled chart',
@@ -267,11 +279,12 @@ function BuilderPane({ userId }: { userId: string }) {
     cohortMode: cohortEnabled ? cohortMode : null,
     dataset,
     dailyAgg,
+    benchmark: !activeSet && benchmarkSet && benchmarkRow ? { dataSetId: benchmarkSet, row: benchmarkRow } : null,
   }), [
     title, section, chartType, scope, selected, dateMode, dateFrom, dateTo, lastNDays,
     playerScope, scopePlayerIds, dataMode, selectedReportIds,
     rollingWindow, rollingMode, targetMin, targetMax, pbDirection, zoneGrid, zoneMetric,
-    cohortEnabled, cohortMode, dataset, dailyAgg,
+    cohortEnabled, cohortMode, dataset, dailyAgg, benchmarkSet, benchmarkRow, activeSet,
   ]);
 
   // Debounced live preview — refetch whenever config or player changes
@@ -332,8 +345,10 @@ function BuilderPane({ userId }: { userId: string }) {
     setZoneMetric('COUNT');
     setCohortEnabled(false);
     setCohortMode('GRAD_YEAR');
-    setDataset('REPORTS');
+    setDataset(PLAYER_DATA);
     setDailyAgg('AVG');
+    setBenchmarkSet('');
+    setBenchmarkRow('');
     setError('');
   };
 
@@ -362,10 +377,12 @@ function BuilderPane({ userId }: { userId: string }) {
     setZoneMetric((cfg.zoneMetric as 'COUNT' | 'AVG' | 'WHIFF') || 'COUNT');
     setCohortEnabled(!!cfg.cohortEnabled);
     setCohortMode((cfg.cohortMode as 'GRAD_YEAR' | 'POSITION' | 'ALL') || 'GRAD_YEAR');
-    let srcs: ChartDataSource[] = [];
-    try { srcs = JSON.parse(cfg.dataSources); } catch { srcs = []; }
-    setDataset(cfg.dataset ?? (srcs.some((x) => x.source === 'LIFTING') ? 'VALD' : 'REPORTS'));
+    setDataset(cfg.dataset?.startsWith('ds:') ? cfg.dataset : PLAYER_DATA);
     setDailyAgg(cfg.dailyAgg ?? 'AVG');
+    let bm: { dataSetId?: string; row?: string } | null = null;
+    try { bm = cfg.benchmark ? JSON.parse(cfg.benchmark) : null; } catch { bm = null; }
+    setBenchmarkSet(bm?.dataSetId ?? '');
+    setBenchmarkRow(bm?.row ?? '');
     setError('');
   };
 
@@ -423,7 +440,8 @@ function BuilderPane({ userId }: { userId: string }) {
 
           <div className={styles.builderField}>
             <label>Chart Type</label>
-            <select className={styles.select} value={chartType} onChange={(e) => setChartType(e.target.value)}>
+            <select className={styles.select} value={activeSet ? 'BAR' : chartType} onChange={(e) => setChartType(e.target.value)} disabled={!!activeSet}
+              title={activeSet ? 'A Data Set chart is a bar chart: each group, with this athlete beside them' : undefined}>
               {CHART_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
@@ -500,26 +518,65 @@ function BuilderPane({ userId }: { userId: string }) {
               className={styles.select}
               value={dataset}
               onChange={(e) => {
-                const next = e.target.value as 'REPORTS' | 'VALD';
+                const next = e.target.value;
                 if (next === dataset) return;
                 setDataset(next);
-                /* Columns belong to a data set -- start the pick over. */
+                /* Columns belong to a data source -- start the pick over. */
                 setSelected([]);
                 setColQuery('');
+                if (next.startsWith('ds:')) { setChartType('BAR'); setBenchmarkSet(''); setBenchmarkRow(''); }
               }}
             >
-              {DATASETS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+              <option value={PLAYER_DATA}>Player Data</option>
+              {dataSets.length > 0 && (
+                <optgroup label="Data Sets">
+                  {dataSets.map((d) => <option key={d.id} value={`ds:${d.id}`}>{d.name}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
 
-          {/* ── Daily value: one point per day ── */}
+          {/* ── Daily value: one point per day (a Data Set chart: the athlete's value) ── */}
           <div className={styles.builderField}>
-            <label>Daily Value</label>
+            <label>{activeSet ? 'Athlete Value' : 'Daily Value'}</label>
             <select className={styles.select} value={dailyAgg} onChange={(e) => setDailyAgg(e.target.value as 'AVG' | 'MAX')}>
-              <option value="AVG">Average of the day</option>
-              <option value="MAX">Max of the day</option>
+              <option value="AVG">{activeSet ? 'Average in the date range' : 'Average of the day'}</option>
+              <option value="MAX">{activeSet ? 'Max in the date range' : 'Max of the day'}</option>
             </select>
           </div>
+
+          {activeSet ? (
+            <div className={styles.builderField} style={{ gridColumn: '1 / -1' }}>
+              <div className={styles.cardDesc}>
+                Bars for each group in <strong>{activeSet.name}</strong>, with this athlete&rsquo;s own value beside them (gold) for columns
+                linked to a Player Data metric{activeSet.columns.some((c) => !c.link) ? ' — unlinked columns show the groups only' : ''}.
+              </div>
+            </div>
+          ) : dataSets.length > 0 && (
+            <>
+              <div className={styles.builderField}>
+                <label>Benchmark Line</label>
+                <select className={styles.select} value={benchmarkSet} onChange={(e) => { setBenchmarkSet(e.target.value); setBenchmarkRow(''); }}>
+                  <option value="">None</option>
+                  {dataSets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              {benchSet && (
+                <div className={styles.builderField}>
+                  <label>{benchSet.labelColumn || 'Group'}</label>
+                  <select className={styles.select} value={benchmarkRow} onChange={(e) => setBenchmarkRow(e.target.value)}>
+                    <option value="">Pick one…</option>
+                    {benchSet.rowLabels.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              )}
+              {benchSet && (
+                <div className={styles.cardDesc} style={{ gridColumn: '1 / -1', marginTop: -4 }}>
+                  A dashed line at that group&rsquo;s value on line-style charts, for the columns of {benchSet.name} linked to the picked metrics.
+                </div>
+              )}
+            </>
+          )}
 
           {dataMode === 'DATE_RANGE' && (
             <>
