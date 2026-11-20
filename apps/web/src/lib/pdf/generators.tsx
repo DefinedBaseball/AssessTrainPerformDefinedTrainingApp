@@ -22,6 +22,7 @@ import { VisionReportPages, type VisionPdfData } from './VisionReport';
 import * as api from '@/lib/api';
 import type { ReportSummary } from '@/app/athletes/[id]/helpers';
 import { avgTilt } from '@/lib/pitchTilt';
+import { setGradingAthlete } from '@/lib/hitting-norms';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
   gradeIfKnown,
@@ -118,6 +119,8 @@ async function collectHittingPdfData(
   hittingReport: ReportSummary | null,
   reportDate: string,
 ): Promise<HittingPdfData> {
+  /* Exit velo / bat speed colours grade against this athlete's age. */
+  setGradingAthlete(player?.birthDate ?? null);
   const uploadIds = getReportUploadIds(hittingReport);
 
   /* Notes: the report's own notes, legacy content.diagnosisNotes fallback. */

@@ -1,6 +1,7 @@
 'use client';
 
 import { rem } from '@/lib/rem';
+import { AGE_NORMED_METRICS, isTopTenPct, percentileLabel } from '@/lib/hitting-norms';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { TextSizeMenu, DictationButton } from '@/components/NoteEditorTools';
 import dashTheme from '@/app/dashTheme.module.css';
@@ -282,6 +283,18 @@ interface HittingMetricCell {
   /** Optional value color override (tone-mapped from the metric's
    *  20-80 grade). */
   color?: string;
+  /** At or above the 90th percentile for the athlete's age
+   *  (lib/hitting-norms) -- shows a "Top 10%" tag under the value. */
+  top10?: boolean;
+  /** Hover text, e.g. "82nd percentile for age 15". */
+  title?: string;
+}
+
+/** Age-percentile extras for an exit velo / bat speed cell (nothing for
+ *  other metrics or athletes without a birthday). */
+function ageNormExtras(key: string, value: number, at?: string): Pick<HittingMetricCell, 'top10' | 'title'> {
+  if (!AGE_NORMED_METRICS.has(key)) return {};
+  return { top10: isTopTenPct(value, key, at), title: percentileLabel(value, key, at) };
 }
 
 /* Split a multi-word label into two visually balanced lines by
@@ -429,7 +442,7 @@ function VendorMetricRowGroup({ items, colCount, last }: {
         borderBottom: last ? undefined : '1px solid var(--border)',
       }}>
         {items.map((it, i) => (
-          <span key={`${it.label}-v-${i}`} style={{ ...cellStyle, color: it.color ?? cellStyle.color }}>
+          <span key={`${it.label}-v-${i}`} title={it.title} style={{ ...cellStyle, color: it.color ?? cellStyle.color, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {/* The NUMBER is what centres under the column label — not the
                 number-plus-unit string. Centring the whole "69.2 mph" reads
                 as misaligned, because the unit renders smaller and muted, so
@@ -452,6 +465,15 @@ function VendorMetricRowGroup({ items, colCount, last }: {
                 }}>{it.unit}</span>
               )}
             </span>
+            {it.top10 && (
+              <span style={{
+                marginTop: 2, padding: '1px 5px', borderRadius: 999,
+                fontSize: rem(6.5), fontWeight: 700, letterSpacing: '0.05em',
+                textTransform: 'uppercase', whiteSpace: 'nowrap',
+                color: it.color ?? 'var(--text)',
+                border: `1px solid ${it.color ?? 'var(--border)'}`,
+              }}>Top 10%</span>
+            )}
           </span>
         ))}
       </div>
@@ -998,6 +1020,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
                   display: f.display,
                   unit: f.unit,
                   color: grade !== null ? scoreColor(grade) : undefined,
+                  ...ageNormExtras(k, m.value),
                 };
               }), {
                 label: isMobile ? 'LD%' : 'Line Drive %',
@@ -1061,6 +1084,7 @@ export function SwingTab(props: TabProps & { shared: SharedHittingState }) {
               display,
               unit,
               color: grade !== null ? scoreColor(grade) : undefined,
+              ...ageNormExtras(k, m.value, m.recordedAt),
             };
           };
           const items = BLAST_ORDER

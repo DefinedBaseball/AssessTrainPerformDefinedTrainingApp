@@ -1,5 +1,6 @@
 import type { Player, Metric, Video, AtBatDetail, Pitch } from '@/lib/api';
 import * as api from '@/lib/api';
+import { ageNormGrade } from '@/lib/hitting-norms';
 
 /* ── Live At-Bat → Swing Decision metrics ──────────────────────────────
    Aggregates per-pitch outcomes from this athlete's saved Live At-Bats
@@ -1024,12 +1025,12 @@ export function averageGrades(values: (number | null | undefined)[]): number | n
 
 /** Convert a metric `topMetrics` reading to a 20-80 grade (clamped, rounded to 5). */
 export function metricToGrade(
-  topMetrics: Record<string, { value: number }>,
+  topMetrics: Record<string, { value: number; recordedAt?: string }>,
   metricKey: string,
 ): number | null {
   const m = topMetrics[metricKey];
   if (!m) return null;
-  return toScoutingGrade(m.value, metricKey);
+  return toScoutingGrade(m.value, metricKey, m.recordedAt);
 }
 
 /** One value per metric type from a report's uploaded rows -- the Hitting
@@ -1459,7 +1460,12 @@ export const GRADE_RANGES: Record<string, [number, number]> = {
   launch_angle: [5, 22],
 };
 
-export function toScoutingGrade(value: number, metricType: string): number {
+export function toScoutingGrade(value: number, metricType: string, at?: string | null): number {
+  /* Exit velo + bat speed grade against the athlete's age group when the
+     athlete has a birthday (lib/hitting-norms): <P25 red, P25-P75 yellow,
+     P75+ green. Falls through to the fixed GRADE_RANGES otherwise. */
+  const ageGrade = ageNormGrade(value, metricType, at);
+  if (ageGrade !== null) return ageGrade;
   /* Distance uses strict band thresholds rather than a linear range so the
      chip color flips on the exact ft cutoffs the coaches grade by:
        <200 ft → red    (grade 30)
@@ -1547,10 +1553,10 @@ const BANDED_GRADE_KEYS = new Set([
 /** toScoutingGrade for metrics that have a grading rule, null for the rest
  *  (toScoutingGrade itself falls back to a flat 50). The PDFs grade through
  *  this so their colours always match the app. */
-export function gradeIfKnown(value: number, metricType: string): number | null {
+export function gradeIfKnown(value: number, metricType: string, at?: string | null): number | null {
   if (!Number.isFinite(value)) return null;
   if (!GRADE_RANGES[metricType] && !BANDED_GRADE_KEYS.has(metricType)) return null;
-  return toScoutingGrade(value, metricType);
+  return toScoutingGrade(value, metricType, at);
 }
 
 /* ── Utility Functions ── */
