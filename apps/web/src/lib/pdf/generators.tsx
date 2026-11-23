@@ -22,7 +22,7 @@ import { VisionReportPages, type VisionPdfData } from './VisionReport';
 import * as api from '@/lib/api';
 import type { ReportSummary } from '@/app/athletes/[id]/helpers';
 import { avgTilt } from '@/lib/pitchTilt';
-import { setGradingAthlete } from '@/lib/hitting-norms';
+import { setGradingAthlete } from '@/lib/age-norms';
 import {
   TAB_METRICS, getTabMetrics, getReportUploadIds,
   gradeIfKnown,
@@ -120,7 +120,7 @@ async function collectHittingPdfData(
   reportDate: string,
 ): Promise<HittingPdfData> {
   /* Exit velo / bat speed colours grade against this athlete's age. */
-  setGradingAthlete(player?.birthDate ?? null);
+  setGradingAthlete(player?.birthDate ?? null, player?.gradYear ?? null);
   const uploadIds = getReportUploadIds(hittingReport);
 
   /* Notes: the report's own notes, legacy content.diagnosisNotes fallback. */
@@ -383,6 +383,7 @@ export async function generatePitchingPdf(
   player: any,
   reports: ReportSummary[],
 ) {
+  setGradingAthlete(player?.birthDate ?? null, player?.gradYear ?? null);
   const pitchingReport = reports
     .filter(r => r.reportType === 'PITCHING')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
@@ -533,6 +534,7 @@ export async function generateDefensePdf(
   player: any,
   reports: ReportSummary[],
 ) {
+  setGradingAthlete(player?.birthDate ?? null, player?.gradYear ?? null);
   const dated = latestReportDate(reports.filter(r => ['CATCHING', 'INFIELD', 'OUTFIELD'].includes(r.reportType)));
   const reportDate = reportDateStr(dated);
   const { data } = buildDefenseData(player, reports, reportDate);
@@ -558,6 +560,7 @@ export async function generateStrengthPdf(
   reports: ReportSummary[],
   topMetrics: Record<string, { value: number; unit: string; recordedAt: string }>,
 ) {
+  setGradingAthlete(player?.birthDate ?? null, player?.gradYear ?? null);
   const scReport = reports
     .filter(r => r.reportType === 'STRENGTH')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;

@@ -19,6 +19,8 @@ import { usePdfExport } from '@/components/PdfExportDialog';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import * as api from '@/lib/api';
+import { ageNormInfo, ageBadgeText } from '@/lib/age-norms';
+import TopTenTag from '@/components/TopTenTag';
 import aStyles from '@/components/assessment/assessment.module.css';
 import styles from '../page.module.css';
 import {
@@ -858,6 +860,14 @@ function SprayField({
   );
 }
 
+/* KPI badge text: age-normed metrics (lib/age-norms) read Top 10% /
+   Above Avg / Average / Developing for the athlete's age; the rest keep
+   the fixed-threshold wording. */
+function kpiBadge(key: string, value: number, level: ReturnType<typeof getBadgeLevel>): string | undefined {
+  const n = ageNormInfo(value, key);
+  return n ? ageBadgeText(n.grade, n.top10) : (getBadgeText(level) || undefined);
+}
+
 /* Catching field with throwing-line stat chips + blocking annotations */
 function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity, velocityAvg, leftGrade, centerGrade, rightGrade, maxWidth = 420 }: {
   /* Best (lowest pop / exchange, highest velocity) + the session average. */
@@ -926,32 +936,40 @@ function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity
   /* Throwing chip with TWO numbers: the best (LOW pop / exchange, MAX
      velocity) on the left, the session average on the right -- same 152 x
      58 chip, so nothing around it moves. */
-  const DualStatChip = ({ y, label, best, bestLabel, avg, unit }: {
+  const DualStatChip = ({ y, label, best, bestLabel, avg, unit, metric }: {
     y: number; label: string; best: number | null; bestLabel: string; avg: number | null; unit: string;
+    /** Age-normed key (lib/age-norms): colours the BEST value for the
+     *  athlete's age and swaps its sub-label for "TOP 10%" when elite. */
+    metric?: string;
   }) => {
+    const norm = metric ? ageNormInfo(best, metric) : null;
+    const bestTone = norm ? scoreColor(norm.grade) : undefined;
     const fmt = (v: number | null, isAvg: boolean) =>
       v === null ? '—' : unit === 'mph' ? v.toFixed(isAvg ? 1 : 0) : v.toFixed(2);
-    const half = (x: number, v: number | null, sub: string, isAvg: boolean) => (
+    const half = (x: number, v: number | null, sub: string, isAvg: boolean, tone?: string) => (
       <>
         <text x={x} y="10" textAnchor="middle" fontSize="18" fontFamily={CHIP_FONT} fontWeight="700"
-          fill={chipValueColor} letterSpacing="-0.01em" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          fill={tone ?? chipValueColor} letterSpacing="-0.01em" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {fmt(v, isAvg)}
           {v !== null && (
             <tspan fontSize="10" fontFamily={CHIP_FONT} fontWeight="500" fill={chipMutedColor} dx="2">{unit}</tspan>
           )}
         </text>
         <text x={x} y="23" textAnchor="middle" fontSize="8.5" fontFamily={CHIP_FONT} fontWeight="700"
-          fill="var(--text-muted)" letterSpacing="0.14em">{sub}</text>
+          fill={!isAvg && norm?.top10 ? tone : 'var(--text-muted)'} letterSpacing="0.14em">
+          {!isAvg && norm?.top10 ? 'TOP 10%' : sub}
+        </text>
       </>
     );
     return (
       <g transform={`translate(${FIELD_CX}, ${y})`}>
+        {norm?.title && <title>{norm.title}</title>}
         <rect x="-76" y="-29" width="152" height="58" rx="10"
           fill="url(#catch-cmd-deck-chip)" stroke="var(--border-light)" strokeWidth="1" />
         <text x="0" y="-13" textAnchor="middle" fontSize="11" fontFamily={CHIP_FONT} fontWeight="600"
           fill="var(--text-muted)" letterSpacing="0.12em">{label}</text>
         <line x1="0" y1="-4" x2="0" y2="24" stroke={chipMutedColor} strokeOpacity="0.35" strokeWidth="1" />
-        {half(-38, best, bestLabel, false)}
+        {half(-38, best, bestLabel, false, bestTone)}
         {half(38, avg, 'AVG', true)}
       </g>
     );
@@ -1017,13 +1035,13 @@ function CatchingFieldDiagram({ popTime, popAvg, exchange, exchangeAvg, velocity
             • Pop Time → 120 ft (top arc, just under 2B / Center)
             • Velocity → 60 ft (mid-throw)
             • Exchange → stays close to home plate */}
-      <DualStatChip y={fieldXY(0, 120, CATCH_SCALE)[1]} label="POP TIME" best={popTime} bestLabel="LOW" avg={popAvg} unit="s" />
+      <DualStatChip y={fieldXY(0, 120, CATCH_SCALE)[1]} label="POP TIME" best={popTime} bestLabel="LOW" avg={popAvg} unit="s" metric="pop_time" />
       {/* Velocity + Exchange nudged up another notch — total ~22px
           higher than their original positions (was -10, now -22 vs the
           field-distance baseline / fixed 400 baseline). Pop Time stays
           anchored at the 120-ft arc. */}
-      <DualStatChip y={fieldXY(0, 60,  CATCH_SCALE)[1] - 22} label="VELOCITY" best={velocity} bestLabel="MAX" avg={velocityAvg} unit="mph" />
-      <DualStatChip y={378} label="EXCHANGE" best={exchange} bestLabel="LOW" avg={exchangeAvg} unit="s" />
+      <DualStatChip y={fieldXY(0, 60,  CATCH_SCALE)[1] - 22} label="VELOCITY" best={velocity} bestLabel="MAX" avg={velocityAvg} unit="mph" metric="catcher_velo" />
+      <DualStatChip y={378} label="EXCHANGE" best={exchange} bestLabel="LOW" avg={exchangeAvg} unit="s" metric="exchange_time" />
 
       {/* Block fan beneath home plate — Left/Right pushed further out
           from ±172 → ±184 so each outer chip sits with more breathing
@@ -1075,7 +1093,13 @@ interface DefensiveCallout {
 interface DefensiveMetricGroup {
   title: string;
   grade: number | null;
-  rows: { label: string; value: string | number | null; unit?: string }[];
+  rows: {
+    label: string; value: string | number | null; unit?: string;
+    /** Age-normed metric key + raw number (lib/age-norms): colours the
+     *  value green / yellow / red for the athlete's age and adds the
+     *  Top 10% tag. Omit for coach grades and un-normed rows. */
+    metric?: string; raw?: number | null;
+  }[];
 }
 
 /* ── Pitching color scheme — applied to the Outfielder Snapshot ──
@@ -1471,25 +1495,30 @@ function DefensiveSnapshot({
                         two metrics sit side by side, each a centered
                         label-over-value stack — the label centered on top, the
                         metric value centered directly beneath it. */}
-                    {g.rows.map((r, i) => (
-                      <div key={i} style={{
+                    {g.rows.map((r, i) => {
+                      const norm = r.metric && r.value != null ? ageNormInfo(r.raw, r.metric) : null;
+                      const tone = norm ? scoreColor(norm.grade) : undefined;
+                      return (
+                      <div key={i} title={norm?.title} style={{
                         flex: 1,
                         display: 'flex', flexDirection: 'column', gap: 3,
                         alignItems: 'center', textAlign: 'center',
                         fontSize: rem(12),
                       }}>
                         {/* Match the Hitting tab's metric text colors: label
-                            in `--text-bright`, value in `--text`, unit in
-                            `--text-muted`. */}
+                            in `--text-bright`, value in `--text` (or the
+                            age-norm colour), unit in `--text-muted`. */}
                         <span style={{ color: 'var(--text-bright)' }}>{r.label}</span>
-                        <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: rem(16) }}>
+                        <span style={{ color: tone ?? 'var(--text)', fontWeight: 600, fontSize: rem(16) }}>
                           {r.value == null ? '—' : r.value}
                           {r.value != null && r.unit && (
                             <span style={{ color: 'var(--text-muted)', fontSize: rem(11), fontWeight: 400, marginLeft: 2 }}>{r.unit}</span>
                           )}
                         </span>
+                        {norm?.top10 && <TopTenTag color={tone} />}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -2552,7 +2581,7 @@ export function InfieldSubTab({
                 title: 'Arm Strength',
                 grade: armOverall,
                 rows: [
-                  { label: 'Max velocity', value: armBest != null ? (Number.isInteger(armBest) ? armBest : armBest.toFixed(1)) : null, unit: 'mph' },
+                  { label: 'Max velocity', value: armBest != null ? (Number.isInteger(armBest) ? armBest : armBest.toFixed(1)) : null, unit: 'mph', metric: 'infield_velo', raw: armBest },
                   { label: 'Avg velocity', value: armAvg  != null ? (Number.isInteger(armAvg)  ? armAvg  : armAvg.toFixed(1))  : null, unit: 'mph' },
                 ],
               },
@@ -2568,8 +2597,8 @@ export function InfieldSubTab({
                 title: 'Range',
                 grade: rangeGrade,
                 rows: [
-                  { label: '60 yard dash',   value: range60 != null ? range60.toFixed(1) : null, unit: 's' },
-                  { label: '10 Yard Sprint', value: rangeAccel != null ? rangeAccel.toFixed(2) : null, unit: 's' },
+                  { label: '60 yard dash',   value: range60 != null ? range60.toFixed(1) : null, unit: 's', metric: 'sprint_60', raw: range60 },
+                  { label: '10 Yard Sprint', value: rangeAccel != null ? rangeAccel.toFixed(2) : null, unit: 's', metric: 'sprint_10', raw: rangeAccel },
                 ],
               },
             ]}
@@ -2604,7 +2633,7 @@ export function InfieldSubTab({
                       label={METRIC_LABELS[key] || key}
                       value={m.value.toFixed(key === 'exchange_time' ? 2 : 1)}
                       unit={m.unit}
-                      badge={getBadgeText(level) || undefined}
+                      badge={kpiBadge(key, m.value, level)}
                       badgeLevel={level}
                       color={grade !== null ? scoreColor(grade) : undefined}
                     />
@@ -2987,7 +3016,7 @@ export function OutfieldSubTab({
                 title: 'Arm Strength',
                 grade: armGrade,
                 rows: [
-                  { label: 'Max velocity', value: armBest != null ? (Number.isInteger(armBest) ? armBest : armBest.toFixed(1)) : null, unit: 'mph' },
+                  { label: 'Max velocity', value: armBest != null ? (Number.isInteger(armBest) ? armBest : armBest.toFixed(1)) : null, unit: 'mph', metric: 'outfield_velo', raw: armBest },
                   { label: 'Avg velocity', value: armAvg  != null ? (Number.isInteger(armAvg)  ? armAvg  : armAvg.toFixed(1))  : null, unit: 'mph' },
                 ],
               },
@@ -3003,8 +3032,8 @@ export function OutfieldSubTab({
                 title: 'Range',
                 grade: rangeGrade,
                 rows: [
-                  { label: '60 yard dash',   value: range60 != null ? range60.toFixed(1) : null, unit: 's' },
-                  { label: '10 Yard Sprint', value: rangeAccel != null ? rangeAccel.toFixed(2) : null, unit: 's' },
+                  { label: '60 yard dash',   value: range60 != null ? range60.toFixed(1) : null, unit: 's', metric: 'sprint_60', raw: range60 },
+                  { label: '10 Yard Sprint', value: rangeAccel != null ? rangeAccel.toFixed(2) : null, unit: 's', metric: 'sprint_10', raw: rangeAccel },
                 ],
               },
             ]}
@@ -3039,7 +3068,7 @@ export function OutfieldSubTab({
                       label={METRIC_LABELS[key] || key}
                       value={m.value.toFixed(1)}
                       unit={m.unit}
-                      badge={getBadgeText(level) || undefined}
+                      badge={kpiBadge(key, m.value, level)}
                       badgeLevel={level}
                       color={grade !== null ? scoreColor(grade) : undefined}
                     />

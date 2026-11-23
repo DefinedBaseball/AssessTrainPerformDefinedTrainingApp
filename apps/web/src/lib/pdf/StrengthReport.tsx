@@ -11,6 +11,7 @@ import {
 import {
   METRIC_LABELS, getBadgeLevel, getBadgeText, toScoutingGrade, GRADE_RANGES,
 } from '@/app/athletes/[id]/helpers';
+import { ageNormInfo, ageBadgeText } from '@/lib/age-norms';
 
 export interface StrengthPdfData {
   player: any;
@@ -52,7 +53,11 @@ export function StrengthReportPages({ data }: { data: StrengthPdfData }) {
                   label={METRIC_LABELS[key] || key}
                   value={key === 'sprint_60' ? m.value.toFixed(2) : m.value.toFixed(1)}
                   unit={m.unit}
-                  badge={getBadgeText(level) || undefined}
+                  badge={(() => {
+                    /* Age-normed (sprint): Top 10% / Above Avg / Average / Developing for the athlete's age. */
+                    const n = ageNormInfo(m.value, key);
+                    return n ? ageBadgeText(n.grade, n.top10) : (getBadgeText(level) || undefined);
+                  })()}
                   badgeLevel={level}
                   wide
                 />

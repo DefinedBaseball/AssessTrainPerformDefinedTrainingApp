@@ -12,9 +12,11 @@ import styles from '../page.module.css';
 import hud from './PitchingTab.module.css';
 import {
   TabProps, getReportVideoIds, getReportContentVideos, getReportUploadIds, getLatestReport,
-  manualPitchMaxOf, withManualPitchMax,
+  manualPitchMaxOf, withManualPitchMax, scoreColor,
   type ReportSummary,
 } from '../helpers';
+import { ageNormInfo } from '@/lib/age-norms';
+import TopTenTag from '@/components/TopTenTag';
 import * as api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -143,6 +145,9 @@ const PITCH_SHORT: Record<string, string> = {
   Curveball: 'CB', ChangeUp: 'CH', Splitter: 'FS', Sweeper: 'SW',
   Knuckleball: 'KN', Other: 'OT', Unknown: '??',
 };
+
+/** Pitch types whose Max Velo is graded against the fastball age norms. */
+const FASTBALL_TYPES = new Set(['Fastball', 'Sinker']);
 
 function getPitchColor(type: string): string {
   return PITCH_COLORS[type] || PITCH_COLORS.Unknown;
@@ -980,7 +985,13 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
           <span style={headerStyle}>Tilt</span>
           <span style={headerStyle}>Spin Eff</span>
         </div>
-        {rows.map(r => (
+        {rows.map(r => {
+          /* Fastball Max Velo colours against the athlete's age group
+             (lib/age-norms) and shows Top 10% when elite. Other pitch
+             types aren't age-normed. */
+          const fbNorm = FASTBALL_TYPES.has(r.pitchType) && r.maxVelo > 0 ? ageNormInfo(r.maxVelo, 'fb_max_velo') : null;
+          const fbTone = fbNorm ? scoreColor(fbNorm.grade) : undefined;
+          return (
           <div key={r.pitchType} style={{ display: 'grid', gridTemplateColumns: cols, padding: '10px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, fontSize: rem(10.2), color: getPitchColor(r.pitchType) }}>
               {PITCH_SHORT[r.pitchType] || r.pitchType}
@@ -988,9 +999,12 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
             {/* Max Velo — same `r.maxVelo` the Arsenal card shows for this
                 pitch type, so the two always agree. Guarded like Avg Velo:
                 computeArsenal yields 0 when a type has no velo readings. */}
-            <span style={cellStyle}>
-              {r.maxVelo > 0 ? r.maxVelo.toFixed(1) : '--'}
-              <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
+            <span title={fbNorm?.title} style={{ ...cellStyle, color: fbTone ?? cellStyle.color, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span>
+                {r.maxVelo > 0 ? r.maxVelo.toFixed(1) : '--'}
+                <span style={{ fontSize: rem(7.65), fontWeight: 500, color: 'var(--text-muted)', marginLeft: 3 }}>mph</span>
+              </span>
+              {fbNorm?.top10 && <TopTenTag color={fbTone} />}
             </span>
             <span style={cellStyle}>
               {r.avgVelo > 0 ? r.avgVelo.toFixed(1) : '--'}
@@ -1016,7 +1030,8 @@ function BreakTable({ rows }: { rows: ArsenalRow[] }) {
               {r.spinEff > 0 ? `${r.spinEff}%` : '--'}
             </span>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import type { Player, Metric, Video, AtBatDetail, Pitch } from '@/lib/api';
 import * as api from '@/lib/api';
-import { ageNormGrade } from '@/lib/hitting-norms';
+import { ageNormGrade } from '@/lib/age-norms';
 
 /* ── Live At-Bat → Swing Decision metrics ──────────────────────────────
    Aggregates per-pitch outcomes from this athlete's saved Live At-Bats
@@ -1349,6 +1349,10 @@ const THRESHOLDS: Record<string, [number, number, boolean]> = {
 export type BadgeLevel = 'high' | 'mid' | 'low' | 'teal';
 
 export function getBadgeLevel(metricType: string, value: number): BadgeLevel {
+  /* Age-normed metrics (lib/age-norms) badge off the same grade as their
+     colour: P75+ high, P25-P75 mid, below P25 low. */
+  const ageGrade = ageNormGrade(value, metricType);
+  if (ageGrade !== null) return ageGrade >= 60 ? 'high' : ageGrade >= 40 ? 'mid' : 'low';
   /* Strict band metrics — these need a sweet-spot rule that the standard
      two-threshold model can't express (red on BOTH ends, yellow in the
      middle, green at the target band). Kept in sync with toScoutingGrade
@@ -1462,7 +1466,7 @@ export const GRADE_RANGES: Record<string, [number, number]> = {
 
 export function toScoutingGrade(value: number, metricType: string, at?: string | null): number {
   /* Exit velo + bat speed grade against the athlete's age group when the
-     athlete has a birthday (lib/hitting-norms): <P25 red, P25-P75 yellow,
+     athlete has a birthday (lib/age-norms): <P25 red, P25-P75 yellow,
      P75+ green. Falls through to the fixed GRADE_RANGES otherwise. */
   const ageGrade = ageNormGrade(value, metricType, at);
   if (ageGrade !== null) return ageGrade;

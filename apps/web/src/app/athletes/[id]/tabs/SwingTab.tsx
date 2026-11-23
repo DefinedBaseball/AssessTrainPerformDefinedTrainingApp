@@ -1,7 +1,8 @@
 'use client';
 
 import { rem } from '@/lib/rem';
-import { AGE_NORMED_METRICS, isTopTenPct, percentileLabel } from '@/lib/hitting-norms';
+import { AGE_NORMED_METRICS, isTopTenPct, percentileLabel } from '@/lib/age-norms';
+import TopTenTag from '@/components/TopTenTag';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { TextSizeMenu, DictationButton } from '@/components/NoteEditorTools';
 import dashTheme from '@/app/dashTheme.module.css';
@@ -284,7 +285,7 @@ interface HittingMetricCell {
    *  20-80 grade). */
   color?: string;
   /** At or above the 90th percentile for the athlete's age
-   *  (lib/hitting-norms) -- shows a "Top 10%" tag under the value. */
+   *  (lib/age-norms) -- shows a "Top 10%" tag under the value. */
   top10?: boolean;
   /** Hover text, e.g. "82nd percentile for age 15". */
   title?: string;
@@ -465,15 +466,7 @@ function VendorMetricRowGroup({ items, colCount, last }: {
                 }}>{it.unit}</span>
               )}
             </span>
-            {it.top10 && (
-              <span style={{
-                marginTop: 2, padding: '1px 5px', borderRadius: 999,
-                fontSize: rem(6.5), fontWeight: 700, letterSpacing: '0.05em',
-                textTransform: 'uppercase', whiteSpace: 'nowrap',
-                color: it.color ?? 'var(--text)',
-                border: `1px solid ${it.color ?? 'var(--border)'}`,
-              }}>Top 10%</span>
-            )}
+            {it.top10 && <TopTenTag color={it.color} />}
           </span>
         ))}
       </div>

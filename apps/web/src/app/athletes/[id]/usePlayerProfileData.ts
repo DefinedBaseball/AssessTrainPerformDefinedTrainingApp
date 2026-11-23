@@ -19,7 +19,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import * as api from '@/lib/api';
 import type { Metric, Player, Video } from '@/lib/api';
 import type { ReportSummary } from './helpers';
-import { setGradingAthlete } from '@/lib/hitting-norms';
+import { setGradingAthlete } from '@/lib/age-norms';
 
 /* Metric keys the trend charts plot. Fetched with source 'REPORT' so each
    report contributes exactly one point and seeded / raw-CSV rows never
@@ -84,9 +84,9 @@ export function usePlayerProfileData(
   const loadedForRef = useRef<string | null>(null);
 
   /* Exit velo / bat speed colours grade against this athlete's age group
-     (lib/hitting-norms). Set during render -- before any child tab renders
+     (lib/age-norms). Set during render -- before any child tab renders
      and grades -- so the first paint already uses the right age. */
-  setGradingAthlete(player?.birthDate ?? null);
+  setGradingAthlete(player?.birthDate ?? null, player?.gradYear ?? null);
 
   useEffect(() => {
     if (!enabled || !playerId) return;
